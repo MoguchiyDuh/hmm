@@ -1,0 +1,47 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000015",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "swap_request_received",
+  "payload": {
+    "type": "swap_request_received",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [
+      {
+        "action": "accept",
+        "entity_id": "019a7b32-0000-7000-8000-000000000008",
+        "label_key": "notifications.actions.accept",
+        "api": {
+          "method": "POST",
+          "path": "/api/v1/swaps/019a7b32-0000-7000-8000-000000000008/accept"
+        }
+      },
+      {
+        "action": "decline",
+        "entity_id": "019a7b32-0000-7000-8000-000000000008",
+        "label_key": "notifications.actions.decline",
+        "api": {
+          "method": "POST",
+          "path": "/api/v1/swaps/019a7b32-0000-7000-8000-000000000008/decline"
+        }
+      }
+    ],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "team_name": "Aurora Builders",
+    "swap_request_id": "019a7b32-0000-7000-8000-000000000008",
+    "other_project_id": "019a7b32-0000-7000-8000-000000000009",
+    "other_team_name": "Polar Systems",
+    "from_member": {
+      "user_id": "019a7b32-0000-7000-8000-000000000067",
+      "display_name": "Jordan Lee"
+    },
+    "to_member": {
+      "user_id": "019a7b32-0000-7000-8000-00000000006a",
+      "display_name": "Taylor Brooks"
+    },
+    "expires_at": "2026-11-21T12:00:00Z"
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

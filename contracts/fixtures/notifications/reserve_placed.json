@@ -1,0 +1,16 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000011",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "reserve_placed",
+  "payload": {
+    "type": "reserve_placed",
+    "link": "/events/019a7b32-0000-7000-8000-000000000002",
+    "actions": [],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "rank": 2,
+    "reserve_count": 4
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

@@ -1,0 +1,29 @@
+{
+  "id": "019a7b33-0000-7000-8000-00000000001a",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "team_locked",
+  "payload": {
+    "type": "team_locked",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "team_name": "Aurora Builders",
+    "members": [
+      {
+        "user_id": "019a7b32-0000-7000-8000-00000000006c",
+        "display_name": "Casey Quinn"
+      }
+    ],
+    "lead": {
+      "user_id": "019a7b32-0000-7000-8000-000000000066",
+      "display_name": "Maya Patel"
+    },
+    "starts_at": "2026-11-27T09:00:00Z",
+    "timezone": "Europe/Helsinki",
+    "reserve_count": 4
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

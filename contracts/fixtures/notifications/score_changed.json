@@ -1,0 +1,21 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000046",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "score_changed",
+  "payload": {
+    "type": "score_changed",
+    "link": "/me/scores",
+    "actions": [],
+    "changes": [
+      {
+        "area_key": "backend",
+        "area_name": "Backend",
+        "previous_score": 5.4,
+        "score": 6.7,
+        "reason": "Recent confirmed project contributions updated the effective score."
+      }
+    ]
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

@@ -1,0 +1,46 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000012",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "confirm_reminder",
+  "payload": {
+    "type": "confirm_reminder",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [
+      {
+        "action": "confirm",
+        "entity_id": "019a7b32-0000-7000-8000-000000000003",
+        "label_key": "notifications.actions.confirm",
+        "api": {
+          "method": "POST",
+          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003/placement/confirm"
+        }
+      },
+      {
+        "action": "decline",
+        "entity_id": "019a7b32-0000-7000-8000-000000000003",
+        "label_key": "notifications.actions.decline",
+        "api": {
+          "method": "POST",
+          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003/placement/decline"
+        }
+      }
+    ],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "team_name": "Aurora Builders",
+    "project_member_id": "019a7b32-0000-7000-8000-000000000006",
+    "confirm_by": "2026-11-20T16:00:00Z",
+    "timezone": "Europe/Helsinki",
+    "members": [
+      {
+        "user_id": "019a7b32-0000-7000-8000-00000000006c",
+        "display_name": "Casey Quinn"
+      }
+    ],
+    "confirm_kind": "placement",
+    "hours_remaining": 6
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

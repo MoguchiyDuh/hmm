@@ -1,0 +1,19 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000025",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "team_status_changed",
+  "payload": {
+    "type": "team_status_changed",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "team_name": "Aurora Builders",
+    "previous_status": "locked",
+    "status": "active",
+    "reason": "The event started and the locked roster became active."
+  },
+  "created_at": "2026-11-27T09:00:00Z",
+  "read_at": null
+}
