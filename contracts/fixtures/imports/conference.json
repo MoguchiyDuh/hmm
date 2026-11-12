@@ -1,0 +1,21 @@
+{
+  "source": {"source_id": "conference:reliable-systems-2027", "urls": ["https://conference.example.org/reliable-systems"], "fetched_at": "2026-11-11T09:30:00Z"},
+  "match_hint": {"event_id": "019a7080-1000-7000-8000-000000000001"},
+  "kind": "conference",
+  "title": "Reliable Systems Forum 2027",
+  "summary": "Two days of talks about databases and production reliability.",
+  "organizer": "Northbridge Engineers Guild",
+  "website_url": "https://conference.example.org/reliable-systems",
+  "registration_url": "https://tickets.example.org/reliable-systems",
+  "starts_at": "2027-03-18T08:00:00Z",
+  "ends_at": "2027-03-19T17:00:00Z",
+  "timezone": "Europe/Berlin",
+  "format": "offline",
+  "location": {"country": "Germany", "city": "Berlin", "address": "42 Linden Court"},
+  "language": ["en", "de"],
+  "themes": ["databases", "reliability"],
+  "areas": [{"key": "backend", "importance": "primary"}, {"key": "devops", "importance": "required"}],
+  "people": [{"github_login": "elena-rowan", "display_name": "Elena Rowan", "role": "speaker"}, {"display_name": "Tomas Fenwick", "role": "speaker"}],
+  "confidence": 0.96,
+  "extractor_version": "conference-html/2.0.1"
+}
