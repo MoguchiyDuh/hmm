@@ -16,7 +16,7 @@
     "detail": "Team has reached max size 5", "code": "team_full", "errors": [] }
   ```
   `type` is always `{PUBLIC_URL}/errors/{code}`.
-  `code` is a stable machine string; frontend and bot switch on it. Validation errors use 422 with `errors: [{loc, msg}]`.
+  `code` is a stable machine string; frontend and bot switch on it. The full list is `hmm_contracts.common.ErrorCode`; a new code is a contract change. Validation errors use 422 with `errors: [{loc, msg}]`.
 - Status codes: 200/201/202/204; 400 bad input; 401 unauthenticated; 403 forbidden; 404 not found or not visible; 409 state conflict; 422 validation; 429 rate limited.
 - Every mutable resource response includes `allowed_actions: string[]` computed for the current actor (e.g. `["invite","ready","unclaim"]`). Frontend and bot render buttons from this and never re-implement permission rules.
 - OpenAPI is the source of truth for the frontend. `core` publishes `openapi.json` in CI; `web` regenerates its client from it.
