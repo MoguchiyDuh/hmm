@@ -11,7 +11,7 @@ Admin capabilities beyond module-specific ones above:
 | POST | `/api/v1/admin/users/{id}/unban` | |
 | GET | `/api/v1/admin/audit?actor=&entity_type=&entity_id=&cursor=` | audit log |
 | GET | `/api/v1/admin/settings` | all tunables with defaults and descriptions |
-| PUT | `/api/v1/admin/settings/{key}` | `{value}` validated against the key's JSON schema and together with related keys (min ≤ max etc.); keys are the §24 table |
+| PUT | `/api/v1/admin/settings/{key}` | `{value}` validated against the key's JSON schema; keys are the §24 table |
 | GET | `/api/v1/admin/system` | parser heartbeats, job queue stats, algo version, failed jobs |
 | POST | `/api/v1/admin/jobs/{id}/retry` | retry a failed job |
 

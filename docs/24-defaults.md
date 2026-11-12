@@ -50,7 +50,7 @@
 | `mentorship_idle_days` | 14 | §28.5 |
 | `confirmation_withdraw_days` | 7 | §25.2 |
 
-A changed setting applies to deadlines and checks computed after the change; already stored deadlines (`confirm_by`, `review_ends_at`, `expires_at`, ...) keep their values. Related keys are validated together: `team_size_default_min ≤ team_size_default_max`, `formation_min_notice_hours ≤ formation_lead_hours`, `review_min_hours ≤ review_hours`, `presence_confirm_hours < presence_check_hours`, `results_due_days < results_close_days`, `confirm_reminder_hours` strictly descending.
+A changed setting does not move already stored deadlines. Related keys must satisfy: `team_size_default_min ≤ team_size_default_max`, `formation_min_notice_hours ≤ formation_lead_hours`, `review_min_hours ≤ review_hours`, `presence_confirm_hours < presence_check_hours`, `results_due_days < results_close_days`, `confirm_reminder_hours` strictly descending.
 
 ## Open points
 - Parser source coverage (CIS, global or both) is decided by the parser group.
