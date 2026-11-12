@@ -2,16 +2,16 @@
 
 ## Teams
 
-| Group | Directory | Label | Spec to read first |
-|---|---|---|---|
-| core | `core/` | `group:core` | docs §2–§17, §22, §25–§28 |
-| algo | `algo/` | `group:algo` | §4, §12, §14, §18, §25, §28 |
-| parser | `parser/` | `group:parser` | §11, §19, §26 |
-| bot | `bot/` | `group:bot` | §6, §15, §20, §28 |
-| frontend | `web/` | `group:frontend` | §3, §9, §12, §21, §25–§28 |
-| everyone | `contracts/` | `group:contracts` | §2–§4, §23 |
+| Group | Members | Directory | Label | Spec to read first |
+|---|---|---|---|---|
+| core | **@MoguchiyDuh**, @tlikulin | `core/` | `group:core` | docs §2–§17, §22, §25–§28 |
+| algo | **@qredd121**, @antonzhakov | `algo/` | `group:algo` | §4, §12, §14, §18, §25, §28 |
+| parser | TBD | `parser/` | `group:parser` | §11, §19, §26 |
+| bot | @M1goD-creator | `bot/` | `group:bot` | §6, §15, §20, §28 |
+| frontend | TBD | `web/` | `group:frontend` | §3, §9, §12, §21, §25–§28 |
+| everyone | all | `contracts/` | `group:contracts` | §2–§4, §23 |
 
-Each team has a **team lead** who reviews and merges PRs for its directory (listed in `.github/CODEOWNERS`).
+Team leads are in bold. Group members are code owners of their directory (`.github/CODEOWNERS`) and review its PRs; the lead has the final say.
 
 ## Setup
 
