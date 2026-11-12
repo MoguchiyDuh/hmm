@@ -1,0 +1,33 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000028",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "attendance_confirm_digest",
+  "payload": {
+    "type": "attendance_confirm_digest",
+    "link": "/events/019a7b32-0000-7000-8000-000000000002",
+    "actions": [
+      {
+        "action": "confirm_attendees",
+        "entity_id": "019a7b32-0000-7000-8000-000000000002",
+        "label_key": "notifications.actions.confirm_attendees",
+        "api": {
+          "method": "GET",
+          "path": "/api/v1/me/confirmations/pending"
+        }
+      }
+    ],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "attendees": [
+      {
+        "user_id": "019a7b32-0000-7000-8000-00000000006c",
+        "display_name": "Casey Quinn",
+        "attendance_id": "019a7b32-0000-7000-8000-00000000000d"
+      }
+    ],
+    "attendee_count": 1,
+    "ends_at": "2026-11-29T18:00:00Z"
+  },
+  "created_at": "2026-11-30T10:00:00Z",
+  "read_at": null
+}

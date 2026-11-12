@@ -1,0 +1,38 @@
+{
+  "id": "019a7b33-0000-7000-8000-00000000001d",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "seat_opened",
+  "payload": {
+    "type": "seat_opened",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [
+      {
+        "action": "open_team",
+        "entity_id": "019a7b32-0000-7000-8000-000000000003",
+        "label_key": "notifications.actions.open_team",
+        "api": {
+          "method": "GET",
+          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003"
+        }
+      }
+    ],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "team_name": "Aurora Builders",
+    "open_seats": 1,
+    "head_start_ends_at": "2026-11-23T00:00:00Z",
+    "reg_deadline": "2026-11-24T12:00:00Z",
+    "quick_pick": [
+      {
+        "user_id": "019a7b32-0000-7000-8000-00000000006c",
+        "display_name": "Casey Quinn",
+        "rank": 2,
+        "area_key": null,
+        "reason": "Backend experience covers the team's missing required area."
+      }
+    ]
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

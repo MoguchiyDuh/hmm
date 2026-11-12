@@ -1,0 +1,15 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000040",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "restriction_lifted",
+  "payload": {
+    "type": "restriction_lifted",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [],
+    "restriction_id": "019a7b32-0000-7000-8000-000000000013",
+    "restriction_kind": "confirming",
+    "reason": "The seven-day confirmation restriction expired."
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

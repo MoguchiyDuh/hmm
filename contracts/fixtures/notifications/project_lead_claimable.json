@@ -1,0 +1,26 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000033",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "project_lead_claimable",
+  "payload": {
+    "type": "project_lead_claimable",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [
+      {
+        "action": "claim",
+        "entity_id": "019a7b32-0000-7000-8000-000000000003",
+        "label_key": "notifications.actions.claim",
+        "api": {
+          "method": "POST",
+          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003/claim-lead"
+        }
+      }
+    ],
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "project_name": "Aurora Builders",
+    "member_count": 4,
+    "reason": "All succession offers were declined; any current member can claim the lead role."
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

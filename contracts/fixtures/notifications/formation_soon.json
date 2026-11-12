@@ -1,0 +1,18 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000009",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "formation_soon",
+  "payload": {
+    "type": "formation_soon",
+    "link": "/events/019a7b32-0000-7000-8000-000000000002",
+    "actions": [],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "formation_at": "2026-11-21T10:00:00Z",
+    "timezone": "Europe/Helsinki",
+    "enrolled_count": 23,
+    "team_count": 4
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

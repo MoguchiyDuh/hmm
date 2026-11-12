@@ -1,0 +1,17 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000024",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "team_disbanded",
+  "payload": {
+    "type": "team_disbanded",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "team_name": "Aurora Builders",
+    "reason": "The team was below minimum size at the registration deadline."
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

@@ -1,0 +1,28 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000032",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "project_lead_offer",
+  "payload": {
+    "type": "project_lead_offer",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [
+      {
+        "action": "accept",
+        "entity_id": "019a7b32-0000-7000-8000-000000000007",
+        "label_key": "notifications.actions.accept",
+        "api": {
+          "method": "POST",
+          "path": "/api/v1/lead-offers/019a7b32-0000-7000-8000-000000000007/accept"
+        }
+      }
+    ],
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "project_name": "Aurora Builders",
+    "lead_offer_id": "019a7b32-0000-7000-8000-000000000007",
+    "source": "transfer",
+    "offered_by": null,
+    "expires_at": "2026-11-21T12:00:00Z"
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

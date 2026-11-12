@@ -1,0 +1,30 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000038",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "help_offer_closed",
+  "payload": {
+    "type": "help_offer_closed",
+    "link": "/help-requests/019a7b32-0000-7000-8000-00000000000f",
+    "actions": [],
+    "help_request_id": "019a7b32-0000-7000-8000-00000000000f",
+    "learner": {
+      "user_id": "019a7b32-0000-7000-8000-000000000001",
+      "display_name": "Alex Morgan"
+    },
+    "area_key": "backend",
+    "area_name": "Backend",
+    "topic": "Reliable Python services",
+    "goal": "Deploy a service with authentication and observability.",
+    "format": "online",
+    "expires_at": "2026-11-21T12:00:00Z",
+    "help_offer_id": "019a7b32-0000-7000-8000-000000000010",
+    "mentor": {
+      "user_id": "019a7b32-0000-7000-8000-000000000069",
+      "display_name": "Noor Kim"
+    },
+    "message": "I can review your service design and pair on authentication next week.",
+    "reason": "The learner accepted another mentor's offer."
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}
