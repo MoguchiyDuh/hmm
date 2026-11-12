@@ -5,6 +5,7 @@ from hmm_contracts.common import (
     AreaKey,
     EventId,
     MilestoneId,
+    Page,
     ProjectId,
     ProjectStatus,
     TeamStatus,
@@ -25,11 +26,11 @@ from hmm_core.api.schemas.projects import (
     JoinRequest,
     Milestone,
     Project,
-    ProjectListing,
-    ProjectPage,
+    ProjectListView,
     ProjectRelease,
     ProjectSummary,
     ProjectUpdate,
+    ProjectView,
     UpdateMilestoneBody,
     UpdateProjectBody,
 )
@@ -48,7 +49,7 @@ async def list_projects(
     recruiting: Annotated[bool | None, Query()] = None,
     event: Annotated[EventId | None, Query()] = None,
     member_id: Annotated[UserId | None, Query(alias="member")] = None,
-) -> ProjectPage:
+) -> Page[ProjectListView]:
     not_implemented()
 
 
@@ -74,9 +75,7 @@ async def list_my_projects(
 @router.get(
     "/projects/{id}", status_code=status.HTTP_200_OK, summary="Get project respecting visibility"
 )
-async def get_project(
-    id: ProjectId, actor: Annotated[None, Depends(member)]
-) -> Project | ProjectListing:
+async def get_project(id: ProjectId, actor: Annotated[None, Depends(member)]) -> ProjectView:
     not_implemented()
 
 

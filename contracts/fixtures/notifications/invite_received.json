@@ -7,22 +7,16 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "action": "accept",
+        "kind": "api",
+        "key": "invite_accept",
         "entity_id": "019a7b32-0000-7000-8000-000000000004",
-        "label_key": "notifications.actions.accept",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/invites/019a7b32-0000-7000-8000-000000000004/accept"
-        }
+        "label_key": "notifications.actions.invite_accept"
       },
       {
-        "action": "decline",
+        "kind": "api",
+        "key": "invite_decline",
         "entity_id": "019a7b32-0000-7000-8000-000000000004",
-        "label_key": "notifications.actions.decline",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/invites/019a7b32-0000-7000-8000-000000000004/decline"
-        }
+        "label_key": "notifications.actions.invite_decline"
       }
     ],
     "event_id": "019a7b32-0000-7000-8000-000000000002",

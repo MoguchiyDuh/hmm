@@ -1,6 +1,5 @@
 from collections.abc import Sequence
 from typing import Annotated, Literal, Self
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import (
     AwareDatetime,
@@ -8,7 +7,6 @@ from pydantic import (
     HttpUrl,
     JsonValue,
     StringConstraints,
-    field_validator,
     model_validator,
 )
 
@@ -23,6 +21,7 @@ from hmm_contracts.common import (
     EventReviewReason,
     SourceId,
     SourcePersonRole,
+    TimeZoneName,
     ValidationIssue,
 )
 
@@ -112,7 +111,7 @@ class EventImport(Contract):
     ends_at: AwareDatetime
     registration_opens_at: AwareDatetime | None = None
     registration_deadline: AwareDatetime | None = None
-    timezone: str | None = None
+    timezone: TimeZoneName | None = None
     format: EventFormat | None = None
     location: Location | None = None
     language: list[Annotated[str, Field(pattern=r"^[a-z]{2}$")]] = Field(default_factory=list)
@@ -128,16 +127,6 @@ class EventImport(Contract):
     field_confidence: dict[str, _Confidence] = Field(default_factory=dict)
     inferred_fields: list[str] = Field(default_factory=list)
     extractor_version: str
-
-    @field_validator("timezone")
-    @classmethod
-    def validate_timezone(cls, value: str | None) -> str | None:
-        if value is not None:
-            try:
-                ZoneInfo(value)
-            except (ValueError, ZoneInfoNotFoundError) as error:
-                raise ValueError("Timezone must be an IANA timezone") from error
-        return value
 
     @model_validator(mode="after")
     def validate_ranges(self) -> Self:

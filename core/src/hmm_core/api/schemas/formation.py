@@ -109,12 +109,12 @@ class ParticipationState(ApiModel):
 class Formation(WithAllowedActions):
     event_id: EventId
     phase: FormationPhase
-    target: int = Field(ge=1, le=20)
-    viable: int = Field(ge=1, le=20)
-    min_size: int = Field(ge=1, le=20)
-    max_size: int = Field(ge=1, le=20)
-    core_max: int = Field(ge=2, le=20)
-    target_override: int | None = Field(ge=1, le=20)
+    target: int = Field(ge=1)
+    viable: int = Field(ge=1)
+    min_size: int = Field(ge=1)
+    max_size: int = Field(ge=1)
+    core_max: int = Field(ge=2)
+    target_override: int | None = Field(ge=1)
     formation_at_override: AwareDatetime | None
     formation_at: AwareDatetime
     review_ends_at: AwareDatetime | None
@@ -198,7 +198,7 @@ class Merge(WithAllowedActions):
 
 
 class UpdateFormationBody(ReasonBody):
-    target_override: int | None = Field(default=None, ge=1, le=20)
+    target_override: int | None = Field(default=None, ge=1)
     formation_at_override: AwareDatetime | None = None
 
 

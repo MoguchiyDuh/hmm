@@ -7,22 +7,15 @@
     "link": "/help-requests/019a7b32-0000-7000-8000-00000000000f",
     "actions": [
       {
-        "action": "help",
+        "kind": "api",
+        "key": "help_request_decline",
         "entity_id": "019a7b32-0000-7000-8000-00000000000f",
-        "label_key": "notifications.actions.help",
-        "api": {
-          "method": "GET",
-          "path": "/api/v1/help-requests/019a7b32-0000-7000-8000-00000000000f"
-        }
+        "label_key": "notifications.actions.help_request_decline"
       },
       {
-        "action": "decline",
-        "entity_id": "019a7b32-0000-7000-8000-00000000000f",
-        "label_key": "notifications.actions.decline",
-        "api": {
-          "method": "GET",
-          "path": "/api/v1/help-requests/019a7b32-0000-7000-8000-00000000000f"
-        }
+        "kind": "link",
+        "label_key": "notifications.actions.help",
+        "url": "/mentorship"
       }
     ],
     "help_request_id": "019a7b32-0000-7000-8000-00000000000f",

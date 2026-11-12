@@ -27,6 +27,14 @@ from hmm_contracts.fixtures import (
     VisibilityCase,
 )
 from hmm_contracts.formation import placement_bounds
+from hmm_contracts.notifications import (
+    ALLOWED_ACTIONS,
+    ActionKey,
+    ApiAction,
+    LinkAction,
+    Notification,
+    NotificationType,
+)
 
 type Payload = dict[str, object]
 
@@ -169,6 +177,7 @@ def events() -> dict[str, EventSnapshot]:
                 "format": ["online", "hybrid", "offline"][index % 3],
                 "starts_at": NOW + timedelta(days=14 + index),
                 "ends_at": NOW + timedelta(days=14 + index, hours=36 if maximum else 3),
+                "timezone": "UTC",
                 "areas": areas,
                 "team_size_min": minimum,
                 "team_size_max": maximum,
@@ -1428,6 +1437,85 @@ def generate(destination: Path) -> None:
                 + "\n"
             )
             (directory / f"{stem}.json").write_text(content, encoding="utf-8")
+    generate_notifications(destination)
+
+
+def generate_notifications(destination: Path) -> None:
+    entity_fields = {
+        ActionKey.INVITE_ACCEPT: "invite_id",
+        ActionKey.INVITE_DECLINE: "invite_id",
+        ActionKey.JOIN_REQUEST_ACCEPT: "join_request_id",
+        ActionKey.JOIN_REQUEST_REJECT: "join_request_id",
+        ActionKey.PLACEMENT_CONFIRM: "project_id",
+        ActionKey.PLACEMENT_DECLINE: "project_id",
+        ActionKey.PROJECT_LEAVE: "project_id",
+        ActionKey.LEAD_OFFER_ACCEPT: "lead_offer_id",
+        ActionKey.LEAD_OFFER_DECLINE: "lead_offer_id",
+        ActionKey.EVENT_ENROLL: "event_id",
+        ActionKey.SWAP_ACCEPT: "swap_request_id",
+        ActionKey.SWAP_DECLINE: "swap_request_id",
+        ActionKey.MERGE_ACCEPT: "merge_proposal_id",
+        ActionKey.MERGE_DECLINE: "merge_proposal_id",
+        ActionKey.LEAD_STEP_DOWN: "project_id",
+        ActionKey.PROJECT_CLAIM_LEAD: "project_id",
+        ActionKey.HELP_OFFER_ACCEPT: "help_offer_id",
+        ActionKey.HELP_REQUEST_DECLINE: "help_request_id",
+        ActionKey.HELP_REQUEST_OPEN: "help_request_id",
+        ActionKey.MENTORSHIP_ACKNOWLEDGE: "mentorship_id",
+    }
+    link_labels = {
+        NotificationType.FORMATION_READY: ("open_team",),
+        NotificationType.REVIEW_ENDING: ("open_team",),
+        NotificationType.SEAT_OPENED: ("open_team",),
+        NotificationType.LEAD_OPPORTUNITY: ("claim_lead",),
+        NotificationType.LEAD_ASSIGNED: ("transfer",),
+        NotificationType.ATTENDANCE_CONFIRM_DIGEST: ("confirm_attendees",),
+        NotificationType.PROJECT_IDLE: ("open_project",),
+        NotificationType.PROJECT_PAUSED: ("open_project",),
+        NotificationType.CONTRIBUTIONS_CONFIRM_DIGEST: ("confirm_lead",),
+        NotificationType.HELP_REQUEST_MATCH: ("help",),
+        NotificationType.HELP_REQUEST_DIRECT: ("help",),
+        NotificationType.HELP_REQUEST_EXPIRED: ("reopen",),
+        NotificationType.MENTORSHIP_IDLE: ("check_in",),
+        NotificationType.MENTORSHIP_STALLED: ("check_in",),
+        NotificationType.MENTORSHIP_CLOSE_PROPOSED: ("close_with_outcome",),
+        NotificationType.MENTORSHIP_CLOSED: ("endorse",),
+        NotificationType.RESULT_DUE: ("submit_result",),
+        NotificationType.REVIEWS_OPEN: ("review",),
+        NotificationType.REVIEWS_PENDING: ("review",),
+        NotificationType.ADMIN_ALERT: ("open_alert",),
+    }
+    directory = destination / "notifications"
+    directory.mkdir(parents=True, exist_ok=True)
+    for source in sorted((Path(__file__).resolve().parent / "notifications").glob("*.json")):
+        data = json.loads(source.read_text(encoding="utf-8"))
+        kind = NotificationType(data["type"])
+        payload = data["payload"]
+        actions: list[ApiAction | LinkAction] = [
+            ApiAction.model_validate(
+                {
+                    "key": key,
+                    "entity_id": payload[entity_fields[key]],
+                    "label_key": f"notifications.actions.{key}",
+                }
+            )
+            for key in ALLOWED_ACTIONS[kind]
+        ]
+        url = payload["link"]
+        if kind in (NotificationType.HELP_REQUEST_MATCH, NotificationType.HELP_REQUEST_DIRECT):
+            url = "/mentorship"
+        elif kind == NotificationType.HELP_REQUEST_EXPIRED:
+            url = f"/mentorship/new?from={payload['help_request_id']}"
+        actions.extend(
+            LinkAction(label_key=f"notifications.actions.{label}", url=url)
+            for label in link_labels.get(kind, ())
+        )
+        payload["actions"] = [action.model_dump(mode="json") for action in actions]
+        notification = Notification.model_validate(data)
+        (directory / source.name).write_text(
+            json.dumps(notification.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
 
 
 def main() -> None:

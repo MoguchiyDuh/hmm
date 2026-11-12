@@ -7,13 +7,10 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "action": "claim",
+        "kind": "api",
+        "key": "project_claim_lead",
         "entity_id": "019a7b32-0000-7000-8000-000000000003",
-        "label_key": "notifications.actions.claim",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003/claim-lead"
-        }
+        "label_key": "notifications.actions.project_claim_lead"
       }
     ],
     "project_id": "019a7b32-0000-7000-8000-000000000003",

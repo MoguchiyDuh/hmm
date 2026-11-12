@@ -4,7 +4,7 @@
 - Created only by core, in the same transaction as the cause. `dedupe_key` prevents duplicates from retried jobs.
 - For each notification, if the user has Telegram linked and the type's Telegram toggle is on → `notification_deliveries(channel=telegram, status=pending)`.
 - Web: inbox + unread count; frontend polls `GET /notifications/unread-count` every 30 s and on focus.
-- Payload: typed per `type` in `contracts/notifications.py`. Each payload includes the entity IDs plus denormalized display strings (hackathon title, team name, actor name), so clients can render without extra calls. Actionable types include `actions: [{action, label_key, api: {method, path}}]`.
+- Payload: typed per `type` in `contracts/notifications.py`. Each payload includes entity IDs and denormalized display strings, so clients render without extra calls. Buttons are `actions: [{kind: "api", key, entity_id, label_key} | {kind: "link", label_key, url}]`: one-tap API calls resolved via shared `ACTION_ROUTES`, or web links for forms and navigation. Telegram callbacks use `a:<key>:<entity_id>` (≤ 64 bytes).
 
 | type | recipient | actions |
 |---|---|---|
@@ -47,6 +47,7 @@
 | `project_lead_offer`, `project_lead_claimable` | member / members of a paused project | accept / claim |
 | `help_request_match` | suggested mentors | help |
 | `help_request_direct` | target mentor | help / decline |
+| `help_request_declined` | learner | open to everyone |
 | `help_offer_received` | learner | accept |
 | `help_offer_accepted`, `help_offer_closed` | offer author | – |
 | `help_request_expired` | learner | reopen |

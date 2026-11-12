@@ -1,10 +1,15 @@
 from typing import Literal
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from hmm_contracts.algo import GithubSummary, MentorOffer, RatingSummary, ReviewIn
-from hmm_contracts.common import CvTextStatus, GithubSnapshotStatus, Locale, ReviewContext
+from hmm_contracts.common import (
+    CvTextStatus,
+    GithubSnapshotStatus,
+    Locale,
+    ReviewContext,
+    TimeZoneName,
+)
 from hmm_contracts.notifications import NotificationType
-from pydantic import AwareDatetime, Field, HttpUrl, field_validator
+from pydantic import AwareDatetime, Field, HttpUrl
 
 from hmm_core.api.schemas.common import ApiInput, AreaScoreSummary, UserRef, WithAllowedActions
 
@@ -13,18 +18,8 @@ class UpdateProfileBody(ApiInput):
     display_name: str | None = None
     about_md: str | None = Field(default=None, max_length=5000)
     contacts: dict[str, str] | None = Field(default=None, max_length=10)
-    timezone: str | None = None
+    timezone: TimeZoneName | None = None
     locale: Locale | None = None
-
-    @field_validator("timezone")
-    @classmethod
-    def validate_timezone(cls, value: str | None) -> str | None:
-        if value is not None:
-            try:
-                ZoneInfo(value)
-            except (ZoneInfoNotFoundError, ValueError) as exc:
-                raise ValueError("Unknown IANA timezone") from exc
-        return value
 
 
 class UpdateAvailabilityBody(ApiInput):
@@ -49,7 +44,7 @@ class UserSummary(UserRef, WithAllowedActions):
 class UserProfile(UserSummary):
     about_md: str
     contacts: dict[str, str]
-    timezone: str | None
+    timezone: TimeZoneName | None
     locale: Locale
     github: GithubSummary | None
     github_status: GithubSnapshotStatus | None

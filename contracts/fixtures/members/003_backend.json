@@ -137,6 +137,7 @@
             "ml_ai",
             "open collaboration"
           ],
+          "timezone": "UTC",
           "title": "Applied ML for Communities"
         },
         "mentorship": null,
@@ -257,6 +258,7 @@
             "ml_ai",
             "open collaboration"
           ],
+          "timezone": "UTC",
           "title": "Community ML Sprint 1"
         },
         "mentorship": null,
@@ -377,6 +379,7 @@
             "ml_ai",
             "open collaboration"
           ],
+          "timezone": "UTC",
           "title": "Community ML Sprint 2"
         },
         "mentorship": null,
@@ -497,6 +500,7 @@
             "ml_ai",
             "open collaboration"
           ],
+          "timezone": "UTC",
           "title": "Community ML Sprint 3"
         },
         "mentorship": null,

@@ -7,6 +7,7 @@ from hmm_contracts.common import (
     HelpRequestId,
     HelpRequestStatus,
     MentorshipId,
+    MentorshipSide,
     MentorshipStatus,
     Page,
 )
@@ -24,7 +25,6 @@ from hmm_core.api.schemas.mentorship import (
     MentorOffers,
     Mentorship,
     MentorshipCheckin,
-    MentorshipRoleFilter,
     ReplaceMentorOffersBody,
     UpdateHelpRequestBody,
 )
@@ -101,6 +101,19 @@ async def cancel_help_request(
 
 
 @router.post(
+    "/help-requests/{id}/decline",
+    status_code=status.HTTP_200_OK,
+    summary="Decline an open direct help request as its target mentor",
+    description="Only the target mentor may decline a direct request in the open state. "
+    "Notify the learner, who may immediately open it to everyone without the three-day wait.",
+)
+async def decline_help_request(
+    id: HelpRequestId, actor: Annotated[None, Depends(member)]
+) -> HelpRequest:
+    not_implemented()
+
+
+@router.post(
     "/help-requests/{id}/open",
     status_code=status.HTTP_200_OK,
     summary="Open direct help request to everyone as learner",
@@ -141,7 +154,7 @@ async def accept_help_offer(id: HelpOfferId, actor: Annotated[None, Depends(memb
 @router.get("/me/mentorships", status_code=status.HTTP_200_OK, summary="List own mentorships")
 async def list_my_mentorships(
     actor: Annotated[None, Depends(member)],
-    role: Annotated[MentorshipRoleFilter | None, Query()] = None,
+    role: Annotated[MentorshipSide | None, Query()] = None,
     mentorship_status: Annotated[MentorshipStatus | None, Query(alias="status")] = None,
 ) -> list[Mentorship]:
     not_implemented()

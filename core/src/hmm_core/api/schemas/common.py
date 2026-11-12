@@ -7,6 +7,7 @@ from hmm_contracts.common import (
     EventKind,
     ProjectId,
     TeamStatus,
+    TimeZoneName,
     UserId,
 )
 from pydantic import AwareDatetime, ConfigDict, Field
@@ -44,6 +45,7 @@ class AreaScoreSummary(ApiModel):
 
 
 class EventRef(ApiModel):
+    timezone: TimeZoneName
     id: EventId
     title: str
     kind: EventKind

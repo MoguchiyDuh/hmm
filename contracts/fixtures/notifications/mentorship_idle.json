@@ -7,13 +7,9 @@
     "link": "/mentorships/019a7b32-0000-7000-8000-000000000011",
     "actions": [
       {
-        "action": "check_in",
-        "entity_id": "019a7b32-0000-7000-8000-000000000011",
+        "kind": "link",
         "label_key": "notifications.actions.check_in",
-        "api": {
-          "method": "GET",
-          "path": "/api/v1/mentorships/019a7b32-0000-7000-8000-000000000011"
-        }
+        "url": "/mentorships/019a7b32-0000-7000-8000-000000000011"
       }
     ],
     "mentorship_id": "019a7b32-0000-7000-8000-000000000011",

@@ -69,6 +69,7 @@
         "ml_ai",
         "open collaboration"
       ],
+      "timezone": "UTC",
       "title": "Applied ML for Communities"
     },
     "kind": "main",

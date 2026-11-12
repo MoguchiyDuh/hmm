@@ -109,6 +109,7 @@
             "backend",
             "open collaboration"
           ],
+          "timezone": "UTC",
           "title": "Local Rust Study Evening"
         },
         "mentorship": null,

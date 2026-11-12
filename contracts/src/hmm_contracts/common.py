@@ -1,8 +1,10 @@
 from enum import StrEnum
-from typing import Annotated, Self
+from types import UnionType
+from typing import Annotated, Any, Self, get_args, get_origin
 from uuid import UUID
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 __all__ = [
     "SEED_AREA_KEYS",
@@ -79,6 +81,7 @@ __all__ = [
     "MentorshipId",
     "MentorshipKind",
     "MentorshipOutcome",
+    "MentorshipSide",
     "MentorshipStatus",
     "MergeProposalId",
     "MergeProposalStatus",
@@ -125,6 +128,7 @@ __all__ = [
     "SwapRequestId",
     "SwapRequestStatus",
     "TeamStatus",
+    "TimeZoneName",
     "Trust",
     "UserId",
     "ValidationIssue",
@@ -178,6 +182,17 @@ type FactId = UUID
 type SubjectId = UUID
 type SourceId = str
 type AreaKey = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,31}$")]
+
+
+def _validate_timezone(value: str) -> str:
+    try:
+        ZoneInfo(value)
+    except (ValueError, ZoneInfoNotFoundError) as error:
+        raise ValueError("Timezone must be an IANA timezone") from error
+    return value
+
+
+type TimeZoneName = Annotated[str, Field(min_length=1), AfterValidator(_validate_timezone)]
 
 SEED_AREA_KEYS: tuple[str, ...] = (
     "backend",
@@ -658,6 +673,11 @@ class MentorshipKind(StrEnum):
     STUDY_PAIR = "study_pair"
 
 
+class MentorshipSide(StrEnum):
+    MENTOR = "mentor"
+    LEARNER = "learner"
+
+
 class MentorshipStatus(StrEnum):
     ACTIVE = "active"
     STALLED = "stalled"
@@ -779,3 +799,14 @@ class Problem(Contract):
 class Page[T](Contract):
     items: list[T]
     next_cursor: str | None
+
+    @classmethod
+    def model_parametrized_name(cls, params: tuple[type[Any], ...]) -> str:
+        def name(parameter: Any) -> str:
+            if get_origin(parameter) is Annotated:
+                return name(get_args(parameter)[0])
+            if get_origin(parameter) is UnionType:
+                return "Or".join(name(item) for item in get_args(parameter))
+            return parameter.__name__
+
+        return "And".join(name(parameter) for parameter in params) + "Page"

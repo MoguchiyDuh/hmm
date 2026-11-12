@@ -169,6 +169,7 @@ def models() -> list[Contract]:
     event_area = make(a.EventArea, area="backend", importance="primary", headcount=2)
     event = make(
         a.EventSnapshot,
+        timezone="UTC",
         id=EVENT,
         title="Build weekend",
         summary="Ship a prototype",

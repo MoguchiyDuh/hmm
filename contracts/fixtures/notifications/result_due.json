@@ -7,13 +7,9 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "action": "submit_result",
-        "entity_id": "019a7b32-0000-7000-8000-000000000003",
+        "kind": "link",
         "label_key": "notifications.actions.submit_result",
-        "api": {
-          "method": "GET",
-          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003"
-        }
+        "url": "/projects/019a7b32-0000-7000-8000-000000000003"
       }
     ],
     "event_id": "019a7b32-0000-7000-8000-000000000002",

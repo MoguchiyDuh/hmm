@@ -36,7 +36,7 @@ All user-acting calls use bot token + `X-Telegram-User-Id`.
 ## 20.5 Notification delivery
 - One worker loop: long-poll `/internal/notifications/pending`, render, send, ack (§15).
 - Rendering: per-type English templates, HTML parse mode with escaping. Unknown type → generic text + web link (forward compatible).
-- Inline buttons from payload `actions`. `callback_data` format: `a:<action>:<entity_id>` (≤ 64 bytes). On press: call the corresponding API as the user; edit the original message to show the outcome ("✓ Accepted", or error text); answer the callback.
+- Inline buttons from payload `actions`: one-tap `kind: "api"` calls resolved via shared `ACTION_ROUTES`, or `kind: "link"` web links for forms and navigation. `callback_data`: `a:<key>:<entity_id>` (≤ 64 bytes). On press: fill `{id}` with `entity_id`, call the route with its fixed body as the user, edit the message with the outcome, and answer the callback.
 - Idempotency: keep an in-memory LRU of delivered `notification_id`s. Core may redeliver after lease expiry; duplicates within the LRU are acked as `sent` without resending.
 - Throttle: ≤ 25 msgs/s global, ≤ 1 msg/s per chat; handle `RetryAfter`.
 - `Forbidden: bot was blocked` / `chat not found` → ack `permanent_failure`.

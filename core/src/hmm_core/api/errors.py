@@ -13,12 +13,12 @@ from hmm_core.config import public_url
 PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
     status: {
         "model": Problem,
-        "description": HTTPStatus(status).phrase,
+        "description": description,
         "content": {
             "application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}
         },
     }
-    for status in (400, 401, 403, 404, 409, 422, 429, 501)
+    for status, description in (("4XX", "Client error"), ("5XX", "Server error"))
 }
 
 HTTP_ERROR_CODES: dict[int, ErrorCode] = {

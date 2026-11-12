@@ -7,22 +7,16 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "action": "accept",
+        "kind": "api",
+        "key": "lead_offer_accept",
         "entity_id": "019a7b32-0000-7000-8000-000000000007",
-        "label_key": "notifications.actions.accept",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/lead-offers/019a7b32-0000-7000-8000-000000000007/accept"
-        }
+        "label_key": "notifications.actions.lead_offer_accept"
       },
       {
-        "action": "decline",
+        "kind": "api",
+        "key": "lead_offer_decline",
         "entity_id": "019a7b32-0000-7000-8000-000000000007",
-        "label_key": "notifications.actions.decline",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/lead-offers/019a7b32-0000-7000-8000-000000000007/decline"
-        }
+        "label_key": "notifications.actions.lead_offer_decline"
       }
     ],
     "event_id": "019a7b32-0000-7000-8000-000000000002",
