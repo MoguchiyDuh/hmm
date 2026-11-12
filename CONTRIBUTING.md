@@ -8,7 +8,7 @@
 | algo | **@qredd121**, @antonzhakov | `algo/` | `group:algo` | §4, §12, §14, §18, §25, §28 |
 | parser | @PhK-dev | `parser/` | `group:parser` | §11, §19, §26 |
 | bot | @M1goD-creator | `bot/` | `group:bot` | §6, §15, §20, §28 |
-| frontend | TBD | `web/` | `group:frontend` | §3, §9, §12, §21, §25–§28 |
+| frontend | @Qw1Qer | `web/` | `group:frontend` | §3, §9, §12, §21, §25–§28 |
 | everyone | all | `contracts/` | `group:contracts` | §2–§4, §23 |
 
 Team leads are in bold. Group members are code owners of their directory (`.github/CODEOWNERS`) and review its PRs; the lead has the final say.
