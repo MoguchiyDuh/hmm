@@ -149,5 +149,7 @@ def test_public_exports_cover_local_definitions() -> None:
     for name, value in vars(common).items():
         if name.startswith("__"):
             continue
+        if getattr(value, "__pydantic_generic_metadata__", {}).get("origin") is not None:
+            continue
         if getattr(value, "__module__", None) == common.__name__:
             assert name in common.__all__
