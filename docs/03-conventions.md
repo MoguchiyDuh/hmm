@@ -16,10 +16,10 @@
     "detail": "Team has reached max size 5", "code": "team_full", "errors": [] }
   ```
   `type` is always `{PUBLIC_URL}/errors/{code}`.
-  `code` is a stable machine string; frontend and bot switch on it. The full list is `hmm_contracts.common.ErrorCode`; a new code is a contract change. Each code has one fixed status (`ERROR_STATUS`), and `title` is derived from the code. Validation errors use 422 with `errors: [{loc, msg}]`. Unhandled failures return 500 `internal_error`.
-- Status codes: 200/201/202/204; 400 bad input; 401 unauthenticated; 403 forbidden; 404 not found or not visible; 405 method not allowed; 409 state conflict; 410 expired link code; 413/415 upload too large / unsupported type; 422 validation; 429 rate limited; 503 dependent data not ready yet (`lead_fit_pending`).
+  `code` is a stable machine string; frontend and bot switch on it. The full list is `hmm_contracts.common.ErrorCode`; a new code is a contract change. Validation errors use 422 with `errors: [{loc, msg}]`.
+- Status codes: 200/201/202/204; 400 bad input; 401 unauthenticated; 403 forbidden; 404 not found or not visible; 405 method not allowed; 409 state conflict; 410 expired link code; 413/415 upload too large / unsupported type; 422 validation; 429 rate limited; 500 `internal_error`; 503 dependent data not ready yet (`lead_fit_pending`).
 - Text input limits unless a section states otherwise: names ≤ 100, titles ≤ 200, notes and reasons ≤ 1000 (trimmed, non-empty), markdown ≤ 5000, event descriptions ≤ 20000, ≤ 10 links.
-- Every mutable resource response includes `allowed_actions: string[]` computed for the current actor (e.g. `["invite","ready","unclaim"]`), typed per resource as an enum in OpenAPI. The same policy function decides both the list and the 403 checks. Frontend and bot render buttons from this and never re-implement permission rules.
+- Every mutable resource response includes `allowed_actions: string[]` computed for the current actor (e.g. `["invite","ready","unclaim"]`). Frontend and bot render buttons from this and never re-implement permission rules.
 - OpenAPI is the source of truth for the frontend. `core` publishes `openapi.json` in CI; `web` regenerates its client from it.
 
 ## 3.2 Authentication modes
@@ -48,7 +48,7 @@ Admin endpoints require a web session; the bot cannot call them.
 - Standalone project mutations lock the `projects` row; help request and mentorship mutations lock the help request row, plus the mentor's `users` row when capacity is checked.
 - Jobs are enqueued inside the same transaction as the state change (procrastinate uses the same connection), so no job is emitted for a rolled-back change.
 - DB-level constraints back every invariant (partial unique indexes, check constraints; see §5).
-- Repeats are safe: a mutation whose target state already holds for the same actor (accept an accepted invite, confirm a confirmed placement) returns 200 with the current resource and has no side effects. Any other transition from the wrong state → 409.
+- A mutation whose target state already holds returns 200 with the current resource and no side effects; any other wrong-state transition → 409.
 
 ## 3.5 Audit
 
