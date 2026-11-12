@@ -17,7 +17,7 @@ idea ──start──► active ──ship──► shipped ──continue─�
 - `shipped`: at least one result (release) exists. Releases earn XP for confirmed contributors.
 - `paused`: no lead, or the lead paused it. No points accrue.
 - `abandoned`: closed without a result. Past activity stays; no XP.
-- Hackathon teams start in `active` when the team locks. When the result is submitted (§13), the project becomes `shipped` if the result has a repo or demo link, otherwise `abandoned`. The lead can then **continue** it as a regular project (`active` again); `team_status` stays `finished`.
+- Hackathon teams start in `active` when the team locks. When the result is submitted (§13), the project becomes `shipped` if the result has a repo or demo link, otherwise `abandoned`; an auto-closed team becomes `abandoned`. The lead can then **continue** it as a regular project (`active` again); `team_status` stays `finished`.
 
 ## 27.2 Create and edit (standalone)
 
@@ -34,7 +34,7 @@ idea ──start──► active ──ship──► shipped ──continue─�
 - **Recruiting:** `recruiting {areas: [area_key], note}` or null. While set, the project appears in the feed (`project_recruiting`) and the lead gets quick-pick (`recommend` with the project as context, §14).
 - **Leave:** any member, anytime. A leaving lead triggers succession (§27.6).
 - **Remove:** the lead removes a member with an optional reason. A removed member's earlier confirmed contributions stay.
-- Hackathon teams follow §12 for membership until `starts_at`; from then on this section applies, except that adding members to an `active` hackathon team is admin-only until the result is submitted.
+- Hackathon teams follow §12 for membership until `starts_at`. From `starts_at` until the result is submitted (or the team auto-closes, §13), adding and removing members is admin-only; members may still leave. This section applies only after that.
 
 ## 27.4 Plan and updates
 
@@ -54,7 +54,7 @@ idea ──start──► active ──ship──► shipped ──continue─�
 
 - **Transfer:** the lead offers the role to a member; the member must accept (`lead_offers`, `source=transfer`, 7 days). Same as §12.8.
 - **Lead leaves or steps down:** offers go to members in order of confirmed contributions, then tenure, each lasting `project_lead_offer_days` (3). If nobody accepts, the project becomes `paused` without a lead, and any member can claim the lead role while it's paused (first come).
-- Hackathon teams keep §12.8 until the result is submitted, then follow this section.
+- Hackathon teams keep §12.8 until the result is submitted or the team auto-closes (§13), then follow this section.
 
 ## 27.7 Endpoints
 

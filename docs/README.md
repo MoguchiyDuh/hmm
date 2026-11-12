@@ -3,7 +3,7 @@
 A community platform for hackathon teams, projects, events and mentorship.
 - **Registration:** members sign in with GitHub, complete a branching onboarding quiz, optionally attach a CV, and get per-area skill scores. Admins may review those scores later without blocking anyone.
 - **Hackathons:** a parser discovers events. Members enroll, eligible members claim the lead role and gather a core, others can volunteer to lead if needed, and one formation round packs everyone into complete teams.
-- **Review:** leads adjust the result and members must confirm their spot; silence means removal. Every team ends up with a lead, picked by a fixed lead order. A reserve covers dropouts.
+- **Review:** leads adjust the result and everyone on a team must confirm their spot, and again shortly before the start; silence means removal. Every team ends up with a lead, picked by a fixed lead order. A reserve fills open seats.
 - **After the event:** results, peer ratings, XP, activity and score progression. The team can continue as a project.
 - **Between hackathons:** standalone projects (team, plan, releases), event attendance ("we went to X"), and mentorship ("I want to learn X").
 - **Points:** XP needs a second party: co-participants, leads, organizers or learners confirm facts. Algo computes everything; suspicious items go to an admin "to check" queue to punish or pardon.
@@ -51,7 +51,7 @@ Rules:
 | 19 | [Parser service](19-parser.md) | parser |
 | 20 | [Telegram bot](20-bot.md) | bot |
 | 21 | [Frontend](21-frontend.md) | frontend |
-| 22 | [Deployment and configuration](22-deployment.md) | core |
+| 22 | [Runtime contract and configuration](22-deployment.md) | core |
 | 23 | [Delivery plan](23-delivery-plan.md) | all |
 | 24 | [Settings defaults and open points](24-defaults.md) | all |
 | 25 | [Facts, confirmations, trust, feed](25-trust-feed.md) | core |

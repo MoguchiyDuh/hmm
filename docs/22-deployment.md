@@ -1,20 +1,21 @@
-# 22. Deployment and configuration
+# 22. Runtime contract and configuration
 
-## 22.1 Compose services
+Production hosting (servers, TLS, reverse proxy, CI/CD deploys, backups) is handled outside this repo. The repo ships images and a dev compose, and every service honors the contract below.
 
-| Service | Image | Notes |
+## 22.1 Services
+
+| Service | Built from | Notes |
 |---|---|---|
-| `caddy` | caddy | TLS, `/` → web static, `/api/*` → api |
-| `api` | core | `uvicorn hmm_core.main:app` |
-| `worker` | core | `procrastinate worker` |
-| `migrate` | core | `alembic upgrade head`, runs before api/worker |
-| `postgres` | pgvector/pgvector:pg17 | volumes; DBs `hmm`, `hmm_parser` |
-| `minio` | minio | bucket `hmm` private |
-| `bot` | bot | |
-| `parser` | parser | |
-| `backup` | postgres | nightly `pg_dump` of `hmm` to volume, 14-day retention |
+| `api` | `deploy/python.Dockerfile` (`hmm-core`) | `uvicorn hmm_core.main:app`, port 8000 |
+| `worker` | same image | `procrastinate worker` |
+| `migrate` | same image | `alembic upgrade head`, must finish before `api`/`worker` start |
+| `bot` | `deploy/python.Dockerfile` (`hmm-bot`) | outbound only |
+| `parser` | `deploy/python.Dockerfile` (`hmm-parser`) | outbound only |
+| `web` | `pnpm build` in `web/` | static files; `/api/*` must be proxied to `api` on the same origin |
+| `postgres` | `postgres:17` | databases `hmm`, `hmm_parser` |
+| `minio` | `minio/minio` | private bucket `hmm`; any S3-compatible store works |
 
-Only `caddy` exposes ports. Internal network for the rest.
+`deploy/compose.yaml` is the dev stack: postgres, minio and api today; core adds `migrate` and `worker` as they land, and `--profile full` adds bot and parser. The web app runs with `pnpm dev` against it.
 
 ## 22.2 Environment
 
@@ -24,9 +25,9 @@ DATABASE_URL
 S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY S3_BUCKET
 GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_TOKEN
 SESSION_SECRET
-ADMIN_GITHUB_LOGINS            # comma-separated
+ADMIN_GITHUB_LOGINS            # comma-separated, bootstrap only (§6)
 BOT_SERVICE_TOKEN PARSER_SERVICE_TOKEN
-LLM_BASE_URL LLM_API_KEY LLM_MODEL EMBEDDING_MODEL
+LLM_BASE_URL LLM_API_KEY LLM_MODEL
 BOT_TOKEN                      # bot only
 PARSER_DATABASE_URL            # parser only
 LOG_LEVEL

@@ -13,10 +13,10 @@ Batch ≤ 50 items, each a `EventImport` (§19.3). Per item, in its own transact
 1. Validate schema → per-item `rejected` with errors (not whole batch).
 2. Find by `source.source_id` in `event_sources`. Else if `match_hint.event_id` given, attach. Else run duplicate heuristic: same normalized title (casefold, strip punctuation/years) and overlapping `[starts_at, ends_at]` ± 3 days → create as `draft` with `review_reasons += possible_duplicate`.
 3. Payload hash unchanged → `unchanged` (update `last_seen_at`).
-4. `people[]` (attendee/winner lists, §19.3) are upserted into `event_source_people` and matched to members by GitHub login, then Telegram username. Matches create `trusted` system confirmations on their attendance (creating `attended` if missing), with the role and place from the list.
+4. `people[]` (attendee/winner lists, §19.3) are upserted into `event_source_people` and matched to members by GitHub login, then Telegram username. Matches create `trusted` system confirmations on their attendance (creating `attended` if missing), with the role from the list (`winner` → `attendee`). A matched winner on a hackathon team verifies that team's result place: `place_status = verified`, `place` set from the list (§13).
 5. Map `areas[].key` to known non-archived areas; unknown keys go to `unmapped_areas` + `review_reasons += unmapped_areas`.
 6. **Create**: status `published` if `confidence ≥ import_auto_publish_confidence` and no review reasons; otherwise `draft` with reasons and admin alert `import_review`.
-7. **Update**: apply changed fields except those in `event_field_locks`; record revision with `ignored_fields` for locked ones. If dates, team size, format, or registration deadline changed and the event has non-terminal teams or `going` attendees → notify those team members and attendees (`event_changed`).
+7. **Update**: apply changed fields except those in `event_field_locks`; record revision with `ignored_fields` for locked ones. If dates, team size, format, or registration deadline changed and the event has non-terminal teams or `going` attendees → notify those team members and attendees (`event_changed`). Formation timing reacts per §12.2.
 8. `status: cancelled` from parser → event `cancelled`; `going` attendances `cancelled`; all non-terminal teams → `cancelled`; live enrollments `expired`; pending invites, join requests, swaps and merges `closed`; formation phase `closed`; notify; admin alert `event_cancelled_with_teams` if any teams existed.
 9. If team size changed and an existing team now exceeds new max or is below new min → admin alert (no automatic removal).
 
@@ -41,6 +41,7 @@ Parser support endpoints:
 ## Catalog for members
 - Only `published` and `cancelled` (latter shown only if user had involvement).
 - Filters: `kind`, `phase`, `formation` (bool), `participation_phase` (`open|review|locked`), `area`, `format`, `q`, `from`, `to`, `mine` (going/attended/enrolled/on a team), `origin`.
+- `eligibility` is shown as text and never enforced (§4.4).
 - Detail includes: all fields, derived `phase`, areas with importance, difficulty + rationale, attendance counts and my attendance, members going, and for formation events the participation block from `GET /events/{id}/formation` (§12.11) and my lead fit. `allowed_actions`: `going`, `attended`, `enroll`, `withdraw`, `claim_lead`, `request_join`, `edit`, `cancel`.
 
 ## Endpoints

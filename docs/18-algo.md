@@ -1,7 +1,7 @@
 # 18. Algorithm package (group: algo)
 
 ## 18.1 Scope
-The algo group owns **behavior**: formulas, heuristics, team packing, LLM/embedding use, abuse detection. Core owns data loading, persistence, scheduling and hard-constraint validation. Package `hmm_algo` in `algo/`, imported by core's worker only.
+The algo group owns **behavior**: formulas, heuristics, team packing, LLM use, abuse detection. Core owns data loading, persistence, scheduling and hard-constraint validation. Package `hmm_algo` in `algo/`, imported by core's worker only.
 
 ## 18.2 Interface (`contracts/algo.py`)
 
@@ -28,7 +28,7 @@ Context provided by core:
 class AlgoContext:
     now: datetime
     settings: AlgoSettings        # activity_window_days, lead_fit_threshold, viable_ratio, etc.
-    llm: LLMConfig | None         # base_url, api_key, model, embedding_model; None = disabled
+    llm: LLMConfig | None         # base_url, api_key, model (chat only, no embeddings); None = disabled
     cache: AlgoCache              # get/set/delete bytes by (namespace, key, ttl), backed by algo_cache table
     log: Logger
 ```
@@ -54,7 +54,8 @@ class MemberSnapshot:
     xp: float; activity: float
     hackathons_finished: int; times_led: int; projects_shipped: int; mentorships_completed: int
     reputation: dict[Context, RatingSummary]     # member, lead, mentor, host -> avg, count
-    mentor_offers: list[MentorOffer]             # area, topics, capacity, active count
+    mentor_offers: list[MentorOffer]             # area, topics
+    mentor_capacity: int; mentor_active: int     # global, across areas
     joined_at: datetime
 
 class MemberHistory(MemberSnapshot):
@@ -113,7 +114,7 @@ class PlannedTeam:
 
 class ReserveRequest:
     hackathon: EventSnapshot
-    teams: list[TeamComposition]                 # current rosters, for "who would fit a vacancy best"
+    teams: list[TeamComposition]                 # current rosters + open seats, for "who would fit an open seat best"
     reserve: list[EnrolledMember]
 class RankedMember:      user_id: UUID; rank: int; reason: str
 
@@ -151,11 +152,12 @@ class CommunityGraph:
     - each team pairs beginners with an experienced member in the same area where possible;
     - preferred areas are honored where possible;
     - the planned lead is from the highest lead tier in the team, with the highest fit within it;
-    - reserve order favors people who would fill likely vacancies.
+    - reserve order favors people who would fill likely open seats.
     Core rejects plans that break a hard constraint.
 13. **Points goals** (§25.3).
     - Second-party rule: `self` facts give activity and at most a token amount of XP.
-    - Award scales with trust, role (speaker > attendee, lead > member, mentor > learner), effort and outcome (shipped, place, goal reached).
+    - Award scales with trust, role (speaker > attendee, lead > member, mentor > learner), effort and outcome (shipped, place, goal reached). A place counts only with `place_status = verified` (§13).
+    - Hackathon team members marked `participants = false` in the result get no result-based award.
     - Diminishing returns for repeated counterparts, the same kind in a short window, and reciprocal pairs.
     - Confirmations weigh by the confirmer's account age, XP and restriction state; `ignored` confirmations count zero.
     - Hackathon results, standalone releases and attendance of the same event are not double-counted.
@@ -163,14 +165,14 @@ class CommunityGraph:
     - Every award has a reason a member can read ("Speaker at X, confirmed by organizer: +40 XP").
 14. **Mentor matching goals.** Strength in the area relative to the learner, mentor offers and topics matching the request, mentor reputation, recent activity, free capacity, a spread of notifications across mentors so the same people aren't always asked, and newer mentors mixed in when they're strong enough.
 15. **Community scan goals.** Find rings of mutual confirmations, reciprocal mentoring, rating rings, clusters of new accounts confirming each other, and bursts of member-created events with only each other attending. Flag with `related_user_ids` and a reason an admin can verify. Never re-flag pardoned subject/reason pairs.
-16. **Reserve ranking goals.** The person most likely to fill a vacancy in any current team (area gaps, skill, activity) ranks first. Enrollment time breaks ties.
+16. **Reserve ranking goals.** The person most likely to fill an open seat in any current team (area gaps, skill, activity) ranks first. Enrollment time breaks ties.
 17. **Abuse detection (per member).** Flag implausible facts and entries (bursts, duplicate or near-duplicate text, links not resolving to the member's GitHub, claimed roles with no evidence, areas with no other evidence). Flags only; penalties are an admin decision (§10). `flag_status=pardoned` subjects must not be re-flagged for the same reason.
-18. **Performance.** Up to 1 000 members, 200 candidates per `recommend` and `match_mentors`, 100 enrolled per `form_teams`, a 180-day community graph for `scan_community`: within §17 timeouts on the target VPS. Embeddings and LLM results cached via `ctx.cache` keyed by content hash.
+18. **Performance.** Up to 1 000 members, 200 candidates per `recommend` and `match_mentors`, 100 unplaced per `form_teams` (above that core uses its fallback planner, §12.5), a 180-day community graph for `scan_community`: within §17 timeouts on a modest single host. LLM results cached via `ctx.cache` keyed by content hash.
 19. **Version.** `version` string changes whenever behavior changes. Core stores it with every output.
 
 ## 18.4 Production bar
 - One implementation, shipped production-ready. No placeholder stage in deployment.
-- A deterministic heuristic core is fully functional on its own; LLM/embeddings refine ranking and reasons when available.
+- A deterministic heuristic core is fully functional on its own; the LLM refines ranking and reasons when available.
 - `hmm_algo.testing.FakeAlgorithm` exists only for core's test suite and for core development before the real package lands. It is never wired into the deployed app.
 
 ## 18.5 Deliverables

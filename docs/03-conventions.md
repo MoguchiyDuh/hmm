@@ -12,9 +12,10 @@
   ```
 - Errors: RFC 9457 `application/problem+json`:
   ```json
-  { "type": "https://hmm/errors/team-full", "title": "Team is full", "status": 409,
+  { "type": "https://<PUBLIC_URL host>/errors/team_full", "title": "Team is full", "status": 409,
     "detail": "Team has reached max size 5", "code": "team_full", "errors": [] }
   ```
+  `type` is always `{PUBLIC_URL}/errors/{code}`.
   `code` is a stable machine string; frontend and bot switch on it. Validation errors use 422 with `errors: [{loc, msg}]`.
 - Status codes: 200/201/202/204; 400 bad input; 401 unauthenticated; 403 forbidden; 404 not found or not visible; 409 state conflict; 422 validation; 429 rate limited.
 - Every mutable resource response includes `allowed_actions: string[]` computed for the current actor (e.g. `["invite","ready","unclaim"]`). Frontend and bot render buttons from this and never re-implement permission rules.
@@ -41,7 +42,7 @@ Tokens are compared in constant time. Service tokens are scoped: bot token rejec
 
 ## 3.4 Consistency and concurrency
 
-- All participation mutations (enroll, withdraw, claim/unclaim, invites, join requests, placement confirm/decline, adds/removals, swaps, merges, leave, lead offers, transfer, step-down, formation apply, lock, admin roster ops) run in one transaction that first takes `SELECT ... FOR UPDATE` on the `events` row. This serializes participation per hackathon and makes the invariants in §4 enforceable.
+- All participation mutations (enroll, withdraw, claim/unclaim, invites, join requests, placement confirm/decline, adds/removals, swaps, merges, leave, lead offers, transfer, step-down, formation apply, lock, admin roster ops) run in one transaction that first takes `SELECT ... FOR UPDATE` on the `events` row. This serializes participation per hackathon and makes the invariants in §4 enforceable. The lock is never held across an algo or network call: `run_formation` locks only to switch phase and to apply the plan (§12.5).
 - Standalone project mutations lock the `projects` row; help request and mentorship mutations lock the help request row, plus the mentor's `users` row when capacity is checked.
 - Jobs are enqueued inside the same transaction as the state change (procrastinate uses the same connection), so no job is emitted for a rolled-back change.
 - DB-level constraints back every invariant (partial unique indexes, check constraints; see §5).

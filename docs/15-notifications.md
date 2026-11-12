@@ -15,9 +15,11 @@
 | `formation_soon` | enrolled members, leads | – |
 | `formation_rescheduled` | enrolled members, leads | – |
 | `team_proposed` | placed member (with `confirm_by`) | confirm / decline |
+| `team_reconfirm` | existing core member at formation (with `confirm_by`) | confirm / leave |
+| `presence_check` | every team member before `starts_at` (with `confirm_by`) | confirm / leave |
 | `lead_offer` (`source` formation/succession/transfer) | offered member | accept / decline |
 | `lead_offer_declined` | transferring lead | – |
-| `formation_ready` | leads | open team |
+| `formation_ready` | claimed leads (with `confirm_by`) | confirm / open team |
 | `reserve_placed` | reserve members (with rank) | – |
 | `confirm_reminder` | proposed members, 24/6/1 h before `confirm_by` | confirm / decline |
 | `review_ending` | leads of teams without a lead or below `V` | open team |
@@ -27,7 +29,8 @@
 | `swap_result`, `merge_result`, `placement_changed` | leads / moved members | – |
 | `team_locked` | team, reserve | – |
 | `team_member_joined`, `team_member_left` | lead / team | – |
-| `vacancy_autofilled` | lead | – |
+| `seat_opened` | lead (with quick-pick and head-start deadline) | open team |
+| `seat_autofilled` | lead | – |
 | `reserve_offer` | offered reserve member (with `confirm_by`) | confirm / decline |
 | `lead_opportunity` | eligible enrolled/reserve members | claim lead |
 | `lead_transferred`, `lead_stepped_down` | team | – |
@@ -53,7 +56,7 @@
 | `mentorship_closed` | mentor | acknowledge / endorse |
 | `penalty_applied` | punished member | – |
 | `restriction_lifted` | member | – |
-| `result_due` | lead | – |
+| `result_due` | lead; every confirmed member after `results_due_days` | submit result |
 | `reviews_open`, `reviews_pending` | participants of a review window (team, project, mentorship) | review |
 | `review_received` | reviewee (digest at reveal) | – |
 | `review_removed` | reviewer | – |
@@ -75,15 +78,15 @@ Defaults: all types on for web and Telegram, except `score_changed`, `team_membe
 - Deliveries still pending after 7 days are `skipped`.
 
 ## Admin alerts
-- Separate table, shown on the admin dashboard; also fanned out as `admin_alert` notifications to each admin (respecting toggles).
-- Deduped by `dedupe_key` while open; auto-resolved when the condition disappears (e.g. `vacancy_unfilled` resolves when the seat is filled).
+- Separate table, shown on the admin dashboard. `warning` and `critical` alerts are also fanned out as `admin_alert` notifications to each admin (respecting toggles); `info` alerts stay on the dashboard.
+- Deduped by `dedupe_key` while open; auto-resolved when the condition disappears (e.g. `team_below_min` resolves when the team reaches `min`).
 
 | type | severity | trigger |
 |---|---|---|
 | `formation_undersized` | info | core below `V` after formation (§12.5) |
-| `formation_failed` | warning | algo plan invalid, fallback used (§12.5) |
-| `team_below_min` | warning | after lock top-up / disbanded at deadline (§12.7) |
-| `vacancy_unfilled` | info | vacancy with an empty reserve (§12.7) |
+| `formation_failed` | warning | algo plan invalid, fallback used, or the formation job failed (§12.5) |
+| `team_below_min` | warning | team below `min` with an empty reserve, disbanded at `reg_deadline`, or dropped below `min` after it (§12.7) |
+| `event_dates_changed` | info | dates changed while teams are in `review`/`locked` (§12.2) |
 | `forced_lead`, `lead_below_threshold` | info | lead role forced or transferred below threshold (§12.4, §12.8) |
 | `result_overdue` | warning | §12.10 |
 | `import_review` | info | §11 |
@@ -96,7 +99,7 @@ Defaults: all types on for web and Telegram, except `score_changed`, `team_membe
 | `algo_failure`, `job_failing` | critical | §14, §17 |
 | `parser_down` | critical | §11 |
 
-The new-member review queue (§9.5) and member-event duplicates (§26.3) are dashboard counters plus a weekly digest, not per-item alerts.
+The new-member review queue (§9.5), member-event duplicates (§26.3) and results to verify (§13) are dashboard counters plus a weekly digest, not per-item alerts.
 
 ## Endpoints
 

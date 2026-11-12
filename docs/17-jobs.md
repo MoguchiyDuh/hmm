@@ -18,8 +18,8 @@ All jobs are idempotent, with retries (exponential, max 5) unless noted. A job t
 | `match_mentors(request)` | help request opened | `mentor:<rid>` | algo `match_mentors` → notify |
 | `scan_community` | cron 02:00 | singleton | algo `scan_community` → to-check flags |
 | `community_tick` | every 15 min | singleton | help request expiry, mentorship idle/stalled/close timers, project idle/pause, lead offer expiry for projects, confirmation and review digests, attendance `going` expiry |
-| `event_tick` | every 5 min | singleton | §12.10, review windows (§13), reminders |
-| `admin_digest` | weekly, Monday 09:00 UTC | singleton | pending member reviews, to-check items older than 7 days, member-event duplicates, open alerts summary |
+| `event_tick` | every 5 min | singleton | §12.10 (incl. presence checks, seat filling, result auto-close), review windows (§13), reminders |
+| `admin_digest` | weekly, Monday 09:00 UTC | singleton | pending member reviews, to-check items older than 7 days, member-event duplicates, results to verify, open alerts summary |
 | `archive_old_events` | nightly | singleton | §11 |
 | `cleanup` | nightly | singleton | expired sessions, link codes, old deliveries, `algo_cache` expiry |
 

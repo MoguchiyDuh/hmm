@@ -20,16 +20,16 @@ Config: `BOT_TOKEN`, `CORE_URL`, `BOT_SERVICE_TOKEN`, `PUBLIC_URL` (for web link
 | `/events` | `GET /api/v1/events?phase=registration_open&limit=10` | list with inline buttons: Details, Going / Enroll |
 | `/event <id>` | `GET /api/v1/events/{id}` | card with participation phase, projection and formation date + buttons from `allowed_actions` (Enroll / Withdraw / Lead a team) + web link |
 | `/enroll <id>` | `POST .../enroll` | confirmation or error text from problem `code` |
-| `/team` | `GET /api/v1/me/projects` | current teams with pending actions (confirm placement with deadline, accept/decline lead offer, accept swap) as buttons |
+| `/team` | `GET /api/v1/me/projects` | current teams with pending actions (confirm placement, re-confirmation or presence check with deadline, accept/decline lead offer, accept swap) as buttons |
 | `/invites` | `GET /api/v1/me/invites?status=pending` | list with Accept/Decline |
-| `/help` `<area> <topic>` | `POST /api/v1/help-requests` | creates a help request (goal asked as a follow-up message) |
+| `/ask` `<area> <topic>` | `POST /api/v1/help-requests` | creates a help request (goal asked as a follow-up message) |
 | `/requests` | `GET /api/v1/help-requests?status=open&area=<my mentor areas>` | open help requests I could take, with Help buttons |
 | `/mentorships` | `GET /api/v1/me/mentorships?status=active` | active mentorships with Check in / Close buttons |
 | `/confirm` | `GET /api/v1/me/confirmations/pending` | pending confirmation digests as checkbox keyboards |
 | `/me` | `GET /api/v1/me`, `/users/{id}/metrics`, `/scores` | short profile: scores, XP, activity, current teams |
 | `/dnd [off\|<days>]` | `PUT /me/availability` | DND toggle |
 | `/settings` | – | link to web notification settings |
-| `/commands` | – | command list |
+| `/help` | – | command list |
 
 All user-acting calls use bot token + `X-Telegram-User-Id`.
 

@@ -9,7 +9,7 @@ GitHub sign-in ─► account created (onboarding_status=not_started), github_sy
 Quiz: general questions ─► conditional branches revealed by earlier answers
       │
       ▼
-Optional CV upload (PDF / Markdown / Typst)
+Optional CV upload (PDF / Markdown / Typst), visible to all members
       │
       ▼
 Submit ─► full access immediately
