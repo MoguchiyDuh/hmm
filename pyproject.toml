@@ -6,7 +6,7 @@ hmm-contracts = { workspace = true }
 hmm-algo = { workspace = true }
 
 [dependency-groups]
-dev = ["ruff>=0.14", "ty>=0.0.1a20", "pytest>=8.4", "pytest-asyncio>=1.2"]
+dev = ["ruff>=0.14", "ty>=0.0.1a20", "pytest>=8.4", "pytest-asyncio>=1.2", "hypothesis>=6.140"]
 
 [tool.ruff]
 line-length = 100
