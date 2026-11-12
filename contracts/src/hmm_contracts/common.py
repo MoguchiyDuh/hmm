@@ -1,4 +1,5 @@
 from enum import StrEnum
+from http import HTTPStatus
 from types import UnionType
 from typing import Annotated, Any, Self, get_args, get_origin
 from uuid import UUID
@@ -7,6 +8,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 __all__ = [
+    "ERROR_STATUS",
     "SEED_AREA_KEYS",
     "ActivityEntryId",
     "ActivityType",
@@ -737,6 +739,7 @@ class ErrorCode(StrEnum):
     MENTEE_LIMIT_REACHED = "mentee_limit_reached"
     MENTOR_CAPACITY_REACHED = "mentor_capacity_reached"
     MERGE_TOO_LARGE = "merge_too_large"
+    METHOD_NOT_ALLOWED = "method_not_allowed"
     NOT_DRAFT = "not_draft"
     NOT_ENROLLED = "not_enrolled"
     NOT_FOUND = "not_found"
@@ -762,6 +765,61 @@ class ErrorCode(StrEnum):
     VALIDATION_ERROR = "validation_error"
 
 
+ERROR_STATUS: dict[ErrorCode, HTTPStatus] = {
+    ErrorCode.ALREADY_ENROLLED: HTTPStatus.CONFLICT,
+    ErrorCode.ALREADY_IN_TEAM: HTTPStatus.CONFLICT,
+    ErrorCode.ALREADY_INVITED: HTTPStatus.CONFLICT,
+    ErrorCode.ATTENDANCE_WINDOW_CLOSED: HTTPStatus.CONFLICT,
+    ErrorCode.BAD_REQUEST: HTTPStatus.BAD_REQUEST,
+    ErrorCode.BANNED: HTTPStatus.FORBIDDEN,
+    ErrorCode.CANNOT_CONFIRM_OWN_FACT: HTTPStatus.FORBIDDEN,
+    ErrorCode.CHECKIN_LIMIT: HTTPStatus.CONFLICT,
+    ErrorCode.CODE_EXPIRED: HTTPStatus.GONE,
+    ErrorCode.CODE_INVALID: HTTPStatus.NOT_FOUND,
+    ErrorCode.CONFIRMATION_WITHDRAW_CLOSED: HTTPStatus.CONFLICT,
+    ErrorCode.CORE_FULL: HTTPStatus.CONFLICT,
+    ErrorCode.ENROLLMENT_CLOSED: HTTPStatus.CONFLICT,
+    ErrorCode.FILE_TOO_LARGE: HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+    ErrorCode.FORBIDDEN: HTTPStatus.FORBIDDEN,
+    ErrorCode.FORMATION_IN_PROGRESS: HTTPStatus.CONFLICT,
+    ErrorCode.HELP_REQUEST_OPEN: HTTPStatus.CONFLICT,
+    ErrorCode.INTERNAL_ERROR: HTTPStatus.INTERNAL_SERVER_ERROR,
+    ErrorCode.INVALID_STATE: HTTPStatus.CONFLICT,
+    ErrorCode.JOIN_REQUEST_PENDING: HTTPStatus.CONFLICT,
+    ErrorCode.LAST_ADMIN: HTTPStatus.CONFLICT,
+    ErrorCode.LEAD_FIT_PENDING: HTTPStatus.SERVICE_UNAVAILABLE,
+    ErrorCode.LEAD_FIT_TOO_LOW: HTTPStatus.FORBIDDEN,
+    ErrorCode.LEAD_NOT_SWAPPABLE: HTTPStatus.CONFLICT,
+    ErrorCode.MENTEE_LIMIT_REACHED: HTTPStatus.CONFLICT,
+    ErrorCode.MENTOR_CAPACITY_REACHED: HTTPStatus.CONFLICT,
+    ErrorCode.MERGE_TOO_LARGE: HTTPStatus.CONFLICT,
+    ErrorCode.METHOD_NOT_ALLOWED: HTTPStatus.METHOD_NOT_ALLOWED,
+    ErrorCode.NOT_DRAFT: HTTPStatus.CONFLICT,
+    ErrorCode.NOT_ENROLLED: HTTPStatus.CONFLICT,
+    ErrorCode.NOT_FOUND: HTTPStatus.NOT_FOUND,
+    ErrorCode.NOT_IMPLEMENTED: HTTPStatus.NOT_IMPLEMENTED,
+    ErrorCode.ONBOARDING_REQUIRED: HTTPStatus.FORBIDDEN,
+    ErrorCode.ORIGIN_MISMATCH: HTTPStatus.FORBIDDEN,
+    ErrorCode.POSSIBLE_DUPLICATE: HTTPStatus.CONFLICT,
+    ErrorCode.PROJECT_FULL: HTTPStatus.CONFLICT,
+    ErrorCode.PROJECTS_LED_LIMIT: HTTPStatus.CONFLICT,
+    ErrorCode.RATE_LIMITED: HTTPStatus.TOO_MANY_REQUESTS,
+    ErrorCode.REFRESH_TOO_SOON: HTTPStatus.TOO_MANY_REQUESTS,
+    ErrorCode.RESTRICTED: HTTPStatus.FORBIDDEN,
+    ErrorCode.RESULT_EXISTS: HTTPStatus.CONFLICT,
+    ErrorCode.RESULT_NOT_DUE: HTTPStatus.CONFLICT,
+    ErrorCode.REVIEW_WINDOW_CLOSED: HTTPStatus.CONFLICT,
+    ErrorCode.SEATS_CLOSE_BELOW_MIN: HTTPStatus.CONFLICT,
+    ErrorCode.TEAM_FULL: HTTPStatus.CONFLICT,
+    ErrorCode.TELEGRAM_ALREADY_LINKED: HTTPStatus.CONFLICT,
+    ErrorCode.TELEGRAM_NOT_LINKED: HTTPStatus.UNAUTHORIZED,
+    ErrorCode.UNAUTHENTICATED: HTTPStatus.UNAUTHORIZED,
+    ErrorCode.UNSUPPORTED_FILE_TYPE: HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+    ErrorCode.USER_DND: HTTPStatus.CONFLICT,
+    ErrorCode.VALIDATION_ERROR: HTTPStatus.UNPROCESSABLE_ENTITY,
+}
+
+
 class ValidationIssue(Contract):
     loc: list[str | int]
     msg: str
@@ -780,16 +838,14 @@ class Problem(Contract):
         cls,
         *,
         public_url: str,
-        title: str,
-        status: int,
         code: ErrorCode,
         detail: str | None = None,
         errors: list[ValidationIssue] | None = None,
     ) -> Self:
         return cls(
             type=f"{public_url.rstrip('/')}/errors/{code}",
-            title=title,
-            status=status,
+            title=code.replace("_", " ").capitalize(),
+            status=ERROR_STATUS[code].value,
             detail=detail,
             code=code,
             errors=errors if errors is not None else [],

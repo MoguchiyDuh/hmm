@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Annotated
 
 from hmm_contracts.common import (
@@ -10,9 +11,30 @@ from hmm_contracts.common import (
     TimeZoneName,
     UserId,
 )
-from pydantic import AwareDatetime, ConfigDict, Field
+from pydantic import AwareDatetime, Field, HttpUrl, StringConstraints
 
 type ScoreValue = Annotated[float, Field(ge=0, le=10, allow_inf_nan=False)]
+type Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
+type Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+type Note = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+type Markdown = Annotated[str, StringConstraints(max_length=5000)]
+type LongMarkdown = Annotated[str, StringConstraints(max_length=20000)]
+type Links = Annotated[list[HttpUrl], Field(max_length=10)]
+type Slug = Annotated[str, StringConstraints(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$", max_length=100)]
+
+
+class EventAction(StrEnum):
+    GOING = "going"
+    ATTENDED = "attended"
+    ENROLL = "enroll"
+    WITHDRAW = "withdraw"
+    CLAIM_LEAD = "claim_lead"
+    REQUEST_JOIN = "request_join"
+    EDIT = "edit"
+    CANCEL = "cancel"
+    PUBLISH = "publish"
+    REJECT = "reject"
+    MERGE = "merge"
 
 
 class ApiModel(Contract):
@@ -20,17 +42,17 @@ class ApiModel(Contract):
 
 
 class ApiInput(Contract):
-    model_config = ConfigDict(extra="forbid")
+    pass
 
 
-class WithAllowedActions(ApiModel):
-    allowed_actions: list[str]
+class WithAllowedActions[A: StrEnum](ApiModel):
+    allowed_actions: list[A]
 
 
 class UserRef(ApiModel):
     id: UserId
     display_name: str
-    avatar_url: str | None
+    avatar_url: HttpUrl | None
 
 
 class AreaRef(ApiModel):
@@ -45,12 +67,12 @@ class AreaScoreSummary(ApiModel):
 
 
 class EventRef(ApiModel):
-    timezone: TimeZoneName
     id: EventId
     title: str
     kind: EventKind
     starts_at: AwareDatetime
     ends_at: AwareDatetime
+    timezone: TimeZoneName
 
 
 class ProjectRef(ApiModel):
@@ -61,4 +83,4 @@ class ProjectRef(ApiModel):
 
 
 class ReasonBody(ApiInput):
-    reason: str | None = None
+    reason: Note | None = None

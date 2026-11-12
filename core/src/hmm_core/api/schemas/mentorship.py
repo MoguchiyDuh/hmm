@@ -1,4 +1,5 @@
 from datetime import date
+from enum import StrEnum
 
 from hmm_contracts.common import (
     AreaKey,
@@ -17,12 +18,45 @@ from hmm_contracts.common import (
 )
 from pydantic import AwareDatetime, Field
 
-from hmm_core.api.schemas.common import ApiInput, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import (
+    ApiInput,
+    ApiModel,
+    Note,
+    Title,
+    UserRef,
+    WithAllowedActions,
+)
+
+
+class MentorOffersAction(StrEnum):
+    EDIT = "edit"
+
+
+class HelpOfferAction(StrEnum):
+    ACCEPT = "accept"
+    WITHDRAW = "withdraw"
+
+
+class HelpRequestAction(StrEnum):
+    EDIT = "edit"
+    CANCEL = "cancel"
+    DECLINE = "decline"
+    OPEN = "open"
+    OFFER_HELP = "offer_help"
+
+
+class MentorshipAction(StrEnum):
+    ACKNOWLEDGE = "acknowledge"
+    CHECK_IN = "check_in"
+    PROPOSE_CLOSE = "propose_close"
+    CLOSE = "close"
+    CANCEL = "cancel"
+    CONFIRM = "confirm"
 
 
 class MentorOfferInput(ApiInput):
     area_key: AreaKey
-    topics: str
+    topics: Note
     active: bool
 
 
@@ -31,30 +65,30 @@ class ReplaceMentorOffersBody(ApiInput):
     offers: list[MentorOfferInput]
 
 
-class MentorOffers(WithAllowedActions):
+class MentorOffers(WithAllowedActions[MentorOffersAction]):
     capacity: int | None = Field(ge=0)
     offers: list[MentorOfferInput]
 
 
 class CreateHelpRequestBody(ApiInput):
     area_key: AreaKey
-    topic: str = Field(max_length=200)
-    goal: str = Field(max_length=1000)
+    topic: Title
+    goal: Note
     format: HelpRequestFormat
     target_mentor_id: UserId | None = None
 
 
 class UpdateHelpRequestBody(ApiInput):
-    topic: str | None = Field(default=None, max_length=200)
-    goal: str | None = Field(default=None, max_length=1000)
+    topic: Title | None = None
+    goal: Note | None = None
     format: HelpRequestFormat | None = None
 
 
 class CreateHelpOfferBody(ApiInput):
-    message: str
+    message: Note
 
 
-class HelpOffer(WithAllowedActions):
+class HelpOffer(WithAllowedActions[HelpOfferAction]):
     id: HelpOfferId
     request_id: HelpRequestId
     mentor_id: UserId
@@ -70,7 +104,7 @@ class HelpOffer(WithAllowedActions):
     updated_at: AwareDatetime
 
 
-class HelpRequest(WithAllowedActions):
+class HelpRequest(WithAllowedActions[HelpRequestAction]):
     id: HelpRequestId
     learner_id: UserId
     learner: UserRef
@@ -87,12 +121,12 @@ class HelpRequest(WithAllowedActions):
 
 
 class CreateMentorshipCheckinBody(ApiInput):
-    note: str
+    note: Note
     occurred_on: date
     minutes: int | None = Field(default=None, ge=0)
 
 
-class MentorshipCheckin(WithAllowedActions):
+class MentorshipCheckin(ApiModel):
     id: MentorshipCheckinId
     mentorship_id: MentorshipId
     author_id: UserId
@@ -104,14 +138,14 @@ class MentorshipCheckin(WithAllowedActions):
 
 class CloseMentorshipBody(ApiInput):
     outcome: MentorshipOutcome
-    summary: str | None = None
+    summary: Note | None = None
 
 
 class AcknowledgeMentorshipBody(ApiInput):
-    endorsement: str | None = None
+    endorsement: Note | None = None
 
 
-class Mentorship(WithAllowedActions):
+class Mentorship(WithAllowedActions[MentorshipAction]):
     id: MentorshipId
     request_id: HelpRequestId
     mentor_id: UserId

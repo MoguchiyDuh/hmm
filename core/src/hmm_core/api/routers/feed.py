@@ -13,7 +13,7 @@ from hmm_core.api.schemas.feed import (
     FeedKind,
     PendingConfirmationGroup,
 )
-from hmm_core.api.security import member
+from hmm_core.api.security import MemberAuth
 
 router = APIRouter(tags=["feed"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["feed"], responses=PROBLEM_RESPONSES)
@@ -21,7 +21,7 @@ internal = APIRouter(tags=["feed"], responses=PROBLEM_RESPONSES)
 
 @router.get("/feed", status_code=status.HTTP_200_OK, summary="List community feed")
 async def list_feed(
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
     kind: Annotated[FeedKind | None, Query()] = None,
     area: Annotated[AreaKey | None, Query()] = None,
@@ -36,7 +36,7 @@ async def list_feed(
     summary="List confirmable facts grouped by event or project",
 )
 async def list_pending_confirmations(
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
 ) -> list[PendingConfirmationGroup]:
     not_implemented()
 
@@ -44,7 +44,7 @@ async def list_pending_confirmations(
 @router.post("/confirmations", status_code=status.HTTP_201_CREATED, summary="Confirm a fact")
 async def create_confirmation(
     body: CreateConfirmationBody,
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
 ) -> Confirmation:
     not_implemented()
 
@@ -54,9 +54,7 @@ async def create_confirmation(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Withdraw own confirmation within seven days",
 )
-async def withdraw_confirmation(
-    id: ConfirmationId, actor: Annotated[None, Depends(member)]
-) -> None:
+async def withdraw_confirmation(id: ConfirmationId, actor: MemberAuth) -> None:
     not_implemented()
 
 
@@ -67,7 +65,7 @@ async def withdraw_confirmation(
 )
 async def list_user_facts(
     id: UserId,
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
     fact_type: Annotated[FactType | None, Query(alias="type")] = None,
 ) -> Page[Fact]:

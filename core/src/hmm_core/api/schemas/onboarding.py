@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from hmm_contracts.algo import GithubSummary, OnboardingAnswer, QuizQuestion, QuizSection
 from hmm_contracts.common import (
     CvTextStatus,
@@ -12,11 +14,37 @@ from hmm_contracts.common import (
 )
 from pydantic import AwareDatetime, Field, HttpUrl
 
-from hmm_core.api.schemas.common import ApiInput, ApiModel, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import (
+    ApiInput,
+    ApiModel,
+    Note,
+    Title,
+    UserRef,
+    WithAllowedActions,
+)
 from hmm_core.api.schemas.scores import MemberAreaScore
 
 
-class Quiz(WithAllowedActions):
+class QuizAction(StrEnum):
+    EDIT = "edit"
+    VALIDATE = "validate"
+    PUBLISH = "publish"
+    CLONE = "clone"
+    DELETE = "delete"
+
+
+class OnboardingAction(StrEnum):
+    ANSWER = "answer"
+    SUBMIT = "submit"
+    REOPEN = "reopen"
+
+
+class MemberReviewAction(StrEnum):
+    EDIT = "edit"
+    COMPLETE = "complete"
+
+
+class Quiz(WithAllowedActions[QuizAction]):
     id: QuizId
     version: int = Field(ge=1)
     title: str
@@ -30,15 +58,15 @@ class Quiz(WithAllowedActions):
 
 
 class CreateQuizBody(ApiInput):
-    title: str
-    reason: str | None = None
+    title: Title
+    reason: Note | None = None
 
 
 class UpdateQuizBody(ApiInput):
-    title: str
+    title: Title
     sections: list[QuizSection]
     questions: list[QuizQuestion]
-    reason: str | None = None
+    reason: Note | None = None
 
 
 class UpdateAnswersBody(ApiInput):
@@ -50,7 +78,7 @@ class OnboardingCv(ApiModel):
     text_status: CvTextStatus | None
 
 
-class Onboarding(WithAllowedActions):
+class Onboarding(WithAllowedActions[OnboardingAction]):
     status: OnboardingStatus
     quiz: Quiz
     draft_answers: dict[str, OnboardingAnswer]
@@ -74,7 +102,7 @@ class OnboardingSubmission(ApiModel):
     updated_at: AwareDatetime
 
 
-class MemberReview(WithAllowedActions):
+class MemberReview(WithAllowedActions[MemberReviewAction]):
     user: UserRef
     status: MemberReviewStatus
     opened_at: AwareDatetime
@@ -100,10 +128,10 @@ class MemberReviewDetail(MemberReview):
 
 
 class CompleteMemberReviewBody(ApiInput):
-    note: str | None = None
-    reason: str | None = None
+    note: Note | None = None
+    reason: Note | None = None
 
 
 class UpdateMemberReviewBody(ApiInput):
-    note: str
-    reason: str | None = None
+    note: Note
+    reason: Note | None = None

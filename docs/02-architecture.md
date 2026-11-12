@@ -43,7 +43,7 @@ hmm/
 | Part | Stack |
 |---|---|
 | Python baseline | Python 3.13, uv workspace, ruff, ty, Pydantic v2 |
-| core | FastAPI, SQLAlchemy 2 async + asyncpg, Alembic, procrastinate (Postgres-backed job queue), httpx, pypdf, aioboto3/minio client |
+| core | FastAPI, SQLAlchemy 2 async + psycopg 3 (`postgresql+psycopg`, so procrastinate jobs share the transaction), Alembic, procrastinate (Postgres-backed job queue), httpx, pypdf, aioboto3/minio client |
 | algo | pure Python + whatever the group needs (numpy, openai SDK against compat endpoint, etc.). No DB driver, no embeddings. |
 | parser | group's choice in Python 3.13; HTTP to core only |
 | bot | aiogram 3, httpx, long polling |

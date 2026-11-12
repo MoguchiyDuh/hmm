@@ -1,4 +1,5 @@
-from typing import Annotated, Literal
+from enum import StrEnum
+from typing import Literal
 
 from hmm_contracts.common import (
     AreaKey,
@@ -22,38 +23,56 @@ from pydantic import AwareDatetime, Field, HttpUrl
 from hmm_core.api.schemas.common import (
     ApiInput,
     ApiModel,
+    Markdown,
+    Note,
     ProjectRef,
     ReasonBody,
+    Title,
     UserRef,
     WithAllowedActions,
 )
 
 
+class ResultAction(StrEnum):
+    EDIT = "edit"
+    VERIFY = "verify"
+
+
+class ReviewAction(StrEnum):
+    EDIT = "edit"
+    REPORT = "report"
+    REMOVE = "remove"
+
+
+class ReviewWindowAction(StrEnum):
+    REVIEW = "review"
+
+
 class CreateResultBody(ApiInput):
     outcome: ResultOutcome
     place: int | None = Field(default=None, ge=1)
-    award: str | None = None
+    award: Title | None = None
     repo_url: HttpUrl | None = None
     demo_url: HttpUrl | None = None
     presentation_url: HttpUrl | None = None
     member_areas: dict[UserId, AreaKey]
     participants: dict[UserId, bool]
-    retrospective_md: str
+    retrospective_md: Markdown
 
 
 class UpdateResultBody(ApiInput):
     outcome: ResultOutcome | None = None
     place: int | None = Field(default=None, ge=1)
-    award: str | None = None
+    award: Title | None = None
     repo_url: HttpUrl | None = None
     demo_url: HttpUrl | None = None
     presentation_url: HttpUrl | None = None
     member_areas: dict[UserId, AreaKey] | None = None
     participants: dict[UserId, bool] | None = None
-    retrospective_md: str | None = None
+    retrospective_md: Markdown | None = None
 
 
-class ProjectResult(WithAllowedActions):
+class ProjectResult(WithAllowedActions[ResultAction]):
     project_id: ProjectId
     outcome: ResultOutcome
     place: int | None = Field(ge=1)
@@ -90,7 +109,7 @@ class ResultToVerify(ProjectResult):
 
 class VerifyResultBody(ReasonBody):
     decision: Literal["verify", "reject"]
-    note: str | None = None
+    note: Note | None = None
 
 
 class UpdateReviewBody(ApiInput):
@@ -103,7 +122,7 @@ class UpdateHostReviewBody(ApiInput):
     comment: str = Field(max_length=2000)
 
 
-class Review(WithAllowedActions):
+class Review(WithAllowedActions[ReviewAction]):
     id: ReviewId
     window_id: ReviewWindowId | None
     subject_type: ReviewSubjectType
@@ -121,7 +140,7 @@ class Review(WithAllowedActions):
     removed_reason: str | None
 
 
-class PendingReviewWindow(WithAllowedActions):
+class PendingReviewWindow(WithAllowedActions[ReviewWindowAction]):
     id: ReviewWindowId
     subject_type: ReviewWindowSubjectType
     subject_id: SubjectId
@@ -143,10 +162,10 @@ class UserReviews(Page[Review], ApiModel):
 
 
 class ReportReviewBody(ApiInput):
-    reason: str = Field(min_length=1)
+    reason: Note
 
 
-class ReviewReport(WithAllowedActions):
+class ReviewReport(ApiModel):
     id: ReviewReportId
     review_id: ReviewId
     reporter_id: UserId
@@ -160,4 +179,4 @@ class AdminReview(Review):
 
 
 class RemoveReviewBody(ApiInput):
-    reason: Annotated[str, Field(min_length=1)]
+    reason: Note

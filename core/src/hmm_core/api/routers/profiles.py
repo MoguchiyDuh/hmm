@@ -17,7 +17,7 @@ from hmm_core.api.schemas.profiles import (
     UserProfile,
     UserSummary,
 )
-from hmm_core.api.security import member, session_user
+from hmm_core.api.security import MemberAuth, UserAuth
 
 router = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
@@ -25,7 +25,7 @@ internal = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
 
 @router.get("/users", status_code=status.HTTP_200_OK, summary="Member directory")
 async def list_users(
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
     q: Annotated[str | None, Query()] = None,
     area: Annotated[AreaKey | None, Query()] = None,
@@ -38,28 +38,24 @@ async def list_users(
 
 
 @router.get("/users/{id}", status_code=status.HTTP_200_OK, summary="Public profile")
-async def get_user(id: UserId, actor: Annotated[None, Depends(member)]) -> UserProfile:
+async def get_user(id: UserId, actor: MemberAuth) -> UserProfile:
     not_implemented()
 
 
 @router.patch("/me/profile", status_code=status.HTTP_200_OK, summary="Edit profile fields")
-async def update_profile(
-    body: UpdateProfileBody, actor: Annotated[None, Depends(session_user)]
-) -> UserProfile:
+async def update_profile(body: UpdateProfileBody, actor: UserAuth) -> UserProfile:
     not_implemented()
 
 
 @router.put("/me/availability", status_code=status.HTTP_200_OK, summary="Set do-not-disturb")
-async def update_availability(
-    body: UpdateAvailabilityBody, actor: Annotated[None, Depends(member)]
-) -> Availability:
+async def update_availability(body: UpdateAvailabilityBody, actor: MemberAuth) -> Availability:
     not_implemented()
 
 
 @router.post(
     "/me/github/refresh", status_code=status.HTTP_202_ACCEPTED, summary="Enqueue GitHub sync"
 )
-async def refresh_github(actor: Annotated[None, Depends(member)]) -> None:
+async def refresh_github(actor: MemberAuth) -> None:
     not_implemented()
 
 
@@ -74,17 +70,17 @@ async def refresh_github(actor: Annotated[None, Depends(member)]) -> None:
         }
     },
 )
-async def upload_cv(request: Request, actor: Annotated[None, Depends(session_user)]) -> CvUpload:
+async def upload_cv(request: Request, actor: UserAuth) -> CvUpload:
     not_implemented()
 
 
 @router.delete("/me/cv", status_code=status.HTTP_204_NO_CONTENT, summary="Remove CV")
-async def delete_cv(actor: Annotated[None, Depends(session_user)]) -> None:
+async def delete_cv(actor: UserAuth) -> None:
     not_implemented()
 
 
 @router.get("/users/{id}/cv", status_code=status.HTTP_200_OK, summary="Get short-lived CV download")
-async def get_cv(id: UserId, actor: Annotated[None, Depends(member)]) -> Cv:
+async def get_cv(id: UserId, actor: MemberAuth) -> Cv:
     not_implemented()
 
 
@@ -92,7 +88,7 @@ async def get_cv(id: UserId, actor: Annotated[None, Depends(member)]) -> Cv:
     "/me/notification-settings", status_code=status.HTTP_200_OK, summary="Get notification settings"
 )
 async def get_notification_settings(
-    actor: Annotated[None, Depends(session_user)],
+    actor: UserAuth,
 ) -> NotificationSettings:
     not_implemented()
 
@@ -103,6 +99,6 @@ async def get_notification_settings(
     summary="Update notification settings",
 )
 async def update_notification_settings(
-    body: UpdateNotificationSettingsBody, actor: Annotated[None, Depends(session_user)]
+    body: UpdateNotificationSettingsBody, actor: UserAuth
 ) -> NotificationSettings:
     not_implemented()

@@ -13,7 +13,7 @@ from hmm_core.api.schemas.attendance import (
     SetAttendanceBody,
     UpdateMemberEventBody,
 )
-from hmm_core.api.security import member
+from hmm_core.api.security import MemberAuth
 
 router = APIRouter(tags=["attendance"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["attendance"], responses=PROBLEM_RESPONSES)
@@ -22,9 +22,7 @@ internal = APIRouter(tags=["attendance"], responses=PROBLEM_RESPONSES)
 @router.put(
     "/events/{id}/attendance", status_code=status.HTTP_200_OK, summary="Set own event attendance"
 )
-async def set_attendance(
-    id: EventId, body: SetAttendanceBody, actor: Annotated[None, Depends(member)]
-) -> Attendance:
+async def set_attendance(id: EventId, body: SetAttendanceBody, actor: MemberAuth) -> Attendance:
     not_implemented()
 
 
@@ -33,7 +31,7 @@ async def set_attendance(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove own event attendance",
 )
-async def delete_attendance(id: EventId, actor: Annotated[None, Depends(member)]) -> None:
+async def delete_attendance(id: EventId, actor: MemberAuth) -> None:
     not_implemented()
 
 
@@ -44,7 +42,7 @@ async def delete_attendance(id: EventId, actor: Annotated[None, Depends(member)]
 )
 async def list_attendees(
     id: EventId,
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
     attendance_status: Annotated[AttendanceStatus | None, Query(alias="status")] = None,
 ) -> Page[Attendance]:
@@ -54,7 +52,7 @@ async def list_attendees(
 @router.post("/events", status_code=status.HTTP_201_CREATED, summary="Create a member event")
 async def create_event(
     body: CreateMemberEventBody,
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     confirm_new: Annotated[bool, Query()] = False,
 ) -> MemberEvent:
     not_implemented()
@@ -65,9 +63,7 @@ async def create_event(
     status_code=status.HTTP_200_OK,
     summary="Edit event as creator before its start or as admin",
 )
-async def update_event(
-    id: EventId, body: UpdateMemberEventBody, actor: Annotated[None, Depends(member)]
-) -> MemberEvent:
+async def update_event(id: EventId, body: UpdateMemberEventBody, actor: MemberAuth) -> MemberEvent:
     not_implemented()
 
 
@@ -76,15 +72,13 @@ async def update_event(
     status_code=status.HTTP_200_OK,
     summary="Cancel event as creator or admin",
 )
-async def cancel_event(
-    id: EventId, body: CancelMemberEventBody, actor: Annotated[None, Depends(member)]
-) -> MemberEvent:
+async def cancel_event(id: EventId, body: CancelMemberEventBody, actor: MemberAuth) -> MemberEvent:
     not_implemented()
 
 
 @router.get("/me/attendances", status_code=status.HTTP_200_OK, summary="List own attendances")
 async def list_my_attendances(
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     attendance_status: Annotated[AttendanceStatus | None, Query(alias="status")] = None,
 ) -> list[Attendance]:
     not_implemented()

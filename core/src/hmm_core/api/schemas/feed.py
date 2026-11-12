@@ -34,6 +34,20 @@ from hmm_core.api.schemas.common import (
 )
 
 
+class FeedItemAction(StrEnum):
+    GOING = "going"
+    REQUEST_JOIN = "request_join"
+    OFFER_HELP = "offer_help"
+
+
+class ConfirmationAction(StrEnum):
+    WITHDRAW = "withdraw"
+
+
+class FactAction(StrEnum):
+    CONFIRM = "confirm"
+
+
 class FeedKind(StrEnum):
     PROJECT_RECRUITING = "project_recruiting"
     PROJECT_SHIPPED = "project_shipped"
@@ -43,7 +57,7 @@ class FeedKind(StrEnum):
     MENTORSHIP_COMPLETED = "mentorship_completed"
 
 
-class FeedItem(WithAllowedActions):
+class FeedItem(WithAllowedActions[FeedItemAction]):
     id: FeedItemId
     kind: FeedKind
     subject_type: str
@@ -61,7 +75,7 @@ class CreateConfirmationBody(ApiInput):
     fact_id: FactId
 
 
-class Confirmation(WithAllowedActions):
+class Confirmation(WithAllowedActions[ConfirmationAction]):
     id: ConfirmationId
     fact_type: ConfirmationFactType
     fact_id: FactId
@@ -84,7 +98,7 @@ class FactAward(ApiModel):
     computed_at: AwareDatetime
 
 
-class Fact(WithAllowedActions):
+class Fact(WithAllowedActions[FactAction]):
     id: FactId
     type: FactType
     user_id: UserId

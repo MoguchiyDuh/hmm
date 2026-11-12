@@ -34,7 +34,7 @@ from hmm_core.api.schemas.projects import (
     UpdateMilestoneBody,
     UpdateProjectBody,
 )
-from hmm_core.api.security import member
+from hmm_core.api.security import MemberAuth
 
 router = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
@@ -42,7 +42,7 @@ internal = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
 
 @router.get("/projects", status_code=status.HTTP_200_OK, summary="List projects")
 async def list_projects(
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
     project_status: Annotated[ProjectStatus | None, Query(alias="status")] = None,
     area: Annotated[AreaKey | None, Query()] = None,
@@ -56,9 +56,7 @@ async def list_projects(
 @router.post(
     "/projects", status_code=status.HTTP_201_CREATED, summary="Create a standalone project"
 )
-async def create_project(
-    body: CreateProjectBody, actor: Annotated[None, Depends(member)]
-) -> Project:
+async def create_project(body: CreateProjectBody, actor: MemberAuth) -> Project:
     not_implemented()
 
 
@@ -66,7 +64,7 @@ async def create_project(
     "/me/projects", status_code=status.HTTP_200_OK, summary="List own projects and hackathon teams"
 )
 async def list_my_projects(
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     project_status: Annotated[ProjectStatus | TeamStatus | None, Query(alias="status")] = None,
 ) -> list[ProjectSummary]:
     not_implemented()
@@ -75,35 +73,33 @@ async def list_my_projects(
 @router.get(
     "/projects/{id}", status_code=status.HTTP_200_OK, summary="Get project respecting visibility"
 )
-async def get_project(id: ProjectId, actor: Annotated[None, Depends(member)]) -> ProjectView:
+async def get_project(id: ProjectId, actor: MemberAuth) -> ProjectView:
     not_implemented()
 
 
 @router.patch("/projects/{id}", status_code=status.HTTP_200_OK, summary="Edit project as lead")
-async def update_project(
-    id: ProjectId, body: UpdateProjectBody, actor: Annotated[None, Depends(member)]
-) -> Project:
+async def update_project(id: ProjectId, body: UpdateProjectBody, actor: MemberAuth) -> Project:
     not_implemented()
 
 
 @router.post(
     "/projects/{id}/start", status_code=status.HTTP_200_OK, summary="Start project as lead"
 )
-async def start_project(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Project:
+async def start_project(id: ProjectId, actor: MemberAuth) -> Project:
     not_implemented()
 
 
 @router.post(
     "/projects/{id}/pause", status_code=status.HTTP_200_OK, summary="Pause project as lead"
 )
-async def pause_project(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Project:
+async def pause_project(id: ProjectId, actor: MemberAuth) -> Project:
     not_implemented()
 
 
 @router.post(
     "/projects/{id}/abandon", status_code=status.HTTP_200_OK, summary="Abandon project as lead"
 )
-async def abandon_project(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Project:
+async def abandon_project(id: ProjectId, actor: MemberAuth) -> Project:
     not_implemented()
 
 
@@ -112,16 +108,14 @@ async def abandon_project(id: ProjectId, actor: Annotated[None, Depends(member)]
     status_code=status.HTTP_200_OK,
     summary="Continue shipped project as lead",
 )
-async def continue_project(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Project:
+async def continue_project(id: ProjectId, actor: MemberAuth) -> Project:
     not_implemented()
 
 
 @router.post(
     "/projects/{id}/invites", status_code=status.HTTP_201_CREATED, summary="Invite a member as lead"
 )
-async def create_invite(
-    id: ProjectId, body: CreateProjectInviteBody, actor: Annotated[None, Depends(member)]
-) -> Invite:
+async def create_invite(id: ProjectId, body: CreateProjectInviteBody, actor: MemberAuth) -> Invite:
     not_implemented()
 
 
@@ -131,7 +125,7 @@ async def create_invite(
     summary="Request to join a project or hackathon team",
 )
 async def create_join_request(
-    id: ProjectId, body: CreateProjectJoinRequestBody, actor: Annotated[None, Depends(member)]
+    id: ProjectId, body: CreateProjectJoinRequestBody, actor: MemberAuth
 ) -> JoinRequest:
     not_implemented()
 
@@ -144,7 +138,7 @@ async def create_join_request(
 async def remove_member(
     id: ProjectId,
     user_id: UserId,
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     reason: Annotated[ReasonBody | None, Body()] = None,
 ) -> None:
     not_implemented()
@@ -153,7 +147,7 @@ async def remove_member(
 @router.post(
     "/projects/{id}/leave", status_code=status.HTTP_204_NO_CONTENT, summary="Leave a project"
 )
-async def leave_project(id: ProjectId, actor: Annotated[None, Depends(member)]) -> None:
+async def leave_project(id: ProjectId, actor: MemberAuth) -> None:
     not_implemented()
 
 
@@ -162,16 +156,14 @@ async def leave_project(id: ProjectId, actor: Annotated[None, Depends(member)]) 
     status_code=status.HTTP_200_OK,
     summary="Claim lead of a paused leaderless project as member",
 )
-async def claim_lead(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Project:
+async def claim_lead(id: ProjectId, actor: MemberAuth) -> Project:
     not_implemented()
 
 
 @router.get(
     "/projects/{id}/milestones", status_code=status.HTTP_200_OK, summary="List project milestones"
 )
-async def list_milestones(
-    id: ProjectId, actor: Annotated[None, Depends(member)]
-) -> list[Milestone]:
+async def list_milestones(id: ProjectId, actor: MemberAuth) -> list[Milestone]:
     not_implemented()
 
 
@@ -181,7 +173,7 @@ async def list_milestones(
     summary="Create milestone as project member",
 )
 async def create_milestone(
-    id: ProjectId, body: CreateMilestoneBody, actor: Annotated[None, Depends(member)]
+    id: ProjectId, body: CreateMilestoneBody, actor: MemberAuth
 ) -> Milestone:
     not_implemented()
 
@@ -195,7 +187,7 @@ async def update_milestone(
     id: ProjectId,
     mid: MilestoneId,
     body: UpdateMilestoneBody,
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
 ) -> Milestone:
     not_implemented()
 
@@ -205,18 +197,14 @@ async def update_milestone(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete milestone as project member",
 )
-async def delete_milestone(
-    id: ProjectId, mid: MilestoneId, actor: Annotated[None, Depends(member)]
-) -> None:
+async def delete_milestone(id: ProjectId, mid: MilestoneId, actor: MemberAuth) -> None:
     not_implemented()
 
 
 @router.get(
     "/projects/{id}/updates", status_code=status.HTTP_200_OK, summary="List project updates"
 )
-async def list_updates(
-    id: ProjectId, actor: Annotated[None, Depends(member)]
-) -> list[ProjectUpdate]:
+async def list_updates(id: ProjectId, actor: MemberAuth) -> list[ProjectUpdate]:
     not_implemented()
 
 
@@ -226,7 +214,7 @@ async def list_updates(
     summary="Post update as project member",
 )
 async def create_update(
-    id: ProjectId, body: CreateProjectUpdateBody, actor: Annotated[None, Depends(member)]
+    id: ProjectId, body: CreateProjectUpdateBody, actor: MemberAuth
 ) -> ProjectUpdate:
     not_implemented()
 
@@ -235,7 +223,7 @@ async def create_update(
     "/projects/{id}/releases", status_code=status.HTTP_201_CREATED, summary="Ship a release as lead"
 )
 async def create_release(
-    id: ProjectId, body: CreateProjectReleaseBody, actor: Annotated[None, Depends(member)]
+    id: ProjectId, body: CreateProjectReleaseBody, actor: MemberAuth
 ) -> ProjectRelease:
     not_implemented()
 
@@ -243,7 +231,5 @@ async def create_release(
 @router.get(
     "/projects/{id}/releases", status_code=status.HTTP_200_OK, summary="List project releases"
 )
-async def list_releases(
-    id: ProjectId, actor: Annotated[None, Depends(member)]
-) -> list[ProjectRelease]:
+async def list_releases(id: ProjectId, actor: MemberAuth) -> list[ProjectRelease]:
     not_implemented()

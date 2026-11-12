@@ -1,4 +1,5 @@
 from datetime import date
+from enum import StrEnum
 from typing import Annotated, Literal, Self
 
 from hmm_contracts.common import (
@@ -31,7 +32,80 @@ from hmm_contracts.common import (
 )
 from pydantic import AwareDatetime, Field, HttpUrl, model_validator
 
-from hmm_core.api.schemas.common import ApiInput, ApiModel, ProjectRef, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import (
+    ApiInput,
+    ApiModel,
+    Links,
+    Markdown,
+    Name,
+    Note,
+    ProjectRef,
+    Title,
+    UserRef,
+    WithAllowedActions,
+)
+
+
+class ProjectMemberAction(StrEnum):
+    EDIT = "edit"
+    REMOVE = "remove"
+    MOVE = "move"
+    CONFIRM_PLACEMENT = "confirm_placement"
+    DECLINE_PLACEMENT = "decline_placement"
+    TRANSFER_LEAD = "transfer_lead"
+    CONFIRM = "confirm"
+
+
+class InviteAction(StrEnum):
+    ACCEPT = "accept"
+    DECLINE = "decline"
+    WITHDRAW = "withdraw"
+
+
+class JoinRequestAction(StrEnum):
+    ACCEPT = "accept"
+    REJECT = "reject"
+    WITHDRAW = "withdraw"
+
+
+class LeadOfferAction(StrEnum):
+    ACCEPT = "accept"
+    DECLINE = "decline"
+    CANCEL = "cancel"
+
+
+class ProjectAction(StrEnum):
+    EDIT = "edit"
+    INVITE = "invite"
+    REQUEST_JOIN = "request_join"
+    LEAVE = "leave"
+    ADD_MEMBER = "add_member"
+    READY = "ready"
+    UNREADY = "unready"
+    CLAIM_LEAD = "claim_lead"
+    UNCLAIM = "unclaim"
+    CLOSE_SEATS = "close_seats"
+    REOPEN_SEATS = "reopen_seats"
+    SWAP = "swap"
+    MERGE = "merge"
+    START = "start"
+    PAUSE = "pause"
+    ABANDON = "abandon"
+    CONTINUE = "continue"
+    STEP_DOWN = "step_down"
+    TRANSFER_LEAD = "transfer_lead"
+    ADD_MILESTONE = "add_milestone"
+    POST_UPDATE = "post_update"
+    RELEASE = "release"
+    SUBMIT_RESULT = "submit_result"
+    DISBAND = "disband"
+    SET_STATUS = "set_status"
+    SET_LEAD = "set_lead"
+
+
+class MilestoneAction(StrEnum):
+    EDIT = "edit"
+    DELETE = "delete"
 
 
 class Recruiting(ApiModel):
@@ -41,30 +115,30 @@ class Recruiting(ApiModel):
 
 class RecruitingInput(ApiInput):
     areas: list[AreaKey]
-    note: str
+    note: Note
 
 
 class CreateProjectBody(ApiInput):
-    name: str
-    description_md: str
-    goal: str
+    name: Name
+    description_md: Markdown
+    goal: Note
     area_keys: list[AreaKey]
-    links: list[HttpUrl]
+    links: Links
     event_id: EventId | None = None
     visibility: ProjectVisibility = ProjectVisibility.PUBLIC
 
 
 class UpdateProjectBody(ApiInput):
-    name: str | None = None
-    description_md: str | None = None
-    goal: str | None = None
+    name: Name | None = None
+    description_md: Markdown | None = None
+    goal: Note | None = None
     area_keys: list[AreaKey] | None = None
-    links: list[HttpUrl] | None = None
+    links: Links | None = None
     visibility: ProjectVisibility | None = None
     recruiting: RecruitingInput | None = None
 
 
-class ProjectMember(WithAllowedActions):
+class ProjectMember(WithAllowedActions[ProjectMemberAction]):
     id: ProjectMemberId
     project_id: ProjectId
     event_id: EventId | None
@@ -87,11 +161,11 @@ class ProjectMember(WithAllowedActions):
 
 class CreateProjectInviteBody(ApiInput):
     user_id: UserId
-    message: str | None = None
+    message: Note | None = None
     area_key: AreaKey | None = None
 
 
-class Invite(WithAllowedActions):
+class Invite(WithAllowedActions[InviteAction]):
     id: InviteId
     project_id: ProjectId
     project: ProjectRef
@@ -112,10 +186,10 @@ class Invite(WithAllowedActions):
 
 
 class CreateProjectJoinRequestBody(ApiInput):
-    note: str
+    note: Note
 
 
-class JoinRequest(WithAllowedActions):
+class JoinRequest(WithAllowedActions[JoinRequestAction]):
     id: JoinRequestId
     project_id: ProjectId
     project: ProjectRef
@@ -129,7 +203,7 @@ class JoinRequest(WithAllowedActions):
     updated_at: AwareDatetime
 
 
-class LeadOffer(WithAllowedActions):
+class LeadOffer(WithAllowedActions[LeadOfferAction]):
     id: LeadOfferId
     project_id: ProjectId
     project: ProjectRef
@@ -148,14 +222,14 @@ class LeadOffer(WithAllowedActions):
     updated_at: AwareDatetime
 
 
-class ProjectListing(WithAllowedActions):
+class ProjectListing(WithAllowedActions[ProjectAction]):
     view: Literal["limited"]
     id: ProjectId
     name: str
     area_keys: list[AreaKey]
 
 
-class ProjectSummary(ProjectRef, WithAllowedActions):
+class ProjectSummary(ProjectRef, WithAllowedActions[ProjectAction]):
     view: Literal["full"]
     area_keys: list[AreaKey]
     status: ProjectStatus
@@ -193,21 +267,21 @@ type ProjectView = Annotated[Project | ProjectListing, Field(discriminator="view
 
 
 class CreateMilestoneBody(ApiInput):
-    title: str
-    description: str | None = None
+    title: Title
+    description: Note | None = None
     due_on: date | None = None
     position: int
 
 
 class UpdateMilestoneBody(ApiInput):
-    title: str | None = None
-    description: str | None = None
+    title: Title | None = None
+    description: Note | None = None
     due_on: date | None = None
     position: int | None = None
     done: bool | None = None
 
 
-class Milestone(WithAllowedActions):
+class Milestone(WithAllowedActions[MilestoneAction]):
     id: MilestoneId
     project_id: ProjectId
     title: str
@@ -221,11 +295,11 @@ class Milestone(WithAllowedActions):
 
 
 class CreateProjectUpdateBody(ApiInput):
-    body_md: str = Field(max_length=5000)
-    links: list[HttpUrl] = Field(default_factory=list, max_length=10)
+    body_md: Markdown
+    links: Links = Field(default_factory=list)
 
 
-class ProjectUpdate(WithAllowedActions):
+class ProjectUpdate(ApiModel):
     id: ProjectUpdateId
     project_id: ProjectId
     author_id: UserId
@@ -242,8 +316,8 @@ class ReleaseContribution(ApiInput):
 
 
 class CreateProjectReleaseBody(ApiInput):
-    title: str
-    notes_md: str
+    title: Title
+    notes_md: Markdown
     repo_url: HttpUrl | None = None
     demo_url: HttpUrl | None = None
     writeup_url: HttpUrl | None = None

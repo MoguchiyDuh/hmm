@@ -30,7 +30,7 @@ from hmm_core.api.schemas.scores import (
     UpdateActivityBody,
     XpAdjustment,
 )
-from hmm_core.api.security import admin, member
+from hmm_core.api.security import AdminAuth, MemberAuth
 
 router = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
@@ -39,7 +39,7 @@ internal = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
 @router.get(
     "/users/{id}/scores", status_code=status.HTTP_200_OK, summary="Get effective scores and reasons"
 )
-async def get_scores(id: UserId, actor: Annotated[None, Depends(member)]) -> list[MemberAreaScore]:
+async def get_scores(id: UserId, actor: MemberAuth) -> list[MemberAreaScore]:
     not_implemented()
 
 
@@ -50,7 +50,7 @@ async def get_scores(id: UserId, actor: Annotated[None, Depends(member)]) -> lis
 )
 async def get_score_history(
     id: UserId,
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
     area: Annotated[AreaKey | None, Query()] = None,
 ) -> Page[AreaScoreEvent]:
@@ -60,22 +60,20 @@ async def get_score_history(
 @router.get("/users/{id}/activity", status_code=status.HTTP_200_OK, summary="List solo activity")
 async def list_activity(
     id: UserId,
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
 ) -> Page[ActivityEntry]:
     not_implemented()
 
 
 @router.post("/me/activity", status_code=status.HTTP_201_CREATED, summary="Create solo activity")
-async def create_activity(
-    body: CreateActivityBody, actor: Annotated[None, Depends(member)]
-) -> ActivityEntry:
+async def create_activity(body: CreateActivityBody, actor: MemberAuth) -> ActivityEntry:
     not_implemented()
 
 
 @router.patch("/me/activity/{id}", status_code=status.HTTP_200_OK, summary="Edit own solo activity")
 async def update_activity(
-    id: ActivityEntryId, body: UpdateActivityBody, actor: Annotated[None, Depends(member)]
+    id: ActivityEntryId, body: UpdateActivityBody, actor: MemberAuth
 ) -> ActivityEntry:
     not_implemented()
 
@@ -83,12 +81,12 @@ async def update_activity(
 @router.delete(
     "/me/activity/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete own solo activity"
 )
-async def delete_activity(id: ActivityEntryId, actor: Annotated[None, Depends(member)]) -> None:
+async def delete_activity(id: ActivityEntryId, actor: MemberAuth) -> None:
     not_implemented()
 
 
 @router.get("/users/{id}/metrics", status_code=status.HTTP_200_OK, summary="Get member metrics")
-async def get_metrics(id: UserId, actor: Annotated[None, Depends(member)]) -> MemberMetrics:
+async def get_metrics(id: UserId, actor: MemberAuth) -> MemberMetrics:
     not_implemented()
 
 
@@ -101,7 +99,7 @@ async def set_score_override(
     id: UserId,
     area_key: AreaKey,
     body: SetScoreOverrideBody,
-    actor: Annotated[None, Depends(admin)],
+    actor: AdminAuth,
 ) -> MemberAreaScore:
     not_implemented()
 
@@ -114,7 +112,7 @@ async def set_score_override(
 async def remove_score_override(
     id: UserId,
     area_key: AreaKey,
-    actor: Annotated[None, Depends(admin)],
+    actor: AdminAuth,
     body: ReasonBody | None = None,
 ) -> MemberAreaScore:
     not_implemented()
@@ -126,7 +124,7 @@ async def remove_score_override(
     summary="Adjust member XP",
 )
 async def create_xp_adjustment(
-    id: UserId, body: CreateXpAdjustmentBody, actor: Annotated[None, Depends(admin)]
+    id: UserId, body: CreateXpAdjustmentBody, actor: AdminAuth
 ) -> XpAdjustment:
     not_implemented()
 
@@ -137,7 +135,7 @@ async def create_xp_adjustment(
     summary="List flagged subjects and related members",
 )
 async def list_flags(
-    actor: Annotated[None, Depends(admin)],
+    actor: AdminAuth,
     pagination: Annotated[CursorParams, Depends()],
     status: Annotated[FlagStatus, Query()] = FlagStatus.TO_CHECK,
     user: Annotated[UserId | None, Query()] = None,
@@ -151,9 +149,7 @@ async def list_flags(
     status_code=status.HTTP_200_OK,
     summary="Resolve suspicious activity",
 )
-async def resolve_flag(
-    id: FlagId, body: ResolveFlagBody, actor: Annotated[None, Depends(admin)]
-) -> Flag:
+async def resolve_flag(id: FlagId, body: ResolveFlagBody, actor: AdminAuth) -> Flag:
     not_implemented()
 
 
@@ -161,7 +157,7 @@ async def resolve_flag(
     "/admin/restrictions", status_code=status.HTTP_200_OK, summary="List member restrictions"
 )
 async def list_restrictions(
-    actor: Annotated[None, Depends(admin)],
+    actor: AdminAuth,
     user: Annotated[UserId | None, Query()] = None,
     active: Annotated[bool | None, Query()] = None,
 ) -> list[Restriction]:
@@ -171,9 +167,7 @@ async def list_restrictions(
 @router.delete(
     "/admin/restrictions/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Lift restriction"
 )
-async def lift_restriction(
-    id: RestrictionId, body: LiftRestrictionBody, actor: Annotated[None, Depends(admin)]
-) -> None:
+async def lift_restriction(id: RestrictionId, body: LiftRestrictionBody, actor: AdminAuth) -> None:
     not_implemented()
 
 
@@ -182,7 +176,5 @@ async def lift_restriction(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Enqueue member recomputation",
 )
-async def recompute_member(
-    id: UserId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
-) -> None:
+async def recompute_member(id: UserId, actor: AdminAuth, body: ReasonBody | None = None) -> None:
     not_implemented()

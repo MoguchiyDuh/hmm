@@ -1,4 +1,5 @@
 from datetime import date, timedelta
+from enum import StrEnum
 from typing import Literal
 
 from hmm_contracts.algo import RatingSummary
@@ -27,13 +28,35 @@ from hmm_core.api.schemas.common import (
     ApiInput,
     ApiModel,
     AreaScoreSummary,
+    Links,
+    Markdown,
+    Note,
     ScoreValue,
+    Title,
     UserRef,
     WithAllowedActions,
 )
 
 
-class MemberAreaScore(AreaScoreSummary, WithAllowedActions):
+class AreaScoreAction(StrEnum):
+    OVERRIDE = "override"
+    CLEAR_OVERRIDE = "clear_override"
+
+
+class ActivityEntryAction(StrEnum):
+    EDIT = "edit"
+    DELETE = "delete"
+
+
+class FlagAction(StrEnum):
+    RESOLVE = "resolve"
+
+
+class RestrictionAction(StrEnum):
+    LIFT = "lift"
+
+
+class MemberAreaScore(AreaScoreSummary, WithAllowedActions[AreaScoreAction]):
     area_id: AreaId
     calculated: ScoreValue | None = None
     calc_reason: str | None = None
@@ -59,9 +82,9 @@ class AreaScoreEvent(ApiModel):
 
 class CreateActivityBody(ApiInput):
     type: ActivityType
-    title: str = Field(max_length=200)
-    description_md: str = Field(max_length=5000)
-    links: list[HttpUrl] = Field(max_length=10)
+    title: Title
+    description_md: Markdown
+    links: Links
     area_id: AreaId | None = None
     occurred_on: date
 
@@ -75,9 +98,9 @@ class CreateActivityBody(ApiInput):
 
 class UpdateActivityBody(ApiInput):
     type: ActivityType | None = None
-    title: str | None = Field(default=None, max_length=200)
-    description_md: str | None = Field(default=None, max_length=5000)
-    links: list[HttpUrl] | None = Field(default=None, max_length=10)
+    title: Title | None = None
+    description_md: Markdown | None = None
+    links: Links | None = None
     area_id: AreaId | None = None
     occurred_on: date | None = None
 
@@ -89,7 +112,7 @@ class UpdateActivityBody(ApiInput):
         return value
 
 
-class ActivityEntry(WithAllowedActions):
+class ActivityEntry(WithAllowedActions[ActivityEntryAction]):
     id: ActivityEntryId
     user_id: UserId
     type: ActivityType
@@ -114,13 +137,13 @@ class MemberMetrics(ApiModel):
 
 class SetScoreOverrideBody(ApiInput):
     value: ScoreValue
-    reason: str
+    reason: Note
     evidence: OverrideEvidence
 
 
 class CreateXpAdjustmentBody(ApiInput):
     amount: float = Field(allow_inf_nan=False)
-    reason: str
+    reason: Note
 
 
 class XpAdjustment(ApiModel):
@@ -153,11 +176,11 @@ class FlagPenalties(ApiInput):
 class ResolveFlagBody(ApiInput):
     decision: Literal["pardon", "punish"]
     penalties: FlagPenalties | None = None
-    note: str
-    reason: str | None = None
+    note: Note
+    reason: Note | None = None
 
 
-class Flag(WithAllowedActions):
+class Flag(WithAllowedActions[FlagAction]):
     id: FlagId
     user_id: UserId
     subject_type: FlagSubjectType
@@ -176,7 +199,7 @@ class Flag(WithAllowedActions):
     created_at: AwareDatetime
 
 
-class Restriction(WithAllowedActions):
+class Restriction(WithAllowedActions[RestrictionAction]):
     id: RestrictionId
     user_id: UserId
     kind: RestrictionKind
@@ -189,4 +212,4 @@ class Restriction(WithAllowedActions):
 
 
 class LiftRestrictionBody(ApiInput):
-    reason: str
+    reason: Note
