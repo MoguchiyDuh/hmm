@@ -10,6 +10,7 @@ COPY core core
 COPY algo algo
 COPY parser parser
 COPY bot bot
+COPY alembic.ini ./
 RUN uv sync --locked --no-dev --package ${PACKAGE}
 
 ENV PATH="/app/.venv/bin:$PATH"

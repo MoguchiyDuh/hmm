@@ -1793,12 +1793,110 @@
         "title": "AttendanceStatus",
         "type": "string"
       },
+      "AuditAction": {
+        "enum": [
+          "user_edit",
+          "user_ban",
+          "user_unban",
+          "admin_grant",
+          "admin_revoke",
+          "area_create",
+          "area_edit",
+          "area_archive",
+          "area_unarchive",
+          "quiz_create",
+          "quiz_edit",
+          "quiz_clone",
+          "quiz_validate",
+          "quiz_publish",
+          "quiz_delete",
+          "onboarding_reopen",
+          "member_review_edit",
+          "member_review_complete",
+          "score_override_set",
+          "score_override_remove",
+          "xp_adjust",
+          "xp_adjust_reverse",
+          "member_recompute",
+          "flag_pardon",
+          "flag_punish",
+          "fact_exclude",
+          "confirmations_revoke",
+          "restriction_apply",
+          "restriction_lift",
+          "event_create",
+          "event_edit",
+          "event_unlock_field",
+          "event_publish",
+          "event_reject",
+          "event_merge",
+          "event_cancel",
+          "formation_edit",
+          "formation_run",
+          "reserve_reorder",
+          "project_create",
+          "project_disband",
+          "project_status_set",
+          "member_add",
+          "member_remove",
+          "member_move",
+          "lead_assign",
+          "lead_transfer",
+          "lead_step_down",
+          "result_submit",
+          "result_edit",
+          "result_verify",
+          "result_reject",
+          "review_remove",
+          "alert_resolve",
+          "setting_set",
+          "job_retry",
+          "system_transition"
+        ],
+        "title": "AuditAction",
+        "type": "string"
+      },
+      "AuditEntityType": {
+        "enum": [
+          "user",
+          "area",
+          "quiz",
+          "onboarding",
+          "member_review",
+          "area_score",
+          "xp_adjustment",
+          "flag",
+          "fact",
+          "confirmation",
+          "restriction",
+          "event",
+          "formation",
+          "enrollment",
+          "project",
+          "project_member",
+          "invite",
+          "join_request",
+          "lead_offer",
+          "swap_request",
+          "merge_proposal",
+          "project_result",
+          "review",
+          "admin_alert",
+          "setting",
+          "job",
+          "attendance",
+          "help_request",
+          "help_offer",
+          "mentorship"
+        ],
+        "title": "AuditEntityType",
+        "type": "string"
+      },
       "AuditEntry": {
         "additionalProperties": false,
         "properties": {
           "action": {
-            "title": "Action",
-            "type": "string"
+            "$ref": "#/components/schemas/AuditAction"
           },
           "actor_id": {
             "anyOf": [
@@ -1825,11 +1923,18 @@
             "type": "string"
           },
           "entity_id": {
-            "$ref": "#/components/schemas/SubjectId"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SubjectId"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Entity Id"
           },
           "entity_type": {
-            "title": "Entity Type",
-            "type": "string"
+            "$ref": "#/components/schemas/AuditEntityType"
           },
           "id": {
             "$ref": "#/components/schemas/AuditLogId"

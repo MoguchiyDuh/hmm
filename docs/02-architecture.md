@@ -48,13 +48,13 @@ hmm/
 | parser | group's choice in Python 3.13; HTTP to core only |
 | bot | aiogram 3, httpx, long polling |
 | frontend | TypeScript, React, Vite, TanStack Router + Query, openapi-typescript + openapi-fetch, Tailwind + shadcn/ui, Zod, MSW for mocks, pnpm |
-| infra | Dockerfiles + dev Docker Compose, PostgreSQL 17, MinIO. Production hosting, TLS, proxy and backups are out of this repo's scope (§22). |
+| infra | Dockerfiles + dev Docker Compose, PostgreSQL 18, MinIO. Production hosting, TLS, proxy and backups are out of this repo's scope (§22). |
 | LLM | any OpenAI-compatible chat endpoint (OpenCode Go key); `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. Chat only, no embeddings. |
 
 ## 2.4 Process model (core)
 
 - `api` — uvicorn, stateless, horizontally scalable.
-- `worker` — `procrastinate worker`, runs every job in §17 including all algo calls.
+- `worker` — `hmm-worker`, runs jobs in §17 including all algo calls.
 - `migrate` — one-shot container running `alembic upgrade head` before `api`/`worker` start.
 
 HTTP handlers never call the LLM or GitHub synchronously. They enqueue jobs and return.

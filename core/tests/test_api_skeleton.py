@@ -16,6 +16,7 @@ from hmm_core.api.security import admin, bot_service, parser_service, user
 from hmm_core.app import create_app
 from hmm_core.config import Config
 from hmm_core.openapi import OPENAPI_PATH, render_openapi
+from stub_operations import UNIMPLEMENTED_OPERATIONS
 
 DUMMY_UUID = "019a78e5-9800-7000-8000-000000000001"
 
@@ -93,11 +94,13 @@ def assert_problem(response: httpx.Response, status: int, code: ErrorCode) -> Pr
 
 
 @pytest.mark.asyncio
-async def test_every_registered_endpoint_is_a_stub() -> None:
+async def test_explicit_unimplemented_operations() -> None:
     app = create_app()
     document = app.openapi()
     operations = list(registered_operations(app))
     assert operations
+    operation_ids = {document["paths"][path][method]["operationId"] for path, method in operations}
+    assert operation_ids >= UNIMPLEMENTED_OPERATIONS
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
@@ -125,17 +128,19 @@ async def test_every_registered_endpoint_is_a_stub() -> None:
                 if ("application/json" in body)
                 else None
             )
+            if operation["operationId"] == "catalog_create_event":
+                assert isinstance(payload, dict)
+                payload["timezone"] = "UTC"
+            if operation["operationId"] == "projects_create_release":
+                assert isinstance(payload, dict)
+                payload["repo_url"] = "https://example.com/repo"
             response = await client.request(
                 method, url, params=query, headers=headers, json=payload
             )
-            if response.status_code == 422 and body:
-                response = await client.request(method, url, params=query, headers=headers, json={})
-            if response.status_code == 422 and body:
-                problem = assert_problem(response, 422, ErrorCode.VALIDATION_ERROR)
-                assert problem.errors
-                assert all(issue.loc[0] == "body" for issue in problem.errors)
-            else:
-                assert_problem(response, 501, ErrorCode.NOT_IMPLEMENTED)
+            if operation["operationId"] not in UNIMPLEMENTED_OPERATIONS:
+                assert response.status_code != 501, operation["operationId"]
+                continue
+            assert_problem(response, 501, ErrorCode.NOT_IMPLEMENTED)
 
 
 def test_openapi_is_unique_and_uses_problem_responses() -> None:
@@ -176,8 +181,8 @@ async def test_health_probes() -> None:
     ) as client:
         for path in ("/healthz", "/readyz"):
             response = await client.get(path)
-            assert response.status_code == 200
-            assert response.json() == {"status": "ok"}
+            assert response.status_code == (200 if path == "/healthz" else 503)
+            assert response.json() == {"status": "ok" if path == "/healthz" else "unavailable"}
             assert path not in app.openapi()["paths"]
 
 
