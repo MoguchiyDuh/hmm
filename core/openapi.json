@@ -2924,7 +2924,7 @@
       "CreateTeamBody": {
         "additionalProperties": false,
         "properties": {
-          "description": {
+          "description_md": {
             "anyOf": [
               {
                 "type": "string"
@@ -2933,7 +2933,7 @@
                 "type": "null"
               }
             ],
-            "title": "Description"
+            "title": "Description Md"
           },
           "name": {
             "minLength": 1,
@@ -19475,17 +19475,6 @@
               }
             ],
             "title": "Area Keys"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
           },
           "description_md": {
             "anyOf": [

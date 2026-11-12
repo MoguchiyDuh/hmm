@@ -57,7 +57,6 @@ class CreateProjectBody(ApiInput):
 
 class UpdateProjectBody(ApiInput):
     name: str | None = None
-    description: str | None = None
     description_md: str | None = None
     goal: str | None = None
     area_keys: list[AreaKey] | None = None

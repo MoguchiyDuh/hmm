@@ -129,7 +129,7 @@ class Formation(WithAllowedActions):
 
 class CreateTeamBody(ApiInput):
     name: str = Field(min_length=1)
-    description: str | None = None
+    description_md: str | None = None
 
 
 class AdminCreateTeamBody(ReasonBody):
