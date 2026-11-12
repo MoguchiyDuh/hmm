@@ -159,8 +159,12 @@ def test_openapi_is_unique_and_uses_problem_responses() -> None:
         "SessionCookie",
         "BotServiceToken",
         "ParserServiceToken",
+        "TelegramUser",
     }
-    assert document["paths"]["/api/v1/areas"]["get"]["security"] == [{"SessionCookie": []}]
+    assert document["paths"]["/api/v1/areas"]["get"]["security"] == [
+        {"SessionCookie": []},
+        {"BotServiceToken": [], "TelegramUser": []},
+    ]
 
 
 @pytest.mark.asyncio
@@ -245,7 +249,9 @@ async def test_security_dependencies_only_declare_auth() -> None:
     schema = app.openapi()
     assert schema["paths"]["/bot"]["get"]["security"] == [{"BotServiceToken": []}]
     assert schema["paths"]["/parser"]["get"]["security"] == [{"ParserServiceToken": []}]
-    assert schema["paths"]["/acting"]["get"]["security"] == [{"BotServiceToken": []}]
+    assert schema["paths"]["/acting"]["get"]["security"] == [
+        {"BotServiceToken": [], "TelegramUser": []}
+    ]
 
 
 def test_openapi_export_is_current() -> None:

@@ -23,7 +23,7 @@
 
 ## 26.3 Member-created events
 
-- `POST /api/v1/events {kind, title, starts_at, ends_at, format, location?, website_url?, description_md?, area_keys?}`: published immediately (`origin=member`, `created_by`).
+- `POST /api/v1/events {kind, title, starts_at, ends_at, timezone?, format, location?, website_url?, description_md?, area_keys?}`: published immediately (`origin=member`, `created_by`); timezone defaults to `UTC` when omitted.
 - Duplicate check (same URL, or normalized title + overlapping dates ± 1 day): returns 409 `possible_duplicate` with candidates. `confirm_new=true` creates it anyway with `review_reasons += possible_duplicate`, and admins see it in the review queue (§11). Nothing waits on that.
 - The creator's attendance gets role `organizer` or `host`.
 - `formation_enabled` stays off for member-created events. Admins can switch it on.

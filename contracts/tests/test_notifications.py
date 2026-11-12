@@ -8,11 +8,18 @@ import hmm_contracts.notifications as notifications
 import pytest
 from hmm_contracts.common import AlertSeverity, Contract, DeliveryStatus, Locale
 from hmm_contracts.notifications import (
+    ACTION_ROUTES,
     ALERT_SEVERITIES,
     ALLOWED_ACTIONS,
     TELEGRAM_OFF_BY_DEFAULT,
+    ActionKey,
     AlertKind,
+    ApiAction,
     DeliveryAck,
+    HelpRequestDeclinedPayload,
+    HelpRequestDirectPayload,
+    HelpRequestExpiredPayload,
+    LinkAction,
     Notification,
     NotificationActionCallback,
     NotificationPayload,
@@ -45,7 +52,7 @@ def test_docs_notification_types() -> None:
     spec = (ROOT / "docs/15-notifications.md").read_text()
     section = spec.split("## Notifications\n", 1)[1].split("## Telegram delivery contract", 1)[0]
     documented = table_types(section)
-    assert len(documented) == 74
+    assert len(documented) == 75
     assert documented <= set(NotificationType)
     assert set(NotificationType) - documented == {NotificationType.ADMIN_DIGEST}
 
@@ -80,9 +87,13 @@ def test_fixture_and_discriminator_round_trip(notification_type: NotificationTyp
     payload = PAYLOAD_ADAPTER.validate_json(json.dumps(data["payload"]))
     assert payload == notification.payload
     assert PAYLOAD_ADAPTER.validate_json(PAYLOAD_ADAPTER.dump_json(payload)) == payload
-    assert {action.action for action in payload.actions} == set(ALLOWED_ACTIONS[notification_type])
+    assert {action.key for action in payload.actions if isinstance(action, ApiAction)} == set(
+        ALLOWED_ACTIONS[notification_type]
+    )
     for action in payload.actions:
-        callback = NotificationActionCallback(action=action.action, entity_id=action.entity_id)
+        if not isinstance(action, ApiAction):
+            continue
+        callback = NotificationActionCallback(key=action.key, entity_id=action.entity_id)
         assert len(callback.to_callback_data().encode()) <= 64
         assert (
             NotificationActionCallback.from_callback_data(callback.to_callback_data()) == callback
@@ -92,6 +103,35 @@ def test_fixture_and_discriminator_round_trip(notification_type: NotificationTyp
 def test_unknown_type_rejected() -> None:
     with pytest.raises(ValidationError, match="union_tag_invalid"):
         PAYLOAD_ADAPTER.validate_python({"type": "unknown_notification", "link": "/notifications"})
+
+
+def test_direct_request_decline_and_open_actions() -> None:
+    direct = Notification.model_validate(fixture_data(NotificationType.HELP_REQUEST_DIRECT))
+    assert isinstance(direct.payload, HelpRequestDirectPayload)
+    assert len(direct.payload.actions) == 2
+    decline, help_link = direct.payload.actions
+    assert isinstance(decline, ApiAction)
+    assert decline.key == ActionKey.HELP_REQUEST_DECLINE
+    assert decline.entity_id == direct.payload.help_request_id
+    assert isinstance(help_link, LinkAction)
+    assert help_link.label_key == "notifications.actions.help"
+    declined = Notification.model_validate(fixture_data(NotificationType.HELP_REQUEST_DECLINED))
+    assert isinstance(declined.payload, HelpRequestDeclinedPayload)
+    assert declined.user_id == declined.payload.learner.user_id
+    assert len(declined.payload.actions) == 1
+    open_action = declined.payload.actions[0]
+    assert isinstance(open_action, ApiAction)
+    assert open_action.key == ActionKey.HELP_REQUEST_OPEN
+    assert open_action.entity_id == declined.payload.help_request_id
+
+
+def test_expired_request_reopen_links_to_prefilled_new_request() -> None:
+    expired = Notification.model_validate(fixture_data(NotificationType.HELP_REQUEST_EXPIRED))
+    assert isinstance(expired.payload, HelpRequestExpiredPayload)
+    assert len(expired.payload.actions) == 1
+    action = expired.payload.actions[0]
+    assert isinstance(action, LinkAction)
+    assert action.url == f"/mentorship/new?from={expired.payload.help_request_id}"
 
 
 def test_confirmed_placement_change_has_no_confirmation_deadline() -> None:
@@ -131,12 +171,14 @@ def test_notification_type_mismatch_rejected() -> None:
 
 def test_disallowed_action_rejected() -> None:
     payload = fixture_data(NotificationType.TEAM_PROPOSED)["payload"]
-    payload["actions"][0]["action"] = "accept"
+    payload["actions"][0]["key"] = "invite_accept"
     with pytest.raises(ValidationError, match="Action is not allowed"):
         PAYLOAD_ADAPTER.validate_python(payload)
 
 
 def test_complete_policy_mappings() -> None:
+    assert set(ACTION_ROUTES) == set(ActionKey)
+    assert {key for keys in ALLOWED_ACTIONS.values() for key in keys} == set(ActionKey)
     assert set(ALLOWED_ACTIONS) == set(NotificationType)
     assert set(ALERT_SEVERITIES) == set(AlertKind)
     expected_telegram_off = {
@@ -147,6 +189,19 @@ def test_complete_policy_mappings() -> None:
         NotificationType.ATTENDANCE_CONFIRM_DIGEST,
     }
     assert expected_telegram_off == TELEGRAM_OFF_BY_DEFAULT
+
+
+def test_action_keys_and_longest_callback_fit_telegram() -> None:
+    assert all(re.fullmatch(r"[a-z]+(?:_[a-z]+)*", key) for key in ActionKey)
+    assert max(map(len, ActionKey)) <= 24
+    for key in ActionKey:
+        callback = NotificationActionCallback(
+            key=key, entity_id=UUID("019a7b32-0000-7000-8000-000000000001")
+        )
+        assert len(callback.to_callback_data().encode()) <= 64
+        assert (
+            NotificationActionCallback.from_callback_data(callback.to_callback_data()) == callback
+        )
 
 
 def test_all_public_models_exported() -> None:

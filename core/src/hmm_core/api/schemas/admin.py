@@ -12,6 +12,7 @@ from hmm_contracts.notifications import AlertKind
 from pydantic import AwareDatetime, Field, JsonValue
 
 from hmm_core.api.schemas.common import ApiModel, ReasonBody, UserRef, WithAllowedActions
+from hmm_core.settings import SettingKey
 
 
 class AdminUser(UserRef, WithAllowedActions):
@@ -72,11 +73,13 @@ class AuditEntry(ApiModel):
 
 
 class Setting(WithAllowedActions):
-    key: str
+    key: SettingKey
     value: JsonValue
     default: JsonValue
     description: str
-    value_schema: dict[str, JsonValue]
+    value_schema: dict[str, JsonValue] = Field(
+        description="JSON schema for this setting key's value"
+    )
     updated_by: UserId | None
     updated_at: AwareDatetime | None
 

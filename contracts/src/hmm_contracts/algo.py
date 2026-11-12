@@ -54,6 +54,7 @@ from hmm_contracts.common import (
     Severity,
     SubjectId,
     TeamStatus,
+    TimeZoneName,
     Trust,
     UserId,
 )
@@ -164,16 +165,20 @@ type AnswerValue = str | list[str] | int | float
 
 
 class AlgoSettings(Contract):
-    activity_window_days: int = Field(default=14, gt=0)
-    lead_fit_threshold: UnitScore = 0.6
-    viable_ratio: Annotated[float, Field(gt=0, le=1)] = 0.75
-    core_ratio: Annotated[float, Field(gt=0, le=1)] = 0.5
-    team_size_default_min: int = Field(default=2, ge=1)
-    team_size_default_max: int = Field(default=5, ge=1)
-    mentor_min_score: AreaScore = 6.0
-    mentor_min_gap: AreaScore = 2.0
-    mentor_capacity_default: Count = 3
-    mentor_notify_top_n: int = Field(default=5, gt=0)
+    activity_window_days: int = Field(default=14, gt=0, description="Activity scoring window")
+    lead_fit_threshold: UnitScore = Field(default=0.6, description="Lead eligibility threshold")
+    viable_ratio: Annotated[float, Field(gt=0, le=1)] = Field(
+        default=0.75, description="Viable team size ratio"
+    )
+    core_ratio: Annotated[float, Field(gt=0, le=1)] = Field(
+        default=0.5, description="Claimed core size ratio"
+    )
+    team_size_default_min: int = Field(default=2, ge=1, description="Default minimum team size")
+    team_size_default_max: int = Field(default=5, ge=1, description="Default maximum team size")
+    mentor_min_score: AreaScore = Field(default=6.0, description="Minimum mentoring score")
+    mentor_min_gap: AreaScore = Field(default=2.0, description="Minimum mentor-learner score gap")
+    mentor_capacity_default: Count = Field(default=3, description="Fallback active mentor capacity")
+    mentor_notify_top_n: int = Field(default=5, gt=0, description="Matched mentors to notify")
 
 
 class LLMConfig(Contract):
@@ -457,6 +462,7 @@ class EventArea(Contract):
 
 
 class EventSnapshot(Contract):
+    timezone: TimeZoneName
     id: EventId
     title: str
     summary: str | None

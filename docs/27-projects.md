@@ -22,7 +22,7 @@ idea ──start──► active ──ship──► shipped ──continue─�
 ## 27.2 Create and edit (standalone)
 
 - `POST /api/v1/projects {name, description_md, goal, area_keys[], links[], event_id?, visibility}` → `idea`. The creator is the confirmed lead.
-- `visibility`: `public` (all members, default) or `members` (details hidden from non-members; only name and areas listed).
+- `visibility`: `public` (all members, default) or `members` (non-members receive `view: "limited"`, only name and areas).
 - Limits: `project_size_max` (20) members; a member may lead at most `projects_led_max` (5) non-terminal standalone projects.
 - `event_id` on a standalone project means "built for or at this event" without formation (e.g. a game jam the team joined outside the platform).
 - Lead edits everything. Members edit milestones and post updates.

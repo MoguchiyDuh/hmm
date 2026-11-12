@@ -7,22 +7,16 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "action": "confirm",
+        "kind": "api",
+        "key": "placement_confirm",
         "entity_id": "019a7b32-0000-7000-8000-000000000003",
-        "label_key": "notifications.actions.confirm",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003/placement/confirm"
-        }
+        "label_key": "notifications.actions.placement_confirm"
       },
       {
-        "action": "leave",
+        "kind": "api",
+        "key": "project_leave",
         "entity_id": "019a7b32-0000-7000-8000-000000000003",
-        "label_key": "notifications.actions.leave",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003/leave"
-        }
+        "label_key": "notifications.actions.project_leave"
       }
     ],
     "event_id": "019a7b32-0000-7000-8000-000000000002",

@@ -147,7 +147,7 @@ def test_uuid_aliases_validate_and_generate_schemas() -> None:
 def test_public_exports_cover_local_definitions() -> None:
     assert len(common.__all__) == len(set(common.__all__))
     for name, value in vars(common).items():
-        if name.startswith("__"):
+        if name.startswith("_"):
             continue
         if getattr(value, "__pydantic_generic_metadata__", {}).get("origin") is not None:
             continue

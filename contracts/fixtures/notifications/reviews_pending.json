@@ -7,13 +7,9 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "action": "review",
-        "entity_id": "019a7b32-0000-7000-8000-000000000012",
+        "kind": "link",
         "label_key": "notifications.actions.review",
-        "api": {
-          "method": "GET",
-          "path": "/api/v1/me/reviews/pending"
-        }
+        "url": "/projects/019a7b32-0000-7000-8000-000000000003"
       }
     ],
     "review_window_id": "019a7b32-0000-7000-8000-000000000012",

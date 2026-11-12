@@ -9,6 +9,7 @@ from hmm_contracts.common import (
     EventOrigin,
     EventReviewReason,
     EventStatus,
+    TimeZoneName,
     Trust,
     UserId,
 )
@@ -42,6 +43,7 @@ class Attendance(WithAllowedActions):
 
 
 class CreateMemberEventBody(ApiInput):
+    timezone: TimeZoneName = "UTC"
     kind: EventKind
     title: str
     starts_at: AwareDatetime
@@ -54,6 +56,7 @@ class CreateMemberEventBody(ApiInput):
 
 
 class UpdateMemberEventBody(ApiInput):
+    timezone: TimeZoneName | None = None
     kind: EventKind | None = None
     title: str | None = None
     starts_at: AwareDatetime | None = None
@@ -80,12 +83,12 @@ class MemberEvent(EventRef, WithAllowedActions):
     registration_url: HttpUrl | None
     registration_opens_at: AwareDatetime | None
     registration_deadline: AwareDatetime | None
-    timezone: str
+    timezone: TimeZoneName
     language: list[str]
     eligibility: str | None
     themes: list[str]
-    team_size_min: int | None = Field(ge=1, le=20)
-    team_size_max: int | None = Field(ge=1, le=20)
+    team_size_min: int | None = Field(ge=1)
+    team_size_max: int | None = Field(ge=1)
     area_keys: list[AreaKey]
     status: EventStatus
     origin: EventOrigin

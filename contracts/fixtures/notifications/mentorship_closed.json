@@ -7,22 +7,15 @@
     "link": "/mentorships/019a7b32-0000-7000-8000-000000000011",
     "actions": [
       {
-        "action": "acknowledge",
+        "kind": "api",
+        "key": "mentorship_acknowledge",
         "entity_id": "019a7b32-0000-7000-8000-000000000011",
-        "label_key": "notifications.actions.acknowledge",
-        "api": {
-          "method": "GET",
-          "path": "/api/v1/mentorships/019a7b32-0000-7000-8000-000000000011"
-        }
+        "label_key": "notifications.actions.mentorship_acknowledge"
       },
       {
-        "action": "endorse",
-        "entity_id": "019a7b32-0000-7000-8000-000000000011",
+        "kind": "link",
         "label_key": "notifications.actions.endorse",
-        "api": {
-          "method": "GET",
-          "path": "/api/v1/mentorships/019a7b32-0000-7000-8000-000000000011"
-        }
+        "url": "/mentorships/019a7b32-0000-7000-8000-000000000011"
       }
     ],
     "mentorship_id": "019a7b32-0000-7000-8000-000000000011",

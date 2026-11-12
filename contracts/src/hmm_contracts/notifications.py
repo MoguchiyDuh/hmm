@@ -1,7 +1,7 @@
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
-from pydantic import AwareDatetime, Field, StringConstraints, model_validator
+from pydantic import AwareDatetime, Field, JsonValue, StringConstraints, model_validator
 
 from hmm_contracts.common import (
     AdminAlertId,
@@ -46,17 +46,22 @@ from hmm_contracts.common import (
     SwapRequestId,
     SwapRequestStatus,
     TeamStatus,
+    TimeZoneName,
     UserId,
 )
 
 __all__ = [
+    "ACTION_ROUTES",
     "ALERT_SEVERITIES",
     "ALLOWED_ACTIONS",
     "TELEGRAM_OFF_BY_DEFAULT",
+    "ActionKey",
+    "ActionRoute",
     "AdminAlert",
     "AdminAlertPayload",
     "AdminDigestPayload",
     "AlertKind",
+    "ApiAction",
     "AttendanceConfirmDigestPayload",
     "AttendanceConfirmationCandidate",
     "ConfirmReminderPayload",
@@ -71,6 +76,7 @@ __all__ = [
     "HelpOfferAcceptedPayload",
     "HelpOfferClosedPayload",
     "HelpOfferReceivedPayload",
+    "HelpRequestDeclinedPayload",
     "HelpRequestDirectPayload",
     "HelpRequestExpiredPayload",
     "HelpRequestMatchPayload",
@@ -88,6 +94,7 @@ __all__ = [
     "LeadOpportunityPayload",
     "LeadSteppedDownPayload",
     "LeadTransferredPayload",
+    "LinkAction",
     "MentorshipCloseProposedPayload",
     "MentorshipClosedPayload",
     "MentorshipIdlePayload",
@@ -96,10 +103,8 @@ __all__ = [
     "MergeProposedPayload",
     "MergeResultPayload",
     "Notification",
-    "NotificationAction",
     "NotificationActionCallback",
     "NotificationActionResult",
-    "NotificationApi",
     "NotificationCandidate",
     "NotificationChange",
     "NotificationPayload",
@@ -209,6 +214,7 @@ class NotificationType(StrEnum):
     PROJECT_LEAD_CLAIMABLE = "project_lead_claimable"
     HELP_REQUEST_MATCH = "help_request_match"
     HELP_REQUEST_DIRECT = "help_request_direct"
+    HELP_REQUEST_DECLINED = "help_request_declined"
     HELP_OFFER_RECEIVED = "help_offer_received"
     HELP_OFFER_ACCEPTED = "help_offer_accepted"
     HELP_OFFER_CLOSED = "help_offer_closed"
@@ -233,81 +239,168 @@ class NotificationType(StrEnum):
     ADMIN_DIGEST = "admin_digest"
 
 
-ALLOWED_ACTIONS: dict[NotificationType, tuple[str, ...]] = {
-    NotificationType.INVITE_RECEIVED: ("accept", "decline"),
+class ActionKey(StrEnum):
+    INVITE_ACCEPT = "invite_accept"
+    INVITE_DECLINE = "invite_decline"
+    JOIN_REQUEST_ACCEPT = "join_request_accept"
+    JOIN_REQUEST_REJECT = "join_request_reject"
+    PLACEMENT_CONFIRM = "placement_confirm"
+    PLACEMENT_DECLINE = "placement_decline"
+    PROJECT_LEAVE = "project_leave"
+    LEAD_OFFER_ACCEPT = "lead_offer_accept"
+    LEAD_OFFER_DECLINE = "lead_offer_decline"
+    EVENT_ENROLL = "event_enroll"
+    SWAP_ACCEPT = "swap_accept"
+    SWAP_DECLINE = "swap_decline"
+    MERGE_ACCEPT = "merge_accept"
+    MERGE_DECLINE = "merge_decline"
+    LEAD_STEP_DOWN = "lead_step_down"
+    PROJECT_CLAIM_LEAD = "project_claim_lead"
+    HELP_OFFER_ACCEPT = "help_offer_accept"
+    HELP_REQUEST_DECLINE = "help_request_decline"
+    HELP_REQUEST_OPEN = "help_request_open"
+    MENTORSHIP_ACKNOWLEDGE = "mentorship_acknowledge"
+
+
+class ActionRoute(Contract):
+    method: Literal["POST"]
+    path: WebPath
+    body: dict[str, JsonValue] | None = None
+
+    @model_validator(mode="after")
+    def validate_path(self) -> Self:
+        if not self.path.startswith("/api/v1/") or self.path.count("{id}") != 1:
+            raise ValueError("Action route must have an API path with exactly one {id}")
+        remainder = self.path.replace("{id}", "")
+        if "{" in remainder or "}" in remainder:
+            raise ValueError("Action route cannot have other placeholders")
+        return self
+
+
+ACTION_ROUTES: dict[ActionKey, ActionRoute] = {
+    ActionKey.INVITE_ACCEPT: ActionRoute(method="POST", path="/api/v1/invites/{id}/accept"),
+    ActionKey.INVITE_DECLINE: ActionRoute(method="POST", path="/api/v1/invites/{id}/decline"),
+    ActionKey.JOIN_REQUEST_ACCEPT: ActionRoute(
+        method="POST", path="/api/v1/join-requests/{id}/accept"
+    ),
+    ActionKey.JOIN_REQUEST_REJECT: ActionRoute(
+        method="POST", path="/api/v1/join-requests/{id}/reject"
+    ),
+    ActionKey.PLACEMENT_CONFIRM: ActionRoute(
+        method="POST", path="/api/v1/projects/{id}/placement/confirm"
+    ),
+    ActionKey.PLACEMENT_DECLINE: ActionRoute(
+        method="POST", path="/api/v1/projects/{id}/placement/decline", body={"withdraw": False}
+    ),
+    ActionKey.PROJECT_LEAVE: ActionRoute(method="POST", path="/api/v1/projects/{id}/leave"),
+    ActionKey.LEAD_OFFER_ACCEPT: ActionRoute(method="POST", path="/api/v1/lead-offers/{id}/accept"),
+    ActionKey.LEAD_OFFER_DECLINE: ActionRoute(
+        method="POST", path="/api/v1/lead-offers/{id}/decline"
+    ),
+    ActionKey.EVENT_ENROLL: ActionRoute(method="POST", path="/api/v1/events/{id}/enroll", body={}),
+    ActionKey.SWAP_ACCEPT: ActionRoute(method="POST", path="/api/v1/swaps/{id}/accept"),
+    ActionKey.SWAP_DECLINE: ActionRoute(method="POST", path="/api/v1/swaps/{id}/decline"),
+    ActionKey.MERGE_ACCEPT: ActionRoute(method="POST", path="/api/v1/merges/{id}/accept"),
+    ActionKey.MERGE_DECLINE: ActionRoute(method="POST", path="/api/v1/merges/{id}/decline"),
+    ActionKey.LEAD_STEP_DOWN: ActionRoute(
+        method="POST", path="/api/v1/projects/{id}/lead/step-down"
+    ),
+    ActionKey.PROJECT_CLAIM_LEAD: ActionRoute(
+        method="POST", path="/api/v1/projects/{id}/claim-lead"
+    ),
+    ActionKey.HELP_OFFER_ACCEPT: ActionRoute(method="POST", path="/api/v1/help-offers/{id}/accept"),
+    ActionKey.HELP_REQUEST_DECLINE: ActionRoute(
+        method="POST", path="/api/v1/help-requests/{id}/decline"
+    ),
+    ActionKey.HELP_REQUEST_OPEN: ActionRoute(method="POST", path="/api/v1/help-requests/{id}/open"),
+    ActionKey.MENTORSHIP_ACKNOWLEDGE: ActionRoute(
+        method="POST", path="/api/v1/mentorships/{id}/acknowledge", body={}
+    ),
+}
+
+
+ALLOWED_ACTIONS: dict[NotificationType, tuple[ActionKey, ...]] = {
+    NotificationType.INVITE_RECEIVED: (ActionKey.INVITE_ACCEPT, ActionKey.INVITE_DECLINE),
     NotificationType.INVITE_ACCEPTED: (),
     NotificationType.INVITE_DECLINED: (),
     NotificationType.INVITE_EXPIRED: (),
     NotificationType.INVITE_CLOSED: (),
-    NotificationType.JOIN_REQUEST_RECEIVED: ("accept", "reject"),
+    NotificationType.JOIN_REQUEST_RECEIVED: (
+        ActionKey.JOIN_REQUEST_ACCEPT,
+        ActionKey.JOIN_REQUEST_REJECT,
+    ),
     NotificationType.JOIN_REQUEST_ACCEPTED: (),
     NotificationType.JOIN_REQUEST_REJECTED: (),
     NotificationType.FORMATION_SOON: (),
     NotificationType.FORMATION_RESCHEDULED: (),
-    NotificationType.TEAM_PROPOSED: ("confirm", "decline"),
-    NotificationType.TEAM_RECONFIRM: ("confirm", "leave"),
-    NotificationType.PRESENCE_CHECK: ("confirm", "leave"),
-    NotificationType.LEAD_OFFER: ("accept", "decline"),
+    NotificationType.TEAM_PROPOSED: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PLACEMENT_DECLINE),
+    NotificationType.TEAM_RECONFIRM: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PROJECT_LEAVE),
+    NotificationType.PRESENCE_CHECK: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PROJECT_LEAVE),
+    NotificationType.LEAD_OFFER: (ActionKey.LEAD_OFFER_ACCEPT, ActionKey.LEAD_OFFER_DECLINE),
     NotificationType.LEAD_OFFER_DECLINED: (),
-    NotificationType.FORMATION_READY: ("confirm", "open_team"),
+    NotificationType.FORMATION_READY: (ActionKey.PLACEMENT_CONFIRM,),
     NotificationType.RESERVE_PLACED: (),
-    NotificationType.CONFIRM_REMINDER: ("confirm", "decline"),
-    NotificationType.REVIEW_ENDING: ("open_team",),
-    NotificationType.PLACEMENT_LAPSED: ("enroll_again",),
-    NotificationType.SWAP_REQUEST_RECEIVED: ("accept", "decline"),
-    NotificationType.MERGE_PROPOSED: ("accept", "decline"),
+    NotificationType.CONFIRM_REMINDER: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PLACEMENT_DECLINE),
+    NotificationType.REVIEW_ENDING: (),
+    NotificationType.PLACEMENT_LAPSED: (ActionKey.EVENT_ENROLL,),
+    NotificationType.SWAP_REQUEST_RECEIVED: (ActionKey.SWAP_ACCEPT, ActionKey.SWAP_DECLINE),
+    NotificationType.MERGE_PROPOSED: (ActionKey.MERGE_ACCEPT, ActionKey.MERGE_DECLINE),
     NotificationType.SWAP_RESULT: (),
     NotificationType.MERGE_RESULT: (),
     NotificationType.PLACEMENT_CHANGED: (),
     NotificationType.TEAM_LOCKED: (),
     NotificationType.TEAM_MEMBER_JOINED: (),
     NotificationType.TEAM_MEMBER_LEFT: (),
-    NotificationType.SEAT_OPENED: ("open_team",),
+    NotificationType.SEAT_OPENED: (),
     NotificationType.SEAT_AUTOFILLED: (),
-    NotificationType.RESERVE_OFFER: ("confirm", "decline"),
-    NotificationType.LEAD_OPPORTUNITY: ("claim_lead",),
+    NotificationType.RESERVE_OFFER: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PLACEMENT_DECLINE),
+    NotificationType.LEAD_OPPORTUNITY: (),
     NotificationType.LEAD_TRANSFERRED: (),
     NotificationType.LEAD_STEPPED_DOWN: (),
-    NotificationType.LEAD_ASSIGNED: ("transfer", "step_down"),
+    NotificationType.LEAD_ASSIGNED: (ActionKey.LEAD_STEP_DOWN,),
     NotificationType.TEAM_DISBANDED: (),
     NotificationType.TEAM_STATUS_CHANGED: (),
     NotificationType.EVENT_CHANGED: (),
     NotificationType.EVENT_CANCELLED: (),
-    NotificationType.ATTENDANCE_CONFIRM_DIGEST: ("confirm_attendees",),
-    NotificationType.PROJECT_INVITE_RECEIVED: ("accept", "decline"),
-    NotificationType.PROJECT_JOIN_REQUEST_RECEIVED: ("accept", "reject"),
+    NotificationType.ATTENDANCE_CONFIRM_DIGEST: (),
+    NotificationType.PROJECT_INVITE_RECEIVED: (ActionKey.INVITE_ACCEPT, ActionKey.INVITE_DECLINE),
+    NotificationType.PROJECT_JOIN_REQUEST_RECEIVED: (
+        ActionKey.JOIN_REQUEST_ACCEPT,
+        ActionKey.JOIN_REQUEST_REJECT,
+    ),
     NotificationType.PROJECT_MEMBER_JOINED: (),
     NotificationType.PROJECT_MEMBER_LEFT: (),
     NotificationType.PROJECT_MEMBER_REMOVED: (),
-    NotificationType.PROJECT_IDLE: ("open_project",),
-    NotificationType.PROJECT_PAUSED: ("open_project",),
+    NotificationType.PROJECT_IDLE: (),
+    NotificationType.PROJECT_PAUSED: (),
     NotificationType.PROJECT_RELEASED: (),
-    NotificationType.CONTRIBUTIONS_CONFIRM_DIGEST: ("confirm_lead",),
-    NotificationType.PROJECT_LEAD_OFFER: ("accept",),
-    NotificationType.PROJECT_LEAD_CLAIMABLE: ("claim",),
-    NotificationType.HELP_REQUEST_MATCH: ("help",),
-    NotificationType.HELP_REQUEST_DIRECT: ("help", "decline"),
-    NotificationType.HELP_OFFER_RECEIVED: ("accept",),
+    NotificationType.CONTRIBUTIONS_CONFIRM_DIGEST: (),
+    NotificationType.PROJECT_LEAD_OFFER: (ActionKey.LEAD_OFFER_ACCEPT,),
+    NotificationType.PROJECT_LEAD_CLAIMABLE: (ActionKey.PROJECT_CLAIM_LEAD,),
+    NotificationType.HELP_REQUEST_MATCH: (),
+    NotificationType.HELP_REQUEST_DIRECT: (ActionKey.HELP_REQUEST_DECLINE,),
+    NotificationType.HELP_REQUEST_DECLINED: (ActionKey.HELP_REQUEST_OPEN,),
+    NotificationType.HELP_OFFER_RECEIVED: (ActionKey.HELP_OFFER_ACCEPT,),
     NotificationType.HELP_OFFER_ACCEPTED: (),
     NotificationType.HELP_OFFER_CLOSED: (),
-    NotificationType.HELP_REQUEST_EXPIRED: ("reopen",),
+    NotificationType.HELP_REQUEST_EXPIRED: (),
     NotificationType.MENTORSHIP_STARTED: (),
-    NotificationType.MENTORSHIP_IDLE: ("check_in",),
-    NotificationType.MENTORSHIP_STALLED: ("check_in",),
-    NotificationType.MENTORSHIP_CLOSE_PROPOSED: ("close_with_outcome",),
-    NotificationType.MENTORSHIP_CLOSED: ("acknowledge", "endorse"),
+    NotificationType.MENTORSHIP_IDLE: (),
+    NotificationType.MENTORSHIP_STALLED: (),
+    NotificationType.MENTORSHIP_CLOSE_PROPOSED: (),
+    NotificationType.MENTORSHIP_CLOSED: (ActionKey.MENTORSHIP_ACKNOWLEDGE,),
     NotificationType.PENALTY_APPLIED: (),
     NotificationType.RESTRICTION_LIFTED: (),
-    NotificationType.RESULT_DUE: ("submit_result",),
-    NotificationType.REVIEWS_OPEN: ("review",),
-    NotificationType.REVIEWS_PENDING: ("review",),
+    NotificationType.RESULT_DUE: (),
+    NotificationType.REVIEWS_OPEN: (),
+    NotificationType.REVIEWS_PENDING: (),
     NotificationType.REVIEW_RECEIVED: (),
     NotificationType.REVIEW_REMOVED: (),
     NotificationType.SCORE_CHANGED: (),
     NotificationType.SCORES_REVIEWED: (),
     NotificationType.ONBOARDING_REOPENED: (),
     NotificationType.TELEGRAM_LINK_BROKEN: (),
-    NotificationType.ADMIN_ALERT: ("open_alert",),
+    NotificationType.ADMIN_ALERT: (),
     NotificationType.ADMIN_DIGEST: (),
 }
 
@@ -363,16 +456,17 @@ ALERT_SEVERITIES: dict[AlertKind, AlertSeverity] = {
 }
 
 
-class NotificationApi(Contract):
-    method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"]
-    path: WebPath
-
-
-class NotificationAction(Contract):
-    action: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z_]{0,23}$")]
+class ApiAction(Contract):
+    kind: Literal["api"] = "api"
+    key: ActionKey
     entity_id: SubjectId
     label_key: str = Field(min_length=1)
-    api: NotificationApi
+
+
+class LinkAction(Contract):
+    kind: Literal["link"] = "link"
+    label_key: str = Field(min_length=1)
+    url: WebPath
 
 
 class NotificationPerson(Contract):
@@ -424,11 +518,14 @@ class AdminAlert(Contract):
 class _Payload(Contract):
     type: NotificationType
     link: WebPath
-    actions: tuple[NotificationAction, ...] = ()
+    actions: tuple[Annotated[ApiAction | LinkAction, Field(discriminator="kind")], ...] = ()
 
     @model_validator(mode="after")
     def validate_actions(self) -> Self:
-        if any(action.action not in ALLOWED_ACTIONS[self.type] for action in self.actions):
+        if any(
+            isinstance(action, ApiAction) and action.key not in ALLOWED_ACTIONS[self.type]
+            for action in self.actions
+        ):
             raise ValueError("Action is not allowed for this notification type")
         return self
 
@@ -519,7 +616,7 @@ class JoinRequestRejectedPayload(_JoinRequestOutcomePayload):
 class FormationSoonPayload(_EventPayload):
     type: Literal[NotificationType.FORMATION_SOON] = NotificationType.FORMATION_SOON
     formation_at: AwareDatetime
-    timezone: str
+    timezone: TimeZoneName
     enrolled_count: int = Field(ge=0)
     team_count: int = Field(ge=0)
 
@@ -528,14 +625,14 @@ class FormationRescheduledPayload(_EventPayload):
     type: Literal[NotificationType.FORMATION_RESCHEDULED] = NotificationType.FORMATION_RESCHEDULED
     previous_formation_at: AwareDatetime
     formation_at: AwareDatetime
-    timezone: str
+    timezone: TimeZoneName
     reason: str
 
 
 class _PlacementPayload(_TeamPayload):
     project_member_id: ProjectMemberId
     confirm_by: AwareDatetime
-    timezone: str
+    timezone: TimeZoneName
     members: tuple[NotificationPerson, ...]
 
 
@@ -591,7 +688,7 @@ class ConfirmReminderPayload(_PlacementPayload):
 class ReviewEndingPayload(_TeamPayload):
     type: Literal[NotificationType.REVIEW_ENDING] = NotificationType.REVIEW_ENDING
     review_ends_at: AwareDatetime
-    timezone: str
+    timezone: TimeZoneName
     member_count: int = Field(ge=0)
     viable_size: int = Field(ge=1)
     has_lead: bool
@@ -650,7 +747,7 @@ class PlacementChangedPayload(_TeamPayload):
     state: MemberState
     confirm_by: AwareDatetime | None = None
     confirm_kind: ConfirmKind | None = None
-    timezone: str
+    timezone: TimeZoneName
     members: tuple[NotificationPerson, ...]
     previous_project_id: ProjectId
     previous_team_name: str
@@ -662,7 +759,7 @@ class TeamLockedPayload(_TeamPayload):
     members: tuple[NotificationPerson, ...]
     lead: NotificationPerson
     starts_at: AwareDatetime
-    timezone: str
+    timezone: TimeZoneName
     reserve_count: int = Field(ge=0)
 
 
@@ -740,7 +837,7 @@ class EventChangedPayload(_EventPayload):
     changes: tuple[NotificationChange, ...]
     starts_at: AwareDatetime
     ends_at: AwareDatetime
-    timezone: str
+    timezone: TimeZoneName
 
 
 class EventCancelledPayload(_EventPayload):
@@ -863,6 +960,10 @@ class HelpRequestMatchPayload(_HelpRequestPayload):
 class HelpRequestDirectPayload(_HelpRequestPayload):
     type: Literal[NotificationType.HELP_REQUEST_DIRECT] = NotificationType.HELP_REQUEST_DIRECT
     respond_by: AwareDatetime
+
+
+class HelpRequestDeclinedPayload(_HelpRequestPayload):
+    type: Literal[NotificationType.HELP_REQUEST_DECLINED] = NotificationType.HELP_REQUEST_DECLINED
 
 
 class _HelpOfferPayload(_HelpRequestPayload):
@@ -1094,6 +1195,7 @@ type NotificationPayload = Annotated[
     | ProjectLeadClaimablePayload
     | HelpRequestMatchPayload
     | HelpRequestDirectPayload
+    | HelpRequestDeclinedPayload
     | HelpOfferReceivedPayload
     | HelpOfferAcceptedPayload
     | HelpOfferClosedPayload
@@ -1151,7 +1253,7 @@ class PendingDelivery(Contract):
     created_at: AwareDatetime
 
     @property
-    def actions(self) -> tuple[NotificationAction, ...]:
+    def actions(self) -> tuple[ApiAction | LinkAction, ...]:
         return self.payload.actions
 
     @model_validator(mode="after")
@@ -1191,25 +1293,28 @@ class TelegramUnlinkRequest(Contract):
 
 
 class NotificationActionCallback(Contract):
-    action: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z_]{0,23}$")]
+    key: ActionKey
     entity_id: SubjectId
 
     def to_callback_data(self) -> str:
-        return f"a:{self.action}:{self.entity_id}"
+        data = f"a:{self.key}:{self.entity_id}"
+        if len(data.encode("utf-8")) > 64:
+            raise ValueError("Telegram callback data exceeds 64 bytes")
+        return data
 
     @classmethod
     def from_callback_data(cls, data: str) -> Self:
         if len(data.encode("utf-8")) > 64:
             raise ValueError("Telegram callback data exceeds 64 bytes")
         prefix, separator, rest = data.partition(":")
-        action, entity_separator, entity_id = rest.partition(":")
+        key, entity_separator, entity_id = rest.partition(":")
         if prefix != "a" or not separator or not entity_separator:
             raise ValueError("Invalid notification callback data")
-        return cls.model_validate({"action": action, "entity_id": entity_id})
+        return cls.model_validate({"key": key, "entity_id": entity_id})
 
 
 class NotificationActionResult(Contract):
-    action: str
+    key: ActionKey
     entity_id: SubjectId
     success: bool
     message: str

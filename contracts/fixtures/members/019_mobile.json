@@ -123,6 +123,7 @@
             "ml_ai",
             "open collaboration"
           ],
+          "timezone": "UTC",
           "title": "Model Evaluation Workshop"
         },
         "mentorship": null,

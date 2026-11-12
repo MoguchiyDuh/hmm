@@ -7,13 +7,10 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "action": "enroll_again",
+        "kind": "api",
+        "key": "event_enroll",
         "entity_id": "019a7b32-0000-7000-8000-000000000002",
-        "label_key": "notifications.actions.enroll_again",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/events/019a7b32-0000-7000-8000-000000000002/enroll"
-        }
+        "label_key": "notifications.actions.event_enroll"
       }
     ],
     "event_id": "019a7b32-0000-7000-8000-000000000002",

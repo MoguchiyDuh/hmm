@@ -22,5 +22,6 @@
     "security",
     "open collaboration"
   ],
+  "timezone": "UTC",
   "title": "Community Capture the Flag"
 }

@@ -12,8 +12,8 @@
     "team_name": "Aurora Builders",
     "project_member_id": "019a7b32-0000-7000-8000-000000000006",
     "state": "proposed",
-    "confirm_kind": "placement",
     "confirm_by": "2026-11-22T12:00:00Z",
+    "confirm_kind": "placement",
     "timezone": "Europe/Helsinki",
     "members": [
       {

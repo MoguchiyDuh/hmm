@@ -7,13 +7,9 @@
     "link": "/events/019a7b32-0000-7000-8000-000000000002",
     "actions": [
       {
-        "action": "claim_lead",
-        "entity_id": "019a7b32-0000-7000-8000-000000000002",
+        "kind": "link",
         "label_key": "notifications.actions.claim_lead",
-        "api": {
-          "method": "GET",
-          "path": "/api/v1/events/019a7b32-0000-7000-8000-000000000002"
-        }
+        "url": "/events/019a7b32-0000-7000-8000-000000000002"
       }
     ],
     "event_id": "019a7b32-0000-7000-8000-000000000002",

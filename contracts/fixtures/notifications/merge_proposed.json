@@ -7,22 +7,16 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "action": "accept",
+        "kind": "api",
+        "key": "merge_accept",
         "entity_id": "019a7b32-0000-7000-8000-00000000000a",
-        "label_key": "notifications.actions.accept",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/merges/019a7b32-0000-7000-8000-00000000000a/accept"
-        }
+        "label_key": "notifications.actions.merge_accept"
       },
       {
-        "action": "decline",
+        "kind": "api",
+        "key": "merge_decline",
         "entity_id": "019a7b32-0000-7000-8000-00000000000a",
-        "label_key": "notifications.actions.decline",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/merges/019a7b32-0000-7000-8000-00000000000a/decline"
-        }
+        "label_key": "notifications.actions.merge_decline"
       }
     ],
     "event_id": "019a7b32-0000-7000-8000-000000000002",

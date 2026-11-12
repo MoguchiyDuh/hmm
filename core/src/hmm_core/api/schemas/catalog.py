@@ -15,6 +15,7 @@ from hmm_contracts.common import (
     EventStatus,
     FormationPhase,
     SourceId,
+    TimeZoneName,
     UserId,
 )
 from hmm_contracts.imports import Location, Prize
@@ -57,15 +58,15 @@ class CreateEventBody(ReasonBody):
     ends_at: AwareDatetime
     registration_opens_at: AwareDatetime | None = None
     registration_deadline: AwareDatetime | None = None
-    timezone: str
+    timezone: TimeZoneName
     format: EventFormat | None = None
     location: Location | None = None
     language: list[Annotated[str, Field(pattern=r"^[a-z]{2}$")]] = Field(default_factory=list)
     eligibility: str | None = None
     themes: list[str] = Field(default_factory=list)
     areas: list[EventAreaBody] = Field(default_factory=list)
-    team_size_min: int | None = Field(default=None, ge=1, le=20)
-    team_size_max: int | None = Field(default=None, ge=1, le=20)
+    team_size_min: int | None = Field(default=None, ge=1)
+    team_size_max: int | None = Field(default=None, ge=1)
     prize: Prize | None = None
     difficulty: float | None = Field(default=None, ge=1, le=10)
     difficulty_rationale: str | None = None
@@ -97,15 +98,15 @@ class UpdateEventBody(ReasonBody):
     ends_at: AwareDatetime | None = None
     registration_opens_at: AwareDatetime | None = None
     registration_deadline: AwareDatetime | None = None
-    timezone: str | None = None
+    timezone: TimeZoneName | None = None
     format: EventFormat | None = None
     location: Location | None = None
     language: list[Annotated[str, Field(pattern=r"^[a-z]{2}$")]] | None = None
     eligibility: str | None = None
     themes: list[str] | None = None
     areas: list[EventAreaBody] | None = None
-    team_size_min: int | None = Field(default=None, ge=1, le=20)
-    team_size_max: int | None = Field(default=None, ge=1, le=20)
+    team_size_min: int | None = Field(default=None, ge=1)
+    team_size_max: int | None = Field(default=None, ge=1)
     prize: Prize | None = None
     difficulty: float | None = Field(default=None, ge=1, le=10)
     difficulty_rationale: str | None = None
@@ -146,7 +147,7 @@ class EventSummary(WithAllowedActions):
     ends_at: AwareDatetime
     registration_opens_at: AwareDatetime | None
     registration_deadline: AwareDatetime | None
-    timezone: str
+    timezone: TimeZoneName
     format: EventFormat | None
     location: Location | None
     areas: list[EventAreaDetail]
@@ -175,8 +176,8 @@ class EventDetail(EventSummary):
     language: list[str]
     eligibility: str | None
     themes: list[str]
-    team_size_min: int | None = Field(ge=1, le=20)
-    team_size_max: int | None = Field(ge=1, le=20)
+    team_size_min: int | None = Field(ge=1)
+    team_size_max: int | None = Field(ge=1)
     prize: Prize | None
     difficulty_rationale: str | None
     review_reasons: list[EventReviewReason]

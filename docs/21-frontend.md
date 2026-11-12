@@ -6,6 +6,7 @@
 - Build to static assets, served by whatever proxy the deployment uses. No SSR.
 - Auth: cookie only; on 401 redirect to `/login`; on `onboarding_status != completed` redirect to `/onboarding`.
 - Buttons and visibility come from `allowed_actions`. Errors are rendered from problem `code` via the i18n map, falling back to `title`.
+- Display times in `users.timezone` if set, else the browser's timezone.
 - i18n: English and Russian bundles; language from `users.locale`, switchable in `/settings`, applied without reload. Missing keys fall back to English; CI fails on keys missing from either bundle. Server-generated text (algo reasons, hackathon data) is shown as-is.
 
 ## 21.2 Pages
@@ -32,7 +33,7 @@
   - common: edit name/description, set member areas, transfer lead (pick a confirmed member, pending state, cancel), step down, leave.
   - after end: result form (outcome, place, award with "unverified until matched or checked by an admin" note, links, per-member area, participants checklist, retrospective; open to any confirmed member after `results_due_days`), auto-close countdown, review form per teammate (1–10 + comment), 7-day review window countdown, "Continue as project".
 - `/mentorship` — tabs: **Open requests** (in my mentor areas, with Help), **My requests** (offers with mentor score, reputation and past mentorships; accept), **My mentorships** (as mentor and as learner), **I can mentor** (offers per area with topics, one overall capacity).
-- `/mentorship/new` — help request form (area, topic, goal, format, optional direct mentor picked from suggested mentors), with the mentoring/study-pair preview.
+- `/mentorship/new` — help request form (area, topic, goal, format, optional direct mentor picked from suggested mentors), with the mentoring/study-pair preview; `?from=<id>` prefills a new request from an expired one.
 - `/mentorships/:id` — both sides, area, kind, check-ins timeline with "Check in", idle countdown, close (learner: outcome + summary) / propose close (mentor), acknowledgment and endorsement (mentor), review form after close.
 - `/users` — directory (search, area filter + min score, mentors in area, available only, sort by XP, activity, score, reputation).
 - `/users/:id` — profile: header (avatar, GitHub link, contacts, DND badge, "Scores reviewed" badge), area score bars with reasons, XP, activity sparkline, reputation per context (member, lead, mentor, host) with counts, mentor offers with "Ask for help", GitHub summary (top languages, top repos), about, unified history (hackathons, projects, events, mentorships, solo entries) with trust badges and award reasons, reviews and endorsements, CV link.

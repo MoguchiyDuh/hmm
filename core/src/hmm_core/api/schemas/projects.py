@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Self
+from typing import Annotated, Literal, Self
 
 from hmm_contracts.common import (
     AreaKey,
@@ -19,7 +19,6 @@ from hmm_contracts.common import (
     MemberRole,
     MemberState,
     MilestoneId,
-    Page,
     ProjectId,
     ProjectMemberId,
     ProjectOrigin,
@@ -150,12 +149,14 @@ class LeadOffer(WithAllowedActions):
 
 
 class ProjectListing(WithAllowedActions):
+    view: Literal["limited"]
     id: ProjectId
     name: str
     area_keys: list[AreaKey]
 
 
 class ProjectSummary(ProjectRef, WithAllowedActions):
+    view: Literal["full"]
     area_keys: list[AreaKey]
     status: ProjectStatus
     visibility: ProjectVisibility
@@ -166,8 +167,7 @@ class ProjectSummary(ProjectRef, WithAllowedActions):
     updated_at: AwareDatetime
 
 
-class ProjectPage(Page[ProjectSummary | ProjectListing], ApiModel):
-    pass
+type ProjectListView = Annotated[ProjectSummary | ProjectListing, Field(discriminator="view")]
 
 
 class Project(ProjectSummary):
@@ -187,6 +187,9 @@ class Project(ProjectSummary):
     pending_invites: list[Invite] | None
     pending_join_requests: list[JoinRequest] | None
     pending_lead_offer: LeadOffer | None
+
+
+type ProjectView = Annotated[Project | ProjectListing, Field(discriminator="view")]
 
 
 class CreateMilestoneBody(ApiInput):

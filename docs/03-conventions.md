@@ -5,7 +5,7 @@
 - Public API: `/api/v1/...`. Service API: `/api/v1/internal/...` (referred to as `/internal/...` below).
 - JSON only, `snake_case` fields.
 - IDs: UUIDv7 strings.
-- Time: RFC 3339 UTC (`2026-11-12T10:00:00Z`). Events additionally carry an IANA `timezone` for display.
+- Time: RFC 3339 UTC (`2026-11-12T10:00:00Z`). Clients display times in the viewer's timezone (`users.timezone` if set, else the browser's); the bot uses `users.timezone`, else UTC. Events additionally carry an IANA `timezone`.
 - Pagination: cursor-based. Request `?cursor=&limit=` (default 20, max 100). Response:
   ```json
   { "items": [...], "next_cursor": "opaque-or-null" }
@@ -31,6 +31,7 @@
 | Parser | `Authorization: Bearer <PARSER_SERVICE_TOKEN>` on `/internal/events/*`, `/internal/areas`, `/internal/parser/*` only. |
 
 Tokens are compared in constant time. Service tokens are scoped: bot token rejected on parser routes and vice versa.
+Admin endpoints require a web session; the bot cannot call them.
 
 ## 3.3 Authorization model
 

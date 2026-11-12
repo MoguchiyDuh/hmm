@@ -24,7 +24,7 @@ help request ──► mentors notified ──► offers ──► learner accep
   - Limits: one open request per area; at most `mentee_active_max` (2) active mentorships as a learner.
   - Expires after `help_request_ttl_days` (14) without an accepted offer.
 - **Open request:** goes to the feed (`help_request`), and `match_mentors` (§14) picks the top `mentor_notify_top_n` (5) candidates: mentor offers in the area first, then strong members in that area. They get `help_request_match` with a **Help** button (web and Telegram).
-- **Direct request** (`target_mentor_id`): sent only to that member, not to the feed. If they decline or don't answer within 3 days, the learner can open it to everyone with one click.
+- **Direct request** (`target_mentor_id`): sent only to that member, not to the feed. Only the target mentor can decline it, while it is in the `open` state. The learner is notified (`help_request_declined`) and can open it to everyone immediately, without the 3-day wait; otherwise they can open it after 3 days without an answer.
 - **Offer:** `POST /api/v1/help-requests/{id}/offers {message}` by any onboarded member who isn't the learner and has capacity. The learner sees offers with each mentor's area score, mentor reputation and past mentorships, and accepts one. The other offers close, and their authors are notified.
 
 ## 28.4 Mentoring vs study pair
@@ -66,11 +66,12 @@ Core passes for each side: role, area, classification, duration, check-in counts
 | GET | `/api/v1/help-requests/{id}` | member (direct requests: learner and target only) |
 | PATCH | `/api/v1/help-requests/{id}` | learner `{topic, goal, format}` while open |
 | POST | `/api/v1/help-requests/{id}/cancel` | learner |
+| POST | `/api/v1/help-requests/{id}/decline` | target mentor (open direct request) |
 | POST | `/api/v1/help-requests/{id}/open` | learner (direct → open) |
 | POST | `/api/v1/help-requests/{id}/offers` | member `{message}` |
 | DELETE | `/api/v1/help-offers/{id}` | offer author |
 | POST | `/api/v1/help-offers/{id}/accept` | learner |
-| GET | `/api/v1/me/mentorships?role=&status=` | member |
+| GET | `/api/v1/me/mentorships?role=mentor\|learner&status=` | member |
 | GET | `/api/v1/mentorships/{id}` | the two sides, admins |
 | POST | `/api/v1/mentorships/{id}/checkins` | either side |
 | POST | `/api/v1/mentorships/{id}/close` | learner `{outcome, summary?}` |

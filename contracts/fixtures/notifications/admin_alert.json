@@ -7,13 +7,9 @@
     "link": "/admin",
     "actions": [
       {
-        "action": "open_alert",
-        "entity_id": "019a7b32-0000-7000-8000-000000000016",
+        "kind": "link",
         "label_key": "notifications.actions.open_alert",
-        "api": {
-          "method": "GET",
-          "path": "/api/v1/admin/alerts?status=open"
-        }
+        "url": "/admin"
       }
     ],
     "alert": {

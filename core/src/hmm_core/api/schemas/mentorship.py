@@ -1,6 +1,5 @@
 from datetime import date
 
-from hmm_contracts.algo import MentorshipRole
 from hmm_contracts.common import (
     AreaKey,
     HelpOfferId,
@@ -19,8 +18,6 @@ from hmm_contracts.common import (
 from pydantic import AwareDatetime, Field
 
 from hmm_core.api.schemas.common import ApiInput, UserRef, WithAllowedActions
-
-type MentorshipRoleFilter = MentorshipRole
 
 
 class MentorOfferInput(ApiInput):

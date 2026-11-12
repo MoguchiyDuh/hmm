@@ -7,13 +7,10 @@
     "link": "/help-requests/019a7b32-0000-7000-8000-00000000000f",
     "actions": [
       {
-        "action": "accept",
+        "kind": "api",
+        "key": "help_offer_accept",
         "entity_id": "019a7b32-0000-7000-8000-000000000010",
-        "label_key": "notifications.actions.accept",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/help-offers/019a7b32-0000-7000-8000-000000000010/accept"
-        }
+        "label_key": "notifications.actions.help_offer_accept"
       }
     ],
     "help_request_id": "019a7b32-0000-7000-8000-00000000000f",

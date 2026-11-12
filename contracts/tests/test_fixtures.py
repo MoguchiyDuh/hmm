@@ -204,7 +204,15 @@ def test_community_expectations_and_pardons() -> None:
 def test_generator_reproduces_committed_fixtures(tmp_path: Path) -> None:
     directory = fixtures.fixtures_dir()
     script = directory / "generate.py"
-    groups = ("members", "events", "formation", "mentorship", "community", "visibility")
+    groups = (
+        "members",
+        "events",
+        "formation",
+        "mentorship",
+        "community",
+        "visibility",
+        "notifications",
+    )
     expected = {
         path.relative_to(directory): path.read_bytes()
         for group in groups

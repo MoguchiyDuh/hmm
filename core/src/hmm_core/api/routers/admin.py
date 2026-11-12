@@ -19,6 +19,7 @@ from hmm_core.api.schemas.admin import (
     UpdateUserBody,
 )
 from hmm_core.api.security import admin
+from hmm_core.settings import SettingKey
 
 router = APIRouter(tags=["admin"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["admin"], responses=PROBLEM_RESPONSES)
@@ -97,7 +98,7 @@ async def list_settings(actor: Annotated[None, Depends(admin)]) -> list[Setting]
     summary="Update runtime setting validated against its key schema",
 )
 async def update_setting(
-    key: str, body: UpdateSettingBody, actor: Annotated[None, Depends(admin)]
+    key: SettingKey, body: UpdateSettingBody, actor: Annotated[None, Depends(admin)]
 ) -> Setting:
     not_implemented()
 

@@ -1,19 +1,22 @@
 from typing import Annotated
 
-from fastapi import Depends, Header, Security
-from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import Depends, Security
+from fastapi.security import APIKeyCookie, APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 
 session_cookie = APIKeyCookie(name="hmm_session", scheme_name="SessionCookie", auto_error=False)
 bot_token = HTTPBearer(scheme_name="BotServiceToken", auto_error=False)
 parser_token = HTTPBearer(scheme_name="ParserServiceToken", auto_error=False)
+telegram_user = APIKeyHeader(
+    name="X-Telegram-User-Id", scheme_name="TelegramUser", auto_error=False
+)
 
 SECURITY_SCHEMES = {
     scheme.scheme_name: scheme.model.model_dump(mode="json", by_alias=True, exclude_none=True)
-    for scheme in (session_cookie, bot_token, parser_token)
+    for scheme in (session_cookie, bot_token, parser_token, telegram_user)
 }
 
 
-async def session_user(cookie: Annotated[str | None, Security(session_cookie)]) -> None:
+async def admin(cookie: Annotated[str | None, Security(session_cookie)]) -> None:
     return None
 
 
@@ -25,7 +28,14 @@ async def bot_service(
 
 async def bot_acting_user(
     service: Annotated[None, Depends(bot_service)],
-    telegram_user_id: Annotated[int, Header(alias="X-Telegram-User-Id")],
+    telegram_user_id: Annotated[str | None, Security(telegram_user)],
+) -> None:
+    return None
+
+
+async def session_user(
+    cookie: Annotated[str | None, Security(session_cookie)],
+    bot: Annotated[None, Depends(bot_acting_user)],
 ) -> None:
     return None
 
@@ -37,4 +47,3 @@ async def parser_service(
 
 
 member = session_user
-admin = session_user

@@ -7,22 +7,16 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "action": "confirm",
+        "kind": "api",
+        "key": "placement_confirm",
         "entity_id": "019a7b32-0000-7000-8000-000000000003",
-        "label_key": "notifications.actions.confirm",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003/placement/confirm"
-        }
+        "label_key": "notifications.actions.placement_confirm"
       },
       {
-        "action": "decline",
+        "kind": "api",
+        "key": "placement_decline",
         "entity_id": "019a7b32-0000-7000-8000-000000000003",
-        "label_key": "notifications.actions.decline",
-        "api": {
-          "method": "POST",
-          "path": "/api/v1/projects/019a7b32-0000-7000-8000-000000000003/placement/decline"
-        }
+        "label_key": "notifications.actions.placement_decline"
       }
     ],
     "event_id": "019a7b32-0000-7000-8000-000000000002",
