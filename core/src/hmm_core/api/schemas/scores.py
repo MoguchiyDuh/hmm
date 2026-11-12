@@ -1,12 +1,11 @@
 from datetime import date, timedelta
-from typing import Annotated, Literal
+from typing import Literal
 
 from hmm_contracts.algo import RatingSummary
 from hmm_contracts.common import (
     ActivityEntryId,
     ActivityType,
     AreaId,
-    AreaKey,
     AreaScoreEventId,
     AreaScoreEventKind,
     FlagId,
@@ -24,16 +23,18 @@ from hmm_contracts.common import (
 )
 from pydantic import AwareDatetime, Field, HttpUrl, JsonValue, field_validator
 
-from hmm_core.api.schemas.common import ApiInput, ApiModel, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import (
+    ApiInput,
+    ApiModel,
+    AreaScoreSummary,
+    ScoreValue,
+    UserRef,
+    WithAllowedActions,
+)
 
-type ScoreValue = Annotated[float, Field(ge=0, le=10, allow_inf_nan=False)]
 
-
-class AreaScore(WithAllowedActions):
+class MemberAreaScore(AreaScoreSummary, WithAllowedActions):
     area_id: AreaId
-    area_key: AreaKey
-    effective: ScoreValue
-    reason: str
     calculated: ScoreValue | None = None
     calc_reason: str | None = None
     override: ScoreValue | None = None

@@ -13,7 +13,7 @@ from hmm_contracts.common import (
 from pydantic import AwareDatetime, Field, HttpUrl
 
 from hmm_core.api.schemas.common import ApiInput, ApiModel, UserRef, WithAllowedActions
-from hmm_core.api.schemas.scores import AreaScore
+from hmm_core.api.schemas.scores import MemberAreaScore
 
 
 class Quiz(WithAllowedActions):
@@ -96,7 +96,7 @@ class MemberReviewDetail(MemberReview):
     submissions: list[OnboardingSubmission]
     cv: ReviewCv | None
     github: GithubSummary | None
-    area_scores: list[AreaScore]
+    area_scores: list[MemberAreaScore]
 
 
 class CompleteMemberReviewBody(ApiInput):

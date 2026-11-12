@@ -18,7 +18,7 @@ from hmm_contracts.common import (
 
 from hmm_core.api.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.api.pagination import CursorParams
-from hmm_core.api.schemas.common import Reason
+from hmm_core.api.schemas.common import ReasonBody
 from hmm_core.api.schemas.formation import (
     AddMemberBody,
     AdminAddMemberBody,
@@ -32,16 +32,11 @@ from hmm_core.api.schemas.formation import (
     Enrollment,
     Formation,
     FormationRun,
-    Invite,
-    JoinRequest,
     LeadCandidate,
-    LeadFit,
-    LeadOffer,
+    LeadEligibility,
     Merge,
     MoveMemberBody,
-    ProjectMember,
     Swap,
-    Team,
     TransferLeadBody,
     UpdateEnrollmentBody,
     UpdateFormationBody,
@@ -49,6 +44,7 @@ from hmm_core.api.schemas.formation import (
     UpdateReserveOrderBody,
     UpdateTeamStatusBody,
 )
+from hmm_core.api.schemas.projects import Invite, JoinRequest, LeadOffer, Project, ProjectMember
 from hmm_core.api.security import admin, member
 
 router = APIRouter(tags=["formation"], responses=PROBLEM_RESPONSES)
@@ -110,7 +106,7 @@ async def list_my_enrollments(
 
 
 @router.get("/events/{id}/lead-fit/me", status_code=status.HTTP_200_OK, summary="Get my lead fit")
-async def get_my_lead_fit(id: EventId, actor: Annotated[None, Depends(member)]) -> LeadFit:
+async def get_my_lead_fit(id: EventId, actor: Annotated[None, Depends(member)]) -> LeadEligibility:
     not_implemented()
 
 
@@ -119,12 +115,12 @@ async def get_my_lead_fit(id: EventId, actor: Annotated[None, Depends(member)]) 
 )
 async def claim_lead(
     id: EventId, body: CreateTeamBody, actor: Annotated[None, Depends(member)]
-) -> Team:
+) -> Project:
     not_implemented()
 
 
 @router.post("/projects/{id}/ready", status_code=status.HTTP_200_OK, summary="Mark a core ready")
-async def mark_ready(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Team:
+async def mark_ready(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Project:
     not_implemented()
 
 
@@ -138,14 +134,14 @@ async def clear_ready(id: ProjectId, actor: Annotated[None, Depends(member)]) ->
 @router.post(
     "/projects/{id}/unclaim", status_code=status.HTTP_200_OK, summary="Unclaim and disband a core"
 )
-async def unclaim_lead(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Team:
+async def unclaim_lead(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Project:
     not_implemented()
 
 
 @router.post(
     "/projects/{id}/seats/close", status_code=status.HTTP_200_OK, summary="Close open team seats"
 )
-async def close_seats(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Team:
+async def close_seats(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Project:
     not_implemented()
 
 
@@ -293,7 +289,7 @@ async def transfer_lead(
 @router.post(
     "/projects/{id}/lead/step-down", status_code=status.HTTP_200_OK, summary="Step down as lead"
 )
-async def step_down(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Team:
+async def step_down(id: ProjectId, actor: Annotated[None, Depends(member)]) -> Project:
     not_implemented()
 
 
@@ -374,7 +370,7 @@ async def update_formation(
     summary="Enqueue formation",
 )
 async def run_formation(
-    id: EventId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: EventId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> FormationRun:
     not_implemented()
 
@@ -408,7 +404,7 @@ async def list_lead_candidates(
 )
 async def admin_create_team(
     id: EventId, body: AdminCreateTeamBody, actor: Annotated[None, Depends(admin)]
-) -> Team:
+) -> Project:
     not_implemented()
 
 
@@ -462,7 +458,7 @@ async def admin_move_member(
 )
 async def admin_assign_lead(
     id: ProjectId, body: AssignLeadBody, actor: Annotated[None, Depends(admin)]
-) -> Team:
+) -> Project:
     not_implemented()
 
 
@@ -470,8 +466,8 @@ async def admin_assign_lead(
     "/admin/projects/{id}/disband", status_code=status.HTTP_200_OK, summary="Disband a team"
 )
 async def admin_disband_team(
-    id: ProjectId, body: Reason, actor: Annotated[None, Depends(admin)]
-) -> Team:
+    id: ProjectId, body: ReasonBody, actor: Annotated[None, Depends(admin)]
+) -> Project:
     not_implemented()
 
 
@@ -480,5 +476,5 @@ async def admin_disband_team(
 )
 async def admin_update_team_status(
     id: ProjectId, body: UpdateTeamStatusBody, actor: Annotated[None, Depends(admin)]
-) -> Team:
+) -> Project:
     not_implemented()

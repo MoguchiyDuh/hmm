@@ -5,7 +5,7 @@ from hmm_contracts.common import MemberReviewStatus, Page, QuizId, UserId
 
 from hmm_core.api.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.api.pagination import CursorParams
-from hmm_core.api.schemas.common import Reason
+from hmm_core.api.schemas.common import ReasonBody
 from hmm_core.api.schemas.onboarding import (
     CompleteMemberReviewBody,
     CreateQuizBody,
@@ -68,7 +68,7 @@ async def create_quiz(body: CreateQuizBody, actor: Annotated[None, Depends(admin
     summary="Clone quiz into a draft",
 )
 async def clone_quiz(
-    id: QuizId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: QuizId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> Quiz:
     not_implemented()
 
@@ -91,7 +91,7 @@ async def update_quiz(
     "/admin/quizzes/{id}/validate", status_code=status.HTTP_200_OK, summary="Validate quiz tree"
 )
 async def validate_quiz(
-    id: QuizId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: QuizId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> QuizValidation:
     not_implemented()
 
@@ -100,7 +100,7 @@ async def validate_quiz(
     "/admin/quizzes/{id}/publish", status_code=status.HTTP_200_OK, summary="Publish and freeze quiz"
 )
 async def publish_quiz(
-    id: QuizId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: QuizId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> Quiz:
     not_implemented()
 
@@ -109,7 +109,7 @@ async def publish_quiz(
     "/admin/quizzes/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete draft quiz"
 )
 async def delete_quiz(
-    id: QuizId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: QuizId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> None:
     not_implemented()
 
@@ -131,7 +131,7 @@ async def get_user_onboarding(
     summary="Reopen onboarding without locking access",
 )
 async def reopen_onboarding(
-    id: UserId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: UserId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> Onboarding:
     not_implemented()
 

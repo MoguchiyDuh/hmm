@@ -26,7 +26,10 @@ async def readyz() -> dict[str, str]:
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="hmm", version=version("hmm-core"), generate_unique_id_function=operation_id
+        title="hmm",
+        version=version("hmm-core"),
+        generate_unique_id_function=operation_id,
+        separate_input_output_schemas=False,
     )
     register_exception_handlers(app)
     app.add_api_route("/healthz", healthz, methods=["GET"], include_in_schema=False)
@@ -37,7 +40,12 @@ def create_app() -> FastAPI:
 
     def openapi() -> dict[str, Any]:
         if app.openapi_schema is None:
-            schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+            schema = get_openapi(
+                title=app.title,
+                version=app.version,
+                routes=app.routes,
+                separate_input_output_schemas=app.separate_input_output_schemas,
+            )
             schema.setdefault("components", {}).setdefault("securitySchemes", {}).update(
                 SECURITY_SCHEMES
             )

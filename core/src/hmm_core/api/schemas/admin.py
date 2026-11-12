@@ -11,7 +11,7 @@ from hmm_contracts.imports import ParserHeartbeat
 from hmm_contracts.notifications import AlertKind
 from pydantic import AwareDatetime, Field, JsonValue
 
-from hmm_core.api.schemas.common import ApiModel, Reason, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import ApiModel, ReasonBody, UserRef, WithAllowedActions
 
 
 class AdminUser(UserRef, WithAllowedActions):
@@ -27,17 +27,17 @@ class AdminUser(UserRef, WithAllowedActions):
     updated_at: AwareDatetime
 
 
-class UpdateUserBody(Reason):
+class UpdateUserBody(ReasonBody):
     is_admin: bool | None = None
     display_name: str | None = None
     about_md: str | None = Field(default=None, max_length=5000)
 
 
-class BanUserBody(Reason):
+class BanUserBody(ReasonBody):
     reason: str = Field(min_length=1)
 
 
-class UnbanUserBody(Reason):
+class UnbanUserBody(ReasonBody):
     pass
 
 
@@ -81,13 +81,12 @@ class Setting(WithAllowedActions):
     updated_at: AwareDatetime | None
 
 
-class UpdateSettingBody(Reason):
+class UpdateSettingBody(ReasonBody):
     value: JsonValue
 
 
-class Heartbeat(ApiModel):
+class StoredParserHeartbeat(ParserHeartbeat, ApiModel):
     id: ParserHeartbeatId
-    heartbeat: ParserHeartbeat
 
 
 class Job(WithAllowedActions):
@@ -109,11 +108,11 @@ class QueueStats(ApiModel):
 
 
 class SystemStatus(ApiModel):
-    parser_heartbeats: list[Heartbeat]
+    parser_heartbeats: list[StoredParserHeartbeat]
     job_queue_stats: list[QueueStats]
     algo_version: str
     failed_jobs: list[Job]
 
 
-class RetryJobBody(Reason):
+class RetryJobBody(ReasonBody):
     pass

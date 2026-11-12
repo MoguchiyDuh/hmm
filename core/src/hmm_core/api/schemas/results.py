@@ -23,7 +23,7 @@ from hmm_core.api.schemas.common import (
     ApiInput,
     ApiModel,
     ProjectRef,
-    Reason,
+    ReasonBody,
     UserRef,
     WithAllowedActions,
 )
@@ -88,7 +88,7 @@ class ResultToVerify(ProjectResult):
     winner_candidates: list[WinnerCandidate]
 
 
-class VerifyResultBody(Reason):
+class VerifyResultBody(ReasonBody):
     decision: Literal["verify", "reject"]
     note: str | None = None
 

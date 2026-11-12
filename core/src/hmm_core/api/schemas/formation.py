@@ -1,7 +1,6 @@
 from hmm_contracts.algo import FormationPlan, FormationRequest
 from hmm_contracts.common import (
     AreaKey,
-    ConfirmKind,
     EnrollmentId,
     EnrollmentSource,
     EnrollmentStatus,
@@ -11,30 +10,13 @@ from hmm_contracts.common import (
     FormationPlanner,
     FormationRunId,
     FormationRunStatus,
-    InviteId,
-    InviteKind,
-    InviteStatus,
-    JoinedVia,
-    JoinRequestId,
-    JoinRequestStatus,
-    LeadOfferId,
-    LeadOfferSource,
-    LeadOfferStatus,
-    LeftReason,
-    MemberRole,
-    MemberState,
     MergeProposalId,
     MergeProposalStatus,
     MergeProposedBy,
     ProjectId,
-    ProjectMemberId,
-    ProjectOrigin,
-    ProjectStatus,
-    ProjectVisibility,
     SwapRequestId,
     SwapRequestStatus,
     TeamStatus,
-    Trust,
     UserId,
 )
 from pydantic import AwareDatetime, Field, JsonValue
@@ -42,17 +24,14 @@ from pydantic import AwareDatetime, Field, JsonValue
 from hmm_core.api.schemas.common import (
     ApiInput,
     ApiModel,
+    AreaScoreSummary,
     EventRef,
     ProjectRef,
-    Reason,
+    ReasonBody,
     UserRef,
     WithAllowedActions,
 )
-
-
-class AreaScoreSummary(ApiModel):
-    area_key: AreaKey
-    effective: float = Field(ge=0, le=10)
+from hmm_core.api.schemas.projects import ProjectMember
 
 
 class Enrollment(WithAllowedActions):
@@ -85,66 +64,18 @@ class UpdateEnrollmentBody(ApiInput):
     willing_to_lead: bool | None = None
 
 
-class LeadFit(ApiModel):
+class LeadEligibility(ApiModel):
     fit: float = Field(ge=0, le=1)
     eligible: bool
     reason: str
     computed_at: AwareDatetime
 
 
-class LeadCandidate(LeadFit):
+class LeadCandidate(LeadEligibility):
     user: UserRef
     willing_to_lead: bool
     tier: int = Field(ge=1, le=4)
     enrolled_at: AwareDatetime | None
-
-
-class ProjectMember(WithAllowedActions):
-    id: ProjectMemberId
-    project_id: ProjectId
-    event_id: EventId | None
-    user: UserRef
-    role: MemberRole
-    area_key: AreaKey | None
-    state: MemberState
-    trust: Trust
-    joined_via: JoinedVia
-    proposal_reason: str | None
-    confirm_by: AwareDatetime | None
-    confirm_kind: ConfirmKind | None
-    joined_at: AwareDatetime
-    confirmed_at: AwareDatetime | None
-    left_at: AwareDatetime | None
-    left_reason: LeftReason | None
-
-
-class TeamRecruiting(ApiModel):
-    areas: list[AreaKey]
-    note: str
-
-
-class Team(ProjectRef, WithAllowedActions):
-    description_md: str
-    goal: str
-    links: list[str]
-    visibility: ProjectVisibility
-    area_keys: list[AreaKey]
-    recruiting: TeamRecruiting | None
-    lead_user_id: UserId | None
-    status: ProjectStatus
-    origin: ProjectOrigin
-    members: list[ProjectMember]
-    ready_at: AwareDatetime | None
-    review_ends_at: AwareDatetime | None
-    formed_in_run_id: FormationRunId | None
-    locked_at: AwareDatetime | None
-    seat_open_since: AwareDatetime | None
-    seats_closed_at: AwareDatetime | None
-    open_seats: int = Field(ge=0)
-    last_lead_action_at: AwareDatetime | None
-    last_progress_at: AwareDatetime | None
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
 
 
 class FormationCounts(ApiModel):
@@ -172,7 +103,7 @@ class ParticipationState(ApiModel):
     enrollment: Enrollment | None
     team: ProjectRef | None
     membership: ProjectMember | None
-    lead_fit: LeadFit | None
+    lead_fit: LeadEligibility | None
 
 
 class Formation(WithAllowedActions):
@@ -201,54 +132,9 @@ class CreateTeamBody(ApiInput):
     description: str | None = None
 
 
-class AdminCreateTeamBody(Reason):
+class AdminCreateTeamBody(ReasonBody):
     lead_user_id: UserId
     name: str = Field(min_length=1)
-
-
-class Invite(WithAllowedActions):
-    id: InviteId
-    project: ProjectRef
-    event_id: EventId | None
-    user: UserRef
-    invited_by: UserRef | None
-    kind: InviteKind
-    message: str | None
-    area_key: AreaKey | None
-    status: InviteStatus
-    closed_reason: str | None
-    expires_at: AwareDatetime
-    responded_at: AwareDatetime | None
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
-
-
-class JoinRequest(WithAllowedActions):
-    id: JoinRequestId
-    project: ProjectRef
-    event_id: EventId | None
-    user: UserRef
-    note: str
-    status: JoinRequestStatus
-    responded_at: AwareDatetime | None
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
-
-
-class LeadOffer(WithAllowedActions):
-    id: LeadOfferId
-    project: ProjectRef
-    event_id: EventId | None
-    user: UserRef
-    source: LeadOfferSource
-    offered_by: UserRef | None
-    tier: int = Field(ge=1, le=4)
-    reason: str
-    status: LeadOfferStatus
-    expires_at: AwareDatetime
-    responded_at: AwareDatetime | None
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
 
 
 class DeclinePlacementBody(ApiInput):
@@ -311,7 +197,7 @@ class Merge(WithAllowedActions):
     updated_at: AwareDatetime
 
 
-class UpdateFormationBody(Reason):
+class UpdateFormationBody(ReasonBody):
     target_override: int | None = Field(default=None, ge=1, le=20)
     formation_at_override: AwareDatetime | None = None
 
@@ -331,18 +217,18 @@ class FormationRun(WithAllowedActions):
     applied_at: AwareDatetime | None
 
 
-class UpdateReserveOrderBody(Reason):
+class UpdateReserveOrderBody(ReasonBody):
     user_ids: list[UserId] = Field(min_length=1)
 
 
-class MoveMemberBody(Reason):
+class MoveMemberBody(ReasonBody):
     user_id: UserId
     to_team_id: ProjectId
 
 
-class AssignLeadBody(Reason):
+class AssignLeadBody(ReasonBody):
     user_id: UserId
 
 
-class UpdateTeamStatusBody(Reason):
+class UpdateTeamStatusBody(ReasonBody):
     status: TeamStatus

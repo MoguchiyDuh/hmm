@@ -2,11 +2,11 @@ from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from hmm_contracts.algo import GithubSummary, MentorOffer, RatingSummary, ReviewIn
-from hmm_contracts.common import AreaKey, CvTextStatus, GithubSnapshotStatus, Locale, ReviewContext
+from hmm_contracts.common import CvTextStatus, GithubSnapshotStatus, Locale, ReviewContext
 from hmm_contracts.notifications import NotificationType
 from pydantic import AwareDatetime, Field, HttpUrl, field_validator
 
-from hmm_core.api.schemas.common import ApiInput, ApiModel, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import ApiInput, AreaScoreSummary, UserRef, WithAllowedActions
 
 
 class UpdateProfileBody(ApiInput):
@@ -35,16 +35,10 @@ class Availability(WithAllowedActions):
     dnd_until: AwareDatetime | Literal["indefinite"] | None
 
 
-class ProfileScore(ApiModel):
-    area: AreaKey
-    effective: float = Field(ge=0, le=10)
-    reason: str
-
-
 class UserSummary(UserRef, WithAllowedActions):
     github_login: str
     github_url: HttpUrl
-    area_scores: list[ProfileScore]
+    area_scores: list[AreaScoreSummary]
     xp: float
     activity: float = Field(ge=0)
     reputation: dict[ReviewContext, RatingSummary]

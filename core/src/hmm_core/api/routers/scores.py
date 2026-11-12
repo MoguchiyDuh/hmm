@@ -14,15 +14,15 @@ from hmm_contracts.common import (
 
 from hmm_core.api.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.api.pagination import CursorParams
-from hmm_core.api.schemas.common import Reason
+from hmm_core.api.schemas.common import ReasonBody
 from hmm_core.api.schemas.scores import (
     ActivityEntry,
-    AreaScore,
     AreaScoreEvent,
     CreateActivityBody,
     CreateXpAdjustmentBody,
     Flag,
     LiftRestrictionBody,
+    MemberAreaScore,
     MemberMetrics,
     ResolveFlagBody,
     Restriction,
@@ -39,7 +39,7 @@ internal = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
 @router.get(
     "/users/{id}/scores", status_code=status.HTTP_200_OK, summary="Get effective scores and reasons"
 )
-async def get_scores(id: UserId, actor: Annotated[None, Depends(member)]) -> list[AreaScore]:
+async def get_scores(id: UserId, actor: Annotated[None, Depends(member)]) -> list[MemberAreaScore]:
     not_implemented()
 
 
@@ -102,7 +102,7 @@ async def set_score_override(
     area_key: AreaKey,
     body: SetScoreOverrideBody,
     actor: Annotated[None, Depends(admin)],
-) -> AreaScore:
+) -> MemberAreaScore:
     not_implemented()
 
 
@@ -115,8 +115,8 @@ async def remove_score_override(
     id: UserId,
     area_key: AreaKey,
     actor: Annotated[None, Depends(admin)],
-    body: Reason | None = None,
-) -> AreaScore:
+    body: ReasonBody | None = None,
+) -> MemberAreaScore:
     not_implemented()
 
 
@@ -183,6 +183,6 @@ async def lift_restriction(
     summary="Enqueue member recomputation",
 )
 async def recompute_member(
-    id: UserId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: UserId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> None:
     not_implemented()

@@ -4,7 +4,7 @@ from hmm_core.api.schemas.common import (
     AreaRef,
     EventRef,
     ProjectRef,
-    Reason,
+    ReasonBody,
     UserRef,
     WithAllowedActions,
 )
@@ -15,7 +15,7 @@ __all__ = [
     "AreaRef",
     "EventRef",
     "ProjectRef",
-    "Reason",
+    "ReasonBody",
     "UserRef",
     "WithAllowedActions",
 ]

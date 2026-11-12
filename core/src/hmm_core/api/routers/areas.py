@@ -6,7 +6,7 @@ from hmm_contracts.imports import AreaListResponse
 
 from hmm_core.api.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.api.schemas.areas import Area, CreateAreaBody, UpdateAreaBody
-from hmm_core.api.schemas.common import Reason
+from hmm_core.api.schemas.common import ReasonBody
 from hmm_core.api.security import admin, member, parser_service
 
 router = APIRouter(tags=["areas"], responses=PROBLEM_RESPONSES)
@@ -32,7 +32,7 @@ async def update_area(
 
 @router.post("/admin/areas/{id}/archive", status_code=status.HTTP_200_OK, summary="Archive area")
 async def archive_area(
-    id: AreaId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: AreaId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> Area:
     not_implemented()
 
@@ -41,7 +41,7 @@ async def archive_area(
     "/admin/areas/{id}/unarchive", status_code=status.HTTP_200_OK, summary="Unarchive area"
 )
 async def unarchive_area(
-    id: AreaId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: AreaId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> Area:
     not_implemented()
 

@@ -5,7 +5,6 @@ from hmm_contracts.common import (
     AreaKey,
     EventId,
     MilestoneId,
-    Page,
     ProjectId,
     ProjectStatus,
     TeamStatus,
@@ -14,7 +13,7 @@ from hmm_contracts.common import (
 
 from hmm_core.api.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.api.pagination import CursorParams
-from hmm_core.api.schemas.common import Reason
+from hmm_core.api.schemas.common import ReasonBody
 from hmm_core.api.schemas.projects import (
     CreateMilestoneBody,
     CreateProjectBody,
@@ -22,11 +21,12 @@ from hmm_core.api.schemas.projects import (
     CreateProjectJoinRequestBody,
     CreateProjectReleaseBody,
     CreateProjectUpdateBody,
+    Invite,
+    JoinRequest,
     Milestone,
     Project,
-    ProjectInvite,
-    ProjectJoinRequest,
     ProjectListing,
+    ProjectPage,
     ProjectRelease,
     ProjectSummary,
     ProjectUpdate,
@@ -48,7 +48,7 @@ async def list_projects(
     recruiting: Annotated[bool | None, Query()] = None,
     event: Annotated[EventId | None, Query()] = None,
     member_id: Annotated[UserId | None, Query(alias="member")] = None,
-) -> Page[ProjectSummary | ProjectListing]:
+) -> ProjectPage:
     not_implemented()
 
 
@@ -122,7 +122,7 @@ async def continue_project(id: ProjectId, actor: Annotated[None, Depends(member)
 )
 async def create_invite(
     id: ProjectId, body: CreateProjectInviteBody, actor: Annotated[None, Depends(member)]
-) -> ProjectInvite:
+) -> Invite:
     not_implemented()
 
 
@@ -133,7 +133,7 @@ async def create_invite(
 )
 async def create_join_request(
     id: ProjectId, body: CreateProjectJoinRequestBody, actor: Annotated[None, Depends(member)]
-) -> ProjectJoinRequest:
+) -> JoinRequest:
     not_implemented()
 
 
@@ -146,7 +146,7 @@ async def remove_member(
     id: ProjectId,
     user_id: UserId,
     actor: Annotated[None, Depends(member)],
-    reason: Annotated[Reason | None, Body()] = None,
+    reason: Annotated[ReasonBody | None, Body()] = None,
 ) -> None:
     not_implemented()
 

@@ -11,7 +11,7 @@ from fastapi.routing import APIRoute
 from hmm_contracts.common import ErrorCode, Problem
 from hmm_core.api.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
 from hmm_core.api.pagination import CursorParams
-from hmm_core.api.schemas.common import Reason
+from hmm_core.api.schemas.common import ReasonBody as Reason
 from hmm_core.api.security import bot_acting_user, bot_service, parser_service
 from hmm_core.app import create_app
 from hmm_core.openapi import OPENAPI_PATH, render_openapi

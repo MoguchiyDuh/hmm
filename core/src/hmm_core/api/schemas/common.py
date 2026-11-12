@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from hmm_contracts.common import (
     AreaKey,
     Contract,
@@ -7,7 +9,9 @@ from hmm_contracts.common import (
     TeamStatus,
     UserId,
 )
-from pydantic import AwareDatetime, ConfigDict
+from pydantic import AwareDatetime, ConfigDict, Field
+
+type ScoreValue = Annotated[float, Field(ge=0, le=10, allow_inf_nan=False)]
 
 
 class ApiModel(Contract):
@@ -33,6 +37,12 @@ class AreaRef(ApiModel):
     name: str
 
 
+class AreaScoreSummary(ApiModel):
+    area_key: AreaKey
+    effective: ScoreValue
+    reason: str
+
+
 class EventRef(ApiModel):
     id: EventId
     title: str
@@ -48,5 +58,5 @@ class ProjectRef(ApiModel):
     team_status: TeamStatus | None
 
 
-class Reason(ApiInput):
+class ReasonBody(ApiInput):
     reason: str | None = None

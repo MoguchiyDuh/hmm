@@ -3,9 +3,6 @@ from typing import Annotated, Self
 from hmm_contracts.common import (
     AreaImportance,
     AreaKey,
-    AttendanceId,
-    AttendanceRole,
-    AttendanceStatus,
     EventFormat,
     EventId,
     EventKind,
@@ -18,21 +15,21 @@ from hmm_contracts.common import (
     EventStatus,
     FormationPhase,
     SourceId,
-    Trust,
     UserId,
 )
 from hmm_contracts.imports import Location, Prize
 from pydantic import AwareDatetime, Field, HttpUrl, JsonValue, model_validator
 
+from hmm_core.api.schemas.attendance import Attendance
 from hmm_core.api.schemas.common import (
     ApiInput,
     ApiModel,
     AreaRef,
-    Reason,
+    ReasonBody,
     UserRef,
     WithAllowedActions,
 )
-from hmm_core.api.schemas.formation import Formation, LeadFit
+from hmm_core.api.schemas.formation import Formation, LeadEligibility
 
 
 class EventAreaBody(ApiInput):
@@ -41,12 +38,12 @@ class EventAreaBody(ApiInput):
     headcount: int | None = Field(default=None, ge=1)
 
 
-class EventArea(AreaRef):
+class EventAreaDetail(AreaRef):
     importance: AreaImportance
     headcount: int | None = Field(ge=1)
 
 
-class CreateEventBody(Reason):
+class CreateEventBody(ReasonBody):
     slug: str | None = None
     kind: EventKind
     formation_enabled: bool | None = None
@@ -86,7 +83,7 @@ class CreateEventBody(Reason):
         return self
 
 
-class UpdateEventBody(Reason):
+class UpdateEventBody(ReasonBody):
     slug: str | None = None
     kind: EventKind | None = None
     formation_enabled: bool | None = None
@@ -137,18 +134,6 @@ class AttendanceCounts(ApiModel):
     attended: int = Field(ge=0)
 
 
-class EventAttendance(WithAllowedActions):
-    id: AttendanceId
-    event_id: EventId
-    user: UserRef
-    status: AttendanceStatus
-    role: AttendanceRole
-    proof_links: list[HttpUrl] = Field(max_length=5)
-    note: str
-    trust: Trust
-    status_at: AwareDatetime
-
-
 class EventSummary(WithAllowedActions):
     id: EventId
     slug: str
@@ -164,14 +149,14 @@ class EventSummary(WithAllowedActions):
     timezone: str
     format: EventFormat | None
     location: Location | None
-    areas: list[EventArea]
+    areas: list[EventAreaDetail]
     difficulty: float | None = Field(ge=1, le=10)
     status: EventStatus
     phase: EventPhase
     participation_phase: FormationPhase | None
     origin: EventOrigin
     attendance_counts: AttendanceCounts
-    my_attendance: EventAttendance | None
+    my_attendance: Attendance | None
 
 
 class EventSource(ApiModel):
@@ -201,7 +186,7 @@ class EventDetail(EventSummary):
     sources: list[EventSource]
     members_going: list[UserRef]
     formation: Formation | None
-    my_lead_fit: LeadFit | None
+    my_lead_fit: LeadEligibility | None
     created_at: AwareDatetime
     updated_at: AwareDatetime
 
@@ -223,5 +208,5 @@ class EventRevision(ApiModel):
     created_at: AwareDatetime
 
 
-class MergeEventBody(Reason):
+class MergeEventBody(ReasonBody):
     into: EventId

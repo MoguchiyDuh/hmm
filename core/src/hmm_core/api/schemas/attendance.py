@@ -12,9 +12,10 @@ from hmm_contracts.common import (
     Trust,
     UserId,
 )
+from hmm_contracts.imports import Location
 from pydantic import AwareDatetime, Field, HttpUrl
 
-from hmm_core.api.schemas.common import ApiInput, ApiModel, EventRef, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import ApiInput, EventRef, UserRef, WithAllowedActions
 
 
 class SetAttendanceBody(ApiInput):
@@ -40,19 +41,13 @@ class Attendance(WithAllowedActions):
     updated_at: AwareDatetime
 
 
-class EventLocation(ApiModel):
-    country: str | None = None
-    city: str | None = None
-    address: str | None = None
-
-
 class CreateMemberEventBody(ApiInput):
     kind: EventKind
     title: str
     starts_at: AwareDatetime
     ends_at: AwareDatetime
     format: EventFormat
-    location: EventLocation | None = None
+    location: Location | None = None
     website_url: HttpUrl | None = None
     description_md: str | None = None
     area_keys: list[AreaKey] = Field(default_factory=list)
@@ -64,7 +59,7 @@ class UpdateMemberEventBody(ApiInput):
     starts_at: AwareDatetime | None = None
     ends_at: AwareDatetime | None = None
     format: EventFormat | None = None
-    location: EventLocation | None = None
+    location: Location | None = None
     website_url: HttpUrl | None = None
     description_md: str | None = None
     area_keys: list[AreaKey] | None = None
@@ -79,7 +74,7 @@ class MemberEvent(EventRef, WithAllowedActions):
     summary: str | None
     description_md: str | None
     format: EventFormat
-    location: EventLocation | None
+    location: Location | None
     website_url: HttpUrl | None
     organizer: str | None
     registration_url: HttpUrl | None

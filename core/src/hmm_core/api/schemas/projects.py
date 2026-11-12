@@ -19,6 +19,7 @@ from hmm_contracts.common import (
     MemberRole,
     MemberState,
     MilestoneId,
+    Page,
     ProjectId,
     ProjectMemberId,
     ProjectOrigin,
@@ -34,7 +35,12 @@ from pydantic import AwareDatetime, Field, HttpUrl, model_validator
 from hmm_core.api.schemas.common import ApiInput, ApiModel, ProjectRef, UserRef, WithAllowedActions
 
 
-class Recruiting(ApiInput):
+class Recruiting(ApiModel):
+    areas: list[AreaKey]
+    note: str
+
+
+class RecruitingInput(ApiInput):
     areas: list[AreaKey]
     note: str
 
@@ -57,7 +63,7 @@ class UpdateProjectBody(ApiInput):
     area_keys: list[AreaKey] | None = None
     links: list[HttpUrl] | None = None
     visibility: ProjectVisibility | None = None
-    recruiting: Recruiting | None = None
+    recruiting: RecruitingInput | None = None
 
 
 class ProjectMember(WithAllowedActions):
@@ -87,12 +93,15 @@ class CreateProjectInviteBody(ApiInput):
     area_key: AreaKey | None = None
 
 
-class ProjectInvite(WithAllowedActions):
+class Invite(WithAllowedActions):
     id: InviteId
     project_id: ProjectId
+    project: ProjectRef
     event_id: EventId | None
     user_id: UserId
+    user: UserRef
     invited_by: UserId | None
+    inviter: UserRef | None
     kind: InviteKind
     message: str | None
     area_key: AreaKey | None
@@ -108,11 +117,13 @@ class CreateProjectJoinRequestBody(ApiInput):
     note: str
 
 
-class ProjectJoinRequest(WithAllowedActions):
+class JoinRequest(WithAllowedActions):
     id: JoinRequestId
     project_id: ProjectId
+    project: ProjectRef
     event_id: EventId | None
     user_id: UserId
+    user: UserRef
     note: str
     status: JoinRequestStatus
     responded_at: AwareDatetime | None
@@ -120,19 +131,23 @@ class ProjectJoinRequest(WithAllowedActions):
     updated_at: AwareDatetime
 
 
-class ProjectLeadOffer(WithAllowedActions):
+class LeadOffer(WithAllowedActions):
     id: LeadOfferId
     project_id: ProjectId
+    project: ProjectRef
     event_id: EventId | None
     user_id: UserId
+    user: UserRef
     source: LeadOfferSource
     offered_by: UserId | None
-    tier: int | None
+    offerer: UserRef | None
+    tier: int | None = Field(ge=1, le=4)
     reason: str
     status: LeadOfferStatus
     expires_at: AwareDatetime
     responded_at: AwareDatetime | None
     created_at: AwareDatetime
+    updated_at: AwareDatetime
 
 
 class ProjectListing(WithAllowedActions):
@@ -152,6 +167,10 @@ class ProjectSummary(ProjectRef, WithAllowedActions):
     updated_at: AwareDatetime
 
 
+class ProjectPage(Page[ProjectSummary | ProjectListing], ApiModel):
+    pass
+
+
 class Project(ProjectSummary):
     description_md: str
     goal: str
@@ -162,12 +181,13 @@ class Project(ProjectSummary):
     locked_at: AwareDatetime | None
     seat_open_since: AwareDatetime | None
     seats_closed_at: AwareDatetime | None
+    open_seats: int | None = Field(ge=0)
     last_lead_action_at: AwareDatetime | None
     last_progress_at: AwareDatetime | None
     members: list[ProjectMember]
-    pending_invites: list[ProjectInvite] | None
-    pending_join_requests: list[ProjectJoinRequest] | None
-    pending_lead_offer: ProjectLeadOffer | None
+    pending_invites: list[Invite] | None
+    pending_join_requests: list[JoinRequest] | None
+    pending_lead_offer: LeadOffer | None
 
 
 class CreateMilestoneBody(ApiInput):

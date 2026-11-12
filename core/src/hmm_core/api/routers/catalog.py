@@ -30,8 +30,8 @@ from hmm_core.api.schemas.catalog import (
     MergeEventBody,
     UpdateEventBody,
 )
-from hmm_core.api.schemas.common import Reason
-from hmm_core.api.schemas.formation import Team
+from hmm_core.api.schemas.common import ReasonBody
+from hmm_core.api.schemas.projects import Project
 from hmm_core.api.security import admin, member, parser_service
 
 router = APIRouter(tags=["catalog"], responses=PROBLEM_RESPONSES)
@@ -66,7 +66,9 @@ async def get_event(id: EventId, actor: Annotated[None, Depends(member)]) -> Eve
 
 
 @router.get("/events/{id}/projects", status_code=status.HTTP_200_OK, summary="List event projects")
-async def list_event_projects(id: EventId, actor: Annotated[None, Depends(member)]) -> list[Team]:
+async def list_event_projects(
+    id: EventId, actor: Annotated[None, Depends(member)]
+) -> list[Project]:
     not_implemented()
 
 
@@ -131,7 +133,7 @@ async def list_event_revisions(
     "/admin/events/{id}/publish", status_code=status.HTTP_200_OK, summary="Publish an event"
 )
 async def publish_event(
-    id: EventId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: EventId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> EventDetail:
     not_implemented()
 
@@ -140,7 +142,7 @@ async def publish_event(
     "/admin/events/{id}/reject", status_code=status.HTTP_200_OK, summary="Reject an event draft"
 )
 async def reject_event(
-    id: EventId, actor: Annotated[None, Depends(admin)], body: Reason | None = None
+    id: EventId, actor: Annotated[None, Depends(admin)], body: ReasonBody | None = None
 ) -> EventDetail:
     not_implemented()
 
@@ -156,7 +158,7 @@ async def merge_event(
 
 @router.post("/admin/events/{id}/cancel", status_code=status.HTTP_200_OK, summary="Cancel an event")
 async def cancel_event(
-    id: EventId, body: Reason, actor: Annotated[None, Depends(admin)]
+    id: EventId, body: ReasonBody, actor: Annotated[None, Depends(admin)]
 ) -> EventDetail:
     not_implemented()
 
