@@ -1,8 +1,8 @@
 /contracts/ @MoguchiyDuh
-/core/ @MoguchiyDuh
-/algo/ @MoguchiyDuh
-/parser/ @MoguchiyDuh
-/bot/ @MoguchiyDuh
+/core/ @MoguchiyDuh @tlikulin
+/algo/ @qredd121 @antonzhakov
+/parser/ @PhK-dev
+/bot/ @M1goD-creator
 /web/ @MoguchiyDuh
 /deploy/ @MoguchiyDuh
 /docs/ @MoguchiyDuh
