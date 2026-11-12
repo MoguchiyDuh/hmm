@@ -1,0 +1,17 @@
+{
+  "source": {"source_id": "community:bristol-data/57", "urls": ["https://community.example.org/bristol-data/57"], "fetched_at": "2026-11-12T07:00:00Z"},
+  "kind": "meetup",
+  "title": "Bristol Data Evening: Small Pipelines",
+  "summary": "Lightning talks and discussion on maintainable data pipelines.",
+  "organizer": "Bristol Data Circle",
+  "starts_at": "2026-12-03T18:30:00Z",
+  "ends_at": "2026-12-03T21:00:00Z",
+  "timezone": "Europe/London",
+  "format": "offline",
+  "location": {"country": "United Kingdom", "city": "Bristol", "address": "7 Orchard Walk"},
+  "language": ["en"],
+  "areas": [{"key": "data", "importance": "primary"}],
+  "people": [{"telegram_username": "freya_pipelines", "display_name": "Freya Moss", "role": "speaker"}],
+  "confidence": 0.94,
+  "extractor_version": "community-html/1.1.0"
+}
