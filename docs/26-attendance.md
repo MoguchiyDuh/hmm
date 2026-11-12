@@ -13,12 +13,12 @@
 - `role`: `attendee` (default), `speaker`, `organizer`, `host`, `volunteer`. A speaker, organizer or host role without proof or confirmation counts as `attendee` for trust purposes; algo decides how much it's worth.
 - `proof_links` (≤ 5 URLs: ticket, photo, talk page, slides). They don't raise trust on their own but are inputs for algo and admins.
 - `going` that is never turned into `attended` simply expires at `ends_at + attendance_claim_days`, with no penalty.
-- **Hackathons:** enrolling sets `going`. A submitted team result sets `attended` with a system confirmation for every team member. Members can attend a hackathon without enrolling, e.g. with an outside team.
+- **Hackathons:** enrolling sets `going`. A submitted team result sets `attended` with a system confirmation for every participant (`participants = true`, §13). Members can attend a hackathon without enrolling, e.g. with an outside team.
 
 ## 26.2 Confirmations
 
 - After `ends_at`, each member with `attended` gets one `attendance_confirm_digest`: "Who did you see at X?" with the other attendees as checkboxes. A tick is a `peer` confirmation.
-- A member organizer or host of an event (`events.created_by` with role `organizer|host`) gets the same list; their ticks are `trusted`.
+- The creator of a member-created event (`events.created_by`) gets the same list; their ticks are `peer`, not `trusted`. Abuse through self-made events is left to `scan_community` (§18).
 - Parser attendee or winner lists (§19) matched to members by GitHub login or Telegram username create `trusted` system confirmations and set the role from the list.
 
 ## 26.3 Member-created events
@@ -44,5 +44,5 @@
 
 ## Done when
 - Attendance claims outside the time window are rejected with 409 `attendance_window_closed`.
-- Hackathon results create `attended` + system confirmations exactly once per team member.
+- Hackathon results create `attended` + system confirmations exactly once per participant, and none for members marked `participants = false` or for auto-closed teams.
 - Duplicate member events are caught before creation in the common cases (same URL, same title and date).

@@ -19,6 +19,7 @@ users
   banned_at timestamptz, ban_reason text
   onboarding_status text not null          -- not_started|in_progress|completed|reopened
   dnd_until timestamptz                    -- null = off; 'infinity' = indefinitely
+  mentor_capacity int null                 -- max active mentorships as mentor, all areas; null = mentor_capacity_default
   last_seen_at timestamptz
 
 sessions
@@ -131,7 +132,8 @@ events
   organizer text, website_url, registration_url,
   starts_at, ends_at, registration_opens_at null, registration_deadline null, timezone,
   format online|offline|hybrid, location jsonb {country, city, address},
-  language text[], eligibility text, themes text[],
+  language text[], eligibility text,            -- informational only, never checked (§4.4)
+  themes text[],
   team_size_min int null, team_size_max int null,   -- check 1<=min<=max<=20; used when formation_enabled
   prize jsonb {amount, currency, description},
   difficulty numeric(3,1) null, difficulty_rationale text,
@@ -152,6 +154,7 @@ event_source_people                            -- attendee/winner lists from the
   display_name text, role attendee|speaker|organizer|winner, place int null,
   matched_user_id fk null
   -- unique (source_id, coalesce(github_login, telegram_username, display_name))
+  -- winner maps to attendance role attendee; its place verifies team results (§13)
 
 event_field_locks
   event_id fk, field text, locked_by fk, locked_at   -- pk(event_id, field)
@@ -175,7 +178,7 @@ ongoing             starts_at <= now < ends_at
 ended               now >= ends_at
 ```
 
-For events with `formation_enabled`, enrollment is allowed in any phase before the registration deadline of a `published` event. The participation phase (`open → forming → review → locked → closed`) is stored separately in `event_formations` (§5.6, §12).
+For events with `formation_enabled`, enrollment is allowed in any phase except `forming` before the registration deadline of a `published` event. The participation phase (`open → forming → review → locked → closed`) is stored separately in `event_formations` (§5.6, §12).
 
 ## 5.6 Formation, teams and projects
 
@@ -202,7 +205,10 @@ projects                                    -- standalone projects and hackathon
   team_status forming|review|locked|active|finished|withdrawn|disbanded|cancelled null,   -- hackathon teams only
   origin standalone|claim|formation|late_claim|admin,
   ready_at timestamptz null,               -- lead pressed "ready for formation"
-  formed_in_run_id fk null, locked_at, vacancy_since timestamptz null,
+  review_ends_at timestamptz null,         -- team-level: copied from the event for the main round, own value for late teams
+  formed_in_run_id fk null, locked_at,
+  seat_open_since timestamptz null,        -- oldest unfilled open seat (§12.7)
+  seats_closed_at timestamptz null,        -- lead marked the team complete: no autofill
   last_lead_action_at, last_progress_at    -- idle detection (§27.4)
 
 project_areas
@@ -213,9 +219,11 @@ project_members
   role lead|member, area_id fk null, state proposed|confirmed, trust self|peer|trusted,
   joined_via create|invite|claim|core_invite|join_request|formation|fill_invite|reserve_add|reserve_offer|swap|merge|admin,
   proposal_reason text null, confirm_by timestamptz null,      -- set while state='proposed'
+  confirm_kind placement|reconfirm|presence null,              -- set while state='proposed' (§12.5, §12.7)
+  is_team_row bool not null,                                   -- denormalized: project is a hackathon team
   joined_at, confirmed_at, left_at,
   left_reason declined|lapsed|removed|left|swapped|merged|disbanded|banned|admin null
-  -- partial unique (event_id, user_id) where left_at is null and event is formation-enabled (team rows)
+  -- partial unique (event_id, user_id) where left_at is null and is_team_row
   -- partial unique (project_id) where role='lead' and left_at is null
 
 invites
@@ -257,8 +265,13 @@ formation_runs
 ```text
 project_results                             -- hackathon team results (§13)
   project_id pk, outcome finished|withdrawn, place int null, award text,
+  place_status unverified|verified|rejected null,   -- null when no place/award claimed
+  place_verified_by fk null, place_verified_at,     -- verified_by null + verified = parser winner match
   repo_url, demo_url, presentation_url, retrospective_md text,
-  member_areas jsonb {user_id: area_key}, submitted_by fk, submitted_at, edited_at
+  member_areas jsonb {user_id: area_key},
+  participants jsonb {user_id: bool},               -- took part; false = no system confirmation
+  auto_closed bool not null default false,          -- no result by results_close_days
+  submitted_by fk null, submitted_at, edited_at
 
 project_releases                            -- standalone releases (§27.5); hackathon results also create one
   id, project_id fk, title, notes_md, repo_url, demo_url, writeup_url, created_by fk, created_at
@@ -282,7 +295,8 @@ reviews
   context member|lead|mentor|host|speaker,
   rating smallint null (1..10),             -- null = endorsement (mentor → learner)
   comment text (max 2000), revealed_at null, removed_at, removed_by, removed_reason
-  unique(subject_type, subject_id, window_id, reviewer_id, reviewee_id), check reviewer_id <> reviewee_id
+  unique nulls not distinct (subject_type, subject_id, window_id, reviewer_id, reviewee_id),
+  check reviewer_id <> reviewee_id
 
 review_reports
   id, review_id fk, reporter_id fk, reason text, status open|resolved
@@ -334,7 +348,7 @@ parser_heartbeats
 
 ```text
 mentor_offers
-  user_id fk, area_id fk, topics text, capacity int, active bool   -- pk(user_id, area_id)
+  user_id fk, area_id fk, topics text, active bool   -- pk(user_id, area_id); capacity lives on users
 
 help_requests
   id, learner_id fk, area_id fk, topic text, goal text, format online|offline|any,
@@ -368,7 +382,7 @@ confirmations
   confirmer_id fk null,                         -- null = system
   source peer|lead|organizer|host|learner|mentor|system|admin, ignored bool,   -- ignored: restricted or to-check confirmer
   created_at, withdrawn_at
-  -- partial unique (fact_type, fact_id, confirmer_id) where withdrawn_at is null
+  -- partial unique nulls not distinct (fact_type, fact_id, confirmer_id) where withdrawn_at is null
 
 feed_items
   id, kind text, subject_type text, subject_id uuid, actor_id fk null, area_ids uuid[],

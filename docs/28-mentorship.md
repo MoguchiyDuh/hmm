@@ -12,9 +12,9 @@ help request ──► mentors notified ──► offers ──► learner accep
 
 ## 28.2 Mentor availability
 
-- `mentor_offers(user_id, area_id, topics text, capacity, active)`: "I can help with X". One per (member, area).
+- `mentor_offers(user_id, area_id, topics text, active)`: "I can help with X". One per (member, area).
 - Shown on the profile and in the directory filter "mentors in area X". Used by matching.
-- `capacity` (default `mentor_capacity_default` = 3) caps a mentor's active mentorships across all areas.
+- `users.mentor_capacity` (null = `mentor_capacity_default`, 3) caps a member's active mentorships as mentor across all areas, with or without offers.
 - DND hides mentor offers and pauses matching notifications.
 
 ## 28.3 Help requests
@@ -60,7 +60,7 @@ Core passes for each side: role, area, classification, duration, check-in counts
 
 | Method | Path | Who |
 |---|---|---|
-| GET / PUT | `/api/v1/me/mentor-offers` | member (list / replace own offers) |
+| GET / PUT | `/api/v1/me/mentor-offers` | member (list / replace own offers and capacity: `{capacity?, offers: [{area_key, topics, active}]}`) |
 | GET | `/api/v1/help-requests?area=&status=open&cursor=` | member |
 | POST | `/api/v1/help-requests` | member |
 | GET | `/api/v1/help-requests/{id}` | member (direct requests: learner and target only) |

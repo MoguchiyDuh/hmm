@@ -25,7 +25,7 @@ Every fact carries `trust` (`self|peer|trusted`), recomputed by core whenever it
 
 | Fact | `peer` sources | `trusted` sources |
 |---|---|---|
-| Attendance | another member who marked `attended` at the same event | the event's member organizer/host; parser attendee lists (§19); a finished hackathon team (system) |
+| Attendance | another member who marked `attended` at the same event; the creator of a member-created event (§26.2) | parser attendee lists (§19); a submitted hackathon result for its participants (system) |
 | Project membership | another member of the project | the project lead's contribution confirmation (§27.5); a submitted hackathon result (system) |
 | Project lead | a project member | – (a lead is `trusted` once ≥ 2 members confirmed them) |
 | Mentor side | – | the learner closing the mentorship with an outcome (§28.5) |

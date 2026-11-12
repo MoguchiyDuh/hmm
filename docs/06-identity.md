@@ -7,7 +7,7 @@ GitHub OAuth sign-in, sessions, admin bootstrap, bans, Telegram linking, service
 - OAuth app scope: `read:user` only. `state` parameter stored in a short-lived signed cookie; PKCE enabled.
 - First login creates `users` row (`onboarding_status = not_started`), enqueues `github_sync(user)`.
 - Repeat login matches by `github_id` (login may change; update `github_login`).
-- `ADMIN_GITHUB_LOGINS` env: listed logins get `is_admin = true` on every login (bootstrap). Admins can grant/revoke admin to others; the last admin cannot be demoted.
+- `ADMIN_GITHUB_LOGINS` env (bootstrap): a listed login gets `is_admin = true` when its account is created, or on any login while no admin exists. After that, admin status is managed in-app only, so a revoke sticks. Admins can grant/revoke admin to others; the last admin cannot be demoted.
 - Session TTL `session_ttl_days` (30), sliding: `last_used_at` updated at most once per 5 min.
 - Ban: sets `banned_at`, deletes sessions, unlinks nothing; withdraws live enrollments, pending invites, join requests, help requests, help offers and mentor offers; cancels active mentorships (no outcome; the other side keeps their activity); their confirmations become `ignored`; leaves standalone projects (lead succession per §27.6); removes from teams in `forming|review|locked` (a banned lead is treated as leaving: succession per §12.8, alerts `team_below_min`/`forced_lead` as applicable); `active` teams keep them (history) but admin alert `banned_member_in_active_team`.
 - Telegram link: web requests a code (8 chars, base32, TTL 10 min, one active per user). Deep link `https://t.me/<bot>?start=<code>`. Bot posts code + Telegram identity to core. Re-linking replaces previous link. One Telegram account ↔ one user.

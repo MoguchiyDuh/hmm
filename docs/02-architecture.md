@@ -3,13 +3,13 @@
 ## 2.1 Runtime
 
 ```text
-                ┌──────────── Caddy (TLS, :443) ────────────┐
+                ┌──────── reverse proxy (out of repo) ───────┐
  browser ──────►│  /        → web static files               │
                 │  /api/*   → api:8000                        │
                 └───────────────────────────────────────────┘
  bot ───────────► api:8000  (/api/v1 acting as user, /internal)
  parser ────────► api:8000  (/internal)
- api ──┬──► postgres (core db, pgvector, procrastinate queue)
+ api ──┬──► postgres (core db, procrastinate queue)
        ├──► minio (CV files)
        └──► GitHub OAuth
  worker ─┬─► postgres, minio, GitHub API
@@ -35,7 +35,7 @@ hmm/
 ├── parser/
 ├── bot/
 ├── web/                    # pnpm, React SPA
-└── deploy/                 # compose.yaml, Caddyfile, .env.example, backup scripts
+└── deploy/                 # dev compose.yaml, Dockerfiles, .env.example
 ```
 
 ## 2.3 Stack
@@ -43,13 +43,13 @@ hmm/
 | Part | Stack |
 |---|---|
 | Python baseline | Python 3.13, uv workspace, ruff, ty, Pydantic v2 |
-| core | FastAPI, SQLAlchemy 2 async + asyncpg, Alembic, procrastinate (Postgres-backed job queue), httpx, pypdf, aioboto3/minio client, pgvector |
-| algo | pure Python + whatever the group needs (numpy, openai SDK against compat endpoint, etc.). No DB driver. |
+| core | FastAPI, SQLAlchemy 2 async + asyncpg, Alembic, procrastinate (Postgres-backed job queue), httpx, pypdf, aioboto3/minio client |
+| algo | pure Python + whatever the group needs (numpy, openai SDK against compat endpoint, etc.). No DB driver, no embeddings. |
 | parser | group's choice in Python 3.13; HTTP to core only |
 | bot | aiogram 3, httpx, long polling |
 | frontend | TypeScript, React, Vite, TanStack Router + Query, openapi-typescript + openapi-fetch, Tailwind + shadcn/ui, Zod, MSW for mocks, pnpm |
-| infra | Docker Compose, Caddy, PostgreSQL 17 + pgvector, MinIO |
-| LLM | any OpenAI-compatible endpoint (OpenCode Go key); `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `EMBEDDING_MODEL` |
+| infra | Dockerfiles + dev Docker Compose, PostgreSQL 17, MinIO. Production hosting, TLS, proxy and backups are out of this repo's scope (§22). |
+| LLM | any OpenAI-compatible chat endpoint (OpenCode Go key); `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. Chat only, no embeddings. |
 
 ## 2.4 Process model (core)
 

@@ -3,7 +3,7 @@
 Community platform for hackathon teams, projects, events and mentorship.
 
 - **Registration:** GitHub sign-in, branching onboarding quiz, optional CV, per-area skill scores.
-- **Hackathons:** a parser discovers events; members enroll, leads claim, one formation round packs everyone into complete teams; members confirm, a reserve covers dropouts.
+- **Hackathons:** a parser discovers events; members enroll, leads claim, one formation round packs everyone into complete teams; members confirm, a reserve fills open seats.
 - **Between hackathons:** standalone projects with plans and releases, event attendance, "I want to learn X" mentorship.
 - **Points and reputation:** XP needs a second party (confirmations from co-participants, leads, organizers, learners). Peer ratings build reputation per role. Suspicious activity goes to an admin queue.
 - **Telegram bot** for notifications and one-tap actions.
@@ -12,12 +12,12 @@ Community platform for hackathon teams, projects, events and mentorship.
 
 | Part | Stack |
 |---|---|
-| core | Python 3.13, FastAPI, SQLAlchemy 2 + asyncpg, Alembic, procrastinate, PostgreSQL 17 + pgvector, MinIO |
-| algo | pure Python package called in-process by core's worker; OpenAI-compatible LLM endpoint |
+| core | Python 3.13, FastAPI, SQLAlchemy 2 + asyncpg, Alembic, procrastinate, PostgreSQL 17, MinIO |
+| algo | pure Python package called in-process by core's worker; OpenAI-compatible chat endpoint |
 | parser | standalone Python service, pushes events to core |
 | bot | aiogram 3 |
 | web | React, Vite, TypeScript, TanStack Router + Query, Tailwind + shadcn/ui |
-| infra | Docker Compose, Caddy |
+| infra | Dockerfiles, dev Docker Compose; deployment is out of repo scope |
 
 ## Repository
 
