@@ -1,0 +1,243 @@
+{
+  "description": "Closed three-account cluster repeatedly confirms only its own facts",
+  "expect_flagged": [
+    [
+      "019a71c0-0000-7000-8000-00000000001f",
+      "019a71c0-0000-7000-8000-000000000020",
+      "019a71c0-0000-7000-8000-000000000021"
+    ]
+  ],
+  "expect_not_flagged": [
+    "019a71c0-0000-7000-8000-000000000001"
+  ],
+  "graph": {
+    "accounts": {
+      "019a71c0-0000-7000-8000-000000000001": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      },
+      "019a71c0-0000-7000-8000-00000000001f": {
+        "github_account_age": "P120D",
+        "joined_at": "2026-10-31T10:00:00Z",
+        "restrictions": [],
+        "xp": 10.0
+      },
+      "019a71c0-0000-7000-8000-000000000020": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      },
+      "019a71c0-0000-7000-8000-000000000021": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      }
+    },
+    "confirmations": [
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-00000000001f",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e4",
+        "created_at": "2026-11-05T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111d4",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eac4",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000020",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000020",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e4",
+        "created_at": "2026-11-05T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111d5",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eac5",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000021",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000021",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e4",
+        "created_at": "2026-11-05T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111d6",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eac6",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-00000000001f",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-00000000001f",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e5",
+        "created_at": "2026-11-06T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111de",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eace",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000020",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000020",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e5",
+        "created_at": "2026-11-06T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111df",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eacf",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000021",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000021",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e5",
+        "created_at": "2026-11-06T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111e0",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000ead0",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-00000000001f",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-00000000001f",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e6",
+        "created_at": "2026-11-07T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111e8",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000ead8",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000020",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000020",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e6",
+        "created_at": "2026-11-07T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111e9",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000ead9",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000021",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000021",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e6",
+        "created_at": "2026-11-07T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111ea",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eada",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-00000000001f",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-00000000001f",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e7",
+        "created_at": "2026-11-08T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111f2",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eae2",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000020",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000020",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e7",
+        "created_at": "2026-11-08T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111f3",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eae3",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000021",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000021",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e7",
+        "created_at": "2026-11-08T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111f4",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eae4",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-00000000001f",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-00000000001f",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e8",
+        "created_at": "2026-11-09T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111fc",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eaec",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000020",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000020",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e8",
+        "created_at": "2026-11-09T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111fd",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eaed",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000021",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000021",
+        "context_id": "019a71c0-0000-7000-8000-0000000138e8",
+        "created_at": "2026-11-09T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-0000000111fe",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000eaee",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-00000000001f",
+        "withdrawn_at": null
+      }
+    ],
+    "member_events": [],
+    "mentorships": [],
+    "pardoned": [],
+    "reviews": []
+  },
+  "pardoned_pairs": []
+}

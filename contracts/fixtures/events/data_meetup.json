@@ -1,0 +1,26 @@
+{
+  "areas": [
+    {
+      "area": "data",
+      "headcount": 1,
+      "importance": "primary"
+    }
+  ],
+  "created_by": null,
+  "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+  "difficulty": 4.0,
+  "ends_at": "2026-11-30T13:00:00Z",
+  "format": "hybrid",
+  "id": "019a71c0-0000-7000-8000-0000000003ec",
+  "kind": "meetup",
+  "origin": "import",
+  "starts_at": "2026-11-30T10:00:00Z",
+  "summary": "Practical, shared outcomes focused on data.",
+  "team_size_max": null,
+  "team_size_min": null,
+  "themes": [
+    "data",
+    "open collaboration"
+  ],
+  "title": "Data Quality Clinic"
+}

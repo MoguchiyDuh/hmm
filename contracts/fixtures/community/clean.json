@@ -1,0 +1,84 @@
+{
+  "description": "Three established members confirm one genuine meetup; diverse accounts and no burst",
+  "expect_flagged": [],
+  "expect_not_flagged": [
+    "019a71c0-0000-7000-8000-000000000001",
+    "019a71c0-0000-7000-8000-000000000013",
+    "019a71c0-0000-7000-8000-000000000014",
+    "019a71c0-0000-7000-8000-000000000015"
+  ],
+  "graph": {
+    "accounts": {
+      "019a71c0-0000-7000-8000-000000000001": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      },
+      "019a71c0-0000-7000-8000-000000000013": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      },
+      "019a71c0-0000-7000-8000-000000000014": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      },
+      "019a71c0-0000-7000-8000-000000000015": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      }
+    },
+    "confirmations": [
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000013",
+        "context_id": "019a71c0-0000-7000-8000-000000013880",
+        "created_at": "2026-11-05T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-000000011170",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000ea60",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000014",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000014",
+        "context_id": "019a71c0-0000-7000-8000-000000013880",
+        "created_at": "2026-11-05T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-000000011171",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000ea61",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000015",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000015",
+        "context_id": "019a71c0-0000-7000-8000-000000013880",
+        "created_at": "2026-11-05T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-000000011172",
+        "fact_type": "attendance",
+        "flag_status": null,
+        "id": "019a71c0-0000-7000-8000-00000000ea62",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000013",
+        "withdrawn_at": null
+      }
+    ],
+    "member_events": [],
+    "mentorships": [],
+    "pardoned": [],
+    "reviews": []
+  },
+  "pardoned_pairs": []
+}

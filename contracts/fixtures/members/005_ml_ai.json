@@ -1,0 +1,773 @@
+{
+  "about_md": "Building reliable systems in ml_ai; interested in collaborative projects.",
+  "activity": 30.0,
+  "activity_entries": [],
+  "area_scores": {
+    "backend": {
+      "calculated": 2.5,
+      "effective": 2.5,
+      "override": null,
+      "override_evidence": null
+    },
+    "data": {
+      "calculated": 1.0,
+      "effective": 1.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "design": {
+      "calculated": 2.0,
+      "effective": 2.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "devops": {
+      "calculated": 2.0,
+      "effective": 2.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "frontend": {
+      "calculated": 1.0,
+      "effective": 1.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "gamedev": {
+      "calculated": 2.5,
+      "effective": 2.5,
+      "override": null,
+      "override_evidence": null
+    },
+    "hardware": {
+      "calculated": 1.0,
+      "effective": 1.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "ml_ai": {
+      "calculated": 8.6,
+      "effective": 8.6,
+      "override": null,
+      "override_evidence": null
+    },
+    "mobile": {
+      "calculated": 2.0,
+      "effective": 2.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "product": {
+      "calculated": 2.5,
+      "effective": 2.5,
+      "override": null,
+      "override_evidence": null
+    },
+    "qa": {
+      "calculated": 2.0,
+      "effective": 2.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "security": {
+      "calculated": 1.0,
+      "effective": 1.0,
+      "override": null,
+      "override_evidence": null
+    }
+  },
+  "cv_text": "Elena Ortiz: practical ml_ai experience and community contributions.",
+  "display_name": "Elena Ortiz",
+  "facts": [
+    {
+      "area": "ml_ai",
+      "confirmations": [
+        {
+          "confirmer_account_age": null,
+          "confirmer_id": null,
+          "confirmer_restrictions": [],
+          "confirmer_xp": null,
+          "created_at": "2026-11-04T10:00:00Z",
+          "flag_status": null,
+          "id": "019a71c0-0000-7000-8000-000000004e24",
+          "ignored": false,
+          "source": "system",
+          "withdrawn_at": null
+        }
+      ],
+      "confirmed_at": "2026-11-04T10:00:00Z",
+      "context": {
+        "attendance_status": null,
+        "event": {
+          "areas": [
+            {
+              "area": "ml_ai",
+              "headcount": 1,
+              "importance": "primary"
+            },
+            {
+              "area": "backend",
+              "headcount": 1,
+              "importance": "required"
+            },
+            {
+              "area": "frontend",
+              "headcount": 1,
+              "importance": "required"
+            },
+            {
+              "area": "design",
+              "headcount": 1,
+              "importance": "nice"
+            }
+          ],
+          "created_by": null,
+          "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+          "difficulty": 7.0,
+          "ends_at": "2026-11-03T10:00:00Z",
+          "format": "online",
+          "id": "019a71c0-0000-7000-8000-00000011170a",
+          "kind": "hackathon",
+          "origin": "import",
+          "starts_at": "2026-11-02T10:00:00Z",
+          "summary": "Practical, shared outcomes focused on ml_ai.",
+          "team_size_max": 6,
+          "team_size_min": 3,
+          "themes": [
+            "ml_ai",
+            "open collaboration"
+          ],
+          "title": "Applied ML for Communities"
+        },
+        "mentorship": null,
+        "project": {
+          "areas": [
+            "ml_ai"
+          ],
+          "description_md": "Small, maintained tooling with shared ownership and a public release.",
+          "event_id": "019a71c0-0000-7000-8000-00000011170a",
+          "goal": "Ship a reproducible tool that solves a documented community problem",
+          "id": "019a71c0-0000-7000-8000-000000000bbc",
+          "links": [
+            "https://github.com/hmm-fixtures/toolkit-5"
+          ],
+          "name": "Community toolkit 5",
+          "recruiting": null,
+          "status": "shipped",
+          "team_status": "finished"
+        },
+        "releases": [],
+        "result": {
+          "auto_closed": false,
+          "award": "Community impact prize",
+          "demo_url": null,
+          "member_areas": {
+            "019a71c0-0000-7000-8000-000000000005": "ml_ai"
+          },
+          "outcome": "finished",
+          "participants": {
+            "019a71c0-0000-7000-8000-000000000005": true
+          },
+          "place": 2,
+          "place_status": "verified",
+          "presentation_url": null,
+          "repo_url": "https://github.com/hmm-fixtures/toolkit-5",
+          "retrospective_md": "The baseline shipped; deployment took longer than planned.",
+          "submitted_at": "2026-11-04T10:00:00Z"
+        }
+      },
+      "counterparts": [
+        "019a71c0-0000-7000-8000-000000000006"
+      ],
+      "created_at": "2026-11-01T10:00:00Z",
+      "effort": {
+        "checkins": [],
+        "milestones": [],
+        "minutes": 120,
+        "updates": []
+      },
+      "ended_at": "2026-11-03T10:00:00Z",
+      "excluded": false,
+      "flag_status": null,
+      "id": "019a71c0-0000-7000-8000-000000002714",
+      "left_at": null,
+      "note": "Delivered the working prototype",
+      "outcome": "finished",
+      "proof_links": [],
+      "role": "member",
+      "started_at": "2026-11-02T10:00:00Z",
+      "trust": "trusted",
+      "type": "project_member"
+    },
+    {
+      "area": "ml_ai",
+      "confirmations": [
+        {
+          "confirmer_account_age": null,
+          "confirmer_id": null,
+          "confirmer_restrictions": [],
+          "confirmer_xp": null,
+          "created_at": "2026-10-05T10:00:00Z",
+          "flag_status": null,
+          "id": "019a71c0-0000-7000-8000-000000004e9c",
+          "ignored": false,
+          "source": "system",
+          "withdrawn_at": null
+        }
+      ],
+      "confirmed_at": "2026-10-05T10:00:00Z",
+      "context": {
+        "attendance_status": null,
+        "event": {
+          "areas": [
+            {
+              "area": "ml_ai",
+              "headcount": 1,
+              "importance": "primary"
+            },
+            {
+              "area": "backend",
+              "headcount": 1,
+              "importance": "required"
+            },
+            {
+              "area": "frontend",
+              "headcount": 1,
+              "importance": "required"
+            },
+            {
+              "area": "design",
+              "headcount": 1,
+              "importance": "nice"
+            }
+          ],
+          "created_by": null,
+          "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+          "difficulty": 7.0,
+          "ends_at": "2026-10-04T10:00:00Z",
+          "format": "online",
+          "id": "019a71c0-0000-7000-8000-000000111728",
+          "kind": "hackathon",
+          "origin": "import",
+          "starts_at": "2026-10-03T10:00:00Z",
+          "summary": "Practical, shared outcomes focused on ml_ai.",
+          "team_size_max": 6,
+          "team_size_min": 3,
+          "themes": [
+            "ml_ai",
+            "open collaboration"
+          ],
+          "title": "Community ML Sprint 1"
+        },
+        "mentorship": null,
+        "project": {
+          "areas": [
+            "data"
+          ],
+          "description_md": "Small, maintained tooling with shared ownership and a public release.",
+          "event_id": "019a71c0-0000-7000-8000-000000111728",
+          "goal": "Ship a reproducible tool that solves a documented community problem",
+          "id": "019a71c0-0000-7000-8000-000000000c34",
+          "links": [
+            "https://github.com/hmm-fixtures/toolkit-125"
+          ],
+          "name": "Community toolkit 125",
+          "recruiting": null,
+          "status": "shipped",
+          "team_status": "finished"
+        },
+        "releases": [],
+        "result": {
+          "auto_closed": false,
+          "award": "Community impact prize",
+          "demo_url": null,
+          "member_areas": {
+            "019a71c0-0000-7000-8000-000000000005": "ml_ai"
+          },
+          "outcome": "finished",
+          "participants": {
+            "019a71c0-0000-7000-8000-000000000005": true
+          },
+          "place": 2,
+          "place_status": "verified",
+          "presentation_url": null,
+          "repo_url": "https://github.com/hmm-fixtures/toolkit-125",
+          "retrospective_md": "The baseline shipped; deployment took longer than planned.",
+          "submitted_at": "2026-10-05T10:00:00Z"
+        }
+      },
+      "counterparts": [
+        "019a71c0-0000-7000-8000-000000000006"
+      ],
+      "created_at": "2026-10-02T10:00:00Z",
+      "effort": {
+        "checkins": [],
+        "milestones": [],
+        "minutes": 120,
+        "updates": []
+      },
+      "ended_at": "2026-10-04T10:00:00Z",
+      "excluded": false,
+      "flag_status": null,
+      "id": "019a71c0-0000-7000-8000-00000000278c",
+      "left_at": null,
+      "note": "Delivered the working prototype",
+      "outcome": "finished",
+      "proof_links": [],
+      "role": "member",
+      "started_at": "2026-10-03T10:00:00Z",
+      "trust": "trusted",
+      "type": "project_member"
+    },
+    {
+      "area": "ml_ai",
+      "confirmations": [
+        {
+          "confirmer_account_age": null,
+          "confirmer_id": null,
+          "confirmer_restrictions": [],
+          "confirmer_xp": null,
+          "created_at": "2026-09-05T10:00:00Z",
+          "flag_status": null,
+          "id": "019a71c0-0000-7000-8000-000000004f14",
+          "ignored": false,
+          "source": "system",
+          "withdrawn_at": null
+        }
+      ],
+      "confirmed_at": "2026-09-05T10:00:00Z",
+      "context": {
+        "attendance_status": null,
+        "event": {
+          "areas": [
+            {
+              "area": "ml_ai",
+              "headcount": 1,
+              "importance": "primary"
+            },
+            {
+              "area": "backend",
+              "headcount": 1,
+              "importance": "required"
+            },
+            {
+              "area": "frontend",
+              "headcount": 1,
+              "importance": "required"
+            },
+            {
+              "area": "design",
+              "headcount": 1,
+              "importance": "nice"
+            }
+          ],
+          "created_by": null,
+          "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+          "difficulty": 7.0,
+          "ends_at": "2026-09-04T10:00:00Z",
+          "format": "online",
+          "id": "019a71c0-0000-7000-8000-000000111746",
+          "kind": "hackathon",
+          "origin": "import",
+          "starts_at": "2026-09-03T10:00:00Z",
+          "summary": "Practical, shared outcomes focused on ml_ai.",
+          "team_size_max": 6,
+          "team_size_min": 3,
+          "themes": [
+            "ml_ai",
+            "open collaboration"
+          ],
+          "title": "Community ML Sprint 2"
+        },
+        "mentorship": null,
+        "project": {
+          "areas": [
+            "data"
+          ],
+          "description_md": "Small, maintained tooling with shared ownership and a public release.",
+          "event_id": "019a71c0-0000-7000-8000-000000111746",
+          "goal": "Ship a reproducible tool that solves a documented community problem",
+          "id": "019a71c0-0000-7000-8000-000000000cac",
+          "links": [
+            "https://github.com/hmm-fixtures/toolkit-245"
+          ],
+          "name": "Community toolkit 245",
+          "recruiting": null,
+          "status": "shipped",
+          "team_status": "finished"
+        },
+        "releases": [],
+        "result": {
+          "auto_closed": false,
+          "award": "Community impact prize",
+          "demo_url": null,
+          "member_areas": {
+            "019a71c0-0000-7000-8000-000000000005": "ml_ai"
+          },
+          "outcome": "finished",
+          "participants": {
+            "019a71c0-0000-7000-8000-000000000005": true
+          },
+          "place": 2,
+          "place_status": "verified",
+          "presentation_url": null,
+          "repo_url": "https://github.com/hmm-fixtures/toolkit-245",
+          "retrospective_md": "The baseline shipped; deployment took longer than planned.",
+          "submitted_at": "2026-09-05T10:00:00Z"
+        }
+      },
+      "counterparts": [
+        "019a71c0-0000-7000-8000-000000000006"
+      ],
+      "created_at": "2026-09-02T10:00:00Z",
+      "effort": {
+        "checkins": [],
+        "milestones": [],
+        "minutes": 120,
+        "updates": []
+      },
+      "ended_at": "2026-09-04T10:00:00Z",
+      "excluded": false,
+      "flag_status": null,
+      "id": "019a71c0-0000-7000-8000-000000002804",
+      "left_at": null,
+      "note": "Delivered the working prototype",
+      "outcome": "finished",
+      "proof_links": [],
+      "role": "member",
+      "started_at": "2026-09-03T10:00:00Z",
+      "trust": "trusted",
+      "type": "project_member"
+    },
+    {
+      "area": "ml_ai",
+      "confirmations": [
+        {
+          "confirmer_account_age": null,
+          "confirmer_id": null,
+          "confirmer_restrictions": [],
+          "confirmer_xp": null,
+          "created_at": "2026-08-06T10:00:00Z",
+          "flag_status": null,
+          "id": "019a71c0-0000-7000-8000-000000004f8c",
+          "ignored": false,
+          "source": "system",
+          "withdrawn_at": null
+        }
+      ],
+      "confirmed_at": "2026-08-06T10:00:00Z",
+      "context": {
+        "attendance_status": null,
+        "event": {
+          "areas": [
+            {
+              "area": "ml_ai",
+              "headcount": 1,
+              "importance": "primary"
+            },
+            {
+              "area": "backend",
+              "headcount": 1,
+              "importance": "required"
+            },
+            {
+              "area": "frontend",
+              "headcount": 1,
+              "importance": "required"
+            },
+            {
+              "area": "design",
+              "headcount": 1,
+              "importance": "nice"
+            }
+          ],
+          "created_by": null,
+          "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+          "difficulty": 7.0,
+          "ends_at": "2026-08-05T10:00:00Z",
+          "format": "online",
+          "id": "019a71c0-0000-7000-8000-000000111764",
+          "kind": "hackathon",
+          "origin": "import",
+          "starts_at": "2026-08-04T10:00:00Z",
+          "summary": "Practical, shared outcomes focused on ml_ai.",
+          "team_size_max": 6,
+          "team_size_min": 3,
+          "themes": [
+            "ml_ai",
+            "open collaboration"
+          ],
+          "title": "Community ML Sprint 3"
+        },
+        "mentorship": null,
+        "project": {
+          "areas": [
+            "data"
+          ],
+          "description_md": "Small, maintained tooling with shared ownership and a public release.",
+          "event_id": "019a71c0-0000-7000-8000-000000111764",
+          "goal": "Ship a reproducible tool that solves a documented community problem",
+          "id": "019a71c0-0000-7000-8000-000000000d24",
+          "links": [
+            "https://github.com/hmm-fixtures/toolkit-365"
+          ],
+          "name": "Community toolkit 365",
+          "recruiting": null,
+          "status": "shipped",
+          "team_status": "finished"
+        },
+        "releases": [],
+        "result": {
+          "auto_closed": false,
+          "award": "Community impact prize",
+          "demo_url": null,
+          "member_areas": {
+            "019a71c0-0000-7000-8000-000000000005": "ml_ai"
+          },
+          "outcome": "finished",
+          "participants": {
+            "019a71c0-0000-7000-8000-000000000005": true
+          },
+          "place": 2,
+          "place_status": "verified",
+          "presentation_url": null,
+          "repo_url": "https://github.com/hmm-fixtures/toolkit-365",
+          "retrospective_md": "The baseline shipped; deployment took longer than planned.",
+          "submitted_at": "2026-08-06T10:00:00Z"
+        }
+      },
+      "counterparts": [
+        "019a71c0-0000-7000-8000-000000000006"
+      ],
+      "created_at": "2026-08-03T10:00:00Z",
+      "effort": {
+        "checkins": [],
+        "milestones": [],
+        "minutes": 120,
+        "updates": []
+      },
+      "ended_at": "2026-08-05T10:00:00Z",
+      "excluded": false,
+      "flag_status": null,
+      "id": "019a71c0-0000-7000-8000-00000000287c",
+      "left_at": null,
+      "note": "Delivered the working prototype",
+      "outcome": "finished",
+      "proof_links": [],
+      "role": "member",
+      "started_at": "2026-08-04T10:00:00Z",
+      "trust": "trusted",
+      "type": "project_member"
+    },
+    {
+      "area": "ml_ai",
+      "confirmations": [
+        {
+          "confirmer_account_age": "P1Y135D",
+          "confirmer_id": "019a71c0-0000-7000-8000-000000000006",
+          "confirmer_restrictions": [],
+          "confirmer_xp": 400.0,
+          "created_at": "2026-11-10T10:00:00Z",
+          "flag_status": null,
+          "id": "019a71c0-0000-7000-8000-000000005018",
+          "ignored": false,
+          "source": "learner",
+          "withdrawn_at": null
+        }
+      ],
+      "confirmed_at": "2026-11-10T10:00:00Z",
+      "context": {
+        "attendance_status": null,
+        "event": null,
+        "mentorship": {
+          "area": "ml_ai",
+          "closed_at": "2026-11-10T10:00:00Z",
+          "duration": "P8D",
+          "earlier_pair_mentorships": 0,
+          "endorsement": "Can now compare baselines and explain validation choices",
+          "id": "019a71c0-0000-7000-8000-000000001774",
+          "kind": "mentoring",
+          "learner_checkin_count": 3,
+          "learner_id": "019a71c0-0000-7000-8000-000000000006",
+          "learner_score_at_start": 1.4,
+          "learner_score_now": 2.4,
+          "mentor_acknowledged_at": "2026-11-11T10:00:00Z",
+          "mentor_checkin_count": 3,
+          "mentor_id": "019a71c0-0000-7000-8000-000000000005",
+          "mentor_score_at_start": 8.6,
+          "outcome": "reached",
+          "started_at": "2026-11-02T10:00:00Z",
+          "status": "closed",
+          "summary": "Learner shipped a held-out evaluation report without data leakage"
+        },
+        "project": null,
+        "releases": [],
+        "result": null
+      },
+      "counterparts": [
+        "019a71c0-0000-7000-8000-000000000006"
+      ],
+      "created_at": "2026-11-01T10:00:00Z",
+      "effort": {
+        "checkins": [
+          {
+            "author_id": "019a71c0-0000-7000-8000-000000000005",
+            "id": "019a71c0-0000-7000-8000-000000001b80",
+            "minutes": 60,
+            "note": "Established a reproducible baseline",
+            "occurred_on": "2026-11-03"
+          },
+          {
+            "author_id": "019a71c0-0000-7000-8000-000000000005",
+            "id": "019a71c0-0000-7000-8000-000000001b81",
+            "minutes": 60,
+            "note": "Reviewed held-out evaluation",
+            "occurred_on": "2026-11-06"
+          },
+          {
+            "author_id": "019a71c0-0000-7000-8000-000000000005",
+            "id": "019a71c0-0000-7000-8000-000000001b82",
+            "minutes": 60,
+            "note": "Compared error slices and documented the final approach",
+            "occurred_on": "2026-11-09"
+          }
+        ],
+        "milestones": [],
+        "minutes": 180,
+        "updates": []
+      },
+      "ended_at": "2026-11-10T10:00:00Z",
+      "excluded": false,
+      "flag_status": null,
+      "id": "019a71c0-0000-7000-8000-000000002908",
+      "left_at": null,
+      "note": "Joined the practical discussion",
+      "outcome": "reached",
+      "proof_links": [],
+      "role": "mentor",
+      "started_at": "2026-11-02T10:00:00Z",
+      "trust": "trusted",
+      "type": "mentorship_side"
+    }
+  ],
+  "github": {
+    "account_created_at": "2023-01-12T10:00:00Z",
+    "contributions_last_year": 420,
+    "followers": 25,
+    "languages": {
+      "Python": 65.0,
+      "Rust": 35.0
+    },
+    "login": "hmm-persona-5",
+    "public_repos": 1,
+    "repos": [
+      {
+        "description": "Practical ml_ai toolkit",
+        "language": "Python",
+        "name": "toolkit-5",
+        "pushed_at": "2026-11-09T10:00:00Z",
+        "stars": 12,
+        "topics": [
+          "ml_ai"
+        ]
+      }
+    ],
+    "stars_total": 12
+  },
+  "hackathons_finished": 4,
+  "joined_at": "2024-09-03T10:00:00Z",
+  "mentor_active": 1,
+  "mentor_capacity": 3,
+  "mentor_notified_at": [],
+  "mentor_offers": [
+    {
+      "active": true,
+      "area": "ml_ai",
+      "topics": "ML evaluation, first Kaggle competition, data leakage"
+    }
+  ],
+  "mentorships_completed": 1,
+  "onboarding": {
+    "area_scores": {
+      "backend": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.5
+      },
+      "data": {
+        "reason": "Quiz and public repository evidence",
+        "value": 1.0
+      },
+      "design": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.0
+      },
+      "devops": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.0
+      },
+      "frontend": {
+        "reason": "Quiz and public repository evidence",
+        "value": 1.0
+      },
+      "gamedev": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.5
+      },
+      "hardware": {
+        "reason": "Quiz and public repository evidence",
+        "value": 1.0
+      },
+      "ml_ai": {
+        "reason": "Quiz and public repository evidence",
+        "value": 8.6
+      },
+      "mobile": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.0
+      },
+      "product": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.5
+      },
+      "qa": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.0
+      },
+      "security": {
+        "reason": "Quiz and public repository evidence",
+        "value": 1.0
+      }
+    },
+    "discrepancies": [],
+    "submitted_at": "2024-09-04T10:00:00Z"
+  },
+  "pardoned": [],
+  "projects_shipped": 0,
+  "reputation": {
+    "mentor": {
+      "avg": 9.0,
+      "count": 1
+    }
+  },
+  "reviews_received": [
+    {
+      "comment": "Explained tradeoffs clearly and followed through on commitments.",
+      "context": "mentor",
+      "created_at": "2026-11-04T10:00:00Z",
+      "flag_status": null,
+      "id": "019a71c0-0000-7000-8000-000000002afc",
+      "rating": 9,
+      "removed_at": null,
+      "revealed_at": "2026-11-11T10:00:00Z",
+      "reviewee_id": "019a71c0-0000-7000-8000-000000000005",
+      "reviewer_id": "019a71c0-0000-7000-8000-000000000006",
+      "subject_id": "019a71c0-0000-7000-8000-000000001774",
+      "subject_type": "mentorship"
+    }
+  ],
+  "scores_reviewed_at": null,
+  "times_led": 0,
+  "user_id": "019a71c0-0000-7000-8000-000000000005",
+  "xp": 450.0,
+  "xp_adjustments_total": 0.0
+}
