@@ -16,6 +16,18 @@ SECURITY_SCHEMES = {
 }
 
 
+async def user(
+    cookie: Annotated[str | None, Security(session_cookie)],
+    token: Annotated[HTTPAuthorizationCredentials | None, Security(bot_token)],
+    telegram_user_id: Annotated[str | None, Security(telegram_user)],
+) -> None:
+    return None
+
+
+async def member(actor: Annotated[None, Depends(user)]) -> None:
+    return None
+
+
 async def admin(cookie: Annotated[str | None, Security(session_cookie)]) -> None:
     return None
 
@@ -26,24 +38,14 @@ async def bot_service(
     return None
 
 
-async def bot_acting_user(
-    service: Annotated[None, Depends(bot_service)],
-    telegram_user_id: Annotated[str | None, Security(telegram_user)],
-) -> None:
-    return None
-
-
-async def session_user(
-    cookie: Annotated[str | None, Security(session_cookie)],
-    bot: Annotated[None, Depends(bot_acting_user)],
-) -> None:
-    return None
-
-
 async def parser_service(
     token: Annotated[HTTPAuthorizationCredentials | None, Security(parser_token)],
 ) -> None:
     return None
 
 
-member = session_user
+UserAuth = Annotated[None, Depends(user)]
+MemberAuth = Annotated[None, Depends(member)]
+AdminAuth = Annotated[None, Depends(admin)]
+BotAuth = Annotated[None, Depends(bot_service)]
+ParserAuth = Annotated[None, Depends(parser_service)]

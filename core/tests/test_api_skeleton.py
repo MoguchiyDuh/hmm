@@ -12,8 +12,9 @@ from hmm_contracts.common import ErrorCode, Problem
 from hmm_core.api.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
 from hmm_core.api.pagination import CursorParams
 from hmm_core.api.schemas.common import ReasonBody as Reason
-from hmm_core.api.security import bot_acting_user, bot_service, parser_service
+from hmm_core.api.security import admin, bot_service, parser_service, user
 from hmm_core.app import create_app
+from hmm_core.config import Config
 from hmm_core.openapi import OPENAPI_PATH, render_openapi
 
 DUMMY_UUID = "019a78e5-9800-7000-8000-000000000001"
@@ -181,9 +182,8 @@ async def test_health_probes() -> None:
 
 
 @pytest.mark.asyncio
-async def test_validation_and_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("PUBLIC_URL", "https://hmm.example/")
-    app = create_app()
+async def test_validation_and_http_errors() -> None:
+    app = create_app(Config(public_url="https://hmm.example/"))
 
     @app.post("/validation", responses=PROBLEM_RESPONSES)
     async def validation(body: Reason, pagination: Annotated[CursorParams, Depends()]) -> None:
@@ -195,10 +195,15 @@ async def test_validation_and_http_errors(monkeypatch: pytest.MonkeyPatch) -> No
 
     @app.get("/problem-error")
     async def problem_error() -> None:
-        raise ProblemError(409, ErrorCode.INVALID_STATE, "Invalid state", "Try again")
+        raise ProblemError(ErrorCode.INVALID_STATE, "Try again")
+
+    @app.get("/crash")
+    async def crash() -> None:
+        raise RuntimeError("boom")
 
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://test",
     ) as client:
         for path, body in (
             ("/validation?limit=0", {}),
@@ -219,6 +224,10 @@ async def test_validation_and_http_errors(monkeypatch: pytest.MonkeyPatch) -> No
         assert_problem(await client.get("/missing"), 404, ErrorCode.NOT_FOUND)
         conflict = assert_problem(await client.get("/problem-error"), 409, ErrorCode.INVALID_STATE)
         assert conflict.detail == "Try again"
+        assert conflict.title == "Invalid state"
+        assert_problem(await client.post("/healthz"), 405, ErrorCode.METHOD_NOT_ALLOWED)
+        failure = assert_problem(await client.get("/crash"), 500, ErrorCode.INTERNAL_ERROR)
+        assert failure.detail is None
 
 
 @pytest.mark.asyncio
@@ -233,14 +242,18 @@ async def test_security_dependencies_only_declare_auth() -> None:
     async def parser() -> None:
         not_implemented()
 
-    @app.get("/acting", dependencies=[Depends(bot_acting_user)])
+    @app.get("/user", dependencies=[Depends(user)])
     async def acting() -> None:
+        not_implemented()
+
+    @app.get("/admin", dependencies=[Depends(admin)])
+    async def admin_only() -> None:
         not_implemented()
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
-        for path in ("/bot", "/parser", "/acting"):
+        for path in ("/bot", "/parser", "/user", "/admin"):
             assert_problem(
                 await client.get(path, headers={"X-Telegram-User-Id": "1"}),
                 501,
@@ -249,9 +262,11 @@ async def test_security_dependencies_only_declare_auth() -> None:
     schema = app.openapi()
     assert schema["paths"]["/bot"]["get"]["security"] == [{"BotServiceToken": []}]
     assert schema["paths"]["/parser"]["get"]["security"] == [{"ParserServiceToken": []}]
-    assert schema["paths"]["/acting"]["get"]["security"] == [
-        {"BotServiceToken": [], "TelegramUser": []}
+    assert schema["paths"]["/user"]["get"]["security"] == [
+        {"SessionCookie": []},
+        {"BotServiceToken": [], "TelegramUser": []},
     ]
+    assert schema["paths"]["/admin"]["get"]["security"] == [{"SessionCookie": []}]
 
 
 def test_openapi_export_is_current() -> None:

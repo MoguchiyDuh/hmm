@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from hmm_contracts.algo import FormationPlan, FormationRequest
 from hmm_contracts.common import (
     AreaKey,
@@ -26,6 +28,9 @@ from hmm_core.api.schemas.common import (
     ApiModel,
     AreaScoreSummary,
     EventRef,
+    Markdown,
+    Name,
+    Note,
     ProjectRef,
     ReasonBody,
     UserRef,
@@ -34,13 +39,41 @@ from hmm_core.api.schemas.common import (
 from hmm_core.api.schemas.projects import ProjectMember
 
 
-class Enrollment(WithAllowedActions):
+class EnrollmentAction(StrEnum):
+    EDIT = "edit"
+    WITHDRAW = "withdraw"
+    INVITE = "invite"
+    ADD = "add"
+
+
+class FormationAction(StrEnum):
+    ENROLL = "enroll"
+    EDIT_ENROLLMENT = "edit_enrollment"
+    WITHDRAW = "withdraw"
+    CLAIM_LEAD = "claim_lead"
+    EDIT = "edit"
+    RUN = "run"
+    CREATE_TEAM = "create_team"
+    REORDER_RESERVE = "reorder_reserve"
+
+
+class SwapAction(StrEnum):
+    ACCEPT = "accept"
+    DECLINE = "decline"
+
+
+class MergeAction(StrEnum):
+    ACCEPT = "accept"
+    DECLINE = "decline"
+
+
+class Enrollment(WithAllowedActions[EnrollmentAction]):
     id: EnrollmentId
     event_id: EventId
     event: EventRef
     user: UserRef
     preferred_area_key: AreaKey | None
-    note: str = Field(max_length=1000)
+    note: str | None
     willing_to_lead: bool
     status: EnrollmentStatus
     source: EnrollmentSource
@@ -54,13 +87,13 @@ class Enrollment(WithAllowedActions):
 
 class CreateEnrollmentBody(ApiInput):
     preferred_area_key: AreaKey | None = None
-    note: str = Field(default="", max_length=1000)
+    note: Note | None = None
     willing_to_lead: bool = False
 
 
 class UpdateEnrollmentBody(ApiInput):
     preferred_area_key: AreaKey | None = None
-    note: str | None = Field(default=None, max_length=1000)
+    note: Note | None = None
     willing_to_lead: bool | None = None
 
 
@@ -106,7 +139,7 @@ class ParticipationState(ApiModel):
     lead_fit: LeadEligibility | None
 
 
-class Formation(WithAllowedActions):
+class Formation(WithAllowedActions[FormationAction]):
     event_id: EventId
     phase: FormationPhase
     target: int = Field(ge=1)
@@ -128,13 +161,13 @@ class Formation(WithAllowedActions):
 
 
 class CreateTeamBody(ApiInput):
-    name: str = Field(min_length=1)
-    description_md: str | None = None
+    name: Name
+    description_md: Markdown | None = None
 
 
 class AdminCreateTeamBody(ReasonBody):
     lead_user_id: UserId
-    name: str = Field(min_length=1)
+    name: Name
 
 
 class DeclinePlacementBody(ApiInput):
@@ -151,7 +184,7 @@ class AddMemberBody(ApiInput):
 
 
 class AdminAddMemberBody(AddMemberBody):
-    reason: str | None = None
+    reason: Note | None = None
 
 
 class UpdateMemberBody(ApiInput):
@@ -163,7 +196,7 @@ class CreateSwapBody(ApiInput):
     to_user_id: UserId
 
 
-class Swap(WithAllowedActions):
+class Swap(WithAllowedActions[SwapAction]):
     id: SwapRequestId
     event_id: EventId
     from_team_id: ProjectId
@@ -183,7 +216,7 @@ class CreateMergeBody(ApiInput):
     target_team_id: ProjectId
 
 
-class Merge(WithAllowedActions):
+class Merge(WithAllowedActions[MergeAction]):
     id: MergeProposalId
     event_id: EventId
     run_id: FormationRunId | None
@@ -202,7 +235,7 @@ class UpdateFormationBody(ReasonBody):
     formation_at_override: AwareDatetime | None = None
 
 
-class FormationRun(WithAllowedActions):
+class FormationRun(ApiModel):
     id: FormationRunId
     event_id: EventId
     round: int = Field(ge=1)

@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 from hmm_contracts import common
 from hmm_contracts.common import (
+    ERROR_STATUS,
     SEED_AREA_KEYS,
     AreaKey,
     Contract,
@@ -56,16 +57,32 @@ def test_error_codes_are_unique_snake_case_and_sorted() -> None:
     assert all(re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) for value in values)
 
 
-def test_error_codes_cover_documented_errors() -> None:
-    documented: set[str] = set()
+def documented_error_statuses() -> dict[str, set[int]]:
+    documented: dict[str, set[int]] = {}
     for path in DOCS.glob("*.md"):
         text = path.read_text()
-        documented.update(re.findall(r"\b[45]\d{2}\s+`([a-z][a-z0-9_]*)`", text))
-        for group in re.findall(r"\b[45]\d{2}\s+codes:\s*([^\n]+)", text):
-            documented.update(re.findall(r"`([a-z][a-z0-9_]*)`", group))
-        documented.update(re.findall(r'"code":\s*"([a-z][a-z0-9_]*)"', text))
+        for status, code in re.findall(r"\b([45]\d{2})\s+`([a-z][a-z0-9_]*)`", text):
+            documented.setdefault(code, set()).add(int(status))
+        for status, group in re.findall(r"\b([45]\d{2})\s+codes:\s*([^\n]+)", text):
+            for code in re.findall(r"`([a-z][a-z0-9_]*)`", group):
+                documented.setdefault(code, set()).add(int(status))
+        for status, code in re.findall(
+            r'"status":\s*(\d{3}),\s*"detail":[^}]*"code":\s*"([a-z][a-z0-9_]*)"', text
+        ):
+            documented.setdefault(code, set()).add(int(status))
+    return documented
+
+
+def test_error_codes_cover_documented_errors() -> None:
+    documented = documented_error_statuses()
     assert documented
-    assert documented <= {code.value for code in ErrorCode}
+    assert set(documented) <= {code.value for code in ErrorCode}
+
+
+def test_every_error_code_has_its_documented_status() -> None:
+    assert set(ERROR_STATUS) == set(ErrorCode)
+    for code, statuses in documented_error_statuses().items():
+        assert statuses == {ERROR_STATUS[ErrorCode(code)]}, code
 
 
 @pytest.mark.parametrize("public_url", ["https://hmm.example", "https://hmm.example///"])
@@ -73,24 +90,27 @@ def test_problem_builds_type_and_round_trips(public_url: str) -> None:
     issue = ValidationIssue(loc=["body", "items", 0], msg="Invalid item")
     problem = Problem.build(
         public_url=public_url,
-        title="Invalid request",
-        status=422,
         detail="An item is invalid",
         code=ErrorCode.VALIDATION_ERROR,
         errors=[issue],
     )
     assert problem.type == "https://hmm.example/errors/validation_error"
+    assert problem.status == 422
+    assert problem.title == "Validation error"
     assert Problem.model_validate_json(problem.model_dump_json()) == problem
     assert problem.model_dump(mode="json")["code"] == "validation_error"
 
 
+def test_problem_derives_status_and_title_from_code() -> None:
+    problem = Problem.build(public_url="https://hmm.example", code=ErrorCode.LEAD_FIT_TOO_LOW)
+    assert problem.status == 403
+    assert problem.title == "Lead fit too low"
+    assert type(problem.model_dump()["status"]) is int
+
+
 def test_problem_defaults_are_independent() -> None:
-    first = Problem.build(
-        public_url="https://hmm.example", title="Not found", status=404, code=ErrorCode.NOT_FOUND
-    )
-    second = Problem.build(
-        public_url="https://hmm.example", title="Not found", status=404, code=ErrorCode.NOT_FOUND
-    )
+    first = Problem.build(public_url="https://hmm.example", code=ErrorCode.NOT_FOUND)
+    second = Problem.build(public_url="https://hmm.example", code=ErrorCode.NOT_FOUND)
     assert first.detail is None
     assert (
         Problem(type=first.type, title=first.title, status=first.status, code=first.code) == first

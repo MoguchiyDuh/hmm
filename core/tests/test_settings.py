@@ -5,10 +5,10 @@ import pytest
 from hmm_core.settings import (
     RuntimeSettings,
     SettingKey,
+    apply_setting,
     setting_value_schema,
-    validate_setting_value,
 )
-from pydantic import ValidationError
+from pydantic import JsonValue, ValidationError
 
 
 def test_settings_match_documented_defaults() -> None:
@@ -34,13 +34,40 @@ def test_settings_match_documented_defaults() -> None:
 
 
 def test_setting_value_validation_preserves_constraints() -> None:
+    settings = RuntimeSettings()
     key = SettingKey("project_size_max")
-    assert validate_setting_value(key, 100) == 100
+    assert apply_setting(settings, key, 100).project_size_max == 100
     for value in (0, -1, "20", True, None):
         with pytest.raises(ValidationError):
-            validate_setting_value(key, value)
+            apply_setting(settings, key, value)
     with pytest.raises(ValidationError):
-        validate_setting_value(SettingKey("lead_fit_threshold"), 1.1)
+        apply_setting(settings, SettingKey("lead_fit_threshold"), 1.1)
     with pytest.raises(ValidationError):
-        validate_setting_value(SettingKey("confirm_reminder_hours"), [24, "6", 1])
+        apply_setting(settings, SettingKey("confirm_reminder_hours"), [24, "6", 1])
     assert setting_value_schema(key)["minimum"] == 1
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("team_size_default_min", 9),
+        ("team_size_default_max", 1),
+        ("formation_min_notice_hours", 100),
+        ("review_min_hours", 49),
+        ("presence_confirm_hours", 48),
+        ("results_due_days", 30),
+        ("confirm_reminder_hours", [1, 1, 24]),
+        ("confirm_reminder_hours", [1, 6, 24]),
+        ("confirm_reminder_hours", []),
+    ],
+)
+def test_setting_rejects_inconsistent_combinations(key: str, value: JsonValue) -> None:
+    with pytest.raises(ValidationError):
+        apply_setting(RuntimeSettings(), SettingKey(key), value)
+
+
+def test_setting_accepts_consistent_related_changes() -> None:
+    settings = apply_setting(RuntimeSettings(), SettingKey("team_size_default_max"), 9)
+    settings = apply_setting(settings, SettingKey("team_size_default_min"), 9)
+    assert (settings.team_size_default_min, settings.team_size_default_max) == (9, 9)
+    assert RuntimeSettings().team_size_default_min == 2

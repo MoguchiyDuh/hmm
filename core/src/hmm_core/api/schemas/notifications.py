@@ -1,14 +1,29 @@
+from enum import StrEnum
+
 from hmm_contracts.notifications import AdminAlert, Notification
 from pydantic import Field
 
-from hmm_core.api.schemas.common import ApiModel, ReasonBody, WithAllowedActions
+from hmm_core.api.schemas.common import (
+    ApiModel,
+    Note,
+    ReasonBody,
+    WithAllowedActions,
+)
 
 
-class InboxNotification(Notification, WithAllowedActions):
+class NotificationAction(StrEnum):
+    READ = "read"
+
+
+class AlertAction(StrEnum):
+    RESOLVE = "resolve"
+
+
+class InboxNotification(Notification, WithAllowedActions[NotificationAction]):
     pass
 
 
-class Alert(AdminAlert, WithAllowedActions):
+class Alert(AdminAlert, WithAllowedActions[AlertAction]):
     pass
 
 
@@ -17,4 +32,4 @@ class UnreadCount(ApiModel):
 
 
 class ResolveAlertBody(ReasonBody):
-    note: str
+    note: Note

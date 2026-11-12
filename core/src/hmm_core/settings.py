@@ -1,8 +1,9 @@
 from enum import StrEnum
-from typing import Annotated
+from itertools import pairwise
+from typing import Annotated, Self
 
 from hmm_contracts.algo import AlgoSettings, AreaScore, UnitScore
-from pydantic import Field, JsonValue, TypeAdapter
+from pydantic import Field, JsonValue, TypeAdapter, model_validator
 
 
 class RuntimeSettings(AlgoSettings):
@@ -67,6 +68,21 @@ class RuntimeSettings(AlgoSettings):
         default=7, gt=0, description="Confirmation withdrawal window"
     )
 
+    @model_validator(mode="after")
+    def validate_related_settings(self) -> Self:
+        if self.formation_min_notice_hours > self.formation_lead_hours:
+            raise ValueError("formation_min_notice_hours must not exceed formation_lead_hours")
+        if self.review_min_hours > self.review_hours:
+            raise ValueError("review_min_hours must not exceed review_hours")
+        if self.presence_confirm_hours >= self.presence_check_hours:
+            raise ValueError("presence_confirm_hours must be below presence_check_hours")
+        if self.results_due_days >= self.results_close_days:
+            raise ValueError("results_due_days must be below results_close_days")
+        reminders = self.confirm_reminder_hours
+        if not reminders or any(later >= earlier for earlier, later in pairwise(reminders)):
+            raise ValueError("confirm_reminder_hours must be non-empty and strictly descending")
+        return self
+
 
 SettingKey = StrEnum("SettingKey", {key.upper(): key for key in RuntimeSettings.model_fields})
 
@@ -76,8 +92,9 @@ _ADAPTERS: dict[SettingKey, TypeAdapter[JsonValue]] = {
 }
 
 
-def validate_setting_value(key: SettingKey, value: JsonValue) -> JsonValue:
-    return _ADAPTERS[key].validate_python(value, strict=True)
+def apply_setting(settings: RuntimeSettings, key: SettingKey, value: JsonValue) -> RuntimeSettings:
+    _ADAPTERS[key].validate_python(value, strict=True)
+    return RuntimeSettings.model_validate({**settings.model_dump(), key.value: value})
 
 
 def setting_value_schema(key: SettingKey) -> dict[str, JsonValue]:

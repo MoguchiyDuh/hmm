@@ -637,11 +637,18 @@ def test_team_sizes_have_no_upper_bound(
 ) -> None:
     original = next(model for model in models if type(model) is model_type)
     data = original.model_dump(mode="json")
+    linked = {"team_size_default_min", "team_size_default_max"}
     for size in (1, 21, 1000):
-        restored = model_type.model_validate_json(json.dumps(data | {field: size}))
+        changes = dict.fromkeys(linked if field in linked else {field}, size)
+        restored = model_type.model_validate_json(json.dumps(data | changes))
         assert getattr(restored, field) == size
     with pytest.raises(ValidationError):
         model_type.model_validate(data | {field: 0})
+
+
+def test_algo_settings_reject_inverted_team_size_defaults() -> None:
+    with pytest.raises(ValidationError):
+        a.AlgoSettings(team_size_default_min=6, team_size_default_max=5)
 
 
 def test_event_metadata_can_be_null(models: list[Contract]) -> None:

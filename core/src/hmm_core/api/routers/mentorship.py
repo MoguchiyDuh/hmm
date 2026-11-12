@@ -28,14 +28,14 @@ from hmm_core.api.schemas.mentorship import (
     ReplaceMentorOffersBody,
     UpdateHelpRequestBody,
 )
-from hmm_core.api.security import member
+from hmm_core.api.security import MemberAuth
 
 router = APIRouter(tags=["mentorship"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["mentorship"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/me/mentor-offers", status_code=status.HTTP_200_OK, summary="List own mentor offers")
-async def get_mentor_offers(actor: Annotated[None, Depends(member)]) -> MentorOffers:
+async def get_mentor_offers(actor: MemberAuth) -> MentorOffers:
     not_implemented()
 
 
@@ -44,15 +44,13 @@ async def get_mentor_offers(actor: Annotated[None, Depends(member)]) -> MentorOf
     status_code=status.HTTP_200_OK,
     summary="Replace own mentor offers and capacity",
 )
-async def replace_mentor_offers(
-    body: ReplaceMentorOffersBody, actor: Annotated[None, Depends(member)]
-) -> MentorOffers:
+async def replace_mentor_offers(body: ReplaceMentorOffersBody, actor: MemberAuth) -> MentorOffers:
     not_implemented()
 
 
 @router.get("/help-requests", status_code=status.HTTP_200_OK, summary="List help requests")
 async def list_help_requests(
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
     area: Annotated[AreaKey | None, Query()] = None,
     request_status: Annotated[HelpRequestStatus, Query(alias="status")] = HelpRequestStatus.OPEN,
@@ -61,9 +59,7 @@ async def list_help_requests(
 
 
 @router.post("/help-requests", status_code=status.HTTP_201_CREATED, summary="Create a help request")
-async def create_help_request(
-    body: CreateHelpRequestBody, actor: Annotated[None, Depends(member)]
-) -> HelpRequest:
+async def create_help_request(body: CreateHelpRequestBody, actor: MemberAuth) -> HelpRequest:
     not_implemented()
 
 
@@ -72,9 +68,7 @@ async def create_help_request(
     status_code=status.HTTP_200_OK,
     summary="Get help request respecting direct-request visibility",
 )
-async def get_help_request(
-    id: HelpRequestId, actor: Annotated[None, Depends(member)]
-) -> HelpRequest:
+async def get_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
     not_implemented()
 
 
@@ -84,7 +78,7 @@ async def get_help_request(
     summary="Edit open help request as learner",
 )
 async def update_help_request(
-    id: HelpRequestId, body: UpdateHelpRequestBody, actor: Annotated[None, Depends(member)]
+    id: HelpRequestId, body: UpdateHelpRequestBody, actor: MemberAuth
 ) -> HelpRequest:
     not_implemented()
 
@@ -94,9 +88,7 @@ async def update_help_request(
     status_code=status.HTTP_200_OK,
     summary="Cancel help request as learner",
 )
-async def cancel_help_request(
-    id: HelpRequestId, actor: Annotated[None, Depends(member)]
-) -> HelpRequest:
+async def cancel_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
     not_implemented()
 
 
@@ -107,9 +99,7 @@ async def cancel_help_request(
     description="Only the target mentor may decline a direct request in the open state. "
     "Notify the learner, who may immediately open it to everyone without the three-day wait.",
 )
-async def decline_help_request(
-    id: HelpRequestId, actor: Annotated[None, Depends(member)]
-) -> HelpRequest:
+async def decline_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
     not_implemented()
 
 
@@ -118,9 +108,7 @@ async def decline_help_request(
     status_code=status.HTTP_200_OK,
     summary="Open direct help request to everyone as learner",
 )
-async def open_help_request(
-    id: HelpRequestId, actor: Annotated[None, Depends(member)]
-) -> HelpRequest:
+async def open_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
     not_implemented()
 
 
@@ -130,7 +118,7 @@ async def open_help_request(
     summary="Offer help to learner",
 )
 async def create_help_offer(
-    id: HelpRequestId, body: CreateHelpOfferBody, actor: Annotated[None, Depends(member)]
+    id: HelpRequestId, body: CreateHelpOfferBody, actor: MemberAuth
 ) -> HelpOffer:
     not_implemented()
 
@@ -138,7 +126,7 @@ async def create_help_offer(
 @router.delete(
     "/help-offers/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw own help offer"
 )
-async def withdraw_help_offer(id: HelpOfferId, actor: Annotated[None, Depends(member)]) -> None:
+async def withdraw_help_offer(id: HelpOfferId, actor: MemberAuth) -> None:
     not_implemented()
 
 
@@ -147,13 +135,13 @@ async def withdraw_help_offer(id: HelpOfferId, actor: Annotated[None, Depends(me
     status_code=status.HTTP_201_CREATED,
     summary="Accept help offer and start mentorship as learner",
 )
-async def accept_help_offer(id: HelpOfferId, actor: Annotated[None, Depends(member)]) -> Mentorship:
+async def accept_help_offer(id: HelpOfferId, actor: MemberAuth) -> Mentorship:
     not_implemented()
 
 
 @router.get("/me/mentorships", status_code=status.HTTP_200_OK, summary="List own mentorships")
 async def list_my_mentorships(
-    actor: Annotated[None, Depends(member)],
+    actor: MemberAuth,
     role: Annotated[MentorshipSide | None, Query()] = None,
     mentorship_status: Annotated[MentorshipStatus | None, Query(alias="status")] = None,
 ) -> list[Mentorship]:
@@ -165,7 +153,7 @@ async def list_my_mentorships(
     status_code=status.HTTP_200_OK,
     summary="Get mentorship as participant or admin",
 )
-async def get_mentorship(id: MentorshipId, actor: Annotated[None, Depends(member)]) -> Mentorship:
+async def get_mentorship(id: MentorshipId, actor: MemberAuth) -> Mentorship:
     not_implemented()
 
 
@@ -175,7 +163,7 @@ async def get_mentorship(id: MentorshipId, actor: Annotated[None, Depends(member
     summary="Record check-in as either participant",
 )
 async def create_checkin(
-    id: MentorshipId, body: CreateMentorshipCheckinBody, actor: Annotated[None, Depends(member)]
+    id: MentorshipId, body: CreateMentorshipCheckinBody, actor: MemberAuth
 ) -> MentorshipCheckin:
     not_implemented()
 
@@ -184,7 +172,7 @@ async def create_checkin(
     "/mentorships/{id}/close", status_code=status.HTTP_200_OK, summary="Close mentorship as learner"
 )
 async def close_mentorship(
-    id: MentorshipId, body: CloseMentorshipBody, actor: Annotated[None, Depends(member)]
+    id: MentorshipId, body: CloseMentorshipBody, actor: MemberAuth
 ) -> Mentorship:
     not_implemented()
 
@@ -194,7 +182,7 @@ async def close_mentorship(
     status_code=status.HTTP_200_OK,
     summary="Propose closing as mentor",
 )
-async def propose_close(id: MentorshipId, actor: Annotated[None, Depends(member)]) -> Mentorship:
+async def propose_close(id: MentorshipId, actor: MemberAuth) -> Mentorship:
     not_implemented()
 
 
@@ -204,7 +192,7 @@ async def propose_close(id: MentorshipId, actor: Annotated[None, Depends(member)
     summary="Acknowledge learner outcome as mentor",
 )
 async def acknowledge_outcome(
-    id: MentorshipId, body: AcknowledgeMentorshipBody, actor: Annotated[None, Depends(member)]
+    id: MentorshipId, body: AcknowledgeMentorshipBody, actor: MemberAuth
 ) -> Mentorship:
     not_implemented()
 
@@ -214,7 +202,5 @@ async def acknowledge_outcome(
     status_code=status.HTTP_200_OK,
     summary="Cancel mentorship before first check-in as either participant",
 )
-async def cancel_mentorship(
-    id: MentorshipId, actor: Annotated[None, Depends(member)]
-) -> Mentorship:
+async def cancel_mentorship(id: MentorshipId, actor: MemberAuth) -> Mentorship:
     not_implemented()

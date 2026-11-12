@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from hmm_contracts.common import (
     ActorKind,
     AuditLogId,
@@ -11,11 +13,69 @@ from hmm_contracts.imports import ParserHeartbeat
 from hmm_contracts.notifications import AlertKind
 from pydantic import AwareDatetime, Field, JsonValue
 
-from hmm_core.api.schemas.common import ApiModel, ReasonBody, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import (
+    ApiModel,
+    Markdown,
+    Name,
+    Note,
+    ReasonBody,
+    UserRef,
+    WithAllowedActions,
+)
 from hmm_core.settings import SettingKey
 
 
-class AdminUser(UserRef, WithAllowedActions):
+class AdminUserAction(StrEnum):
+    EDIT = "edit"
+    BAN = "ban"
+    UNBAN = "unban"
+    GRANT_ADMIN = "grant_admin"
+    REVOKE_ADMIN = "revoke_admin"
+    REOPEN_ONBOARDING = "reopen_onboarding"
+    RECOMPUTE = "recompute"
+    ADJUST_XP = "adjust_xp"
+    OVERRIDE_SCORE = "override_score"
+
+
+class SettingAction(StrEnum):
+    EDIT = "edit"
+
+
+class JobAction(StrEnum):
+    RETRY = "retry"
+
+
+class JobName(StrEnum):
+    GITHUB_SYNC = "github_sync"
+    GITHUB_SYNC_ALL = "github_sync_all"
+    CV_EXTRACT = "cv_extract"
+    SCORE_ONBOARDING = "score_onboarding"
+    RECOMPUTE_MEMBER = "recompute_member"
+    RECOMPUTE_ALL_MEMBERS = "recompute_all_members"
+    COMPUTE_LEAD_FITS = "compute_lead_fits"
+    COMPUTE_LEAD_FITS_FOR_MEMBER = "compute_lead_fits_for_member"
+    REFRESH_RECOMMENDATIONS = "refresh_recommendations"
+    RUN_FORMATION = "run_formation"
+    RANK_RESERVE = "rank_reserve"
+    MATCH_MENTORS = "match_mentors"
+    SCAN_COMMUNITY = "scan_community"
+    COMMUNITY_TICK = "community_tick"
+    EVENT_TICK = "event_tick"
+    ADMIN_DIGEST = "admin_digest"
+    ARCHIVE_OLD_EVENTS = "archive_old_events"
+    CLEANUP = "cleanup"
+
+
+class JobStatus(StrEnum):
+    TODO = "todo"
+    DOING = "doing"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+    ABORTED = "aborted"
+
+
+class AdminUser(UserRef, WithAllowedActions[AdminUserAction]):
     github_id: int
     github_login: str
     about_md: str = Field(max_length=5000)
@@ -30,12 +90,12 @@ class AdminUser(UserRef, WithAllowedActions):
 
 class UpdateUserBody(ReasonBody):
     is_admin: bool | None = None
-    display_name: str | None = None
-    about_md: str | None = Field(default=None, max_length=5000)
+    display_name: Name | None = None
+    about_md: Markdown | None = None
 
 
 class BanUserBody(ReasonBody):
-    reason: str = Field(min_length=1)
+    reason: Note
 
 
 class UnbanUserBody(ReasonBody):
@@ -72,7 +132,7 @@ class AuditEntry(ApiModel):
     created_at: AwareDatetime
 
 
-class Setting(WithAllowedActions):
+class Setting(WithAllowedActions[SettingAction]):
     key: SettingKey
     value: JsonValue
     default: JsonValue
@@ -92,11 +152,11 @@ class StoredParserHeartbeat(ParserHeartbeat, ApiModel):
     id: ParserHeartbeatId
 
 
-class Job(WithAllowedActions):
+class Job(WithAllowedActions[JobAction]):
     id: int
-    task_name: str
+    task_name: JobName
     queue_name: str
-    status: str
+    status: JobStatus
     attempts: int = Field(ge=0)
     last_error: str | None
     created_at: AwareDatetime

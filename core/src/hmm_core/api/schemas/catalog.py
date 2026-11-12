@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Annotated, Self
 
 from hmm_contracts.common import (
@@ -26,11 +27,21 @@ from hmm_core.api.schemas.common import (
     ApiInput,
     ApiModel,
     AreaRef,
+    EventAction,
+    LongMarkdown,
+    Name,
+    Note,
     ReasonBody,
+    Slug,
+    Title,
     UserRef,
     WithAllowedActions,
 )
 from hmm_core.api.schemas.formation import Formation, LeadEligibility
+
+
+class EventFieldLockAction(StrEnum):
+    UNLOCK = "unlock"
 
 
 class EventAreaBody(ApiInput):
@@ -45,13 +56,13 @@ class EventAreaDetail(AreaRef):
 
 
 class CreateEventBody(ReasonBody):
-    slug: str | None = None
+    slug: Slug | None = None
     kind: EventKind
     formation_enabled: bool | None = None
-    title: str = Field(min_length=1)
+    title: Title
     summary: str | None = Field(default=None, max_length=500)
-    description_md: str | None = Field(default=None, max_length=20000)
-    organizer: str | None = None
+    description_md: LongMarkdown | None = None
+    organizer: Title | None = None
     website_url: HttpUrl | None = None
     registration_url: HttpUrl | None = None
     starts_at: AwareDatetime
@@ -62,14 +73,14 @@ class CreateEventBody(ReasonBody):
     format: EventFormat | None = None
     location: Location | None = None
     language: list[Annotated[str, Field(pattern=r"^[a-z]{2}$")]] = Field(default_factory=list)
-    eligibility: str | None = None
-    themes: list[str] = Field(default_factory=list)
+    eligibility: Note | None = None
+    themes: list[Name] = Field(default_factory=list)
     areas: list[EventAreaBody] = Field(default_factory=list)
     team_size_min: int | None = Field(default=None, ge=1)
     team_size_max: int | None = Field(default=None, ge=1)
     prize: Prize | None = None
     difficulty: float | None = Field(default=None, ge=1, le=10)
-    difficulty_rationale: str | None = None
+    difficulty_rationale: Note | None = None
 
     @model_validator(mode="after")
     def validate_ranges(self) -> Self:
@@ -85,13 +96,13 @@ class CreateEventBody(ReasonBody):
 
 
 class UpdateEventBody(ReasonBody):
-    slug: str | None = None
+    slug: Slug | None = None
     kind: EventKind | None = None
     formation_enabled: bool | None = None
-    title: str | None = Field(default=None, min_length=1)
+    title: Title | None = None
     summary: str | None = Field(default=None, max_length=500)
-    description_md: str | None = Field(default=None, max_length=20000)
-    organizer: str | None = None
+    description_md: LongMarkdown | None = None
+    organizer: Title | None = None
     website_url: HttpUrl | None = None
     registration_url: HttpUrl | None = None
     starts_at: AwareDatetime | None = None
@@ -102,14 +113,14 @@ class UpdateEventBody(ReasonBody):
     format: EventFormat | None = None
     location: Location | None = None
     language: list[Annotated[str, Field(pattern=r"^[a-z]{2}$")]] | None = None
-    eligibility: str | None = None
-    themes: list[str] | None = None
+    eligibility: Note | None = None
+    themes: list[Name] | None = None
     areas: list[EventAreaBody] | None = None
     team_size_min: int | None = Field(default=None, ge=1)
     team_size_max: int | None = Field(default=None, ge=1)
     prize: Prize | None = None
     difficulty: float | None = Field(default=None, ge=1, le=10)
-    difficulty_rationale: str | None = None
+    difficulty_rationale: Note | None = None
     status: EventStatus | None = None
     review_reasons: list[EventReviewReason] | None = None
 
@@ -135,7 +146,7 @@ class AttendanceCounts(ApiModel):
     attended: int = Field(ge=0)
 
 
-class EventSummary(WithAllowedActions):
+class EventSummary(WithAllowedActions[EventAction]):
     id: EventId
     slug: str
     kind: EventKind
@@ -192,7 +203,7 @@ class EventDetail(EventSummary):
     updated_at: AwareDatetime
 
 
-class EventFieldLock(WithAllowedActions):
+class EventFieldLock(WithAllowedActions[EventFieldLockAction]):
     event_id: EventId
     field: str
     locked_by: UserId

@@ -1,19 +1,30 @@
 {
   "components": {
     "schemas": {
+      "AccountAction": {
+        "enum": [
+          "refresh_github",
+          "link_telegram",
+          "unlink_telegram",
+          "create_project",
+          "create_event",
+          "request_help"
+        ],
+        "title": "AccountAction",
+        "type": "string"
+      },
       "AcknowledgeMentorshipBody": {
         "additionalProperties": false,
         "properties": {
           "endorsement": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Endorsement"
+            ]
           }
         },
         "title": "AcknowledgeMentorshipBody",
@@ -50,7 +61,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ActivityEntryAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -129,6 +140,14 @@
         ],
         "title": "ActivityEntry",
         "type": "object"
+      },
+      "ActivityEntryAction": {
+        "enum": [
+          "edit",
+          "delete"
+        ],
+        "title": "ActivityEntryAction",
+        "type": "string"
       },
       "ActivityEntryId": {
         "format": "uuid",
@@ -224,13 +243,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "user_id": {
             "$ref": "#/components/schemas/UserId"
@@ -397,20 +415,17 @@
             "$ref": "#/components/schemas/UserId"
           },
           "name": {
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
+            "$ref": "#/components/schemas/Name"
           },
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "required": [
@@ -624,7 +639,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ReviewAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -806,7 +821,7 @@
           },
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/AdminUserAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -814,6 +829,9 @@
           "avatar_url": {
             "anyOf": [
               {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -909,6 +927,21 @@
         "title": "AdminUser",
         "type": "object"
       },
+      "AdminUserAction": {
+        "enum": [
+          "edit",
+          "ban",
+          "unban",
+          "grant_admin",
+          "revoke_admin",
+          "reopen_onboarding",
+          "recompute",
+          "adjust_xp",
+          "override_score"
+        ],
+        "title": "AdminUserAction",
+        "type": "string"
+      },
       "AdminUserPage": {
         "additionalProperties": false,
         "properties": {
@@ -943,7 +976,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/AlertAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -1044,6 +1077,13 @@
         ],
         "title": "Alert",
         "type": "object"
+      },
+      "AlertAction": {
+        "enum": [
+          "resolve"
+        ],
+        "title": "AlertAction",
+        "type": "string"
       },
       "AlertKind": {
         "enum": [
@@ -1167,7 +1207,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/AreaAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -1214,6 +1254,15 @@
         ],
         "title": "Area",
         "type": "object"
+      },
+      "AreaAction": {
+        "enum": [
+          "edit",
+          "archive",
+          "unarchive"
+        ],
+        "title": "AreaAction",
+        "type": "string"
       },
       "AreaId": {
         "format": "uuid",
@@ -1315,6 +1364,14 @@
         "maximum": 10.0,
         "minimum": 0.0,
         "type": "number"
+      },
+      "AreaScoreAction": {
+        "enum": [
+          "override",
+          "clear_override"
+        ],
+        "title": "AreaScoreAction",
+        "type": "string"
       },
       "AreaScoreEvent": {
         "additionalProperties": false,
@@ -1453,13 +1510,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "user_id": {
             "$ref": "#/components/schemas/UserId"
@@ -1476,7 +1532,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/AttendanceAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -1561,6 +1617,15 @@
         ],
         "title": "Attendance",
         "type": "object"
+      },
+      "AttendanceAction": {
+        "enum": [
+          "edit",
+          "remove",
+          "confirm"
+        ],
+        "title": "AttendanceAction",
+        "type": "string"
       },
       "AttendanceConfirmDigestPayload": {
         "additionalProperties": false,
@@ -1834,7 +1899,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/AvailabilityAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -1863,13 +1928,18 @@
         "title": "Availability",
         "type": "object"
       },
+      "AvailabilityAction": {
+        "enum": [
+          "edit"
+        ],
+        "title": "AvailabilityAction",
+        "type": "string"
+      },
       "BanUserBody": {
         "additionalProperties": false,
         "properties": {
           "reason": {
-            "minLength": 1,
-            "title": "Reason",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -1921,8 +1991,7 @@
         "additionalProperties": false,
         "properties": {
           "reason": {
-            "title": "Reason",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -1940,13 +2009,12 @@
           "summary": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Summary"
+            ]
           }
         },
         "required": [
@@ -1961,24 +2029,22 @@
           "note": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Note"
+            ]
           },
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "title": "CompleteMemberReviewBody",
@@ -2089,7 +2155,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ConfirmationAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -2155,6 +2221,13 @@
         ],
         "title": "Confirmation",
         "type": "object"
+      },
+      "ConfirmationAction": {
+        "enum": [
+          "withdraw"
+        ],
+        "title": "ConfirmationAction",
+        "type": "string"
       },
       "ConfirmationFactType": {
         "enum": [
@@ -2293,20 +2366,10 @@
             ]
           },
           "description_md": {
-            "maxLength": 5000,
-            "title": "Description Md",
-            "type": "string"
+            "$ref": "#/components/schemas/Markdown"
           },
           "links": {
-            "items": {
-              "format": "uri",
-              "maxLength": 2083,
-              "minLength": 1,
-              "type": "string"
-            },
-            "maxItems": 10,
-            "title": "Links",
-            "type": "array"
+            "$ref": "#/components/schemas/Links"
           },
           "occurred_on": {
             "format": "date",
@@ -2314,9 +2377,7 @@
             "type": "string"
           },
           "title": {
-            "maxLength": 200,
-            "title": "Title",
-            "type": "string"
+            "$ref": "#/components/schemas/Title"
           },
           "type": {
             "$ref": "#/components/schemas/ActivityType"
@@ -2336,26 +2397,23 @@
         "additionalProperties": false,
         "properties": {
           "description": {
-            "title": "Description",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           },
           "key": {
             "$ref": "#/components/schemas/AreaKey"
           },
           "name": {
-            "title": "Name",
-            "type": "string"
+            "$ref": "#/components/schemas/Name"
           },
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "sort": {
             "title": "Sort",
@@ -2392,10 +2450,14 @@
         "additionalProperties": false,
         "properties": {
           "note": {
-            "default": "",
-            "maxLength": 1000,
-            "title": "Note",
-            "type": "string"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Note"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "preferred_area_key": {
             "anyOf": [
@@ -2429,14 +2491,12 @@
           "description_md": {
             "anyOf": [
               {
-                "maxLength": 20000,
-                "type": "string"
+                "$ref": "#/components/schemas/LongMarkdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description Md"
+            ]
           },
           "difficulty": {
             "anyOf": [
@@ -2454,24 +2514,22 @@
           "difficulty_rationale": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Difficulty Rationale"
+            ]
           },
           "eligibility": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Eligibility"
+            ]
           },
           "ends_at": {
             "format": "date-time",
@@ -2523,13 +2581,12 @@
           "organizer": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Title"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Organizer"
+            ]
           },
           "prize": {
             "anyOf": [
@@ -2544,13 +2601,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "registration_deadline": {
             "anyOf": [
@@ -2593,13 +2649,12 @@
           "slug": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Slug"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Slug"
+            ]
           },
           "starts_at": {
             "format": "date-time",
@@ -2644,7 +2699,7 @@
           },
           "themes": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/Name"
             },
             "title": "Themes",
             "type": "array"
@@ -2653,9 +2708,7 @@
             "$ref": "#/components/schemas/TimeZoneName"
           },
           "title": {
-            "minLength": 1,
-            "title": "Title",
-            "type": "string"
+            "$ref": "#/components/schemas/Title"
           },
           "website_url": {
             "anyOf": [
@@ -2686,8 +2739,7 @@
         "additionalProperties": false,
         "properties": {
           "message": {
-            "title": "Message",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -2706,9 +2758,7 @@
             "$ref": "#/components/schemas/HelpRequestFormat"
           },
           "goal": {
-            "maxLength": 1000,
-            "title": "Goal",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           },
           "target_mentor_id": {
             "anyOf": [
@@ -2721,9 +2771,7 @@
             ]
           },
           "topic": {
-            "maxLength": 200,
-            "title": "Topic",
-            "type": "string"
+            "$ref": "#/components/schemas/Title"
           }
         },
         "required": [
@@ -2748,13 +2796,12 @@
           "description_md": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/LongMarkdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description Md"
+            ]
           },
           "ends_at": {
             "format": "date-time",
@@ -2787,8 +2834,7 @@
             "default": "UTC"
           },
           "title": {
-            "title": "Title",
-            "type": "string"
+            "$ref": "#/components/schemas/Title"
           },
           "website_url": {
             "anyOf": [
@@ -2831,8 +2877,7 @@
             "title": "Minutes"
           },
           "note": {
-            "title": "Note",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           },
           "occurred_on": {
             "format": "date",
@@ -2866,13 +2911,12 @@
           "description": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description"
+            ]
           },
           "due_on": {
             "anyOf": [
@@ -2891,8 +2935,7 @@
             "type": "integer"
           },
           "title": {
-            "title": "Title",
-            "type": "string"
+            "$ref": "#/components/schemas/Title"
           }
         },
         "required": [
@@ -2913,8 +2956,7 @@
             "type": "array"
           },
           "description_md": {
-            "title": "Description Md",
-            "type": "string"
+            "$ref": "#/components/schemas/Markdown"
           },
           "event_id": {
             "anyOf": [
@@ -2927,22 +2969,13 @@
             ]
           },
           "goal": {
-            "title": "Goal",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           },
           "links": {
-            "items": {
-              "format": "uri",
-              "maxLength": 2083,
-              "minLength": 1,
-              "type": "string"
-            },
-            "title": "Links",
-            "type": "array"
+            "$ref": "#/components/schemas/Links"
           },
           "name": {
-            "title": "Name",
-            "type": "string"
+            "$ref": "#/components/schemas/Name"
           },
           "visibility": {
             "$ref": "#/components/schemas/ProjectVisibility",
@@ -2975,13 +3008,12 @@
           "message": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Message"
+            ]
           },
           "user_id": {
             "$ref": "#/components/schemas/UserId"
@@ -2997,8 +3029,7 @@
         "additionalProperties": false,
         "properties": {
           "note": {
-            "title": "Note",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -3032,8 +3063,7 @@
             "title": "Demo Url"
           },
           "notes_md": {
-            "title": "Notes Md",
-            "type": "string"
+            "$ref": "#/components/schemas/Markdown"
           },
           "repo_url": {
             "anyOf": [
@@ -3050,8 +3080,7 @@
             "title": "Repo Url"
           },
           "title": {
-            "title": "Title",
-            "type": "string"
+            "$ref": "#/components/schemas/Title"
           },
           "writeup_url": {
             "anyOf": [
@@ -3080,20 +3109,10 @@
         "additionalProperties": false,
         "properties": {
           "body_md": {
-            "maxLength": 5000,
-            "title": "Body Md",
-            "type": "string"
+            "$ref": "#/components/schemas/Markdown"
           },
           "links": {
-            "items": {
-              "format": "uri",
-              "maxLength": 2083,
-              "minLength": 1,
-              "type": "string"
-            },
-            "maxItems": 10,
-            "title": "Links",
-            "type": "array"
+            "$ref": "#/components/schemas/Links"
           }
         },
         "required": [
@@ -3108,17 +3127,15 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "title": {
-            "title": "Title",
-            "type": "string"
+            "$ref": "#/components/schemas/Title"
           }
         },
         "required": [
@@ -3133,13 +3150,12 @@
           "award": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Title"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Award"
+            ]
           },
           "demo_url": {
             "anyOf": [
@@ -3219,8 +3235,7 @@
             "title": "Repo Url"
           },
           "retrospective_md": {
-            "title": "Retrospective Md",
-            "type": "string"
+            "$ref": "#/components/schemas/Markdown"
           }
         },
         "required": [
@@ -3255,18 +3270,15 @@
           "description_md": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Markdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description Md"
+            ]
           },
           "name": {
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
+            "$ref": "#/components/schemas/Name"
           }
         },
         "required": [
@@ -3283,8 +3295,7 @@
             "type": "number"
           },
           "reason": {
-            "title": "Reason",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -3299,7 +3310,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/AccountAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -3307,6 +3318,9 @@
           "avatar_url": {
             "anyOf": [
               {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -3390,7 +3404,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/CvAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -3419,6 +3433,14 @@
         "title": "Cv",
         "type": "object"
       },
+      "CvAction": {
+        "enum": [
+          "replace",
+          "delete"
+        ],
+        "title": "CvAction",
+        "type": "string"
+      },
       "CvTextStatus": {
         "enum": [
           "pending",
@@ -3433,7 +3455,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/CvAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -3742,7 +3764,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/EnrollmentAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -3762,9 +3784,15 @@
             "$ref": "#/components/schemas/EnrollmentId"
           },
           "note": {
-            "maxLength": 1000,
-            "title": "Note",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
           },
           "preferred_area_key": {
             "anyOf": [
@@ -3850,6 +3878,16 @@
         "title": "Enrollment",
         "type": "object"
       },
+      "EnrollmentAction": {
+        "enum": [
+          "edit",
+          "withdraw",
+          "invite",
+          "add"
+        ],
+        "title": "EnrollmentAction",
+        "type": "string"
+      },
       "EnrollmentId": {
         "format": "uuid",
         "type": "string"
@@ -3932,6 +3970,7 @@
           "mentee_limit_reached",
           "mentor_capacity_reached",
           "merge_too_large",
+          "method_not_allowed",
           "not_draft",
           "not_enrolled",
           "not_found",
@@ -3957,6 +3996,23 @@
           "validation_error"
         ],
         "title": "ErrorCode",
+        "type": "string"
+      },
+      "EventAction": {
+        "enum": [
+          "going",
+          "attended",
+          "enroll",
+          "withdraw",
+          "claim_lead",
+          "request_join",
+          "edit",
+          "cancel",
+          "publish",
+          "reject",
+          "merge"
+        ],
+        "title": "EventAction",
         "type": "string"
       },
       "EventArea": {
@@ -4187,7 +4243,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/EventAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -4585,7 +4641,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/EventFieldLockAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -4615,6 +4671,13 @@
         ],
         "title": "EventFieldLock",
         "type": "object"
+      },
+      "EventFieldLockAction": {
+        "enum": [
+          "unlock"
+        ],
+        "title": "EventFieldLockAction",
+        "type": "string"
       },
       "EventFormat": {
         "enum": [
@@ -4794,12 +4857,12 @@
           }
         },
         "required": [
-          "timezone",
           "id",
           "title",
           "kind",
           "starts_at",
-          "ends_at"
+          "ends_at",
+          "timezone"
         ],
         "title": "EventRef",
         "type": "object"
@@ -5094,7 +5157,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/EventAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -5321,7 +5384,7 @@
           },
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/FactAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -5574,6 +5637,13 @@
         "title": "Fact",
         "type": "object"
       },
+      "FactAction": {
+        "enum": [
+          "confirm"
+        ],
+        "title": "FactAction",
+        "type": "string"
+      },
       "FactAward": {
         "additionalProperties": false,
         "properties": {
@@ -5689,7 +5759,7 @@
           },
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/FeedItemAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -5755,6 +5825,15 @@
         "title": "FeedItem",
         "type": "object"
       },
+      "FeedItemAction": {
+        "enum": [
+          "going",
+          "request_join",
+          "offer_help"
+        ],
+        "title": "FeedItemAction",
+        "type": "string"
+      },
       "FeedItemId": {
         "format": "uuid",
         "type": "string"
@@ -5809,7 +5888,7 @@
           },
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/FlagAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -5928,6 +6007,13 @@
         "title": "Flag",
         "type": "object"
       },
+      "FlagAction": {
+        "enum": [
+          "resolve"
+        ],
+        "title": "FlagAction",
+        "type": "string"
+      },
       "FlagId": {
         "format": "uuid",
         "type": "string"
@@ -6029,7 +6115,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/FormationAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -6164,6 +6250,20 @@
         ],
         "title": "Formation",
         "type": "object"
+      },
+      "FormationAction": {
+        "enum": [
+          "enroll",
+          "edit_enrollment",
+          "withdraw",
+          "claim_lead",
+          "edit",
+          "run",
+          "create_team",
+          "reorder_reserve"
+        ],
+        "title": "FormationAction",
+        "type": "string"
       },
       "FormationCounts": {
         "additionalProperties": false,
@@ -6586,13 +6686,6 @@
             ],
             "title": "Algo Version"
           },
-          "allowed_actions": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Allowed Actions",
-            "type": "array"
-          },
           "applied_at": {
             "anyOf": [
               {
@@ -6666,7 +6759,6 @@
           }
         },
         "required": [
-          "allowed_actions",
           "id",
           "event_id",
           "round",
@@ -6899,7 +6991,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/HelpOfferAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -7083,6 +7175,14 @@
         ],
         "title": "HelpOfferAcceptedPayload",
         "type": "object"
+      },
+      "HelpOfferAction": {
+        "enum": [
+          "accept",
+          "withdraw"
+        ],
+        "title": "HelpOfferAction",
+        "type": "string"
       },
       "HelpOfferClosedPayload": {
         "additionalProperties": false,
@@ -7334,7 +7434,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/HelpRequestAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -7418,6 +7518,17 @@
         ],
         "title": "HelpRequest",
         "type": "object"
+      },
+      "HelpRequestAction": {
+        "enum": [
+          "edit",
+          "cancel",
+          "decline",
+          "open",
+          "offer_help"
+        ],
+        "title": "HelpRequestAction",
+        "type": "string"
       },
       "HelpRequestDeclinedPayload": {
         "additionalProperties": false,
@@ -7800,7 +7911,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/NotificationAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -7880,7 +7991,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/InviteAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -8111,6 +8222,15 @@
         ],
         "title": "InviteAcceptedPayload",
         "type": "object"
+      },
+      "InviteAction": {
+        "enum": [
+          "accept",
+          "decline",
+          "withdraw"
+        ],
+        "title": "InviteAction",
+        "type": "string"
       },
       "InviteClosedPayload": {
         "additionalProperties": false,
@@ -8533,7 +8653,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/JobAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -8568,12 +8688,10 @@
             "type": "string"
           },
           "status": {
-            "title": "Status",
-            "type": "string"
+            "$ref": "#/components/schemas/JobStatus"
           },
           "task_name": {
-            "title": "Task Name",
-            "type": "string"
+            "$ref": "#/components/schemas/JobName"
           },
           "updated_at": {
             "format": "date-time",
@@ -8595,12 +8713,55 @@
         "title": "Job",
         "type": "object"
       },
+      "JobAction": {
+        "enum": [
+          "retry"
+        ],
+        "title": "JobAction",
+        "type": "string"
+      },
+      "JobName": {
+        "enum": [
+          "github_sync",
+          "github_sync_all",
+          "cv_extract",
+          "score_onboarding",
+          "recompute_member",
+          "recompute_all_members",
+          "compute_lead_fits",
+          "compute_lead_fits_for_member",
+          "refresh_recommendations",
+          "run_formation",
+          "rank_reserve",
+          "match_mentors",
+          "scan_community",
+          "community_tick",
+          "event_tick",
+          "admin_digest",
+          "archive_old_events",
+          "cleanup"
+        ],
+        "title": "JobName",
+        "type": "string"
+      },
+      "JobStatus": {
+        "enum": [
+          "todo",
+          "doing",
+          "succeeded",
+          "failed",
+          "cancelled",
+          "aborted"
+        ],
+        "title": "JobStatus",
+        "type": "string"
+      },
       "JoinRequest": {
         "additionalProperties": false,
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/JoinRequestAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -8759,6 +8920,15 @@
         ],
         "title": "JoinRequestAcceptedPayload",
         "type": "object"
+      },
+      "JoinRequestAction": {
+        "enum": [
+          "accept",
+          "reject",
+          "withdraw"
+        ],
+        "title": "JoinRequestAction",
+        "type": "string"
       },
       "JoinRequestId": {
         "format": "uuid",
@@ -9146,7 +9316,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/LeadOfferAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -9268,6 +9438,15 @@
         ],
         "title": "LeadOffer",
         "type": "object"
+      },
+      "LeadOfferAction": {
+        "enum": [
+          "accept",
+          "decline",
+          "cancel"
+        ],
+        "title": "LeadOfferAction",
+        "type": "string"
       },
       "LeadOfferDeclinedPayload": {
         "additionalProperties": false,
@@ -9670,8 +9849,7 @@
         "additionalProperties": false,
         "properties": {
           "reason": {
-            "title": "Reason",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -9704,6 +9882,16 @@
         ],
         "title": "LinkAction",
         "type": "object"
+      },
+      "Links": {
+        "items": {
+          "format": "uri",
+          "maxLength": 2083,
+          "minLength": 1,
+          "type": "string"
+        },
+        "maxItems": 10,
+        "type": "array"
       },
       "Locale": {
         "enum": [
@@ -9753,12 +9941,20 @@
         "title": "Location",
         "type": "object"
       },
+      "LongMarkdown": {
+        "maxLength": 20000,
+        "type": "string"
+      },
+      "Markdown": {
+        "maxLength": 5000,
+        "type": "string"
+      },
       "MemberAreaScore": {
         "additionalProperties": false,
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/AreaScoreAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -9866,7 +10062,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/EventAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -10092,12 +10288,12 @@
         },
         "required": [
           "allowed_actions",
-          "timezone",
           "id",
           "title",
           "kind",
           "starts_at",
           "ends_at",
+          "timezone",
           "slug",
           "summary",
           "description_md",
@@ -10190,7 +10386,7 @@
           },
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/MemberReviewAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -10249,6 +10445,14 @@
         "title": "MemberReview",
         "type": "object"
       },
+      "MemberReviewAction": {
+        "enum": [
+          "edit",
+          "complete"
+        ],
+        "title": "MemberReviewAction",
+        "type": "string"
+      },
       "MemberReviewDetail": {
         "additionalProperties": false,
         "properties": {
@@ -10265,7 +10469,7 @@
           },
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/MemberReviewAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -10449,8 +10653,7 @@
             "$ref": "#/components/schemas/AreaKey"
           },
           "topics": {
-            "title": "Topics",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -10466,7 +10669,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/MentorOffersAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -10499,12 +10702,19 @@
         "title": "MentorOffers",
         "type": "object"
       },
+      "MentorOffersAction": {
+        "enum": [
+          "edit"
+        ],
+        "title": "MentorOffersAction",
+        "type": "string"
+      },
       "Mentorship": {
         "additionalProperties": false,
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/MentorshipAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -10687,16 +10897,21 @@
         "title": "Mentorship",
         "type": "object"
       },
+      "MentorshipAction": {
+        "enum": [
+          "acknowledge",
+          "check_in",
+          "propose_close",
+          "close",
+          "cancel",
+          "confirm"
+        ],
+        "title": "MentorshipAction",
+        "type": "string"
+      },
       "MentorshipCheckin": {
         "additionalProperties": false,
         "properties": {
-          "allowed_actions": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Allowed Actions",
-            "type": "array"
-          },
           "author_id": {
             "$ref": "#/components/schemas/UserId"
           },
@@ -10734,7 +10949,6 @@
           }
         },
         "required": [
-          "allowed_actions",
           "id",
           "mentorship_id",
           "author_id",
@@ -11293,7 +11507,7 @@
           },
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/MergeAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -11363,6 +11577,14 @@
         "title": "Merge",
         "type": "object"
       },
+      "MergeAction": {
+        "enum": [
+          "accept",
+          "decline"
+        ],
+        "title": "MergeAction",
+        "type": "string"
+      },
       "MergeEventBody": {
         "additionalProperties": false,
         "properties": {
@@ -11372,13 +11594,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "required": [
@@ -11615,7 +11836,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/MilestoneAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -11706,6 +11927,14 @@
         "title": "Milestone",
         "type": "object"
       },
+      "MilestoneAction": {
+        "enum": [
+          "edit",
+          "delete"
+        ],
+        "title": "MilestoneAction",
+        "type": "string"
+      },
       "MilestoneId": {
         "format": "uuid",
         "type": "string"
@@ -11716,13 +11945,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "to_team_id": {
             "$ref": "#/components/schemas/ProjectId"
@@ -11839,9 +12067,26 @@
         "title": "MultiChoiceQuestion",
         "type": "object"
       },
+      "Name": {
+        "maxLength": 100,
+        "minLength": 1,
+        "type": "string"
+      },
       "Nonnegative": {
         "minimum": 0.0,
         "type": "number"
+      },
+      "Note": {
+        "maxLength": 1000,
+        "minLength": 1,
+        "type": "string"
+      },
+      "NotificationAction": {
+        "enum": [
+          "read"
+        ],
+        "title": "NotificationAction",
+        "type": "string"
       },
       "NotificationCandidate": {
         "additionalProperties": false,
@@ -12290,7 +12535,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/NotificationSettingsAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -12309,6 +12554,13 @@
         ],
         "title": "NotificationSettings",
         "type": "object"
+      },
+      "NotificationSettingsAction": {
+        "enum": [
+          "edit"
+        ],
+        "title": "NotificationSettingsAction",
+        "type": "string"
       },
       "NotificationType": {
         "enum": [
@@ -12521,7 +12773,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/OnboardingAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -12552,6 +12804,15 @@
         ],
         "title": "Onboarding",
         "type": "object"
+      },
+      "OnboardingAction": {
+        "enum": [
+          "answer",
+          "submit",
+          "reopen"
+        ],
+        "title": "OnboardingAction",
+        "type": "string"
       },
       "OnboardingAnswer": {
         "additionalProperties": false,
@@ -13035,7 +13296,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ReviewWindowAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -13563,7 +13824,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ProjectAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -13850,6 +14111,38 @@
         ],
         "title": "Project",
         "type": "object"
+      },
+      "ProjectAction": {
+        "enum": [
+          "edit",
+          "invite",
+          "request_join",
+          "leave",
+          "add_member",
+          "ready",
+          "unready",
+          "claim_lead",
+          "unclaim",
+          "close_seats",
+          "reopen_seats",
+          "swap",
+          "merge",
+          "start",
+          "pause",
+          "abandon",
+          "continue",
+          "step_down",
+          "transfer_lead",
+          "add_milestone",
+          "post_update",
+          "release",
+          "submit_result",
+          "disband",
+          "set_status",
+          "set_lead"
+        ],
+        "title": "ProjectAction",
+        "type": "string"
       },
       "ProjectId": {
         "format": "uuid",
@@ -14263,7 +14556,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ProjectAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -14303,7 +14596,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ProjectMemberAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -14452,6 +14745,19 @@
         ],
         "title": "ProjectMember",
         "type": "object"
+      },
+      "ProjectMemberAction": {
+        "enum": [
+          "edit",
+          "remove",
+          "move",
+          "confirm_placement",
+          "decline_placement",
+          "transfer_lead",
+          "confirm"
+        ],
+        "title": "ProjectMemberAction",
+        "type": "string"
       },
       "ProjectMemberId": {
         "format": "uuid",
@@ -14723,7 +15029,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/RecommendationsAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -15009,7 +15315,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ResultAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -15227,7 +15533,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ProjectAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -15333,13 +15639,6 @@
       "ProjectUpdate": {
         "additionalProperties": false,
         "properties": {
-          "allowed_actions": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Allowed Actions",
-            "type": "array"
-          },
           "author_id": {
             "$ref": "#/components/schemas/UserId"
           },
@@ -15384,7 +15683,6 @@
           }
         },
         "required": [
-          "allowed_actions",
           "id",
           "project_id",
           "author_id",
@@ -15509,7 +15807,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/QuizAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -15584,6 +15882,17 @@
         ],
         "title": "Quiz",
         "type": "object"
+      },
+      "QuizAction": {
+        "enum": [
+          "edit",
+          "validate",
+          "publish",
+          "clone",
+          "delete"
+        ],
+        "title": "QuizAction",
+        "type": "string"
       },
       "QuizId": {
         "format": "uuid",
@@ -15748,13 +16057,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "title": "ReasonBody",
@@ -15819,6 +16127,13 @@
         "title": "RecommendationStatus",
         "type": "string"
       },
+      "RecommendationsAction": {
+        "enum": [
+          "refresh"
+        ],
+        "title": "RecommendationsAction",
+        "type": "string"
+      },
       "Recruiting": {
         "additionalProperties": false,
         "properties": {
@@ -15852,8 +16167,7 @@
             "type": "array"
           },
           "note": {
-            "title": "Note",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -15899,9 +16213,7 @@
         "additionalProperties": false,
         "properties": {
           "reason": {
-            "minLength": 1,
-            "title": "Reason",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -15943,9 +16255,7 @@
         "additionalProperties": false,
         "properties": {
           "reason": {
-            "minLength": 1,
-            "title": "Reason",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           }
         },
         "required": [
@@ -16112,19 +16422,17 @@
         "additionalProperties": false,
         "properties": {
           "note": {
-            "title": "Note",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           },
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "required": [
@@ -16145,8 +16453,7 @@
             "type": "string"
           },
           "note": {
-            "title": "Note",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           },
           "penalties": {
             "anyOf": [
@@ -16161,13 +16468,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "required": [
@@ -16182,7 +16488,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/RestrictionAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -16257,6 +16563,13 @@
         ],
         "title": "Restriction",
         "type": "object"
+      },
+      "RestrictionAction": {
+        "enum": [
+          "lift"
+        ],
+        "title": "RestrictionAction",
+        "type": "string"
       },
       "RestrictionId": {
         "format": "uuid",
@@ -16352,6 +16665,14 @@
         "title": "RestrictionPenalty",
         "type": "object"
       },
+      "ResultAction": {
+        "enum": [
+          "edit",
+          "verify"
+        ],
+        "title": "ResultAction",
+        "type": "string"
+      },
       "ResultDuePayload": {
         "additionalProperties": false,
         "properties": {
@@ -16442,7 +16763,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ResultAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -16689,13 +17010,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "title": "RetryJobBody",
@@ -16706,7 +17026,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ReviewAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -16840,6 +17160,15 @@
         ],
         "title": "Review",
         "type": "object"
+      },
+      "ReviewAction": {
+        "enum": [
+          "edit",
+          "report",
+          "remove"
+        ],
+        "title": "ReviewAction",
+        "type": "string"
       },
       "ReviewContext": {
         "enum": [
@@ -17254,13 +17583,6 @@
       "ReviewReport": {
         "additionalProperties": false,
         "properties": {
-          "allowed_actions": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Allowed Actions",
-            "type": "array"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -17284,7 +17606,6 @@
           }
         },
         "required": [
-          "allowed_actions",
           "id",
           "review_id",
           "reporter_id",
@@ -17314,6 +17635,13 @@
           "event"
         ],
         "title": "ReviewSubjectType",
+        "type": "string"
+      },
+      "ReviewWindowAction": {
+        "enum": [
+          "review"
+        ],
+        "title": "ReviewWindowAction",
         "type": "string"
       },
       "ReviewWindowId": {
@@ -17896,13 +18224,12 @@
           "note": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Note"
+            ]
           },
           "proof_links": {
             "items": {
@@ -17936,8 +18263,7 @@
             "$ref": "#/components/schemas/OverrideEvidence"
           },
           "reason": {
-            "title": "Reason",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           },
           "value": {
             "$ref": "#/components/schemas/ScoreValue"
@@ -17956,7 +18282,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/SettingAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -18017,6 +18343,13 @@
         ],
         "title": "Setting",
         "type": "object"
+      },
+      "SettingAction": {
+        "enum": [
+          "edit"
+        ],
+        "title": "SettingAction",
+        "type": "string"
       },
       "SettingKey": {
         "enum": [
@@ -18172,6 +18505,11 @@
         "title": "SingleChoiceQuestion",
         "type": "object"
       },
+      "Slug": {
+        "maxLength": 100,
+        "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+        "type": "string"
+      },
       "SourceId": {
         "type": "string"
       },
@@ -18233,7 +18571,7 @@
         "properties": {
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/SwapAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -18327,6 +18665,14 @@
         ],
         "title": "Swap",
         "type": "object"
+      },
+      "SwapAction": {
+        "enum": [
+          "accept",
+          "decline"
+        ],
+        "title": "SwapAction",
+        "type": "string"
       },
       "SwapRequestId": {
         "format": "uuid",
@@ -19589,6 +19935,11 @@
         "minLength": 1,
         "type": "string"
       },
+      "Title": {
+        "maxLength": 200,
+        "minLength": 1,
+        "type": "string"
+      },
       "TrackedEvent": {
         "additionalProperties": false,
         "properties": {
@@ -19676,13 +20027,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "title": "UnbanUserBody",
@@ -19724,32 +20074,22 @@
           "description_md": {
             "anyOf": [
               {
-                "maxLength": 5000,
-                "type": "string"
+                "$ref": "#/components/schemas/Markdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description Md"
+            ]
           },
           "links": {
             "anyOf": [
               {
-                "items": {
-                  "format": "uri",
-                  "maxLength": 2083,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "maxItems": 10,
-                "type": "array"
+                "$ref": "#/components/schemas/Links"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Links"
+            ]
           },
           "occurred_on": {
             "anyOf": [
@@ -19766,14 +20106,12 @@
           "title": {
             "anyOf": [
               {
-                "maxLength": 200,
-                "type": "string"
+                "$ref": "#/components/schemas/Title"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Title"
+            ]
           },
           "type": {
             "anyOf": [
@@ -19812,35 +20150,32 @@
           "description": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description"
+            ]
           },
           "name": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Name"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Name"
+            ]
           },
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "sort": {
             "anyOf": [
@@ -19889,14 +20224,12 @@
           "note": {
             "anyOf": [
               {
-                "maxLength": 1000,
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Note"
+            ]
           },
           "preferred_area_key": {
             "anyOf": [
@@ -19943,14 +20276,12 @@
           "description_md": {
             "anyOf": [
               {
-                "maxLength": 20000,
-                "type": "string"
+                "$ref": "#/components/schemas/LongMarkdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description Md"
+            ]
           },
           "difficulty": {
             "anyOf": [
@@ -19968,24 +20299,22 @@
           "difficulty_rationale": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Difficulty Rationale"
+            ]
           },
           "eligibility": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Eligibility"
+            ]
           },
           "ends_at": {
             "anyOf": [
@@ -20058,13 +20387,12 @@
           "organizer": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Title"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Organizer"
+            ]
           },
           "prize": {
             "anyOf": [
@@ -20079,13 +20407,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "registration_deadline": {
             "anyOf": [
@@ -20142,13 +20469,12 @@
           "slug": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Slug"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Slug"
+            ]
           },
           "starts_at": {
             "anyOf": [
@@ -20212,7 +20538,7 @@
             "anyOf": [
               {
                 "items": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Name"
                 },
                 "type": "array"
               },
@@ -20235,14 +20561,12 @@
           "title": {
             "anyOf": [
               {
-                "minLength": 1,
-                "type": "string"
+                "$ref": "#/components/schemas/Title"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Title"
+            ]
           },
           "website_url": {
             "anyOf": [
@@ -20280,13 +20604,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "target_override": {
             "anyOf": [
@@ -20320,26 +20643,22 @@
           "goal": {
             "anyOf": [
               {
-                "maxLength": 1000,
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Goal"
+            ]
           },
           "topic": {
             "anyOf": [
               {
-                "maxLength": 200,
-                "type": "string"
+                "$ref": "#/components/schemas/Title"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Topic"
+            ]
           }
         },
         "title": "UpdateHelpRequestBody",
@@ -20407,13 +20726,12 @@
           "description_md": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/LongMarkdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description Md"
+            ]
           },
           "ends_at": {
             "anyOf": [
@@ -20482,13 +20800,12 @@
           "title": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Title"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Title"
+            ]
           },
           "website_url": {
             "anyOf": [
@@ -20512,19 +20829,17 @@
         "additionalProperties": false,
         "properties": {
           "note": {
-            "title": "Note",
-            "type": "string"
+            "$ref": "#/components/schemas/Note"
           },
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "required": [
@@ -20539,13 +20854,12 @@
           "description": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description"
+            ]
           },
           "done": {
             "anyOf": [
@@ -20584,13 +20898,12 @@
           "title": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Title"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Title"
+            ]
           }
         },
         "title": "UpdateMilestoneBody",
@@ -20619,22 +20932,23 @@
           "about_md": {
             "anyOf": [
               {
-                "maxLength": 5000,
-                "type": "string"
+                "$ref": "#/components/schemas/Markdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "About Md"
+            ]
           },
           "contacts": {
             "anyOf": [
               {
                 "additionalProperties": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/Title"
                 },
                 "maxProperties": 10,
+                "propertyNames": {
+                  "$ref": "#/components/schemas/Name"
+                },
                 "type": "object"
               },
               {
@@ -20646,13 +20960,12 @@
           "display_name": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Name"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Display Name"
+            ]
           },
           "locale": {
             "anyOf": [
@@ -20698,52 +21011,42 @@
           "description_md": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Markdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Description Md"
+            ]
           },
           "goal": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Goal"
+            ]
           },
           "links": {
             "anyOf": [
               {
-                "items": {
-                  "format": "uri",
-                  "maxLength": 2083,
-                  "minLength": 1,
-                  "type": "string"
-                },
-                "type": "array"
+                "$ref": "#/components/schemas/Links"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Links"
+            ]
           },
           "name": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Name"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Name"
+            ]
           },
           "recruiting": {
             "anyOf": [
@@ -20782,13 +21085,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "sections": {
             "items": {
@@ -20798,8 +21100,7 @@
             "type": "array"
           },
           "title": {
-            "title": "Title",
-            "type": "string"
+            "$ref": "#/components/schemas/Title"
           }
         },
         "required": [
@@ -20816,13 +21117,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "user_ids": {
             "items": {
@@ -20845,13 +21145,12 @@
           "award": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Title"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Award"
+            ]
           },
           "demo_url": {
             "anyOf": [
@@ -20954,13 +21253,12 @@
           "retrospective_md": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Markdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Retrospective Md"
+            ]
           }
         },
         "title": "UpdateResultBody",
@@ -21000,13 +21298,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "value": {
             "$ref": "#/components/schemas/JsonValue"
@@ -21024,13 +21321,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           },
           "status": {
             "$ref": "#/components/schemas/TeamStatus"
@@ -21048,25 +21344,22 @@
           "about_md": {
             "anyOf": [
               {
-                "maxLength": 5000,
-                "type": "string"
+                "$ref": "#/components/schemas/Markdown"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "About Md"
+            ]
           },
           "display_name": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Name"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Display Name"
+            ]
           },
           "is_admin": {
             "anyOf": [
@@ -21082,13 +21375,12 @@
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "title": "UpdateUserBody",
@@ -21179,6 +21471,13 @@
         "title": "UrlQuestion",
         "type": "object"
       },
+      "UserAction": {
+        "enum": [
+          "request_help"
+        ],
+        "title": "UserAction",
+        "type": "string"
+      },
       "UserId": {
         "format": "uuid",
         "type": "string"
@@ -21197,7 +21496,7 @@
           },
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/UserAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -21212,6 +21511,9 @@
           "avatar_url": {
             "anyOf": [
               {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -21378,6 +21680,9 @@
           "avatar_url": {
             "anyOf": [
               {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -21449,7 +21754,7 @@
           },
           "allowed_actions": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/UserAction"
             },
             "title": "Allowed Actions",
             "type": "array"
@@ -21464,6 +21769,9 @@
           "avatar_url": {
             "anyOf": [
               {
+                "format": "uri",
+                "maxLength": 2083,
+                "minLength": 1,
                 "type": "string"
               },
               {
@@ -21617,24 +21925,22 @@
           "note": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Note"
+            ]
           },
           "reason": {
             "anyOf": [
               {
-                "type": "string"
+                "$ref": "#/components/schemas/Note"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Reason"
+            ]
           }
         },
         "required": [

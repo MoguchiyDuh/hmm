@@ -1,9 +1,19 @@
+from enum import StrEnum
 from typing import Literal
 
 from hmm_contracts.common import Locale, OnboardingStatus
 from pydantic import AwareDatetime, Field, HttpUrl
 
 from hmm_core.api.schemas.common import ApiModel, UserRef, WithAllowedActions
+
+
+class AccountAction(StrEnum):
+    REFRESH_GITHUB = "refresh_github"
+    LINK_TELEGRAM = "link_telegram"
+    UNLINK_TELEGRAM = "unlink_telegram"
+    CREATE_PROJECT = "create_project"
+    CREATE_EVENT = "create_event"
+    REQUEST_HELP = "request_help"
 
 
 class TelegramLink(ApiModel):
@@ -13,7 +23,7 @@ class TelegramLink(ApiModel):
     broken_at: AwareDatetime | None
 
 
-class CurrentUser(UserRef, WithAllowedActions):
+class CurrentUser(UserRef, WithAllowedActions[AccountAction]):
     github_login: str
     github_url: HttpUrl
     is_admin: bool

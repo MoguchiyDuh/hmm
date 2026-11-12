@@ -1,11 +1,9 @@
-from typing import Annotated
-
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, status
 from hmm_contracts.common import HelpRequestId, ProjectId
 
 from hmm_core.api.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.api.schemas.recommendations import ProjectRecommendations, Recommendation
-from hmm_core.api.security import member
+from hmm_core.api.security import MemberAuth
 
 router = APIRouter(tags=["recommendations"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["recommendations"], responses=PROBLEM_RESPONSES)
@@ -16,9 +14,7 @@ internal = APIRouter(tags=["recommendations"], responses=PROBLEM_RESPONSES)
     status_code=status.HTTP_200_OK,
     summary="Get quick-pick recommendations as lead or admin",
 )
-async def get_project_recommendations(
-    id: ProjectId, actor: Annotated[None, Depends(member)]
-) -> ProjectRecommendations:
+async def get_project_recommendations(id: ProjectId, actor: MemberAuth) -> ProjectRecommendations:
     not_implemented()
 
 
@@ -27,9 +23,7 @@ async def get_project_recommendations(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Refresh recommendations as lead, at most once per minute",
 )
-async def refresh_project_recommendations(
-    id: ProjectId, actor: Annotated[None, Depends(member)]
-) -> None:
+async def refresh_project_recommendations(id: ProjectId, actor: MemberAuth) -> None:
     not_implemented()
 
 
@@ -38,7 +32,5 @@ async def refresh_project_recommendations(
     status_code=status.HTTP_200_OK,
     summary="List suggested mentors as learner",
 )
-async def list_suggested_mentors(
-    id: HelpRequestId, actor: Annotated[None, Depends(member)]
-) -> list[Recommendation]:
+async def list_suggested_mentors(id: HelpRequestId, actor: MemberAuth) -> list[Recommendation]:
     not_implemented()

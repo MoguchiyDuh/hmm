@@ -2,9 +2,9 @@ import logging
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import StrEnum
-from typing import Annotated, Literal, Protocol
+from typing import Annotated, Literal, Protocol, Self
 
-from pydantic import AwareDatetime, Field, SecretStr, StringConstraints
+from pydantic import AwareDatetime, Field, SecretStr, StringConstraints, model_validator
 
 from hmm_contracts.common import (
     ActivityEntryId,
@@ -179,6 +179,12 @@ class AlgoSettings(Contract):
     mentor_min_gap: AreaScore = Field(default=2.0, description="Minimum mentor-learner score gap")
     mentor_capacity_default: Count = Field(default=3, description="Fallback active mentor capacity")
     mentor_notify_top_n: int = Field(default=5, gt=0, description="Matched mentors to notify")
+
+    @model_validator(mode="after")
+    def validate_team_size_defaults(self) -> Self:
+        if self.team_size_default_min > self.team_size_default_max:
+            raise ValueError("team_size_default_min must not exceed team_size_default_max")
+        return self
 
 
 class LLMConfig(Contract):

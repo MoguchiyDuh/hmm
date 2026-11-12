@@ -1,10 +1,24 @@
+from enum import StrEnum
+
 from hmm_contracts.common import AreaId, AreaKey
 from pydantic import AwareDatetime
 
-from hmm_core.api.schemas.common import ApiInput, AreaRef, WithAllowedActions
+from hmm_core.api.schemas.common import (
+    ApiInput,
+    AreaRef,
+    Name,
+    Note,
+    WithAllowedActions,
+)
 
 
-class Area(AreaRef, WithAllowedActions):
+class AreaAction(StrEnum):
+    EDIT = "edit"
+    ARCHIVE = "archive"
+    UNARCHIVE = "unarchive"
+
+
+class Area(AreaRef, WithAllowedActions[AreaAction]):
     id: AreaId
     description: str
     sort: int
@@ -13,14 +27,14 @@ class Area(AreaRef, WithAllowedActions):
 
 class CreateAreaBody(ApiInput):
     key: AreaKey
-    name: str
-    description: str
+    name: Name
+    description: Note
     sort: int
-    reason: str | None = None
+    reason: Note | None = None
 
 
 class UpdateAreaBody(ApiInput):
-    name: str | None = None
-    description: str | None = None
+    name: Name | None = None
+    description: Note | None = None
     sort: int | None = None
-    reason: str | None = None
+    reason: Note | None = None

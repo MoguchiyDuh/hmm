@@ -12,7 +12,7 @@ Community platform for hackathon teams, projects, events and mentorship.
 
 | Part | Stack |
 |---|---|
-| core | Python 3.13, FastAPI, SQLAlchemy 2 + asyncpg, Alembic, procrastinate, PostgreSQL 17, MinIO |
+| core | Python 3.13, FastAPI, SQLAlchemy 2 + psycopg 3, Alembic, procrastinate, PostgreSQL 17, MinIO |
 | algo | pure Python package called in-process by core's worker; OpenAI-compatible chat endpoint |
 | parser | standalone Python service, pushes events to core |
 | bot | aiogram 3 |

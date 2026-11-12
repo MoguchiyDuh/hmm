@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Literal
 
 from hmm_contracts.algo import GithubSummary, MentorOffer, RatingSummary, ReviewIn
@@ -11,13 +12,38 @@ from hmm_contracts.common import (
 from hmm_contracts.notifications import NotificationType
 from pydantic import AwareDatetime, Field, HttpUrl
 
-from hmm_core.api.schemas.common import ApiInput, AreaScoreSummary, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import (
+    ApiInput,
+    AreaScoreSummary,
+    Markdown,
+    Name,
+    Title,
+    UserRef,
+    WithAllowedActions,
+)
+
+
+class AvailabilityAction(StrEnum):
+    EDIT = "edit"
+
+
+class UserAction(StrEnum):
+    REQUEST_HELP = "request_help"
+
+
+class CvAction(StrEnum):
+    REPLACE = "replace"
+    DELETE = "delete"
+
+
+class NotificationSettingsAction(StrEnum):
+    EDIT = "edit"
 
 
 class UpdateProfileBody(ApiInput):
-    display_name: str | None = None
-    about_md: str | None = Field(default=None, max_length=5000)
-    contacts: dict[str, str] | None = Field(default=None, max_length=10)
+    display_name: Name | None = None
+    about_md: Markdown | None = None
+    contacts: dict[Name, Title] | None = Field(default=None, max_length=10)
     timezone: TimeZoneName | None = None
     locale: Locale | None = None
 
@@ -26,11 +52,11 @@ class UpdateAvailabilityBody(ApiInput):
     dnd_until: AwareDatetime | Literal["indefinite"] | None
 
 
-class Availability(WithAllowedActions):
+class Availability(WithAllowedActions[AvailabilityAction]):
     dnd_until: AwareDatetime | Literal["indefinite"] | None
 
 
-class UserSummary(UserRef, WithAllowedActions):
+class UserSummary(UserRef, WithAllowedActions[UserAction]):
     github_login: str
     github_url: HttpUrl
     area_scores: list[AreaScoreSummary]
@@ -54,7 +80,7 @@ class UserProfile(UserSummary):
     updated_at: AwareDatetime
 
 
-class Cv(WithAllowedActions):
+class Cv(WithAllowedActions[CvAction]):
     filename: str
     url: HttpUrl
     text_status: CvTextStatus
@@ -68,7 +94,7 @@ class UploadCvBody(ApiInput):
     )
 
 
-class CvUpload(WithAllowedActions):
+class CvUpload(WithAllowedActions[CvAction]):
     filename: str
     text_status: CvTextStatus
 
@@ -83,5 +109,5 @@ class UpdateNotificationSettingsBody(ApiInput):
     items: list[NotificationSetting]
 
 
-class NotificationSettings(WithAllowedActions):
+class NotificationSettings(WithAllowedActions[NotificationSettingsAction]):
     items: list[NotificationSetting]

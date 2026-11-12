@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from hmm_contracts.common import (
     AreaKey,
     AttendanceId,
@@ -16,17 +18,32 @@ from hmm_contracts.common import (
 from hmm_contracts.imports import Location
 from pydantic import AwareDatetime, Field, HttpUrl
 
-from hmm_core.api.schemas.common import ApiInput, EventRef, UserRef, WithAllowedActions
+from hmm_core.api.schemas.common import (
+    ApiInput,
+    EventAction,
+    EventRef,
+    LongMarkdown,
+    Note,
+    Title,
+    UserRef,
+    WithAllowedActions,
+)
+
+
+class AttendanceAction(StrEnum):
+    EDIT = "edit"
+    REMOVE = "remove"
+    CONFIRM = "confirm"
 
 
 class SetAttendanceBody(ApiInput):
     status: AttendanceStatus
     role: AttendanceRole = AttendanceRole.ATTENDEE
     proof_links: list[HttpUrl] = Field(default_factory=list, max_length=5)
-    note: str | None = None
+    note: Note | None = None
 
 
-class Attendance(WithAllowedActions):
+class Attendance(WithAllowedActions[AttendanceAction]):
     id: AttendanceId
     event_id: EventId
     user_id: UserId
@@ -45,34 +62,34 @@ class Attendance(WithAllowedActions):
 class CreateMemberEventBody(ApiInput):
     timezone: TimeZoneName = "UTC"
     kind: EventKind
-    title: str
+    title: Title
     starts_at: AwareDatetime
     ends_at: AwareDatetime
     format: EventFormat
     location: Location | None = None
     website_url: HttpUrl | None = None
-    description_md: str | None = None
+    description_md: LongMarkdown | None = None
     area_keys: list[AreaKey] = Field(default_factory=list)
 
 
 class UpdateMemberEventBody(ApiInput):
     timezone: TimeZoneName | None = None
     kind: EventKind | None = None
-    title: str | None = None
+    title: Title | None = None
     starts_at: AwareDatetime | None = None
     ends_at: AwareDatetime | None = None
     format: EventFormat | None = None
     location: Location | None = None
     website_url: HttpUrl | None = None
-    description_md: str | None = None
+    description_md: LongMarkdown | None = None
     area_keys: list[AreaKey] | None = None
 
 
 class CancelMemberEventBody(ApiInput):
-    reason: str
+    reason: Note
 
 
-class MemberEvent(EventRef, WithAllowedActions):
+class MemberEvent(EventRef, WithAllowedActions[EventAction]):
     slug: str
     summary: str | None
     description_md: str | None
