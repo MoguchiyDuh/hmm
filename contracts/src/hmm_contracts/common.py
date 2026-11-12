@@ -720,6 +720,7 @@ class ErrorCode(StrEnum):
     NOT_DRAFT = "not_draft"
     NOT_ENROLLED = "not_enrolled"
     NOT_FOUND = "not_found"
+    NOT_IMPLEMENTED = "not_implemented"
     ONBOARDING_REQUIRED = "onboarding_required"
     ORIGIN_MISMATCH = "origin_mismatch"
     POSSIBLE_DUPLICATE = "possible_duplicate"
