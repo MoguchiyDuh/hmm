@@ -27,7 +27,11 @@ __all__ = [
 
 def create_engine(database_url: str) -> AsyncEngine:
     url = make_url(database_url).set(drivername="postgresql+psycopg")
-    return create_async_engine(url, pool_pre_ping=True, connect_args={"connect_timeout": 3})
+    return create_async_engine(
+        url,
+        pool_pre_ping=True,
+        connect_args={"connect_timeout": 3, "options": "-c search_path=public,procrastinate"},
+    )
 
 
 @cache

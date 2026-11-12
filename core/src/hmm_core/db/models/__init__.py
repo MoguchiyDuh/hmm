@@ -25,10 +25,10 @@ from hmm_core.db.models.formation import (
 )
 from hmm_core.db.models.identity import (
     NotificationSetting,
-    Session,
     TelegramLink,
     TelegramLinkCode,
     User,
+    UserSession,
 )
 from hmm_core.db.models.mentorship import (
     HelpOffer,
@@ -127,11 +127,11 @@ __all__ = [
     "Review",
     "ReviewReport",
     "ReviewWindow",
-    "Session",
     "Setting",
     "SwapRequest",
     "TelegramLink",
     "TelegramLinkCode",
     "User",
+    "UserSession",
     "XpAdjustment",
 ]
