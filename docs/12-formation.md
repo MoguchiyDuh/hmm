@@ -94,7 +94,7 @@ The hackathon page shows the live projection: "Projected: 2 teams (6, 5), 0 on r
 
 **"I can lead if needed"** (`willing_to_lead`): a checkbox on enrollment, open to every member regardless of lead fit. It doesn't create a team or a core. It places the member higher in the lead order (§12.8), so formation, succession and late rounds pick volunteers before anyone else.
 
-**Claim lead.** `POST /events/{id}/projects {name, description?}`.
+**Claim lead.** `POST /events/{id}/projects {name, description_md?}`.
 - Phase must be `open`, or `locked` for a late claim (§12.7).
 - The caller must have `lead_fit ≥ lead_fit_threshold`, not be on a team, and not be DND.
   - Fit too low → 403 `lead_fit_too_low` with the reason, and the UI suggests ticking "I can lead if needed" instead.
@@ -351,7 +351,7 @@ Terminal: `finished`, `withdrawn`, `disbanded`, `cancelled`.
 | GET | `/api/v1/events/{id}/lead-fit/me` | member `{fit, eligible, reason, computed_at}` |
 | POST | `/api/v1/events/{id}/projects` | eligible member (claim) |
 | GET | `/api/v1/projects/{id}` | member (pending invites/requests/offers visible to lead and admins only) |
-| PATCH | `/api/v1/projects/{id}` | lead `{name, description}` |
+| PATCH | `/api/v1/projects/{id}` | lead `{name, description_md}` |
 | POST / DELETE | `/api/v1/projects/{id}/ready` | lead |
 | POST | `/api/v1/projects/{id}/unclaim` | lead, `forming` only |
 | POST / DELETE | `/api/v1/projects/{id}/seats/close` | lead, `locked`, size ≥ `min` |

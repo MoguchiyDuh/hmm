@@ -1,8 +1,3 @@
-from fastapi import FastAPI
+from hmm_core.app import create_app
 
-app = FastAPI(title="hmm")
-
-
-@app.get("/healthz")
-async def healthz() -> dict[str, str]:
-    return {"status": "ok"}
+app = create_app()
