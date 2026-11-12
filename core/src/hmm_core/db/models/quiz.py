@@ -90,7 +90,14 @@ class Question(Mutable, Base):
 
 class QuestionOption(Mutable, Base):
     __tablename__ = "question_options"
-    __table_args__ = (UniqueConstraint("question_id", "key"),)
+    __table_args__ = (
+        UniqueConstraint("question_id", "key"),
+        CheckConstraint(
+            "jsonb_typeof(area_hints) = 'object' AND NOT jsonb_path_exists("
+            "area_hints, '$.* ? (@.type() != \"number\" || @ < 0 || @ > 1)')",
+            name="area_hints_weights",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(
         Uuid, server_default=text("uuidv7()"), nullable=False, primary_key=True
@@ -107,11 +114,6 @@ class QuestionOption(Mutable, Base):
 class OnboardingSubmission(Mutable, Base):
     __tablename__ = "onboarding_submissions"
     __table_args__ = (
-        CheckConstraint(
-            "jsonb_typeof(area_hints) = 'object' AND NOT jsonb_path_exists("
-            "area_hints, '$.* ? (@.type() != \"number\" || @ < 0 || @ > 1)')",
-            name="area_hints_weights",
-        ),
         enum_check("status", SubmissionStatus),
         Index(
             "uq_onboarding_submissions_user_id_live",

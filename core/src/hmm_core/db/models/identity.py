@@ -62,7 +62,7 @@ class User(Mutable, Base):
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
-class Session(Mutable, Base):
+class UserSession(Mutable, Base):
     __tablename__ = "sessions"
 
     token_hash: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, primary_key=True)

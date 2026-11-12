@@ -507,7 +507,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.121" },
     { name = "hmm-algo", editable = "algo" },
     { name = "hmm-contracts", editable = "contracts" },
-    { name = "procrastinate", specifier = ">=3.11" },
+    { name = "procrastinate", specifier = "==3.11.0" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.2" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.1" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.38" },

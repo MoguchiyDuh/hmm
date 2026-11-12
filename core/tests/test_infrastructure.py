@@ -84,4 +84,4 @@ def test_retry_policy() -> None:
             assert decision is not None
             assert decision.retry_at is not None
             delay = (decision.retry_at - now).total_seconds()
-            assert delay == pytest.approx(2 ** (attempts + 1), abs=0.5)
+            assert delay == pytest.approx(5 ** (attempts + 1), abs=0.5)

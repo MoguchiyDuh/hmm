@@ -10,7 +10,7 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.1",
     "psycopg[binary,pool]>=3.2",
     "alembic>=1.17",
-    "procrastinate>=3.11",
+    "procrastinate==3.11.0",
 ]
 
 [project.scripts]

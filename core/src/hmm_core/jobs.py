@@ -7,7 +7,6 @@ from procrastinate.middleware import AsyncCallNext
 from procrastinate.worker import Worker
 from psycopg import AsyncConnection
 from pydantic import JsonValue
-from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,7 +15,7 @@ from hmm_core.config import Config
 
 __all__ = ["RETRY_POLICY", "JobName", "create_jobs_app", "defer_job", "main"]
 
-RETRY_POLICY = procrastinate.RetryStrategy(max_attempts=5, exponential_wait=2)
+RETRY_POLICY = procrastinate.RetryStrategy(max_attempts=5, exponential_wait=5)
 
 
 async def failure_alert(call_next: AsyncCallNext, context: JobContext, worker: Worker) -> Any:
@@ -70,7 +69,6 @@ async def defer_job(
     **kwargs: JsonValue,
 ) -> int:
     await session.flush()
-    await session.execute(text("SET LOCAL search_path TO procrastinate, public"))
     connection = await session.connection()
     raw = await connection.get_raw_connection()
     driver = cast(AsyncConnection[Any], raw.driver_connection)

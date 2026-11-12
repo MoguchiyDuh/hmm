@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import sys
 from collections.abc import AsyncIterator
@@ -35,7 +36,8 @@ from hmm_core.db.types import DndTimestamp
 from hmm_core.jobs import RETRY_POLICY, JobName, create_jobs_app, defer_job
 from hmm_core.settings import RuntimeSettings, SettingKey
 from pydantic import ValidationError
-from sqlalchemy import func, select, text
+from sqlalchemy import CheckConstraint, func, select, text
+from sqlalchemy.dialects import postgresql
 from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -154,6 +156,29 @@ async def test_migration_roundtrip_and_uuid_defaults(session: AsyncSession) -> N
     )
     assert set(Base.metadata.tables) <= names
     assert await session.scalar(text("SELECT count(*) FROM settings")) == 0
+
+
+async def test_check_constraints_match_models(session: AsyncSession) -> None:
+    rows = await session.execute(
+        text(
+            "SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint "
+            "WHERE contype = 'c' AND connamespace = 'public'::regnamespace"
+        )
+    )
+    database = {name: definition for name, definition in rows}
+    preparer = postgresql.dialect().identifier_preparer
+    models = {
+        str(preparer.format_constraint(constraint)).strip('"'): str(constraint.sqltext)
+        for table in Base.metadata.tables.values()
+        for constraint in table.constraints
+        if isinstance(constraint, CheckConstraint)
+    }
+    assert database.keys() == models.keys()
+    for name, sql in models.items():
+        if name.endswith("_enum"):
+            assert set(re.findall(r"'([^']*)'", database[name])) == set(
+                re.findall(r"'([^']*)'", sql)
+            ), name
 
 
 @pytest.mark.parametrize("value", [None, "indefinite", datetime(2026, 12, 1, tzinfo=UTC)])
