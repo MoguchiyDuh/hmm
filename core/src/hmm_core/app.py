@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from importlib.metadata import version
 from typing import Any
 
+import httpx
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
@@ -15,6 +16,7 @@ from hmm_core.api.routers import ROUTERS
 from hmm_core.clock import SystemClock
 from hmm_core.config import Config
 from hmm_core.db import create_engine, create_sessionmaker, migration_head
+from hmm_core.jobs import create_jobs_app
 
 
 async def healthz() -> dict[str, str]:
@@ -40,11 +42,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     engine = create_engine(config.database_url) if config.database_url else None
     app.state.engine = engine
     app.state.sessionmaker = create_sessionmaker(engine) if engine is not None else None
-    try:
-        yield
-    finally:
-        if engine is not None:
-            await engine.dispose()
+    app.state.jobs = create_jobs_app(config.database_url) if config.database_url else None
+    async with httpx.AsyncClient(timeout=10) as http:
+        app.state.http = http
+        try:
+            yield
+        finally:
+            if engine is not None:
+                await engine.dispose()
 
 
 def create_app(config: Config | None = None) -> FastAPI:
@@ -58,6 +63,8 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.state.config = config if config is not None else Config.from_env()
     app.state.engine = None
     app.state.sessionmaker = None
+    app.state.jobs = None
+    app.state.http = None
     app.state.clock = SystemClock()
     register_exception_handlers(app)
     app.add_api_route("/healthz", healthz, methods=["GET"], include_in_schema=False)

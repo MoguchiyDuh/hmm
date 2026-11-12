@@ -1,13 +1,16 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, status
-from hmm_contracts.common import Page, SubjectId, UserId
+from hmm_contracts.common import OnboardingStatus, Page, SubjectId, UserId
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from hmm_core import identity
 from hmm_core.api.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.api.pagination import CursorParams
 from hmm_core.api.schemas.admin import (
     AdminDashboard,
     AdminUser,
+    AdminUserAction,
     AuditEntry,
     BanUserBody,
     Job,
@@ -19,10 +22,48 @@ from hmm_core.api.schemas.admin import (
     UpdateUserBody,
 )
 from hmm_core.api.security import AdminAuth
+from hmm_core.clock import CurrentClock
+from hmm_core.db import Session
+from hmm_core.db.models import User
 from hmm_core.settings import SettingKey
 
 router = APIRouter(tags=["admin"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["admin"], responses=PROBLEM_RESPONSES)
+
+
+async def admin_user(session: AsyncSession, user: User) -> AdminUser:
+    await session.flush()
+    await session.refresh(user)
+    allowed = {
+        AdminUserAction.EDIT,
+        AdminUserAction.RECOMPUTE,
+        AdminUserAction.ADJUST_XP,
+        AdminUserAction.OVERRIDE_SCORE,
+    }
+    if user.banned_at is not None:
+        allowed.add(AdminUserAction.UNBAN)
+    elif not user.is_admin:
+        allowed |= {AdminUserAction.BAN, AdminUserAction.GRANT_ADMIN}
+    elif await identity.admin_count(session) > 1:
+        allowed.add(AdminUserAction.REVOKE_ADMIN)
+    if user.onboarding_status == OnboardingStatus.COMPLETED:
+        allowed.add(AdminUserAction.REOPEN_ONBOARDING)
+    return AdminUser(
+        id=user.id,
+        display_name=user.display_name,
+        avatar_url=user.avatar_url,
+        github_id=user.github_id,
+        github_login=user.github_login,
+        about_md=user.about_md,
+        is_admin=user.is_admin,
+        banned_at=user.banned_at,
+        ban_reason=user.ban_reason,
+        onboarding_status=user.onboarding_status,
+        last_seen_at=user.last_seen_at,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+        allowed_actions=[action for action in AdminUserAction if action in allowed],
+    )
 
 
 @router.get(
@@ -50,20 +91,39 @@ async def list_users(
     status_code=status.HTTP_200_OK,
     summary="Update administrator flag and profile fields",
 )
-async def update_user(id: UserId, body: UpdateUserBody, actor: AdminAuth) -> AdminUser:
-    not_implemented()
+async def update_user(
+    id: UserId, body: UpdateUserBody, actor: AdminAuth, session: Session
+) -> AdminUser:
+    target = await identity.lock_user(session, id)
+    changes = {
+        key: value
+        for key, value in (("display_name", body.display_name), ("about_md", body.about_md))
+        if value is not None
+    }
+    await identity.edit_user(session, target, changes, actor.id, body.reason)
+    if body.is_admin is not None:
+        await identity.set_admin(session, target, body.is_admin, actor.id, body.reason)
+    return await admin_user(session, target)
 
 
 @router.post(
     "/admin/users/{id}/ban", status_code=status.HTTP_200_OK, summary="Ban user with a reason"
 )
-async def ban_user(id: UserId, body: BanUserBody, actor: AdminAuth) -> AdminUser:
-    not_implemented()
+async def ban_user(
+    id: UserId, body: BanUserBody, actor: AdminAuth, session: Session, clock: CurrentClock
+) -> AdminUser:
+    target = await identity.lock_user(session, id)
+    await identity.ban_user(session, target, body.reason, actor.id, clock.now())
+    return await admin_user(session, target)
 
 
 @router.post("/admin/users/{id}/unban", status_code=status.HTTP_200_OK, summary="Unban user")
-async def unban_user(id: UserId, actor: AdminAuth, body: UnbanUserBody | None = None) -> AdminUser:
-    not_implemented()
+async def unban_user(
+    id: UserId, actor: AdminAuth, session: Session, body: UnbanUserBody | None = None
+) -> AdminUser:
+    target = await identity.lock_user(session, id)
+    await identity.unban_user(session, target, actor.id, body.reason if body else None)
+    return await admin_user(session, target)
 
 
 @router.get("/admin/audit", status_code=status.HTTP_200_OK, summary="List audit log")

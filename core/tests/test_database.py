@@ -1,22 +1,16 @@
-import os
 import re
-import subprocess
-import sys
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 from uuid import UUID
 
 import httpx
-import psycopg
 import pytest
 from hmm_contracts.common import ActorKind, AuditAction, AuditEntityType, OnboardingStatus
 from hmm_core.api.pagination import CursorParams, keyset_page
 from hmm_core.app import create_app
 from hmm_core.audit import record_audit
 from hmm_core.config import Config
-from hmm_core.db import Base, Session, create_engine, create_sessionmaker
+from hmm_core.db import Base, Session, create_sessionmaker
 from hmm_core.db.models import (
     AdminAlert,
     Area,
@@ -38,70 +32,8 @@ from hmm_core.settings import RuntimeSettings, SettingKey
 from pydantic import ValidationError
 from sqlalchemy import CheckConstraint, func, select, text
 from sqlalchemy.dialects import postgresql
-from sqlalchemy.engine import make_url
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
-
-ROOT = Path(__file__).resolve().parents[2]
-
-
-@pytest.fixture(scope="module")
-def database_url() -> str:
-    url = os.environ.get("TEST_DATABASE_URL")
-    if not url:
-        pytest.skip("PostgreSQL tests require TEST_DATABASE_URL")
-    return url
-
-
-@pytest.fixture(scope="module")
-def migrated_database(database_url: str) -> str:
-    for args in (("upgrade", "head"), ("downgrade", "base"), ("upgrade", "head"), ("check",)):
-        result = subprocess.run(
-            [sys.executable, "-m", "alembic", *args],
-            cwd=ROOT,
-            env={**os.environ, "DATABASE_URL": database_url},
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert result.returncode == 0, result.stdout + result.stderr
-        if args == ("downgrade", "base"):
-            conninfo = (
-                make_url(database_url)
-                .set(drivername="postgresql")
-                .render_as_string(hide_password=False)
-            )
-            with psycopg.connect(conninfo) as connection:
-                assert connection.execute(
-                    "SELECT count(*) FROM pg_namespace WHERE nspname = 'procrastinate'"
-                ).fetchone() == (0,)
-                assert connection.execute(
-                    "SELECT count(*) FROM pg_tables "
-                    "WHERE schemaname = 'public' AND tablename <> 'alembic_version'"
-                ).fetchone() == (0,)
-    return database_url
-
-
-@pytest.fixture
-async def engine(migrated_database: str) -> AsyncIterator[AsyncEngine]:
-    engine = create_engine(migrated_database)
-    async with engine.begin() as connection:
-        tables = ", ".join(f'public."{name}"' for name in Base.metadata.tables)
-        await connection.execute(text(f"TRUNCATE {tables} CASCADE"))
-        await connection.execute(
-            text("TRUNCATE procrastinate.procrastinate_jobs RESTART IDENTITY CASCADE")
-        )
-    try:
-        yield engine
-    finally:
-        await engine.dispose()
-
-
-@pytest.fixture
-async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
-    async with AsyncSession(engine, expire_on_commit=False) as session:
-        yield session
-        await session.rollback()
 
 
 async def add_user(session: AsyncSession, github_id: int = 1) -> User:
