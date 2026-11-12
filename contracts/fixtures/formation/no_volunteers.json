@@ -1,0 +1,585 @@
+{
+  "description": "A new team with no volunteers must offer the lead to tier 4",
+  "expect": {
+    "fixed_cores": {},
+    "merge_proposal_required": false,
+    "new_team_lead_tiers": [
+      4
+    ],
+    "new_teams_with_volunteers": 0,
+    "pair_beginners_with_specialists": true,
+    "primary_coverage_per_team": {},
+    "required_coverage_per_team": {},
+    "team_sizes": [
+      4
+    ]
+  },
+  "request": {
+    "bounds": {
+      "new_teams": 1,
+      "placed": 4,
+      "reserve": 0,
+      "teams": 1,
+      "undersized_cores": 0
+    },
+    "cores": [],
+    "hackathon": {
+      "areas": [
+        {
+          "area": "backend",
+          "headcount": 1,
+          "importance": "primary"
+        },
+        {
+          "area": "frontend",
+          "headcount": 1,
+          "importance": "required"
+        },
+        {
+          "area": "design",
+          "headcount": 1,
+          "importance": "nice"
+        }
+      ],
+      "created_by": null,
+      "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+      "difficulty": 7.0,
+      "ends_at": "2026-11-28T22:00:00Z",
+      "format": "hybrid",
+      "id": "019a71c0-0000-7000-8000-0000000003e9",
+      "kind": "hackathon",
+      "origin": "import",
+      "starts_at": "2026-11-27T10:00:00Z",
+      "summary": "Practical, shared outcomes focused on backend.",
+      "team_size_max": 4,
+      "team_size_min": 2,
+      "themes": [
+        "backend",
+        "open collaboration"
+      ],
+      "title": "Open Tools Sprint"
+    },
+    "kind": "main",
+    "lead_fits": {
+      "019a71c0-0000-7000-8000-000000000003": {
+        "fit": 0.8,
+        "reason": "Experienced primary-area contributor",
+        "user_id": "019a71c0-0000-7000-8000-000000000003"
+      },
+      "019a71c0-0000-7000-8000-000000000007": {
+        "fit": 0.5,
+        "reason": "Experienced primary-area contributor",
+        "user_id": "019a71c0-0000-7000-8000-000000000007"
+      },
+      "019a71c0-0000-7000-8000-000000000008": {
+        "fit": 0.5,
+        "reason": "Experienced primary-area contributor",
+        "user_id": "019a71c0-0000-7000-8000-000000000008"
+      },
+      "019a71c0-0000-7000-8000-00000000000a": {
+        "fit": 0.8,
+        "reason": "Experienced primary-area contributor",
+        "user_id": "019a71c0-0000-7000-8000-00000000000a"
+      }
+    },
+    "max_size": 4,
+    "target": 4,
+    "unplaced": [
+      {
+        "about_md": "Building reliable systems in backend; interested in collaborative projects.",
+        "activity": 30.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 8.5,
+            "effective": 8.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": "Clara Singh: practical backend experience and community contributions.",
+        "display_name": "Clara Singh",
+        "enrolled_at": "2026-11-07T10:02:00Z",
+        "github": {
+          "account_created_at": "2023-01-12T10:00:00Z",
+          "contributions_last_year": 420,
+          "followers": 25,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-3",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical backend toolkit",
+              "language": "Python",
+              "name": "toolkit-3",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 12,
+              "topics": [
+                "backend"
+              ]
+            }
+          ],
+          "stars_total": 12
+        },
+        "hackathons_finished": 4,
+        "joined_at": "2024-09-03T10:00:00Z",
+        "mentor_active": 0,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [],
+        "mentor_offers": [],
+        "mentorships_completed": 0,
+        "note": "Can own a reproducible end-to-end slice",
+        "preferred_area": "backend",
+        "projects_shipped": 1,
+        "reputation": {
+          "member": {
+            "avg": 9.0,
+            "count": 1
+          }
+        },
+        "scores_reviewed_at": null,
+        "times_led": 0,
+        "user_id": "019a71c0-0000-7000-8000-000000000003",
+        "willing_to_lead": false,
+        "xp": 450.0
+      },
+      {
+        "about_md": "Learning backend; interested in collaborative projects.",
+        "activity": 8.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 2.8,
+            "effective": 2.8,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": "Greta Kim: practical backend experience and community contributions.",
+        "display_name": "Greta Kim",
+        "enrolled_at": "2026-11-07T10:06:00Z",
+        "github": {
+          "account_created_at": "2026-07-15T10:00:00Z",
+          "contributions_last_year": 30,
+          "followers": 1,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-7",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical backend toolkit",
+              "language": "Python",
+              "name": "toolkit-7",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 0,
+              "topics": [
+                "backend"
+              ]
+            }
+          ],
+          "stars_total": 0
+        },
+        "hackathons_finished": 1,
+        "joined_at": "2026-10-31T10:00:00Z",
+        "mentor_active": 0,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [],
+        "mentor_offers": [],
+        "mentorships_completed": 0,
+        "note": "Happy to learn alongside an experienced teammate",
+        "preferred_area": "backend",
+        "projects_shipped": 0,
+        "reputation": {},
+        "scores_reviewed_at": null,
+        "times_led": 0,
+        "user_id": "019a71c0-0000-7000-8000-000000000007",
+        "willing_to_lead": false,
+        "xp": 10.0
+      },
+      {
+        "about_md": "Learning frontend; interested in collaborative projects.",
+        "activity": 8.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 3.0,
+            "effective": 3.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": null,
+        "display_name": "Hugo Santos",
+        "enrolled_at": "2026-11-07T10:07:00Z",
+        "github": {
+          "account_created_at": "2026-07-15T10:00:00Z",
+          "contributions_last_year": 30,
+          "followers": 1,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-8",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical frontend toolkit",
+              "language": "Python",
+              "name": "toolkit-8",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 0,
+              "topics": [
+                "frontend"
+              ]
+            }
+          ],
+          "stars_total": 0
+        },
+        "hackathons_finished": 1,
+        "joined_at": "2026-10-31T10:00:00Z",
+        "mentor_active": 0,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [],
+        "mentor_offers": [],
+        "mentorships_completed": 0,
+        "note": "Happy to learn alongside an experienced teammate",
+        "preferred_area": "frontend",
+        "projects_shipped": 0,
+        "reputation": {},
+        "scores_reviewed_at": null,
+        "times_led": 0,
+        "user_id": "019a71c0-0000-7000-8000-000000000008",
+        "willing_to_lead": false,
+        "xp": 10.0
+      },
+      {
+        "about_md": "Building reliable systems in backend; interested in collaborative projects.",
+        "activity": 30.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 8.2,
+            "effective": 8.2,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": null,
+        "display_name": "Jamal Reed",
+        "enrolled_at": "2026-11-07T10:09:00Z",
+        "github": {
+          "account_created_at": "2023-01-12T10:00:00Z",
+          "contributions_last_year": 420,
+          "followers": 25,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-10",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical backend toolkit",
+              "language": "Python",
+              "name": "toolkit-10",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 12,
+              "topics": [
+                "backend"
+              ]
+            }
+          ],
+          "stars_total": 12
+        },
+        "hackathons_finished": 4,
+        "joined_at": "2024-09-03T10:00:00Z",
+        "mentor_active": 0,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [],
+        "mentor_offers": [],
+        "mentorships_completed": 0,
+        "note": "Can own a reproducible end-to-end slice",
+        "preferred_area": "backend",
+        "projects_shipped": 0,
+        "reputation": {
+          "member": {
+            "avg": 9.0,
+            "count": 1
+          }
+        },
+        "scores_reviewed_at": null,
+        "times_led": 0,
+        "user_id": "019a71c0-0000-7000-8000-00000000000a",
+        "willing_to_lead": false,
+        "xp": 450.0
+      }
+    ],
+    "viable": 3
+  }
+}

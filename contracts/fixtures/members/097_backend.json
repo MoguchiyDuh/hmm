@@ -1,0 +1,250 @@
+{
+  "about_md": "Learning backend; interested in collaborative projects.",
+  "activity": 8.0,
+  "activity_entries": [],
+  "area_scores": {
+    "backend": {
+      "calculated": 3.0,
+      "effective": 3.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "data": {
+      "calculated": 1.0,
+      "effective": 1.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "design": {
+      "calculated": 2.0,
+      "effective": 2.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "devops": {
+      "calculated": 2.0,
+      "effective": 2.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "frontend": {
+      "calculated": 1.0,
+      "effective": 1.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "gamedev": {
+      "calculated": 2.5,
+      "effective": 2.5,
+      "override": null,
+      "override_evidence": null
+    },
+    "hardware": {
+      "calculated": 1.0,
+      "effective": 1.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "ml_ai": {
+      "calculated": 1.5,
+      "effective": 1.5,
+      "override": null,
+      "override_evidence": null
+    },
+    "mobile": {
+      "calculated": 2.0,
+      "effective": 2.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "product": {
+      "calculated": 2.5,
+      "effective": 2.5,
+      "override": null,
+      "override_evidence": null
+    },
+    "qa": {
+      "calculated": 2.0,
+      "effective": 2.0,
+      "override": null,
+      "override_evidence": null
+    },
+    "security": {
+      "calculated": 1.0,
+      "effective": 1.0,
+      "override": null,
+      "override_evidence": null
+    }
+  },
+  "cv_text": "Backend Participant 97: practical backend experience and community contributions.",
+  "display_name": "Backend Participant 97",
+  "facts": [
+    {
+      "area": "backend",
+      "confirmations": [
+        {
+          "confirmer_account_age": "P1Y135D",
+          "confirmer_id": "019a71c0-0000-7000-8000-000000000063",
+          "confirmer_restrictions": [],
+          "confirmer_xp": 400.0,
+          "created_at": "2026-11-04T10:00:00Z",
+          "flag_status": null,
+          "id": "019a71c0-0000-7000-8000-000000004e80",
+          "ignored": false,
+          "source": "peer",
+          "withdrawn_at": null
+        }
+      ],
+      "confirmed_at": "2026-11-04T10:00:00Z",
+      "context": {
+        "attendance_status": "attended",
+        "event": {
+          "areas": [
+            {
+              "area": "ml_ai",
+              "headcount": 1,
+              "importance": "primary"
+            }
+          ],
+          "created_by": null,
+          "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+          "difficulty": 4.0,
+          "ends_at": "2026-11-03T10:00:00Z",
+          "format": "online",
+          "id": "019a71c0-0000-7000-8000-000000112e7a",
+          "kind": "workshop",
+          "origin": "import",
+          "starts_at": "2026-11-02T10:00:00Z",
+          "summary": "Practical, shared outcomes focused on ml_ai.",
+          "team_size_max": null,
+          "team_size_min": null,
+          "themes": [
+            "ml_ai",
+            "open collaboration"
+          ],
+          "title": "Model Evaluation Workshop"
+        },
+        "mentorship": null,
+        "project": null,
+        "releases": [],
+        "result": null
+      },
+      "counterparts": [
+        "019a71c0-0000-7000-8000-000000000062"
+      ],
+      "created_at": "2026-11-01T10:00:00Z",
+      "effort": {
+        "checkins": [],
+        "milestones": [],
+        "minutes": 120,
+        "updates": []
+      },
+      "ended_at": "2026-11-03T10:00:00Z",
+      "excluded": false,
+      "flag_status": null,
+      "id": "019a71c0-0000-7000-8000-000000002770",
+      "left_at": null,
+      "note": "Joined the practical discussion",
+      "outcome": null,
+      "proof_links": [],
+      "role": "attendee",
+      "started_at": "2026-11-02T10:00:00Z",
+      "trust": "peer",
+      "type": "attendance"
+    }
+  ],
+  "github": {
+    "account_created_at": "2026-07-15T10:00:00Z",
+    "contributions_last_year": 30,
+    "followers": 1,
+    "languages": {
+      "Python": 65.0,
+      "Rust": 35.0
+    },
+    "login": "hmm-persona-97",
+    "public_repos": 1,
+    "repos": [
+      {
+        "description": "Practical backend toolkit",
+        "language": "Python",
+        "name": "toolkit-97",
+        "pushed_at": "2026-11-09T10:00:00Z",
+        "stars": 0,
+        "topics": [
+          "backend"
+        ]
+      }
+    ],
+    "stars_total": 0
+  },
+  "hackathons_finished": 0,
+  "joined_at": "2026-10-31T10:00:00Z",
+  "mentor_active": 0,
+  "mentor_capacity": 3,
+  "mentor_notified_at": [],
+  "mentor_offers": [],
+  "mentorships_completed": 0,
+  "onboarding": {
+    "area_scores": {
+      "backend": {
+        "reason": "Quiz and public repository evidence",
+        "value": 3.0
+      },
+      "data": {
+        "reason": "Quiz and public repository evidence",
+        "value": 1.0
+      },
+      "design": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.0
+      },
+      "devops": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.0
+      },
+      "frontend": {
+        "reason": "Quiz and public repository evidence",
+        "value": 1.0
+      },
+      "gamedev": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.5
+      },
+      "hardware": {
+        "reason": "Quiz and public repository evidence",
+        "value": 1.0
+      },
+      "ml_ai": {
+        "reason": "Quiz and public repository evidence",
+        "value": 1.5
+      },
+      "mobile": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.0
+      },
+      "product": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.5
+      },
+      "qa": {
+        "reason": "Quiz and public repository evidence",
+        "value": 2.0
+      },
+      "security": {
+        "reason": "Quiz and public repository evidence",
+        "value": 1.0
+      }
+    },
+    "discrepancies": [],
+    "submitted_at": "2026-11-01T10:00:00Z"
+  },
+  "pardoned": [],
+  "projects_shipped": 0,
+  "reputation": {},
+  "reviews_received": [],
+  "scores_reviewed_at": null,
+  "times_led": 0,
+  "user_id": "019a71c0-0000-7000-8000-000000000061",
+  "xp": 10.0,
+  "xp_adjustments_total": 0.0
+}

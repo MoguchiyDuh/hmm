@@ -1,0 +1,233 @@
+{
+  "description": "The subject/reason pair was pardoned by an admin and must not be flagged again",
+  "expect_flagged": [],
+  "expect_not_flagged": [
+    "019a71c0-0000-7000-8000-000000000001",
+    "019a71c0-0000-7000-8000-000000000027",
+    "019a71c0-0000-7000-8000-000000000028"
+  ],
+  "graph": {
+    "accounts": {
+      "019a71c0-0000-7000-8000-000000000001": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      },
+      "019a71c0-0000-7000-8000-000000000027": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      },
+      "019a71c0-0000-7000-8000-000000000028": {
+        "github_account_age": "P120D",
+        "joined_at": "2026-10-31T10:00:00Z",
+        "restrictions": [],
+        "xp": 10.0
+      }
+    },
+    "confirmations": [
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000027",
+        "context_id": "019a71c0-0000-7000-8000-000000013a74",
+        "created_at": "2026-11-05T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-000000011364",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec54",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000028",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000028",
+        "context_id": "019a71c0-0000-7000-8000-000000013a74",
+        "created_at": "2026-11-05T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-000000011365",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec55",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000027",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000027",
+        "context_id": "019a71c0-0000-7000-8000-000000013a75",
+        "created_at": "2026-11-06T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-00000001136e",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec5e",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000028",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000028",
+        "context_id": "019a71c0-0000-7000-8000-000000013a75",
+        "created_at": "2026-11-06T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-00000001136f",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec5f",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000027",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000027",
+        "context_id": "019a71c0-0000-7000-8000-000000013a76",
+        "created_at": "2026-11-07T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-000000011378",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec68",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000028",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000028",
+        "context_id": "019a71c0-0000-7000-8000-000000013a76",
+        "created_at": "2026-11-07T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-000000011379",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec69",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000027",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000027",
+        "context_id": "019a71c0-0000-7000-8000-000000013a77",
+        "created_at": "2026-11-08T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-000000011382",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec72",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000028",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000028",
+        "context_id": "019a71c0-0000-7000-8000-000000013a77",
+        "created_at": "2026-11-08T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-000000011383",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec73",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000027",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000027",
+        "context_id": "019a71c0-0000-7000-8000-000000013a78",
+        "created_at": "2026-11-09T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-00000001138c",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec7c",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000028",
+        "withdrawn_at": null
+      },
+      {
+        "confirmer_id": "019a71c0-0000-7000-8000-000000000028",
+        "context_id": "019a71c0-0000-7000-8000-000000013a78",
+        "created_at": "2026-11-09T10:00:00Z",
+        "fact_id": "019a71c0-0000-7000-8000-00000001138d",
+        "fact_type": "attendance",
+        "flag_status": "pardoned",
+        "id": "019a71c0-0000-7000-8000-00000000ec7d",
+        "ignored": false,
+        "source": "peer",
+        "subject_user_id": "019a71c0-0000-7000-8000-000000000027",
+        "withdrawn_at": null
+      }
+    ],
+    "member_events": [],
+    "mentorships": [],
+    "pardoned": [
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-000000016760",
+        "subject_type": "ring"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec54",
+        "subject_type": "confirmation"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec55",
+        "subject_type": "confirmation"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec5e",
+        "subject_type": "confirmation"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec5f",
+        "subject_type": "confirmation"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec68",
+        "subject_type": "confirmation"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec69",
+        "subject_type": "confirmation"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec72",
+        "subject_type": "confirmation"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec73",
+        "subject_type": "confirmation"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec7c",
+        "subject_type": "confirmation"
+      },
+      {
+        "reason": "Repeated mutual confirmations in a closed pair",
+        "subject_id": "019a71c0-0000-7000-8000-00000000ec7d",
+        "subject_type": "confirmation"
+      }
+    ],
+    "reviews": []
+  },
+  "pardoned_pairs": [
+    {
+      "reason": "Repeated mutual confirmations in a closed pair",
+      "subject_id": "019a71c0-0000-7000-8000-000000016760",
+      "user_ids": [
+        "019a71c0-0000-7000-8000-000000000027",
+        "019a71c0-0000-7000-8000-000000000028"
+      ]
+    }
+  ]
+}

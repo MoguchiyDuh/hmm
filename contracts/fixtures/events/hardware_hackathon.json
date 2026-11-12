@@ -1,0 +1,41 @@
+{
+  "areas": [
+    {
+      "area": "hardware",
+      "headcount": 1,
+      "importance": "primary"
+    },
+    {
+      "area": "backend",
+      "headcount": 1,
+      "importance": "required"
+    },
+    {
+      "area": "frontend",
+      "headcount": 1,
+      "importance": "required"
+    },
+    {
+      "area": "design",
+      "headcount": 1,
+      "importance": "nice"
+    }
+  ],
+  "created_by": null,
+  "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+  "difficulty": 7.0,
+  "ends_at": "2026-11-29T22:00:00Z",
+  "format": "offline",
+  "id": "019a71c0-0000-7000-8000-0000000003ea",
+  "kind": "hackathon",
+  "origin": "import",
+  "starts_at": "2026-11-28T10:00:00Z",
+  "summary": "Practical, shared outcomes focused on hardware.",
+  "team_size_max": 5,
+  "team_size_min": 2,
+  "themes": [
+    "hardware",
+    "open collaboration"
+  ],
+  "title": "Repairable Devices Jam"
+}
