@@ -1,6 +1,6 @@
 # 12. Core — Hackathon participation and team formation
 
-This section applies to events with `formation_enabled` ("hackathons"). A team is a `projects` row with `event_id` set; "team status" here means `projects.team_status`. After the result, the team continues under §27.
+This section applies to events with `formation_enabled` ("hackathons"). A team is a `projects` row with `team_status` set; "team status" here means `projects.team_status`. After the result, the team continues under §27.
 
 All mutations in this section follow §3.4 (hackathon row lock) and the invariants in §4. `last_lead_action_at` is updated on every lead action.
 
