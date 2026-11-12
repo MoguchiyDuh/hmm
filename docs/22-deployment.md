@@ -7,15 +7,15 @@ Production hosting (servers, TLS, reverse proxy, CI/CD deploys, backups) is hand
 | Service | Built from | Notes |
 |---|---|---|
 | `api` | `deploy/python.Dockerfile` (`hmm-core`) | `uvicorn hmm_core.main:app`, port 8000 |
-| `worker` | same image | `procrastinate worker` |
+| `worker` | same image | `hmm-worker` |
 | `migrate` | same image | `alembic upgrade head`, must finish before `api`/`worker` start |
 | `bot` | `deploy/python.Dockerfile` (`hmm-bot`) | outbound only |
 | `parser` | `deploy/python.Dockerfile` (`hmm-parser`) | outbound only |
 | `web` | `pnpm build` in `web/` | static files; `/api/*` must be proxied to `api` on the same origin |
-| `postgres` | `postgres:17` | databases `hmm`, `hmm_parser` |
+| `postgres` | `postgres:18` | databases `hmm`, `hmm_parser` |
 | `minio` | `minio/minio` | private bucket `hmm`; any S3-compatible store works |
 
-`deploy/compose.yaml` is the dev stack: postgres, minio and api today; core adds `migrate` and `worker` as they land, and `--profile full` adds bot and parser. The web app runs with `pnpm dev` against it.
+`deploy/compose.yaml` is the dev stack: postgres, minio, migrate, api and worker; `--profile full` adds bot and parser. The web app runs with `pnpm dev` against it.
 
 ## 22.2 Environment
 

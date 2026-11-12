@@ -2,6 +2,8 @@ from enum import StrEnum
 
 from hmm_contracts.common import (
     ActorKind,
+    AuditAction,
+    AuditEntityType,
     AuditLogId,
     FormationPhase,
     OnboardingStatus,
@@ -123,9 +125,9 @@ class AuditEntry(ApiModel):
     id: AuditLogId
     actor_id: UserId | None
     actor_kind: ActorKind
-    action: str
-    entity_type: str
-    entity_id: SubjectId
+    action: AuditAction
+    entity_type: AuditEntityType
+    entity_id: SubjectId | str
     before: JsonValue
     after: JsonValue
     reason: str | None
