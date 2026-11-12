@@ -12,9 +12,10 @@ from hmm_contracts.common import ErrorCode, Problem
 from hmm_core.api.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
 from hmm_core.api.pagination import CursorParams
 from hmm_core.api.schemas.common import ReasonBody as Reason
-from hmm_core.api.security import admin, bot_service, parser_service, user
+from hmm_core.api.security import admin, bot_service, member, parser_service, user
 from hmm_core.app import create_app
 from hmm_core.config import Config
+from hmm_core.db.models import User
 from hmm_core.openapi import OPENAPI_PATH, render_openapi
 from stub_operations import UNIMPLEMENTED_OPERATIONS
 
@@ -94,15 +95,18 @@ def assert_problem(response: httpx.Response, status: int, code: ErrorCode) -> Pr
 
 
 @pytest.mark.asyncio
-async def test_explicit_unimplemented_operations() -> None:
+async def test_explicit_unimplemented_operations(stub_actor: User) -> None:
     app = create_app()
+    for dependency in (user, member, admin):
+        app.dependency_overrides[dependency] = lambda: stub_actor
     document = app.openapi()
     operations = list(registered_operations(app))
     assert operations
     operation_ids = {document["paths"][path][method]["operationId"] for path, method in operations}
     assert operation_ids >= UNIMPLEMENTED_OPERATIONS
     async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
+        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
+        base_url="http://test",
     ) as client:
         for path, method in operations:
             operation = document["paths"][path][method]
@@ -236,7 +240,7 @@ async def test_validation_and_http_errors() -> None:
 
 
 @pytest.mark.asyncio
-async def test_security_dependencies_only_declare_auth() -> None:
+async def test_security_dependencies() -> None:
     app = create_app()
 
     @app.get("/bot", dependencies=[Depends(bot_service)])
@@ -258,12 +262,8 @@ async def test_security_dependencies_only_declare_auth() -> None:
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
-        for path in ("/bot", "/parser", "/user", "/admin"):
-            assert_problem(
-                await client.get(path, headers={"X-Telegram-User-Id": "1"}),
-                501,
-                ErrorCode.NOT_IMPLEMENTED,
-            )
+        for path in ("/bot", "/parser"):
+            assert_problem(await client.get(path), 501, ErrorCode.NOT_IMPLEMENTED)
     schema = app.openapi()
     assert schema["paths"]["/bot"]["get"]["security"] == [{"BotServiceToken": []}]
     assert schema["paths"]["/parser"]["get"]["security"] == [{"ParserServiceToken": []}]

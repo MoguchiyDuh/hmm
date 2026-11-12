@@ -8,7 +8,9 @@ from hmm_contracts.common import Page, TimeZoneName
 from hmm_contracts.notifications import ACTION_ROUTES, ActionKey
 from hmm_core.api.schemas.attendance import CreateMemberEventBody, UpdateMemberEventBody
 from hmm_core.api.schemas.catalog import EventSummary
+from hmm_core.api.security import member, user
 from hmm_core.app import create_app
+from hmm_core.db.models import User
 from pydantic import TypeAdapter, ValidationError
 
 
@@ -41,8 +43,10 @@ def test_openapi_security_ranges_names_and_project_views() -> None:
 
 
 @pytest.mark.asyncio
-async def test_action_routes_exist_and_fixed_bodies_are_callable() -> None:
+async def test_action_routes_exist_and_fixed_bodies_are_callable(stub_actor: User) -> None:
     app = create_app()
+    for dependency in (user, member):
+        app.dependency_overrides[dependency] = lambda: stub_actor
     document = app.openapi()
     assert set(ACTION_ROUTES) == set(ActionKey)
     assert len({(route.method, route.path) for route in ACTION_ROUTES.values()}) == len(ActionKey)
