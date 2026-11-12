@@ -1,0 +1,12 @@
+[project]
+name = "hmm-bot"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = ["aiogram>=3.22", "httpx>=0.28"]
+
+[project.scripts]
+hmm-bot = "hmm_bot.main:main"
+
+[build-system]
+requires = ["uv_build>=0.13,<0.14"]
+build-backend = "uv_build"

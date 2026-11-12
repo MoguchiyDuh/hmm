@@ -1,0 +1,29 @@
+name: Bug
+description: Something behaves differently from the spec
+labels: ["type:bug"]
+body:
+  - type: dropdown
+    id: group
+    attributes:
+      label: Group
+      options: [core, algo, parser, bot, frontend, contracts, infra]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected (spec section if any)
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+    validations:
+      required: true

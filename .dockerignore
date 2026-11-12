@@ -1,0 +1,10 @@
+.git
+.github
+.venv
+**/__pycache__
+**/.ruff_cache
+**/.pytest_cache
+**/node_modules
+web
+docs
+deploy/.env
