@@ -1,0 +1,91 @@
+name: hmm
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: hmm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: hmm
+    volumes:
+      - postgres:/var/lib/postgresql
+    ports:
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hmm"]
+      interval: 5s
+      retries: 10
+
+  minio:
+    image: ${MINIO_IMAGE:-cgr.dev/chainguard/minio:latest}
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY in deploy/.env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY in deploy/.env}
+    volumes:
+      - minio:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/python.Dockerfile
+      args:
+        PACKAGE: hmm-core
+    command: uvicorn hmm_core.main:app --host 0.0.0.0 --port 8000
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  migrate:
+    build:
+      context: ..
+      dockerfile: deploy/python.Dockerfile
+      args:
+        PACKAGE: hmm-core
+    command: alembic upgrade head
+    env_file: .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deploy/python.Dockerfile
+      args:
+        PACKAGE: hmm-core
+    command: hmm-worker
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  parser:
+    profiles: [full]
+    build:
+      context: ..
+      dockerfile: deploy/python.Dockerfile
+      args:
+        PACKAGE: hmm-parser
+    command: hmm-parser
+    env_file: .env
+
+  bot:
+    profiles: [full]
+    build:
+      context: ..
+      dockerfile: deploy/python.Dockerfile
+      args:
+        PACKAGE: hmm-bot
+    command: hmm-bot
+    env_file: .env
+
+volumes:
+  postgres:
+  minio:

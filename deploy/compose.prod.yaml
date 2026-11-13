@@ -1,0 +1,227 @@
+name: hmm
+
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options:
+      max-size: ${LOG_MAX_SIZE:-10m}
+      max-file: ${LOG_MAX_FILES:-3}
+
+x-core-environment: &core-environment
+  PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL to the HTTPS origin}
+  DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+  S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+  S3_BUCKET: ${S3_BUCKET:-hmm}
+  GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+  GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+  GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+  SESSION_SECRET: ${SESSION_SECRET:?set SESSION_SECRET}
+  ADMIN_GITHUB_LOGINS: ${ADMIN_GITHUB_LOGINS:-}
+  BOT_SERVICE_TOKEN: ${BOT_SERVICE_TOKEN:-}
+  TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-}
+  PARSER_SERVICE_TOKEN: ${PARSER_SERVICE_TOKEN:-}
+  LLM_BASE_URL: ${LLM_BASE_URL:-}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  postgres:
+    <<: *service
+    image: postgres:18
+    environment:
+      POSTGRES_USER: hmm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: hmm
+    volumes:
+      - postgres:/var/lib/postgresql
+    configs:
+      - source: parser-database
+        target: /docker-entrypoint-initdb.d/10-parser.sql
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U hmm -d hmm && psql -U hmm -d hmm_parser -c 'SELECT 1' > /dev/null"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+    mem_limit: ${POSTGRES_MEMORY:-512m}
+    cpus: ${POSTGRES_CPUS:-1.0}
+
+  minio:
+    <<: *service
+    image: ${MINIO_IMAGE:-cgr.dev/chainguard/minio:latest}
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+    volumes:
+      - minio:/data
+    healthcheck:
+      test: [CMD-SHELL, 'mc alias set local http://127.0.0.1:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" > /dev/null && mc ready local']
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: ${MINIO_MEMORY:-512m}
+    cpus: ${MINIO_CPUS:-1.0}
+
+  minio-init:
+    <<: *service
+    image: ${MINIO_IMAGE:-cgr.dev/chainguard/minio:latest}
+    restart: "no"
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        mc alias set local "$$S3_ENDPOINT" "$$S3_ACCESS_KEY" "$$S3_SECRET_KEY"
+        mc mb --ignore-existing "local/$$S3_BUCKET"
+        mc anonymous set none "local/$$S3_BUCKET"
+    environment:
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-hmm}
+    depends_on:
+      minio:
+        condition: service_healthy
+    mem_limit: ${INIT_MEMORY:-128m}
+    cpus: ${INIT_CPUS:-0.5}
+
+  migrate:
+    <<: *service
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-core:${IMAGE_TAG:-latest}
+    restart: "no"
+    command: alembic upgrade head
+    environment: *core-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    mem_limit: ${MIGRATE_MEMORY:-256m}
+    cpus: ${MIGRATE_CPUS:-1.0}
+
+  api:
+    <<: *service
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-core:${IMAGE_TAG:-latest}
+    command: uvicorn hmm_core.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    environment: *core-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=4).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    mem_limit: ${API_MEMORY:-512m}
+    cpus: ${API_CPUS:-1.0}
+
+  worker:
+    <<: *service
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-core:${IMAGE_TAG:-latest}
+    command: hmm-worker
+    environment: *core-environment
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    mem_limit: ${WORKER_MEMORY:-512m}
+    cpus: ${WORKER_CPUS:-1.0}
+
+  bot:
+    <<: *service
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-bot:${IMAGE_TAG:-latest}
+    command: hmm-bot
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL to the HTTPS origin}
+      CORE_URL: ${CORE_URL:-http://api:8000}
+      BOT_TOKEN: ${BOT_TOKEN:-}
+      BOT_SERVICE_TOKEN: ${BOT_SERVICE_TOKEN:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: ${BOT_MEMORY:-256m}
+    cpus: ${BOT_CPUS:-0.5}
+
+  parser:
+    <<: *service
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-parser:${IMAGE_TAG:-latest}
+    command: hmm-parser
+    environment:
+      CORE_URL: ${CORE_URL:-http://api:8000}
+      PARSER_DATABASE_URL: ${PARSER_DATABASE_URL:?set PARSER_DATABASE_URL}
+      PARSER_SERVICE_TOKEN: ${PARSER_SERVICE_TOKEN:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: ${PARSER_MEMORY:-256m}
+    cpus: ${PARSER_CPUS:-0.5}
+
+  web:
+    <<: *service
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-web:${IMAGE_TAG:-latest}
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL:?set ACME_EMAIL}
+    ports:
+      - "${HTTP_PORT:-80}:80/tcp"
+      - "${HTTPS_PORT:-443}:443/tcp"
+      - "${HTTPS_PORT:-443}:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    mem_limit: ${WEB_MEMORY:-128m}
+    cpus: ${WEB_CPUS:-0.5}
+
+  backup:
+    <<: *service
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-backup:${IMAGE_TAG:-latest}
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: hmm
+      PGPASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:?set S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY}
+      S3_BUCKET: ${S3_BUCKET:-hmm}
+      BACKUP_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT:?set BACKUP_S3_ENDPOINT}
+      BACKUP_S3_BUCKET: ${BACKUP_S3_BUCKET:?set BACKUP_S3_BUCKET}
+      BACKUP_S3_ACCESS_KEY: ${BACKUP_S3_ACCESS_KEY:?set BACKUP_S3_ACCESS_KEY}
+      BACKUP_S3_SECRET_KEY: ${BACKUP_S3_SECRET_KEY:?set BACKUP_S3_SECRET_KEY}
+      BACKUP_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+      BACKUP_S3_PREFIX: ${BACKUP_S3_PREFIX:-hmm}
+      BACKUP_SCHEDULE: ${BACKUP_SCHEDULE:-0 3 * * *}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      TZ: ${BACKUP_TIMEZONE:-UTC}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    mem_limit: ${BACKUP_MEMORY:-256m}
+    cpus: ${BACKUP_CPUS:-0.5}
+
+configs:
+  parser-database:
+    content: |
+      CREATE DATABASE hmm_parser OWNER hmm;
+
+volumes:
+  postgres:
+  minio:
+  caddy-data:
+  caddy-config:
