@@ -4,7 +4,7 @@
 
 | Group | Members | Directory | Label | Spec to read first |
 |---|---|---|---|---|
-| core | **@MoguchiyDuh**, @tlikulin | `core/` | `group:core` | docs §2–§17, §22, §25–§28 |
+| core | **@MoguchiyDuh**, @tlikulin, @Arl1nit | `core/` | `group:core` | docs §2–§17, §22, §25–§28 |
 | algo | **@qredd121**, @antonzhakov | `algo/` | `group:algo` | §4, §12, §14, §18, §25, §28 |
 | parser | @PhK-dev | `parser/` | `group:parser` | §11, §19, §26 |
 | bot | @M1goD-creator | `bot/` | `group:bot` | §6, §15, §20, §28 |
