@@ -42,7 +42,7 @@ uv run pytest -q
 6. **Squash merge** only. The PR title becomes the commit message, so it must be a Conventional Commit too.
 7. `main` is protected: no direct pushes, no force pushes. Keep it always deployable.
 
-Small PRs win: aim for under 400 changed lines. Merge at least once a day; long-lived branches rot fast in a two-week project.
+Small PRs win: aim for under 400 changed lines. Merge at least once a day; long-lived branches rot fast.
 
 ## Contracts and cross-group changes
 
@@ -56,7 +56,7 @@ Small PRs win: aim for under 400 changed lines. Merge at least once a day; long-
 - Core code follows the domain layout in docs §2.5; copy the patterns in `core/src/hmm_core/identity/`.
 - An API change regenerates `core/openapi.json` (`uv run python -m hmm_core.export_openapi`) in the same PR. A schema change ships an Alembic migration in the same PR.
 - Errors from the API are RFC 9457 problem JSON with a stable `code` (docs §3.1).
-- No secrets in git. `.env` files are ignored; add new variables to `deploy/.env.example`.
+- No secrets in git. `.env` files are ignored; add new variables to `deploy/.env.example` and `deploy/.env.prod.example`.
 - English everywhere: code, API, logs, notifications.
 
 ## Communication
