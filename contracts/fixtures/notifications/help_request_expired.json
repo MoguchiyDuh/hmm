@@ -1,0 +1,29 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000039",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "help_request_expired",
+  "payload": {
+    "type": "help_request_expired",
+    "link": "/help-requests/019a7b32-0000-7000-8000-00000000000f",
+    "actions": [
+      {
+        "kind": "link",
+        "label_key": "notifications.actions.reopen",
+        "url": "/mentorship/new?from=019a7b32-0000-7000-8000-00000000000f"
+      }
+    ],
+    "help_request_id": "019a7b32-0000-7000-8000-00000000000f",
+    "learner": {
+      "user_id": "019a7b32-0000-7000-8000-000000000001",
+      "display_name": "Alex Morgan"
+    },
+    "area_key": "backend",
+    "area_name": "Backend",
+    "topic": "Reliable Python services",
+    "goal": "Deploy a service with authentication and observability.",
+    "format": "online",
+    "expires_at": "2026-11-21T12:00:00Z"
+  },
+  "created_at": "2026-11-21T12:00:00Z",
+  "read_at": null
+}

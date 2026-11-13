@@ -1,0 +1,42 @@
+{
+  "areas": [
+    {
+      "area": "ml_ai",
+      "headcount": 1,
+      "importance": "primary"
+    },
+    {
+      "area": "backend",
+      "headcount": 1,
+      "importance": "required"
+    },
+    {
+      "area": "frontend",
+      "headcount": 1,
+      "importance": "required"
+    },
+    {
+      "area": "design",
+      "headcount": 1,
+      "importance": "nice"
+    }
+  ],
+  "created_by": null,
+  "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+  "difficulty": 7.0,
+  "ends_at": "2026-11-27T22:00:00Z",
+  "format": "online",
+  "id": "019a71c0-0000-7000-8000-0000000003e8",
+  "kind": "hackathon",
+  "origin": "import",
+  "starts_at": "2026-11-26T10:00:00Z",
+  "summary": "Practical, shared outcomes focused on ml_ai.",
+  "team_size_max": 6,
+  "team_size_min": 3,
+  "themes": [
+    "ml_ai",
+    "open collaboration"
+  ],
+  "timezone": "UTC",
+  "title": "Applied ML for Communities"
+}

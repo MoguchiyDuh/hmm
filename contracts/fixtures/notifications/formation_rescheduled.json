@@ -1,0 +1,18 @@
+{
+  "id": "019a7b33-0000-7000-8000-00000000000a",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "formation_rescheduled",
+  "payload": {
+    "type": "formation_rescheduled",
+    "link": "/events/019a7b32-0000-7000-8000-000000000002",
+    "actions": [],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "previous_formation_at": "2026-11-19T12:00:00Z",
+    "formation_at": "2026-11-20T12:00:00Z",
+    "timezone": "Europe/Helsinki",
+    "reason": "The organizer moved the registration deadline; formation was recomputed."
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

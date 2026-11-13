@@ -1,0 +1,15 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000027",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "event_cancelled",
+  "payload": {
+    "type": "event_cancelled",
+    "link": "/events/019a7b32-0000-7000-8000-000000000002",
+    "actions": [],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "reason": "The organizer cancelled the event because the venue is unavailable."
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

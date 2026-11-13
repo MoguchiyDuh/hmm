@@ -1,0 +1,27 @@
+{
+  "description": "Incomplete onboarding cannot access the member directory",
+  "expect_visible": false,
+  "operation": "read",
+  "subject": {
+    "dnd": false,
+    "excluded": false,
+    "id": "019a71c0-0000-7000-8000-000000017319",
+    "kind": "profile",
+    "learner_id": null,
+    "owner_id": null,
+    "pending": false,
+    "project_id": null,
+    "review_window_closed": null,
+    "target_mentor_id": null,
+    "to_check": false,
+    "visibility": null
+  },
+  "viewer": {
+    "banned": false,
+    "onboarding_status": "in_progress",
+    "project_id": null,
+    "role": "onboarding",
+    "user_id": "019a71c0-0000-7000-8000-000000000006"
+  },
+  "visible_fields": null
+}

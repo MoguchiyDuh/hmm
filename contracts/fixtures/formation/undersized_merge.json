@@ -1,0 +1,487 @@
+{
+  "description": "Intact undersized cores require a merge proposal, not an applied merge",
+  "expect": {
+    "fixed_cores": {
+      "019a71c0-0000-7000-8000-000000000fbe": [
+        "019a71c0-0000-7000-8000-000000000001"
+      ],
+      "019a71c0-0000-7000-8000-000000000fbf": [
+        "019a71c0-0000-7000-8000-000000000002"
+      ]
+    },
+    "merge_proposal_required": true,
+    "new_team_lead_tiers": [],
+    "new_teams_with_volunteers": 0,
+    "pair_beginners_with_specialists": false,
+    "primary_coverage_per_team": {},
+    "required_coverage_per_team": {},
+    "team_sizes": [
+      2,
+      1
+    ]
+  },
+  "request": {
+    "bounds": {
+      "new_teams": 0,
+      "placed": 1,
+      "reserve": 0,
+      "teams": 2,
+      "undersized_cores": 2
+    },
+    "cores": [
+      {
+        "lead": {
+          "about_md": "Building reliable systems in ml_ai; interested in collaborative projects.",
+          "activity": 30.0,
+          "area": "ml_ai",
+          "area_scores": {
+            "backend": {
+              "calculated": 2.5,
+              "effective": 2.5,
+              "override": null,
+              "override_evidence": null
+            },
+            "data": {
+              "calculated": 1.0,
+              "effective": 1.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "design": {
+              "calculated": 2.0,
+              "effective": 2.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "devops": {
+              "calculated": 2.0,
+              "effective": 2.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "frontend": {
+              "calculated": 1.0,
+              "effective": 1.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "gamedev": {
+              "calculated": 2.5,
+              "effective": 2.5,
+              "override": null,
+              "override_evidence": null
+            },
+            "hardware": {
+              "calculated": 1.0,
+              "effective": 1.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "ml_ai": {
+              "calculated": 8.8,
+              "effective": 8.8,
+              "override": null,
+              "override_evidence": null
+            },
+            "mobile": {
+              "calculated": 2.0,
+              "effective": 2.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "product": {
+              "calculated": 2.5,
+              "effective": 2.5,
+              "override": null,
+              "override_evidence": null
+            },
+            "qa": {
+              "calculated": 2.0,
+              "effective": 2.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "security": {
+              "calculated": 1.0,
+              "effective": 1.0,
+              "override": null,
+              "override_evidence": null
+            }
+          },
+          "claimed_lead": true,
+          "cv_text": "Ada Morozova: practical ml_ai experience and community contributions.",
+          "display_name": "Ada Morozova",
+          "enrolled_at": "2026-11-07T10:00:00Z",
+          "github": {
+            "account_created_at": "2023-01-12T10:00:00Z",
+            "contributions_last_year": 420,
+            "followers": 25,
+            "languages": {
+              "Python": 65.0,
+              "Rust": 35.0
+            },
+            "login": "hmm-persona-1",
+            "public_repos": 1,
+            "repos": [
+              {
+                "description": "Practical ml_ai toolkit",
+                "language": "Python",
+                "name": "toolkit-1",
+                "pushed_at": "2026-11-09T10:00:00Z",
+                "stars": 12,
+                "topics": [
+                  "ml_ai"
+                ]
+              }
+            ],
+            "stars_total": 12
+          },
+          "hackathons_finished": 4,
+          "joined_at": "2024-09-03T10:00:00Z",
+          "mentor_active": 0,
+          "mentor_capacity": 3,
+          "mentor_notified_at": [
+            "2026-11-12T08:00:00Z"
+          ],
+          "mentor_offers": [
+            {
+              "active": true,
+              "area": "ml_ai",
+              "topics": "ML evaluation, first Kaggle competition, data leakage"
+            }
+          ],
+          "mentorships_completed": 0,
+          "projects_shipped": 1,
+          "reputation": {
+            "lead": {
+              "avg": 9.0,
+              "count": 1
+            }
+          },
+          "role": "lead",
+          "scores_reviewed_at": "2026-11-07T10:00:00Z",
+          "state": "confirmed",
+          "times_led": 4,
+          "user_id": "019a71c0-0000-7000-8000-000000000001",
+          "willing_to_lead": false,
+          "xp": 450.0
+        },
+        "members": [],
+        "project_id": "019a71c0-0000-7000-8000-000000000fbe"
+      },
+      {
+        "lead": {
+          "about_md": "Building reliable systems in frontend; interested in collaborative projects.",
+          "activity": 30.0,
+          "area": "frontend",
+          "area_scores": {
+            "backend": {
+              "calculated": 1.0,
+              "effective": 1.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "data": {
+              "calculated": 1.5,
+              "effective": 1.5,
+              "override": null,
+              "override_evidence": null
+            },
+            "design": {
+              "calculated": 2.5,
+              "effective": 2.5,
+              "override": null,
+              "override_evidence": null
+            },
+            "devops": {
+              "calculated": 2.5,
+              "effective": 2.5,
+              "override": null,
+              "override_evidence": null
+            },
+            "frontend": {
+              "calculated": 9.0,
+              "effective": 9.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "gamedev": {
+              "calculated": 1.0,
+              "effective": 1.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "hardware": {
+              "calculated": 1.5,
+              "effective": 1.5,
+              "override": null,
+              "override_evidence": null
+            },
+            "ml_ai": {
+              "calculated": 6.0,
+              "effective": 6.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "mobile": {
+              "calculated": 2.5,
+              "effective": 2.5,
+              "override": null,
+              "override_evidence": null
+            },
+            "product": {
+              "calculated": 1.0,
+              "effective": 1.0,
+              "override": null,
+              "override_evidence": null
+            },
+            "qa": {
+              "calculated": 2.5,
+              "effective": 2.5,
+              "override": null,
+              "override_evidence": null
+            },
+            "security": {
+              "calculated": 1.5,
+              "effective": 1.5,
+              "override": null,
+              "override_evidence": null
+            }
+          },
+          "claimed_lead": true,
+          "cv_text": null,
+          "display_name": "Boris Chen",
+          "enrolled_at": "2026-11-07T10:01:00Z",
+          "github": {
+            "account_created_at": "2023-01-12T10:00:00Z",
+            "contributions_last_year": 420,
+            "followers": 25,
+            "languages": {
+              "Python": 65.0,
+              "Rust": 35.0
+            },
+            "login": "hmm-persona-2",
+            "public_repos": 1,
+            "repos": [
+              {
+                "description": "Practical frontend toolkit",
+                "language": "Python",
+                "name": "toolkit-2",
+                "pushed_at": "2026-11-09T10:00:00Z",
+                "stars": 12,
+                "topics": [
+                  "frontend"
+                ]
+              }
+            ],
+            "stars_total": 12
+          },
+          "hackathons_finished": 4,
+          "joined_at": "2024-09-03T10:00:00Z",
+          "mentor_active": 0,
+          "mentor_capacity": 3,
+          "mentor_notified_at": [],
+          "mentor_offers": [],
+          "mentorships_completed": 0,
+          "projects_shipped": 0,
+          "reputation": {
+            "member": {
+              "avg": 9.0,
+              "count": 1
+            }
+          },
+          "role": "lead",
+          "scores_reviewed_at": null,
+          "state": "confirmed",
+          "times_led": 2,
+          "user_id": "019a71c0-0000-7000-8000-000000000002",
+          "willing_to_lead": false,
+          "xp": 450.0
+        },
+        "members": [],
+        "project_id": "019a71c0-0000-7000-8000-000000000fbf"
+      }
+    ],
+    "hackathon": {
+      "areas": [
+        {
+          "area": "ml_ai",
+          "headcount": 1,
+          "importance": "primary"
+        },
+        {
+          "area": "backend",
+          "headcount": 1,
+          "importance": "required"
+        },
+        {
+          "area": "frontend",
+          "headcount": 1,
+          "importance": "required"
+        },
+        {
+          "area": "design",
+          "headcount": 1,
+          "importance": "nice"
+        }
+      ],
+      "created_by": null,
+      "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+      "difficulty": 7.0,
+      "ends_at": "2026-11-27T22:00:00Z",
+      "format": "online",
+      "id": "019a71c0-0000-7000-8000-0000000003e8",
+      "kind": "hackathon",
+      "origin": "import",
+      "starts_at": "2026-11-26T10:00:00Z",
+      "summary": "Practical, shared outcomes focused on ml_ai.",
+      "team_size_max": 6,
+      "team_size_min": 3,
+      "themes": [
+        "ml_ai",
+        "open collaboration"
+      ],
+      "timezone": "UTC",
+      "title": "Applied ML for Communities"
+    },
+    "kind": "main",
+    "lead_fits": {
+      "019a71c0-0000-7000-8000-000000000003": {
+        "fit": 0.8,
+        "reason": "Experienced primary-area contributor",
+        "user_id": "019a71c0-0000-7000-8000-000000000003"
+      }
+    },
+    "max_size": 6,
+    "target": 6,
+    "unplaced": [
+      {
+        "about_md": "Building reliable systems in backend; interested in collaborative projects.",
+        "activity": 30.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 8.5,
+            "effective": 8.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 1.5,
+            "effective": 1.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": "Clara Singh: practical backend experience and community contributions.",
+        "display_name": "Clara Singh",
+        "enrolled_at": "2026-11-07T10:02:00Z",
+        "github": {
+          "account_created_at": "2023-01-12T10:00:00Z",
+          "contributions_last_year": 420,
+          "followers": 25,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-3",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical backend toolkit",
+              "language": "Python",
+              "name": "toolkit-3",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 12,
+              "topics": [
+                "backend"
+              ]
+            }
+          ],
+          "stars_total": 12
+        },
+        "hackathons_finished": 4,
+        "joined_at": "2024-09-03T10:00:00Z",
+        "mentor_active": 0,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [],
+        "mentor_offers": [],
+        "mentorships_completed": 0,
+        "note": "Can own a reproducible end-to-end slice",
+        "preferred_area": "backend",
+        "projects_shipped": 1,
+        "reputation": {
+          "member": {
+            "avg": 9.0,
+            "count": 1
+          }
+        },
+        "scores_reviewed_at": null,
+        "times_led": 0,
+        "user_id": "019a71c0-0000-7000-8000-000000000003",
+        "willing_to_lead": false,
+        "xp": 450.0
+      }
+    ],
+    "viable": 5
+  }
+}

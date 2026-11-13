@@ -1,0 +1,33 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000023",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "lead_assigned",
+  "payload": {
+    "type": "lead_assigned",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [
+      {
+        "kind": "api",
+        "key": "lead_step_down",
+        "entity_id": "019a7b32-0000-7000-8000-000000000003",
+        "label_key": "notifications.actions.lead_step_down"
+      },
+      {
+        "kind": "link",
+        "label_key": "notifications.actions.transfer",
+        "url": "/projects/019a7b32-0000-7000-8000-000000000003"
+      }
+    ],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "team_name": "Aurora Builders",
+    "lead": {
+      "user_id": "019a7b32-0000-7000-8000-000000000066",
+      "display_name": "Maya Patel"
+    },
+    "reason": "No candidate accepted before lock; the highest-ranked confirmed member was assigned."
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

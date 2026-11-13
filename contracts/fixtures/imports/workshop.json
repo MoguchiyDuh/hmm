@@ -1,0 +1,19 @@
+{
+  "source": {"source_id": "lab:embedded-rust-2026-12", "urls": ["https://lab.example.org/workshops/embedded-rust"], "fetched_at": "2026-11-12T08:15:00Z"},
+  "kind": "workshop",
+  "title": "Sensor Lab: Embedded Rust from Scratch",
+  "description_md": "Bring a laptop. Boards and sensors are provided; prior Rust experience is helpful.",
+  "organizer": "Copperleaf Makers Lab",
+  "registration_url": "https://lab.example.org/workshops/embedded-rust/signup",
+  "starts_at": "2026-12-12T09:00:00Z",
+  "ends_at": "2026-12-12T15:00:00Z",
+  "registration_deadline": "2026-12-11T17:00:00Z",
+  "timezone": "Europe/Amsterdam",
+  "format": "offline",
+  "location": {"country": "Netherlands", "city": "Utrecht", "address": "9 Copper Street"},
+  "language": ["en"],
+  "eligibility": "Ages 16 and up; minors must be accompanied by an adult.",
+  "areas": [{"key": "hardware", "importance": "primary"}],
+  "confidence": 0.97,
+  "extractor_version": "lab-html/1.0.2"
+}

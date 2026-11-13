@@ -1,0 +1,101 @@
+{
+  "description": "The same pair alternates mentor roles across areas over several completed sessions",
+  "expect_flagged": [
+    [
+      "019a71c0-0000-7000-8000-00000000001b",
+      "019a71c0-0000-7000-8000-00000000001c"
+    ]
+  ],
+  "expect_not_flagged": [
+    "019a71c0-0000-7000-8000-000000000001"
+  ],
+  "graph": {
+    "accounts": {
+      "019a71c0-0000-7000-8000-000000000001": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      },
+      "019a71c0-0000-7000-8000-00000000001b": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      },
+      "019a71c0-0000-7000-8000-00000000001c": {
+        "github_account_age": "P3Y305D",
+        "joined_at": "2024-09-03T10:00:00Z",
+        "restrictions": [],
+        "xp": 450.0
+      }
+    },
+    "confirmations": [],
+    "member_events": [],
+    "mentorships": [
+      {
+        "area": "ml_ai",
+        "closed_at": "2026-10-29T10:00:00Z",
+        "id": "019a71c0-0000-7000-8000-00000000c353",
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000001c",
+        "mentor_id": "019a71c0-0000-7000-8000-00000000001b",
+        "outcome": "reached",
+        "started_at": "2026-10-19T10:00:00Z"
+      },
+      {
+        "area": "backend",
+        "closed_at": "2026-10-31T10:00:00Z",
+        "id": "019a71c0-0000-7000-8000-00000000c354",
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000001b",
+        "mentor_id": "019a71c0-0000-7000-8000-00000000001c",
+        "outcome": "reached",
+        "started_at": "2026-10-21T10:00:00Z"
+      },
+      {
+        "area": "ml_ai",
+        "closed_at": "2026-11-02T10:00:00Z",
+        "id": "019a71c0-0000-7000-8000-00000000c355",
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000001c",
+        "mentor_id": "019a71c0-0000-7000-8000-00000000001b",
+        "outcome": "reached",
+        "started_at": "2026-10-23T10:00:00Z"
+      },
+      {
+        "area": "backend",
+        "closed_at": "2026-11-04T10:00:00Z",
+        "id": "019a71c0-0000-7000-8000-00000000c356",
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000001b",
+        "mentor_id": "019a71c0-0000-7000-8000-00000000001c",
+        "outcome": "reached",
+        "started_at": "2026-10-25T10:00:00Z"
+      },
+      {
+        "area": "ml_ai",
+        "closed_at": "2026-11-06T10:00:00Z",
+        "id": "019a71c0-0000-7000-8000-00000000c357",
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000001c",
+        "mentor_id": "019a71c0-0000-7000-8000-00000000001b",
+        "outcome": "reached",
+        "started_at": "2026-10-27T10:00:00Z"
+      },
+      {
+        "area": "backend",
+        "closed_at": "2026-11-08T10:00:00Z",
+        "id": "019a71c0-0000-7000-8000-00000000c358",
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000001b",
+        "mentor_id": "019a71c0-0000-7000-8000-00000000001c",
+        "outcome": "reached",
+        "started_at": "2026-10-29T10:00:00Z"
+      }
+    ],
+    "pardoned": [],
+    "reviews": []
+  },
+  "pardoned_pairs": []
+}

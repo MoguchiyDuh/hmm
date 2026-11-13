@@ -1,0 +1,27 @@
+{
+  "areas": [
+    {
+      "area": "backend",
+      "headcount": 1,
+      "importance": "primary"
+    }
+  ],
+  "created_by": "019a71c0-0000-7000-8000-000000000014",
+  "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+  "difficulty": 4.0,
+  "ends_at": "2026-12-03T13:00:00Z",
+  "format": "hybrid",
+  "id": "019a71c0-0000-7000-8000-0000000003ef",
+  "kind": "meetup",
+  "origin": "member",
+  "starts_at": "2026-12-03T10:00:00Z",
+  "summary": "Practical, shared outcomes focused on backend.",
+  "team_size_max": null,
+  "team_size_min": null,
+  "themes": [
+    "backend",
+    "open collaboration"
+  ],
+  "timezone": "UTC",
+  "title": "Local Rust Study Evening"
+}

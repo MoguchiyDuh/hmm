@@ -1,0 +1,19 @@
+{
+  "source": {"source_id": "academy:practical-security/winter-2027", "urls": ["https://academy.example.org/practical-security"], "fetched_at": "2026-11-12T08:45:00Z"},
+  "kind": "course",
+  "title": "Practical Application Security: Winter Cohort",
+  "summary": "Six weekly live sessions covering threat models, secure APIs and dependency audits.",
+  "organizer": "Juniper Technical Academy",
+  "website_url": "https://academy.example.org/practical-security",
+  "starts_at": "2027-01-12T17:00:00Z",
+  "ends_at": "2027-02-16T19:00:00Z",
+  "registration_opens_at": "2026-11-01T00:00:00Z",
+  "timezone": "UTC",
+  "format": "online",
+  "language": ["en"],
+  "eligibility": "Basic programming experience recommended. No formal prerequisites.",
+  "themes": ["application security"],
+  "areas": [{"key": "security", "importance": "primary"}, {"key": "backend", "importance": "nice"}],
+  "confidence": 0.95,
+  "extractor_version": "academy-html/1.4.0"
+}

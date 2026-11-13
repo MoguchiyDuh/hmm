@@ -1,0 +1,19 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000045",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "review_removed",
+  "payload": {
+    "type": "review_removed",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [],
+    "review_id": "019a7b32-0000-7000-8000-000000000014",
+    "reviewee": {
+      "user_id": "019a7b32-0000-7000-8000-00000000006c",
+      "display_name": "Casey Quinn"
+    },
+    "subject_title": "Aurora Builders",
+    "reason": "The review contained personal harassment and was removed by an administrator."
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

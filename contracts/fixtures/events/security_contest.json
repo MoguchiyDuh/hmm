@@ -1,0 +1,27 @@
+{
+  "areas": [
+    {
+      "area": "security",
+      "headcount": 1,
+      "importance": "primary"
+    }
+  ],
+  "created_by": null,
+  "description_md": "Build, demonstrate and discuss reproducible work with peers.",
+  "difficulty": 7.0,
+  "ends_at": "2026-11-30T22:00:00Z",
+  "format": "online",
+  "id": "019a71c0-0000-7000-8000-0000000003eb",
+  "kind": "contest",
+  "origin": "import",
+  "starts_at": "2026-11-29T10:00:00Z",
+  "summary": "Practical, shared outcomes focused on security.",
+  "team_size_max": 3,
+  "team_size_min": 1,
+  "themes": [
+    "security",
+    "open collaboration"
+  ],
+  "timezone": "UTC",
+  "title": "Community Capture the Flag"
+}

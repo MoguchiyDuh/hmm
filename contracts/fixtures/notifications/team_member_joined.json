@@ -1,0 +1,21 @@
+{
+  "id": "019a7b33-0000-7000-8000-00000000001b",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "team_member_joined",
+  "payload": {
+    "type": "team_member_joined",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "team_name": "Aurora Builders",
+    "member": {
+      "user_id": "019a7b32-0000-7000-8000-000000000067",
+      "display_name": "Jordan Lee"
+    },
+    "member_count": 4
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

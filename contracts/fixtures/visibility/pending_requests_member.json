@@ -1,0 +1,27 @@
+{
+  "description": "Project pending lists are visible only to that project's lead and admins",
+  "expect_visible": false,
+  "operation": "read",
+  "subject": {
+    "dnd": false,
+    "excluded": false,
+    "id": "019a71c0-0000-7000-8000-000000017338",
+    "kind": "pending_requests",
+    "learner_id": null,
+    "owner_id": null,
+    "pending": true,
+    "project_id": "019a71c0-0000-7000-8000-000000000fa0",
+    "review_window_closed": null,
+    "target_mentor_id": null,
+    "to_check": false,
+    "visibility": null
+  },
+  "viewer": {
+    "banned": false,
+    "onboarding_status": "completed",
+    "project_id": null,
+    "role": "member",
+    "user_id": "019a71c0-0000-7000-8000-000000000006"
+  },
+  "visible_fields": null
+}

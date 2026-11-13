@@ -1,0 +1,818 @@
+{
+  "description": "A strong new mentor is mixed in beside frequently notified veterans",
+  "excluded_candidates": [],
+  "expect": {
+    "classifications": [
+      {
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000000c",
+        "mentor_id": "019a71c0-0000-7000-8000-000000000001"
+      },
+      {
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000000c",
+        "mentor_id": "019a71c0-0000-7000-8000-000000000005"
+      },
+      {
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000000c",
+        "mentor_id": "019a71c0-0000-7000-8000-000000000009"
+      },
+      {
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000000c",
+        "mentor_id": "019a71c0-0000-7000-8000-00000000000d"
+      },
+      {
+        "kind": "mentoring",
+        "learner_id": "019a71c0-0000-7000-8000-00000000000c",
+        "mentor_id": "019a71c0-0000-7000-8000-000000000019"
+      }
+    ],
+    "must_not_appear": [
+      "019a71c0-0000-7000-8000-00000000000c"
+    ],
+    "ranked": [
+      {
+        "top_n": 5,
+        "user_id": "019a71c0-0000-7000-8000-000000000019"
+      }
+    ]
+  },
+  "pair_history": [],
+  "request": {
+    "area": {
+      "archived_at": null,
+      "description": "Machine learning, evaluation and AI systems",
+      "id": "019a71c0-0000-7000-8000-0000000007d3",
+      "key": "ml_ai",
+      "name": "ML/AI",
+      "sort": 3
+    },
+    "candidates": [
+      {
+        "about_md": "Building reliable systems in ml_ai; interested in collaborative projects.",
+        "activity": 30.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 8.8,
+            "effective": 8.8,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": "Ada Morozova: practical ml_ai experience and community contributions.",
+        "display_name": "Ada Morozova",
+        "github": {
+          "account_created_at": "2023-01-12T10:00:00Z",
+          "contributions_last_year": 420,
+          "followers": 25,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-1",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical ml_ai toolkit",
+              "language": "Python",
+              "name": "toolkit-1",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 12,
+              "topics": [
+                "ml_ai"
+              ]
+            }
+          ],
+          "stars_total": 12
+        },
+        "hackathons_finished": 4,
+        "joined_at": "2024-09-03T10:00:00Z",
+        "mentor_active": 0,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [
+          "2026-11-12T08:00:00Z"
+        ],
+        "mentor_offers": [
+          {
+            "active": true,
+            "area": "ml_ai",
+            "topics": "ML evaluation, first Kaggle competition, data leakage"
+          }
+        ],
+        "mentorships_completed": 0,
+        "projects_shipped": 1,
+        "reputation": {
+          "lead": {
+            "avg": 9.0,
+            "count": 1
+          }
+        },
+        "scores_reviewed_at": "2026-11-07T10:00:00Z",
+        "times_led": 4,
+        "user_id": "019a71c0-0000-7000-8000-000000000001",
+        "xp": 450.0
+      },
+      {
+        "about_md": "Building reliable systems in ml_ai; interested in collaborative projects.",
+        "activity": 30.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 8.6,
+            "effective": 8.6,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": "Elena Ortiz: practical ml_ai experience and community contributions.",
+        "display_name": "Elena Ortiz",
+        "github": {
+          "account_created_at": "2023-01-12T10:00:00Z",
+          "contributions_last_year": 420,
+          "followers": 25,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-5",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical ml_ai toolkit",
+              "language": "Python",
+              "name": "toolkit-5",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 12,
+              "topics": [
+                "ml_ai"
+              ]
+            }
+          ],
+          "stars_total": 12
+        },
+        "hackathons_finished": 4,
+        "joined_at": "2024-09-03T10:00:00Z",
+        "mentor_active": 1,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [],
+        "mentor_offers": [
+          {
+            "active": true,
+            "area": "ml_ai",
+            "topics": "ML evaluation, first Kaggle competition, data leakage"
+          }
+        ],
+        "mentorships_completed": 1,
+        "projects_shipped": 0,
+        "reputation": {
+          "mentor": {
+            "avg": 9.0,
+            "count": 1
+          }
+        },
+        "scores_reviewed_at": null,
+        "times_led": 0,
+        "user_id": "019a71c0-0000-7000-8000-000000000005",
+        "xp": 450.0
+      },
+      {
+        "about_md": "Building reliable systems in ml_ai; interested in collaborative projects.",
+        "activity": 30.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 7.5,
+            "effective": 7.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": "Iris Novak: practical ml_ai experience and community contributions.",
+        "display_name": "Iris Novak",
+        "github": {
+          "account_created_at": "2023-01-12T10:00:00Z",
+          "contributions_last_year": 420,
+          "followers": 25,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-9",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical ml_ai toolkit",
+              "language": "Python",
+              "name": "toolkit-9",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 12,
+              "topics": [
+                "ml_ai"
+              ]
+            }
+          ],
+          "stars_total": 12
+        },
+        "hackathons_finished": 4,
+        "joined_at": "2024-09-03T10:00:00Z",
+        "mentor_active": 0,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [],
+        "mentor_offers": [
+          {
+            "active": true,
+            "area": "ml_ai",
+            "topics": "ML evaluation, first Kaggle competition, data leakage"
+          }
+        ],
+        "mentorships_completed": 0,
+        "projects_shipped": 0,
+        "reputation": {
+          "member": {
+            "avg": 9.0,
+            "count": 1
+          }
+        },
+        "scores_reviewed_at": null,
+        "times_led": 0,
+        "user_id": "019a71c0-0000-7000-8000-000000000009",
+        "xp": 450.0
+      },
+      {
+        "about_md": "Building reliable systems in data; interested in collaborative projects.",
+        "activity": 30.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 8.4,
+            "effective": 8.4,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 7.0,
+            "effective": 7.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": "Mina Patel: practical data experience and community contributions.",
+        "display_name": "Mina Patel",
+        "github": {
+          "account_created_at": "2023-01-12T10:00:00Z",
+          "contributions_last_year": 420,
+          "followers": 25,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-13",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical data toolkit",
+              "language": "Python",
+              "name": "toolkit-13",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 12,
+              "topics": [
+                "data"
+              ]
+            }
+          ],
+          "stars_total": 12
+        },
+        "hackathons_finished": 4,
+        "joined_at": "2024-09-03T10:00:00Z",
+        "mentor_active": 0,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [],
+        "mentor_offers": [
+          {
+            "active": true,
+            "area": "ml_ai",
+            "topics": "ML evaluation, first Kaggle competition, data leakage"
+          }
+        ],
+        "mentorships_completed": 0,
+        "projects_shipped": 0,
+        "reputation": {
+          "member": {
+            "avg": 9.0,
+            "count": 1
+          }
+        },
+        "scores_reviewed_at": null,
+        "times_led": 0,
+        "user_id": "019a71c0-0000-7000-8000-00000000000d",
+        "xp": 450.0
+      },
+      {
+        "about_md": "Building reliable systems in ml_ai; interested in collaborative projects.",
+        "activity": 30.0,
+        "area_scores": {
+          "backend": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "data": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "design": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "devops": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "frontend": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "gamedev": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "hardware": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "ml_ai": {
+            "calculated": 7.8,
+            "effective": 7.8,
+            "override": null,
+            "override_evidence": null
+          },
+          "mobile": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "product": {
+            "calculated": 2.5,
+            "effective": 2.5,
+            "override": null,
+            "override_evidence": null
+          },
+          "qa": {
+            "calculated": 2.0,
+            "effective": 2.0,
+            "override": null,
+            "override_evidence": null
+          },
+          "security": {
+            "calculated": 1.0,
+            "effective": 1.0,
+            "override": null,
+            "override_evidence": null
+          }
+        },
+        "cv_text": "Zoya Rossi: practical ml_ai experience and community contributions.",
+        "display_name": "Zoya Rossi",
+        "github": {
+          "account_created_at": "2023-01-12T10:00:00Z",
+          "contributions_last_year": 420,
+          "followers": 25,
+          "languages": {
+            "Python": 65.0,
+            "Rust": 35.0
+          },
+          "login": "hmm-persona-25",
+          "public_repos": 1,
+          "repos": [
+            {
+              "description": "Practical ml_ai toolkit",
+              "language": "Python",
+              "name": "toolkit-25",
+              "pushed_at": "2026-11-09T10:00:00Z",
+              "stars": 12,
+              "topics": [
+                "ml_ai"
+              ]
+            }
+          ],
+          "stars_total": 12
+        },
+        "hackathons_finished": 0,
+        "joined_at": "2024-09-03T10:00:00Z",
+        "mentor_active": 0,
+        "mentor_capacity": 3,
+        "mentor_notified_at": [],
+        "mentor_offers": [
+          {
+            "active": true,
+            "area": "ml_ai",
+            "topics": "ML evaluation, first Kaggle competition, data leakage"
+          }
+        ],
+        "mentorships_completed": 0,
+        "projects_shipped": 0,
+        "reputation": {
+          "member": {
+            "avg": 9.0,
+            "count": 1
+          }
+        },
+        "scores_reviewed_at": null,
+        "times_led": 0,
+        "user_id": "019a71c0-0000-7000-8000-000000000019",
+        "xp": 450.0
+      }
+    ],
+    "format": "online",
+    "goal": "Produce a reproducible held-out evaluation and explain failure cases",
+    "learner": {
+      "about_md": "Learning ml_ai; interested in collaborative projects.",
+      "activity": 8.0,
+      "area_scores": {
+        "backend": {
+          "calculated": 2.0,
+          "effective": 2.0,
+          "override": null,
+          "override_evidence": null
+        },
+        "data": {
+          "calculated": 2.5,
+          "effective": 2.5,
+          "override": null,
+          "override_evidence": null
+        },
+        "design": {
+          "calculated": 1.5,
+          "effective": 1.5,
+          "override": null,
+          "override_evidence": null
+        },
+        "devops": {
+          "calculated": 1.5,
+          "effective": 1.5,
+          "override": null,
+          "override_evidence": null
+        },
+        "frontend": {
+          "calculated": 2.5,
+          "effective": 2.5,
+          "override": null,
+          "override_evidence": null
+        },
+        "gamedev": {
+          "calculated": 2.0,
+          "effective": 2.0,
+          "override": null,
+          "override_evidence": null
+        },
+        "hardware": {
+          "calculated": 2.5,
+          "effective": 2.5,
+          "override": null,
+          "override_evidence": null
+        },
+        "ml_ai": {
+          "calculated": 3.0,
+          "effective": 3.0,
+          "override": null,
+          "override_evidence": null
+        },
+        "mobile": {
+          "calculated": 1.5,
+          "effective": 1.5,
+          "override": null,
+          "override_evidence": null
+        },
+        "product": {
+          "calculated": 2.0,
+          "effective": 2.0,
+          "override": null,
+          "override_evidence": null
+        },
+        "qa": {
+          "calculated": 1.5,
+          "effective": 1.5,
+          "override": null,
+          "override_evidence": null
+        },
+        "security": {
+          "calculated": 2.5,
+          "effective": 2.5,
+          "override": null,
+          "override_evidence": null
+        }
+      },
+      "cv_text": null,
+      "display_name": "Lev Ivanov",
+      "github": {
+        "account_created_at": "2026-07-15T10:00:00Z",
+        "contributions_last_year": 30,
+        "followers": 1,
+        "languages": {
+          "Python": 65.0,
+          "Rust": 35.0
+        },
+        "login": "hmm-persona-12",
+        "public_repos": 1,
+        "repos": [
+          {
+            "description": "Practical ml_ai toolkit",
+            "language": "Python",
+            "name": "toolkit-12",
+            "pushed_at": "2026-11-09T10:00:00Z",
+            "stars": 0,
+            "topics": [
+              "ml_ai"
+            ]
+          }
+        ],
+        "stars_total": 0
+      },
+      "hackathons_finished": 1,
+      "joined_at": "2026-10-31T10:00:00Z",
+      "mentor_active": 0,
+      "mentor_capacity": 3,
+      "mentor_notified_at": [],
+      "mentor_offers": [],
+      "mentorships_completed": 0,
+      "projects_shipped": 0,
+      "reputation": {},
+      "scores_reviewed_at": null,
+      "times_led": 0,
+      "user_id": "019a71c0-0000-7000-8000-00000000000c",
+      "xp": 10.0
+    },
+    "limit": 5,
+    "topic": "First Kaggle competition: validation without leakage"
+  }
+}

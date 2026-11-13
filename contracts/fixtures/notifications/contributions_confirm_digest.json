@@ -1,0 +1,27 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000031",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "contributions_confirm_digest",
+  "payload": {
+    "type": "contributions_confirm_digest",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [
+      {
+        "kind": "link",
+        "label_key": "notifications.actions.confirm_lead",
+        "url": "/projects/019a7b32-0000-7000-8000-000000000003"
+      }
+    ],
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "project_name": "Aurora Builders",
+    "release_id": "019a7b32-0000-7000-8000-00000000000e",
+    "release_title": "Aurora 1.0",
+    "lead": {
+      "user_id": "019a7b32-0000-7000-8000-000000000066",
+      "display_name": "Maya Patel"
+    },
+    "project_member_id": "019a7b32-0000-7000-8000-000000000006"
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

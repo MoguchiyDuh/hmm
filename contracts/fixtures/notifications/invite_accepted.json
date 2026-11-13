@@ -1,0 +1,27 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000002",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "invite_accepted",
+  "payload": {
+    "type": "invite_accepted",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [],
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "project_name": "Aurora Builders",
+    "invite_id": "019a7b32-0000-7000-8000-000000000004",
+    "kind": "core",
+    "actor": {
+      "user_id": "019a7b32-0000-7000-8000-000000000065",
+      "display_name": "Avery Chen"
+    },
+    "invitee": {
+      "user_id": "019a7b32-0000-7000-8000-000000000001",
+      "display_name": "Alex Morgan"
+    },
+    "expires_at": "2026-11-21T12:00:00Z",
+    "event_id": null,
+    "event_title": null
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

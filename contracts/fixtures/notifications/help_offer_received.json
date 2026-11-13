@@ -1,0 +1,42 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000036",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "help_offer_received",
+  "payload": {
+    "type": "help_offer_received",
+    "link": "/help-requests/019a7b32-0000-7000-8000-00000000000f",
+    "actions": [
+      {
+        "kind": "api",
+        "key": "help_offer_accept",
+        "entity_id": "019a7b32-0000-7000-8000-000000000010",
+        "label_key": "notifications.actions.help_offer_accept"
+      }
+    ],
+    "help_request_id": "019a7b32-0000-7000-8000-00000000000f",
+    "learner": {
+      "user_id": "019a7b32-0000-7000-8000-000000000001",
+      "display_name": "Alex Morgan"
+    },
+    "area_key": "backend",
+    "area_name": "Backend",
+    "topic": "Reliable Python services",
+    "goal": "Deploy a service with authentication and observability.",
+    "format": "online",
+    "expires_at": "2026-11-21T12:00:00Z",
+    "help_offer_id": "019a7b32-0000-7000-8000-000000000010",
+    "mentor": {
+      "user_id": "019a7b32-0000-7000-8000-000000000069",
+      "display_name": "Noor Kim"
+    },
+    "message": "I can review your service design and pair on authentication next week.",
+    "mentor_score": 8.2,
+    "learner_score": 4.3,
+    "mentor_rating": null,
+    "mentor_review_count": 12,
+    "past_mentorship_count": 6,
+    "kind": "mentoring"
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

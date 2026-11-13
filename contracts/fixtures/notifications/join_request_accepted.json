@@ -1,0 +1,25 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000007",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "join_request_accepted",
+  "payload": {
+    "type": "join_request_accepted",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [],
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "project_name": "Aurora Builders",
+    "join_request_id": "019a7b32-0000-7000-8000-000000000005",
+    "requester": {
+      "user_id": "019a7b32-0000-7000-8000-000000000001",
+      "display_name": "Alex Morgan"
+    },
+    "lead": {
+      "user_id": "019a7b32-0000-7000-8000-000000000066",
+      "display_name": "Maya Patel"
+    },
+    "event_id": null,
+    "event_title": null
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

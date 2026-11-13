@@ -1,0 +1,36 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000029",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "project_invite_received",
+  "payload": {
+    "type": "project_invite_received",
+    "link": "/projects/019a7b32-0000-7000-8000-000000000003",
+    "actions": [
+      {
+        "kind": "api",
+        "key": "invite_accept",
+        "entity_id": "019a7b32-0000-7000-8000-000000000004",
+        "label_key": "notifications.actions.invite_accept"
+      },
+      {
+        "kind": "api",
+        "key": "invite_decline",
+        "entity_id": "019a7b32-0000-7000-8000-000000000004",
+        "label_key": "notifications.actions.invite_decline"
+      }
+    ],
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "project_name": "Aurora Builders",
+    "invite_id": "019a7b32-0000-7000-8000-000000000004",
+    "kind": "project",
+    "actor": {
+      "user_id": "019a7b32-0000-7000-8000-000000000065",
+      "display_name": "Avery Chen"
+    },
+    "expires_at": "2026-11-21T12:00:00Z",
+    "message": null,
+    "area_key": null
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}
