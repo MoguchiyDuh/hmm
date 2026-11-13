@@ -1098,7 +1098,6 @@
           "event_cancelled_with_teams",
           "team_size_conflict",
           "suspicious_activity",
-          "restriction_violation",
           "review_reported",
           "banned_member_in_active_team",
           "algo_failure",

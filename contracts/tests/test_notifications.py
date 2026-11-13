@@ -50,7 +50,7 @@ def table_types(section: str) -> set[str]:
 
 def test_docs_notification_types() -> None:
     spec = (ROOT / "docs/15-notifications.md").read_text()
-    section = spec.split("## Notifications\n", 1)[1].split("## Telegram delivery contract", 1)[0]
+    section = spec.split("## 15.1 Notifications\n", 1)[1].split("## 15.2 ", 1)[0]
     documented = table_types(section)
     assert len(documented) == 75
     assert documented <= set(NotificationType)
@@ -59,7 +59,7 @@ def test_docs_notification_types() -> None:
 
 def test_docs_alert_kinds_and_severities() -> None:
     spec = (ROOT / "docs/15-notifications.md").read_text()
-    section = spec.split("## Admin alerts\n", 1)[1].split("## Endpoints", 1)[0]
+    section = spec.split("## 15.3 Admin alerts\n", 1)[1].split("## 15.4 ", 1)[0]
     assert table_types(section) == set(AlertKind)
     for column, severity in re.findall(
         r"^\|\s*(`[^|]+)\|\s*(info|warning|critical)\s*\|", section, re.MULTILINE

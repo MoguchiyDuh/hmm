@@ -427,7 +427,6 @@ class AlertKind(StrEnum):
     EVENT_CANCELLED_WITH_TEAMS = "event_cancelled_with_teams"
     TEAM_SIZE_CONFLICT = "team_size_conflict"
     SUSPICIOUS_ACTIVITY = "suspicious_activity"
-    RESTRICTION_VIOLATION = "restriction_violation"
     REVIEW_REPORTED = "review_reported"
     BANNED_MEMBER_IN_ACTIVE_TEAM = "banned_member_in_active_team"
     ALGO_FAILURE = "algo_failure"
@@ -447,7 +446,6 @@ ALERT_SEVERITIES: dict[AlertKind, AlertSeverity] = {
     AlertKind.EVENT_CANCELLED_WITH_TEAMS: AlertSeverity.WARNING,
     AlertKind.TEAM_SIZE_CONFLICT: AlertSeverity.WARNING,
     AlertKind.SUSPICIOUS_ACTIVITY: AlertSeverity.WARNING,
-    AlertKind.RESTRICTION_VIOLATION: AlertSeverity.INFO,
     AlertKind.REVIEW_REPORTED: AlertSeverity.INFO,
     AlertKind.BANNED_MEMBER_IN_ACTIVE_TEAM: AlertSeverity.WARNING,
     AlertKind.ALGO_FAILURE: AlertSeverity.CRITICAL,
