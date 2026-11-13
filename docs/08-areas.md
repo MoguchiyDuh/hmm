@@ -1,7 +1,8 @@
-# 8. Core — Areas
+# 8. Areas
 
-## Behavior
-- Admin-managed list. `key` is an immutable slug. Seeded by migration in this order:
+## 8.1 Seed list
+
+Admin-managed list. `key` is an immutable slug. A migration seeds, in this order:
 
 | key | name | Covers |
 |---|---|---|
@@ -18,16 +19,20 @@
 | `hardware` | Hardware | embedded, IoT, robotics, electronics |
 | `qa` | QA | testing, test automation, quality |
 
-- Not areas: full-stack (= backend + frontend scores), domain expertise (event-specific, lives in free text and `themes`).
-- Archive instead of delete. Archived areas: hidden from new quizzes/imports, existing scores kept read-only.
+Not areas: full-stack (= backend + frontend scores), and domain expertise (event-specific; lives in free text and `themes`).
+
+## 8.2 Rules
+
+- Archive instead of delete. Archived areas are hidden from new quizzes and imports; existing scores are kept read-only.
 - Adding an area enqueues `recompute_all_members` (algo may produce an initial score from existing data).
 
-## Endpoints
+## 8.3 Endpoints
 
-| Method | Path | Who |
-|---|---|---|
-| GET | `/api/v1/areas` | member |
-| POST | `/api/v1/admin/areas` | admin |
-| PATCH | `/api/v1/admin/areas/{id}` | admin (name, description, sort) |
-| POST | `/api/v1/admin/areas/{id}/archive` / `/unarchive` | admin |
-| GET | `/internal/areas` | parser |
+| Method | Path | Who | Body → response |
+|---|---|---|---|
+| GET | `/api/v1/areas` | member | Area list |
+| POST | `/api/v1/admin/areas` | admin | `{key, name, description, sort}` |
+| PATCH | `/api/v1/admin/areas/{id}` | admin | `{name, description, sort}` |
+| POST | `/api/v1/admin/areas/{id}/archive` | admin | – |
+| POST | `/api/v1/admin/areas/{id}/unarchive` | admin | – |
+| GET | `/internal/areas` | parser | Area list |

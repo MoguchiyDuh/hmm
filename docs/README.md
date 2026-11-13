@@ -1,14 +1,15 @@
 # hmm — design documentation
 
 A community platform for hackathon teams, projects, events and mentorship.
+
 - **Registration:** members sign in with GitHub, complete a branching onboarding quiz, optionally attach a CV, and get per-area skill scores. Admins may review those scores later without blocking anyone.
 - **Hackathons:** a parser discovers events. Members enroll, eligible members claim the lead role and gather a core, others can volunteer to lead if needed, and one formation round packs everyone into complete teams.
-- **Review:** leads adjust the result and everyone on a team must confirm their spot, and again shortly before the start; silence means removal. Every team ends up with a lead, picked by a fixed lead order. A reserve fills open seats.
+- **Review:** leads adjust the result, and everyone on a team confirms their spot, then again shortly before the start. Silence means removal. Every team ends up with a lead, picked by a fixed lead order. A reserve fills open seats.
 - **After the event:** results, peer ratings, XP, activity and score progression. The team can continue as a project.
-- **Between hackathons:** standalone projects (team, plan, releases), event attendance ("we went to X"), and mentorship ("I want to learn X").
+- **Between hackathons:** standalone projects (team, plan, releases), event attendance ("we went to X") and mentorship ("I want to learn X").
 - **Points:** XP needs a second party: co-participants, leads, organizers or learners confirm facts. Algo computes everything; suspicious items go to an admin "to check" queue to punish or pardon.
 
-These documents are the contract between five parallel groups. Anything not specified here is the owning group's choice. Section numbers (`§N`) are stable across files.
+These documents are the contract between five parallel groups. Anything not specified here is the owning group's choice. Section numbers (`§N`, `§N.M`) are stable across files.
 
 ## Groups and ownership
 
@@ -17,7 +18,7 @@ These documents are the contract between five parallel groups. Anything not spec
 | **core** | `core/`: FastAPI API, worker, PostgreSQL schema and migrations, object storage, `contracts/` stewardship | everyone | §2–§17, §22, §25–§28 |
 | **algo** | `algo/`: Python package for onboarding scoring, score progression, XP and activity over all facts, lead fit, quick-pick, team formation, reserve ranking, mentor matching, abuse flags and community scan | core (in-process, via `contracts/algo.py`) | §4, §12, §14, §18, §25, §28 |
 | **parser** | `parser/`: standalone service for event discovery (all kinds), extraction, normalization, dedup, people lists and import | core (`/internal/*` HTTP) | §11, §19, §26 |
-| **bot** | `bot/`: Telegram bot for notification delivery, quick actions and account linking | core (`/api/v1/*` + `/internal/*` HTTP) | §6, §15, §20, §28 |
+| **bot** | `bot/`: Telegram bot for notification delivery, quick actions and account linking | core (`/api/v1/*` and `/internal/*` HTTP) | §6, §15, §20, §28 |
 | **frontend** | `web/`: SPA including the admin panel | core (`/api/v1/*` HTTP, generated client) | §3, §9, §12, §21, §25–§28 |
 
 Everyone reads §2–§4 and §23.
@@ -26,6 +27,13 @@ Rules:
 - Nobody except core reads or writes core's database.
 - `contracts/` changes require approval from every group that imports the changed module.
 - Each group ships fixtures and a way to run its part against fakes (§23).
+
+## How to read a section
+
+- Every section has numbered subsections, an **Endpoints** table and, where testable, a **Done when** list.
+- Endpoint tables have the columns `Method | Path | Who | Body → response`. The **Who** values are defined in §3.3.
+- A setting is written as its key with the default in parentheses, e.g. `review_hours` (48). All settings are in §24.
+- Notification types are in §15, admin alerts in §15.3, error codes in `hmm_contracts.common.ErrorCode`.
 
 ## Index
 

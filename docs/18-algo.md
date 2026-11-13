@@ -1,6 +1,7 @@
-# 18. Algorithm package (group: algo)
+# 18. Algorithm package
 
 ## 18.1 Scope
+
 The algo group owns **behavior**: formulas, heuristics, team packing, LLM use, abuse detection. Core owns data loading, persistence, scheduling and hard-constraint validation. Package `hmm_algo` in `algo/`, imported by core's worker only.
 
 ## 18.2 Interface (`contracts/algo.py`)
@@ -134,6 +135,7 @@ class CommunityGraph:
 ```
 
 ## 18.3 Behavioral requirements
+
 1. **Pure with respect to core state.** No DB, no network except the configured LLM endpoint. Persistent memory only via `ctx.cache`.
 2. **Deterministic results.** Given identical inputs and cache, scores, orderings and formation plans are identical. LLM output may only influence reasons text or be cached so that repeat runs reproduce.
 3. **Graceful degradation.** `ctx.llm is None` or LLM errors → still return valid results (heuristic only) within timeout.
@@ -171,11 +173,13 @@ class CommunityGraph:
 19. **Version.** `version` string changes whenever behavior changes. Core stores it with every output.
 
 ## 18.4 Production bar
+
 - One implementation, shipped production-ready. No placeholder stage in deployment.
 - A deterministic heuristic core is fully functional on its own; the LLM refines ranking and reasons when available.
 - `hmm_algo.testing.FakeAlgorithm` exists only for core's test suite and for core development before the real package lands. It is never wired into the deployed app.
 
 ## 18.5 Deliverables
+
 - `hmm_algo` package, production-ready, plus `hmm_algo.testing.FakeAlgorithm`.
 - Offline evaluation harness over `contracts/fixtures/members/*.json`, `events/*.json`, `formation/*.json`, `mentorship/*.json` and `community/*.json` (incl. planted rings), printing rankings, plans, awards, flags and reasons.
 - `algo/README.md` describing formulas and packing strategy, so admins can understand outcomes.

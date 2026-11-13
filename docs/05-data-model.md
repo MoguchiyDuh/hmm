@@ -1,6 +1,6 @@
 # 5. Data model
 
-Core owns all tables. Types simplified; every table has `created_at`, and mutable tables `updated_at`.
+Core owns all tables. Types are simplified. Every table has `created_at`; mutable tables also have `updated_at`.
 
 ## 5.1 Identity
 
@@ -168,17 +168,17 @@ event_attendances
   -- unique (event_id, user_id)
 ```
 
-Phase is **derived**, not stored:
+The event phase is **derived**, not stored. `registration_deadline` defaults to `starts_at`; a null `registration_opens_at` means registration is open from publish:
 
 ```text
 upcoming            now < registration_opens_at
-registration_open   registration_opens_at <= now < registration_deadline (deadline defaults to starts_at)
+registration_open   registration_opens_at <= now < registration_deadline
 registration_closed registration_deadline <= now < starts_at
 ongoing             starts_at <= now < ends_at
 ended               now >= ends_at
 ```
 
-For events with `formation_enabled`, enrollment is allowed in any phase except `forming` before the registration deadline of a `published` event. The participation phase (`open → forming → review → locked → closed`) is stored separately in `event_formations` (§5.6, §12).
+The participation phase of a hackathon (`open → forming → review → locked → closed`) is stored separately in `event_formations` (§5.6). Enrollment rules are in §12.4.
 
 ## 5.6 Formation, teams and projects
 
@@ -201,7 +201,7 @@ projects                                    -- standalone projects and hackathon
   id, event_id fk null, name text, description_md text, goal text, links jsonb,
   visibility public|members, recruiting jsonb null {areas: [area_key], note},
   lead_user_id fk null,                    -- null while a lead offer or succession is open (§12.8, §27.6)
-  status idea|active|shipped|paused|abandoned|disbanded|cancelled,
+  status idea|active|shipped|paused|abandoned|disbanded|cancelled,   -- teams: §27.1
   team_status forming|review|locked|active|finished|withdrawn|disbanded|cancelled null,   -- hackathon teams only
   origin standalone|claim|formation|late_claim|admin,
   ready_at timestamptz null,               -- lead pressed "ready for formation"

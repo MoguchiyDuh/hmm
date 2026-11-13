@@ -2,14 +2,15 @@
 
 Two weeks, full scope, one release. Day 1 is 2026-11-13, day 14 is 2026-11-26.
 
-## Days 1–2 — contracts freeze (all groups)
+## 23.1 Days 1–2: contracts freeze (all groups)
+
 - `contracts/`: common types, `algo.py`, `formation.py` (`placement_bounds()` + tests), `imports.py`, `notifications.py`, fixtures (members, events, formation inputs, mentorship cases, community graphs with planted rings, imports, notifications, visibility cases).
 - core publishes a stub `openapi.json` covering all §6–§16 and §25–§28 endpoints (handlers may return 501). Frontend and bot start against it plus MSW/stub server.
 - Error `code` list agreed.
 - Every group has its skeleton running in compose (or `pnpm dev` for web) and CI green.
 - After day 2, `contracts/` changes only through a contract-change issue (CONTRIBUTING.md).
 
-## Parallel tracks
+## 23.2 Parallel tracks
 
 | Days | core | algo | parser | bot | frontend |
 |---|---|---|---|---|---|
@@ -21,7 +22,8 @@ Two weeks, full scope, one release. Day 1 is 2026-11-13, day 14 is 2026-11-26.
 | 13 | code freeze: property + concurrency + timer tests, bug fixes only | performance + eval report on fixtures | full run against real sources on the dev stack | full run on the dev stack | end-to-end pass, mobile layout |
 | 14 | release tag, handoff notes (env, migrations, images) | release notes for `algo/README.md` | release | release | release build |
 
-## Checkpoints
+## 23.3 Checkpoints
+
 1. **Day 2:** contracts frozen; stub OpenAPI published; `docker compose up` brings up every service; CI green.
 2. **Day 4:** frontend logs in via real GitHub against core; bot links an account; quiz can be completed.
 3. **Day 7:** full registration (quiz + CV) → scores on profile; admin completes a member review with an override; parser imports real events; members enroll and claim lead.
@@ -32,13 +34,14 @@ Two weeks, full scope, one release. Day 1 is 2026-11-13, day 14 is 2026-11-26.
 
 A missed checkpoint is raised the same day in the group's issue with `status:blocked`, and people are moved from groups that are ahead.
 
-## End-to-end acceptance scenario
+## 23.4 End-to-end acceptance scenario
+
 1. Parser imports a hackathon: primary ML/AI, required Backend + Frontend, team 3–6, registration deadline in 6 days.
 2. Fourteen members sign in via GitHub, complete onboarding along different branches, half upload CVs, some link Telegram. An admin reviews two of them and overrides one score with `evidence=interview`.
-3. Twelve enroll. Two high-fit members claim lead; a low-fit member is refused with a reason and ticks "I can lead if needed" instead. Lead A invites a friend into the core; lead B accepts a join request. With 14 people involved, the projection shows "2 teams (6, 6), 2 on reserve".
+3. Two high-fit members claim lead, and the other twelve enroll. A low-fit member who tries to claim is refused with a reason and ticks "I can lead if needed" instead. Lead A invites one of the enrolled members into the core; lead B accepts a join request. With 14 people involved (two cores of 2, 10 unplaced), the projection shows "2 teams (6, 6), 2 on reserve".
 4. Both leads press Ready → formation starts an hour later. The plan fills both cores to 6, covers ML/Backend/Frontend in each, pairs beginners with strong members, and puts 2 people on the reserve.
 5. During review, both claimed leads and their core members re-confirm. One placed member declines and stays on the reserve → lead A adds the top reserve member; lead B swaps one member with team A (lead A and both moved members accept). One member of team A stays silent despite reminders.
-6. Review ends → the silent member is removed (`lapsed`) and teams lock 48 h before the organizer's deadline. Lead A doesn't act within the 12 h head start → a reserve offer fills the seat.
+6. Review ends → the silent member is removed (`lapsed`) and the teams lock. Lead A doesn't act within the 12 h head start → a reserve offer fills the seat.
 7. Lead B transfers the lead role to a teammate, who accepts.
 8. A member of team B leaves while locked; nobody fills it in 12 h → the top reserve member gets an offer and confirms.
 9. Presence check 48 h before the start: everyone confirms except one member of team A, who is removed at the deadline; team A plays one short.

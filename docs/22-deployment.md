@@ -25,15 +25,17 @@ DATABASE_URL
 S3_ENDPOINT S3_ACCESS_KEY S3_SECRET_KEY S3_BUCKET
 GITHUB_CLIENT_ID GITHUB_CLIENT_SECRET GITHUB_TOKEN
 SESSION_SECRET
-ADMIN_GITHUB_LOGINS            # comma-separated, bootstrap only (§6)
+ADMIN_GITHUB_LOGINS            # comma-separated, bootstrap only (§6.3)
 BOT_SERVICE_TOKEN PARSER_SERVICE_TOKEN
 LLM_BASE_URL LLM_API_KEY LLM_MODEL
+CORE_URL                       # bot and parser only: base URL of api
 BOT_TOKEN                      # bot only
 PARSER_DATABASE_URL            # parser only
 LOG_LEVEL
 ```
 
 ## 22.3 Observability
+
 - Structured JSON logs with `request_id` (from `X-Request-Id` or generated) propagated to jobs.
 - `GET /healthz` (process up), `GET /readyz` (DB reachable, migrations at head).
 - Job failures and parser heartbeats surface in admin System page. External monitoring isn't required.
