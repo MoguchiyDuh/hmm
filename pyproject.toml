@@ -1,0 +1,21 @@
+[tool.uv.workspace]
+members = ["contracts", "core", "algo", "parser", "bot"]
+
+[tool.uv.sources]
+hmm-contracts = { workspace = true }
+hmm-algo = { workspace = true }
+
+[dependency-groups]
+dev = ["ruff>=0.14", "ty>=0.0.1a20", "pytest>=8.4", "pytest-asyncio>=1.2", "hypothesis>=6.140"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

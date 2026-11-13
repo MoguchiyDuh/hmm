@@ -1,0 +1,27 @@
+name: Contract change
+description: Change to contracts/, the API shape, or a cross-group behavior in docs/
+labels: ["type:contract-change"]
+body:
+  - type: input
+    id: what
+    attributes:
+      label: What changes
+      placeholder: "contracts/algo.py: add field X to MemberSnapshot"
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+    validations:
+      required: true
+  - type: checkboxes
+    id: affected
+    attributes:
+      label: Affected groups (each must approve in a comment)
+      options:
+        - label: core
+        - label: algo
+        - label: parser
+        - label: bot
+        - label: frontend

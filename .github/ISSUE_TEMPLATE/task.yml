@@ -1,0 +1,32 @@
+name: Task
+description: A piece of planned work from the spec
+labels: ["type:feature"]
+body:
+  - type: dropdown
+    id: group
+    attributes:
+      label: Group
+      options: [core, algo, parser, bot, frontend, contracts, infra]
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec section
+      placeholder: "§12.5"
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What exactly is in this task
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      description: Observable result; copy from the spec's "Done when" where possible
+    validations:
+      required: true
