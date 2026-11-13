@@ -59,7 +59,7 @@ Rules:
 | 19 | [Parser service](19-parser.md) | parser |
 | 20 | [Telegram bot](20-bot.md) | bot |
 | 21 | [Frontend](21-frontend.md) | frontend |
-| 22 | [Runtime contract and configuration](22-deployment.md) | core |
+| 22 | [Deployment and configuration](22-deployment.md) | core |
 | 23 | [Delivery plan](23-delivery-plan.md) | all |
 | 24 | [Settings defaults](24-defaults.md) | all |
 | 25 | [Facts, confirmations, trust, feed](25-trust-feed.md) | core |

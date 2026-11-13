@@ -48,7 +48,7 @@ hmm/
 | parser | Group's choice in Python 3.13; HTTP to core only |
 | bot | aiogram 3, httpx, long polling |
 | frontend | TypeScript, React, Vite, TanStack Router + Query, openapi-typescript + openapi-fetch, Tailwind + shadcn/ui, Zod, MSW for mocks, pnpm |
-| infra | Dockerfiles + dev Docker Compose, PostgreSQL 18, MinIO. Production hosting, TLS, proxy and backups are out of this repo's scope (§22). |
+| infra | Dockerfiles, Docker Compose (dev and production), Caddy (TLS, static SPA, reverse proxy), PostgreSQL 18, MinIO, S3 backups, GitHub Actions release to GHCR (§22) |
 | LLM | Any OpenAI-compatible chat endpoint; `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. Chat only, no embeddings. |
 
 ## 2.4 Process model (core)
