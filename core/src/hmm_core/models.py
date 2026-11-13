@@ -1,0 +1,130 @@
+from hmm_core.areas.models import Area
+from hmm_core.attendance.models import EventAttendance
+from hmm_core.catalog.models import (
+    Event,
+    EventArea,
+    EventFieldLock,
+    EventRevision,
+    EventSource,
+    EventSourcePerson,
+    ParserHeartbeat,
+)
+from hmm_core.feed.models import Confirmation, FeedItem
+from hmm_core.formation.models import (
+    Enrollment,
+    EventFormation,
+    FormationRun,
+    LeadFit,
+    MergeProposal,
+    SwapRequest,
+)
+from hmm_core.identity.models import TelegramLink, TelegramLinkCode, User, UserSession
+from hmm_core.mentorship.models import (
+    HelpOffer,
+    HelpRequest,
+    MentorOffer,
+    Mentorship,
+    MentorshipCheckin,
+)
+from hmm_core.notifications.models import (
+    AdminAlert,
+    Notification,
+    NotificationDelivery,
+    NotificationSetting,
+)
+from hmm_core.onboarding.models import OnboardingSubmission, Question, QuestionOption, Quiz
+from hmm_core.platform.db import Base
+from hmm_core.platform.models import AlgoCache, AuditLog, Setting
+from hmm_core.profiles.models import CvFile, GithubSnapshot
+from hmm_core.projects.models import (
+    Invite,
+    JoinRequest,
+    LeadOffer,
+    Project,
+    ProjectArea,
+    ProjectMember,
+    ProjectMilestone,
+    ProjectRelease,
+    ProjectUpdate,
+    ReleaseContribution,
+)
+from hmm_core.recommendations.models import RecommendationSet
+from hmm_core.results.models import ProjectResult, Review, ReviewReport, ReviewWindow
+from hmm_core.scores.models import (
+    ActivityEntry,
+    AreaScore,
+    AreaScoreEvent,
+    FactAward,
+    Flag,
+    MemberMetric,
+    MemberRestriction,
+    MemberReview,
+    XpAdjustment,
+)
+
+__all__ = [
+    "ActivityEntry",
+    "AdminAlert",
+    "AlgoCache",
+    "Area",
+    "AreaScore",
+    "AreaScoreEvent",
+    "AuditLog",
+    "Base",
+    "Confirmation",
+    "CvFile",
+    "Enrollment",
+    "Event",
+    "EventArea",
+    "EventAttendance",
+    "EventFieldLock",
+    "EventFormation",
+    "EventRevision",
+    "EventSource",
+    "EventSourcePerson",
+    "FactAward",
+    "FeedItem",
+    "Flag",
+    "FormationRun",
+    "GithubSnapshot",
+    "HelpOffer",
+    "HelpRequest",
+    "Invite",
+    "JoinRequest",
+    "LeadFit",
+    "LeadOffer",
+    "MemberMetric",
+    "MemberRestriction",
+    "MemberReview",
+    "MentorOffer",
+    "Mentorship",
+    "MentorshipCheckin",
+    "MergeProposal",
+    "Notification",
+    "NotificationDelivery",
+    "NotificationSetting",
+    "OnboardingSubmission",
+    "ParserHeartbeat",
+    "Project",
+    "ProjectArea",
+    "ProjectMember",
+    "ProjectMilestone",
+    "ProjectRelease",
+    "ProjectResult",
+    "ProjectUpdate",
+    "Question",
+    "QuestionOption",
+    "Quiz",
+    "RecommendationSet",
+    "ReleaseContribution",
+    "Review",
+    "ReviewReport",
+    "ReviewWindow",
+    "Setting",
+    "SwapRequest",
+    "TelegramLink",
+    "TelegramLinkCode",
+    "User",
+    "UserSession",
+    "XpAdjustment",
+]
