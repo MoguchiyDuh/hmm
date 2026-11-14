@@ -1,8 +1,10 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from hmm_contracts.common import (
+    ActorKind,
     AreaKey,
+    ErrorCode,
     EventFormat,
     EventId,
     EventKind,
@@ -18,6 +20,7 @@ from hmm_contracts.imports import (
 )
 from pydantic import AwareDatetime
 
+from hmm_core.catalog import service as catalog
 from hmm_core.catalog.schemas import (
     CreateEventBody,
     EventDetail,
@@ -27,11 +30,13 @@ from hmm_core.catalog.schemas import (
     MergeEventBody,
     UpdateEventBody,
 )
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth, ParserAuth
-from hmm_core.projects.schemas import Project
+from hmm_core.projects.schemas import ProjectView
 
 router = APIRouter(tags=["catalog"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["catalog"], responses=PROBLEM_RESPONSES)
@@ -41,6 +46,8 @@ internal = APIRouter(tags=["catalog"], responses=PROBLEM_RESPONSES)
 async def list_events(
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
     kind: Annotated[EventKind | None, Query()] = None,
     phase: Annotated[EventPhase | None, Query()] = None,
     formation: Annotated[bool | None, Query()] = None,
@@ -56,22 +63,52 @@ async def list_events(
     mine: Annotated[bool | None, Query()] = None,
     origin: Annotated[EventOrigin | None, Query()] = None,
 ) -> EventSummaryPage:
-    not_implemented()
+    return await catalog.list_events(
+        session,
+        pagination,
+        actor,
+        clock.now(),
+        kind=kind,
+        phase=phase,
+        formation=formation,
+        participation_phase=participation_phase,
+        area=area,
+        format=format,
+        q=q,
+        from_=from_,
+        to=to,
+        mine=mine,
+        origin=origin,
+    )
 
 
 @router.get("/events/{id}", status_code=status.HTTP_200_OK, summary="Get event details")
-async def get_event(id: EventId, actor: MemberAuth) -> EventDetail:
-    not_implemented()
+async def get_event(
+    id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> EventDetail:
+    event = await catalog.visible_event(session, id, actor)
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @router.get("/events/{id}/projects", status_code=status.HTTP_200_OK, summary="List event projects")
-async def list_event_projects(id: EventId, actor: MemberAuth) -> list[Project]:
-    not_implemented()
+async def list_event_projects(
+    id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> list[ProjectView]:
+    return await catalog.list_event_projects(session, id, actor, clock.now())
 
 
 @router.post("/admin/events", status_code=status.HTTP_201_CREATED, summary="Create a manual event")
-async def create_event(body: CreateEventBody, actor: AdminAuth) -> EventDetail:
-    not_implemented()
+async def create_event(
+    body: CreateEventBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> EventDetail:
+    event = await catalog.create_manual_event(
+        session, request.app.state.jobs, body, actor, clock.now()
+    )
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @router.get(
@@ -86,15 +123,25 @@ async def list_review_queue(actor: AdminAuth) -> list[EventDetail]:
 @router.patch(
     "/admin/events/{id}", status_code=status.HTTP_200_OK, summary="Edit and lock event fields"
 )
-async def update_event(id: EventId, body: UpdateEventBody, actor: AdminAuth) -> EventDetail:
-    not_implemented()
+async def update_event(
+    id: EventId,
+    body: UpdateEventBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> EventDetail:
+    event = await catalog.update_event(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @router.get(
     "/admin/events/{id}/locks", status_code=status.HTTP_200_OK, summary="List event field locks"
 )
-async def list_event_locks(id: EventId, actor: AdminAuth) -> list[EventFieldLock]:
-    not_implemented()
+async def list_event_locks(id: EventId, actor: AdminAuth, session: Session) -> list[EventFieldLock]:
+    return await catalog.list_locks(session, id)
 
 
 @router.delete(
@@ -106,16 +153,21 @@ async def unlock_event_field(
     id: EventId,
     field: str,
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
     reason: Annotated[str | None, Query()] = None,
 ) -> Response:
-    not_implemented()
+    await catalog.unlock_field(session, id, field, actor, reason, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
     "/admin/events/{id}/revisions", status_code=status.HTTP_200_OK, summary="List event revisions"
 )
-async def list_event_revisions(id: EventId, actor: AdminAuth) -> list[EventRevision]:
-    not_implemented()
+async def list_event_revisions(
+    id: EventId, actor: AdminAuth, session: Session
+) -> list[EventRevision]:
+    return await catalog.list_revisions(session, id)
 
 
 @router.post(
@@ -144,8 +196,26 @@ async def merge_event(id: EventId, body: MergeEventBody, actor: AdminAuth) -> Ev
 
 
 @router.post("/admin/events/{id}/cancel", status_code=status.HTTP_200_OK, summary="Cancel an event")
-async def cancel_event(id: EventId, body: ReasonBody, actor: AdminAuth) -> EventDetail:
-    not_implemented()
+async def cancel_event(
+    id: EventId,
+    body: ReasonBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> EventDetail:
+    if body.reason is None:
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, "reason is required")
+    event = await catalog.cancel_event(
+        session,
+        request.app.state.jobs,
+        id,
+        reason=body.reason,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN,
+        now=clock.now(),
+    )
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @internal.post("/events/import", status_code=status.HTTP_200_OK, summary="Import an event batch")

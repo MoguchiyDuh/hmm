@@ -46,7 +46,11 @@ class JobName(StrEnum):
 
 RETRY_POLICY = procrastinate.RetryStrategy(max_attempts=5, exponential_wait=5)
 
-JOB_MODULES: tuple[str, ...] = ("hmm_core.platform.maintenance", "hmm_core.admin.jobs")
+JOB_MODULES: tuple[str, ...] = (
+    "hmm_core.platform.maintenance",
+    "hmm_core.admin.jobs",
+    "hmm_core.catalog.jobs",
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
