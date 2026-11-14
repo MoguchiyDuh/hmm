@@ -1,8 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from hmm_contracts.common import AttendanceStatus, EventId
 
+from hmm_core.attendance import events
 from hmm_core.attendance.schemas import (
     Attendance,
     AttendancePage,
@@ -12,7 +13,9 @@ from hmm_core.attendance.schemas import (
     SetAttendanceBody,
     UpdateMemberEventBody,
 )
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
+from hmm_core.platform.errors import PROBLEM_RESPONSES
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import MemberAuth
 
@@ -23,8 +26,16 @@ internal = APIRouter(tags=["attendance"], responses=PROBLEM_RESPONSES)
 @router.put(
     "/events/{id}/attendance", status_code=status.HTTP_200_OK, summary="Set own event attendance"
 )
-async def set_attendance(id: EventId, body: SetAttendanceBody, actor: MemberAuth) -> Attendance:
-    not_implemented()
+async def set_attendance(
+    id: EventId,
+    body: SetAttendanceBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Attendance:
+    now = clock.now()
+    return await events.set_attendance(session, request.app.state.jobs, id, body, actor, now)
 
 
 @router.delete(
@@ -32,8 +43,12 @@ async def set_attendance(id: EventId, body: SetAttendanceBody, actor: MemberAuth
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Remove own event attendance",
 )
-async def delete_attendance(id: EventId, actor: MemberAuth) -> None:
-    not_implemented()
+async def delete_attendance(
+    id: EventId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Response:
+    now = clock.now()
+    await events.delete_attendance(session, request.app.state.jobs, id, actor, now)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -45,18 +60,30 @@ async def list_attendees(
     id: EventId,
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
     attendance_status: Annotated[AttendanceStatus | None, Query(alias="status")] = None,
 ) -> AttendancePage:
-    not_implemented()
+    now = clock.now()
+    return await events.list_attendees(
+        session, id, actor, pagination, status=attendance_status, now=now
+    )
 
 
 @router.post("/events", status_code=status.HTTP_201_CREATED, summary="Create a member event")
 async def create_event(
     body: CreateMemberEventBody,
     actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
     confirm_new: Annotated[bool, Query()] = False,
 ) -> MemberEvent:
-    not_implemented()
+    now = clock.now()
+    event = await events.create_member_event(
+        session, request.app.state.jobs, body, actor, confirm_new=confirm_new, now=now
+    )
+    return await events.member_event_view(session, event, actor, now)
 
 
 @router.patch(
@@ -64,8 +91,17 @@ async def create_event(
     status_code=status.HTTP_200_OK,
     summary="Edit event as creator before its start or as admin",
 )
-async def update_event(id: EventId, body: UpdateMemberEventBody, actor: MemberAuth) -> MemberEvent:
-    not_implemented()
+async def update_event(
+    id: EventId,
+    body: UpdateMemberEventBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> MemberEvent:
+    now = clock.now()
+    event = await events.update_member_event(session, request.app.state.jobs, id, body, actor, now)
+    return await events.member_event_view(session, event, actor, now)
 
 
 @router.post(
@@ -73,13 +109,25 @@ async def update_event(id: EventId, body: UpdateMemberEventBody, actor: MemberAu
     status_code=status.HTTP_200_OK,
     summary="Cancel event as creator or admin",
 )
-async def cancel_event(id: EventId, body: CancelMemberEventBody, actor: MemberAuth) -> MemberEvent:
-    not_implemented()
+async def cancel_event(
+    id: EventId,
+    body: CancelMemberEventBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> MemberEvent:
+    now = clock.now()
+    event = await events.cancel_member_event(
+        session, request.app.state.jobs, id, body.reason, actor, now
+    )
+    return await events.member_event_view(session, event, actor, now)
 
 
 @router.get("/me/attendances", status_code=status.HTTP_200_OK, summary="List own attendances")
 async def list_my_attendances(
     actor: MemberAuth,
+    session: Session,
     attendance_status: Annotated[AttendanceStatus | None, Query(alias="status")] = None,
 ) -> list[Attendance]:
-    not_implemented()
+    return await events.list_my_attendances(session, actor, status=attendance_status)
