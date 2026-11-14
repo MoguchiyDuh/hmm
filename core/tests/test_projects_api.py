@@ -2,8 +2,9 @@ import itertools
 from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
+import pytest
 from harness import Harness
 from hmm_contracts.common import AreaImportance, ErrorCode, EventKind, EventOrigin, EventStatus
 from hmm_core import models
@@ -346,3 +347,323 @@ async def test_list_my_projects(harness: Harness) -> None:
         assert response.json() == []
     async with h.anonymous() as c:
         assert_problem(await c.get("/api/v1/me/projects"), 401, ErrorCode.UNAUTHENTICATED)
+
+
+async def test_edit_project_fields(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    a = await h.user()
+    b = await h.user()
+    project = await seed_project(h, a)
+    closed = await seed_project(h, a, status="abandoned")
+    h.advance(timedelta(hours=1))
+    async with await h.client(a) as c:
+        response = await c.patch(
+            f"/api/v1/projects/{project.id}",
+            json={
+                "name": "New name",
+                "description_md": "New description",
+                "goal": "New goal",
+                "links": ["https://example.com/y"],
+                "area_keys": ["ml_ai"],
+                "visibility": "members",
+            },
+        )
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["name"] == "New name"
+        assert body["description_md"] == "New description"
+        assert body["goal"] == "New goal"
+        assert body["links"] == ["https://example.com/y"]
+        assert body["area_keys"] == ["ml_ai"]
+        assert body["visibility"] == "members"
+        assert body["last_lead_action_at"] == h.now.isoformat().replace("+00:00", "Z")
+        assert_problem(
+            await c.patch(f"/api/v1/projects/{uuid4()}", json={}), 404, ErrorCode.NOT_FOUND
+        )
+        assert_problem(
+            await c.patch(f"/api/v1/projects/{closed.id}", json={}),
+            409,
+            ErrorCode.INVALID_STATE,
+        )
+    async with await h.client(b) as c:
+        assert_problem(
+            await c.patch(f"/api/v1/projects/{project.id}", json={}), 403, ErrorCode.FORBIDDEN
+        )
+    async with h.anonymous() as c:
+        assert_problem(
+            await c.patch(f"/api/v1/projects/{project.id}", json={}),
+            401,
+            ErrorCode.UNAUTHENTICATED,
+        )
+    async with h.db() as session:
+        keys = list(
+            await session.scalars(
+                select(models.Area.key)
+                .join(models.ProjectArea, models.ProjectArea.area_id == models.Area.id)
+                .where(models.ProjectArea.project_id == project.id)
+            )
+        )
+        assert keys == ["ml_ai"]
+    jobs = [
+        job for job in await h.pending_jobs("refresh_recommendations") if job["status"] == "todo"
+    ]
+    assert len(jobs) == 1
+
+
+async def test_edit_project_noop(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    a = await h.user()
+    project = await seed_project(h, a)
+    h.advance(timedelta(hours=1))
+    async with await h.client(a) as c:
+        response = await c.patch(f"/api/v1/projects/{project.id}", json={})
+    assert response.status_code == 200, response.text
+    async with h.db() as session:
+        row = await session.get(models.Project, project.id)
+        assert row is not None
+        assert row.last_lead_action_at == project.last_lead_action_at
+        assert row.updated_at == project.updated_at
+    assert not [job for job in await h.pending_jobs() if job["status"] == "todo"]
+
+
+async def test_project_recruiting(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    a = await h.user()
+    project = await seed_project(h, a)
+    event = await make_hackathon(h)
+    team = await seed_project(h, a, event_id=event.id, team_status="forming")
+    recruiting = {"areas": ["backend"], "note": "Need a backend dev"}
+    async with await h.client(a) as c:
+        response = await c.patch(f"/api/v1/projects/{project.id}", json={"recruiting": recruiting})
+        assert response.status_code == 200, response.text
+        assert response.json()["recruiting"] == recruiting
+        async with h.db() as session:
+            [item] = list(await session.scalars(select(models.FeedItem)))
+            assert item.kind == "project_recruiting"
+            assert item.subject_type == "project"
+            assert item.subject_id == project.id
+            assert item.hidden_at is None
+            assert item.actor_id == a.id
+        jobs = [
+            job
+            for job in await h.pending_jobs("refresh_recommendations")
+            if job["status"] == "todo"
+        ]
+        assert len(jobs) == 1
+        for keys in (["unknown"], ["backend", "backend"]):
+            assert_problem(
+                await c.patch(
+                    f"/api/v1/projects/{project.id}",
+                    json={"recruiting": {"areas": keys, "note": "Join"}},
+                ),
+                422,
+                ErrorCode.VALIDATION_ERROR,
+            )
+        h.advance(timedelta(hours=1))
+        response = await c.patch(f"/api/v1/projects/{project.id}", json={"recruiting": None})
+        assert response.status_code == 200, response.text
+        assert response.json()["recruiting"] is None
+        assert_problem(
+            await c.patch(f"/api/v1/projects/{team.id}", json={"recruiting": recruiting}),
+            409,
+            ErrorCode.INVALID_STATE,
+        )
+    async with h.db() as session:
+        [item] = list(await session.scalars(select(models.FeedItem)))
+        assert item.hidden_at == h.now
+
+
+async def test_project_visibility_hides_feed(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    a = await h.user()
+    b = await h.user()
+    project = await seed_project(h, a)
+    async with await h.client(a) as c:
+        response = await c.patch(
+            f"/api/v1/projects/{project.id}",
+            json={"recruiting": {"areas": ["backend"], "note": "Join"}},
+        )
+        assert response.status_code == 200, response.text
+        async with h.db() as session:
+            assert (
+                await session.scalar(
+                    select(func.count())
+                    .select_from(models.FeedItem)
+                    .where(models.FeedItem.hidden_at.is_(None))
+                )
+                == 1
+            )
+        h.advance(timedelta(hours=1))
+        response = await c.patch(f"/api/v1/projects/{project.id}", json={"visibility": "members"})
+        assert response.status_code == 200, response.text
+    async with h.db() as session:
+        [item] = list(await session.scalars(select(models.FeedItem)))
+        assert item.hidden_at == h.now
+    async with await h.client(b) as c:
+        response = await c.get(f"/api/v1/projects/{project.id}")
+        assert response.status_code == 200, response.text
+        assert response.json()["view"] == "limited"
+
+
+async def test_project_lifecycle_walk(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    a = await h.user()
+    b = await h.user()
+    project = await seed_project(h, a, members=[b])
+    h.advance(timedelta(hours=1))
+    async with await h.client(a) as c:
+        response = await c.get(f"/api/v1/projects/{project.id}")
+        assert response.json()["allowed_actions"] == [
+            "edit",
+            "invite",
+            "leave",
+            "start",
+            "pause",
+            "abandon",
+            "step_down",
+            "transfer_lead",
+        ]
+        response = await c.post(f"/api/v1/projects/{project.id}/start")
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "active"
+        assert response.json()["last_lead_action_at"] == h.now.isoformat().replace("+00:00", "Z")
+        assert "start" not in response.json()["allowed_actions"]
+        assert_problem(
+            await c.post(f"/api/v1/projects/{project.id}/start"), 409, ErrorCode.INVALID_STATE
+        )
+        response = await c.post(f"/api/v1/projects/{project.id}/pause")
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "paused"
+        assert "start" in response.json()["allowed_actions"]
+        assert "pause" not in response.json()["allowed_actions"]
+        async with h.db() as session:
+            [notification] = list(await session.scalars(select(models.Notification)))
+            assert notification.type == "project_paused"
+            assert notification.user_id == b.id
+            assert isinstance(notification.payload, dict)
+            assert notification.payload["reason"]
+            assert notification.payload["status"] == "paused"
+        response = await c.post(f"/api/v1/projects/{project.id}/abandon")
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "abandoned"
+        assert not {"start", "pause", "abandon", "continue", "step_down", "transfer_lead"} & set(
+            response.json()["allowed_actions"]
+        )
+        for transition in ("start", "pause", "abandon", "continue"):
+            assert_problem(
+                await c.post(f"/api/v1/projects/{project.id}/{transition}"),
+                409,
+                ErrorCode.INVALID_STATE,
+            )
+    async with h.db() as session:
+        assert await session.scalar(select(func.count()).select_from(models.Notification)) == 1
+        row = await session.get(models.Project, project.id)
+        assert row is not None
+        assert row.last_progress_at == project.last_progress_at
+        assert await session.scalar(select(func.count()).select_from(models.AuditLog)) == 0
+    assert not [
+        job for job in await h.pending_jobs("refresh_recommendations") if job["status"] == "todo"
+    ]
+
+
+async def test_continue_project(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    a = await h.user()
+    project = await seed_project(h, a, status="shipped")
+    event = await make_hackathon(h)
+    team = await seed_project(h, a, status="shipped", event_id=event.id, team_status="finished")
+    idea = await seed_project(h, a)
+    async with await h.client(a) as c:
+        for row in (project, team):
+            response = await c.get(f"/api/v1/projects/{row.id}")
+            assert response.status_code == 200, response.text
+            assert "continue" in response.json()["allowed_actions"]
+            assert "pause" not in response.json()["allowed_actions"]
+            assert {"transfer_lead", "step_down"} <= set(response.json()["allowed_actions"])
+            response = await c.post(f"/api/v1/projects/{row.id}/continue")
+            assert response.status_code == 200, response.text
+            assert response.json()["status"] == "active"
+            assert response.json()["team_status"] == row.team_status
+            assert_problem(
+                await c.post(f"/api/v1/projects/{row.id}/continue"), 409, ErrorCode.INVALID_STATE
+            )
+        assert_problem(
+            await c.post(f"/api/v1/projects/{idea.id}/continue"), 409, ErrorCode.INVALID_STATE
+        )
+
+
+@pytest.mark.parametrize("team_status", ["forming", "locked"])
+async def test_project_team_lifecycle_guard(harness: Harness, team_status: str) -> None:
+    h = harness
+    await h.seed_areas()
+    a = await h.user()
+    event = await make_hackathon(h)
+    team = await seed_project(h, a, event_id=event.id, team_status=team_status)
+    async with await h.client(a) as c:
+        for transition in ("start", "pause", "abandon", "continue"):
+            assert_problem(
+                await c.post(f"/api/v1/projects/{team.id}/{transition}"),
+                409,
+                ErrorCode.INVALID_STATE,
+            )
+        response = await c.get(f"/api/v1/projects/{team.id}")
+        assert response.status_code == 200, response.text
+        assert "edit" in response.json()["allowed_actions"]
+
+
+async def test_project_lifecycle_feed(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    a = await h.user()
+    b = await h.user()
+    project = await seed_project(h, a)
+    async with await h.client(a) as c:
+        response = await c.patch(
+            f"/api/v1/projects/{project.id}",
+            json={"recruiting": {"areas": ["backend"], "note": "Join"}},
+        )
+        assert response.status_code == 200, response.text
+        async with h.db() as session:
+            [original] = list(await session.scalars(select(models.FeedItem)))
+            assert original.hidden_at is None
+        async with await h.client(b) as other:
+            response = await other.get(f"/api/v1/projects/{project.id}")
+            assert "request_join" in response.json()["allowed_actions"]
+        for transition, expected_count in (("pause", 0), ("start", 1), ("abandon", 0)):
+            h.advance(timedelta(hours=1))
+            response = await c.post(f"/api/v1/projects/{project.id}/{transition}")
+            assert response.status_code == 200, response.text
+            async with h.db() as session:
+                items = list(await session.scalars(select(models.FeedItem)))
+                visible = [item for item in items if item.hidden_at is None]
+                assert len(visible) == expected_count
+                if transition == "start":
+                    assert len(items) == 2
+                    assert visible[0].id != original.id
+
+
+async def test_project_lifecycle_lead_only(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    a = await h.user()
+    b = await h.user()
+    admin = await h.admin()
+    project = await seed_project(h, a, members=[b])
+    async with await h.client(b) as c:
+        assert_problem(
+            await c.post(f"/api/v1/projects/{project.id}/start"), 403, ErrorCode.FORBIDDEN
+        )
+    async with await h.client(admin) as c:
+        assert_problem(
+            await c.post(f"/api/v1/projects/{project.id}/pause"), 403, ErrorCode.FORBIDDEN
+        )
+    async with await h.client(a) as c:
+        assert_problem(
+            await c.post(f"/api/v1/projects/{UUID(int=0)}/start"), 404, ErrorCode.NOT_FOUND
+        )

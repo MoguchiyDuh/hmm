@@ -103,29 +103,44 @@ async def get_project(
 
 
 @router.patch("/projects/{id}", status_code=status.HTTP_200_OK, summary="Edit project as lead")
-async def update_project(id: ProjectId, body: UpdateProjectBody, actor: MemberAuth) -> Project:
-    not_implemented()
+async def update_project(
+    id: ProjectId,
+    body: UpdateProjectBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Project:
+    return await service.update_project(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
 
 
 @router.post(
     "/projects/{id}/start", status_code=status.HTTP_200_OK, summary="Start project as lead"
 )
-async def start_project(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def start_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    return await service.start_project(session, id, actor, clock.now())
 
 
 @router.post(
     "/projects/{id}/pause", status_code=status.HTTP_200_OK, summary="Pause project as lead"
 )
-async def pause_project(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def pause_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    return await service.pause_project(session, id, actor, clock.now())
 
 
 @router.post(
     "/projects/{id}/abandon", status_code=status.HTTP_200_OK, summary="Abandon project as lead"
 )
-async def abandon_project(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def abandon_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    return await service.abandon_project(session, id, actor, clock.now())
 
 
 @router.post(
@@ -133,8 +148,10 @@ async def abandon_project(id: ProjectId, actor: MemberAuth) -> Project:
     status_code=status.HTTP_200_OK,
     summary="Continue shipped project as lead",
 )
-async def continue_project(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def continue_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    return await service.continue_project(session, id, actor, clock.now())
 
 
 @router.post(

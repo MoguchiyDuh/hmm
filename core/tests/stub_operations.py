@@ -12,9 +12,7 @@ UNIMPLEMENTED_OPERATIONS = set(
         "formation_list_reserve",
         "formation_reopen_seats",
         "formation_update_reserve_order",
-        "projects_abandon_project",
         "projects_claim_lead",
-        "projects_continue_project",
         "projects_create_milestone",
         "projects_create_release",
         "projects_create_update",
@@ -23,10 +21,7 @@ UNIMPLEMENTED_OPERATIONS = set(
         "projects_list_milestones",
         "projects_list_releases",
         "projects_list_updates",
-        "projects_pause_project",
         "projects_remove_member",
-        "projects_start_project",
         "projects_update_milestone",
-        "projects_update_project",
     ]
 )
