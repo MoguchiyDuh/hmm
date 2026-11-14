@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from hmm_contracts.common import (
@@ -45,7 +45,12 @@ from hmm_core.formation.schemas import (
 )
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
+from hmm_core.platform.errors import (
+    PROBLEM_RESPONSES,
+    ProblemError,
+    not_implemented,
+    problem_response,
+)
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth
@@ -139,34 +144,58 @@ async def list_my_enrollments(
 
 
 @router.get("/events/{id}/lead-fit/me", status_code=status.HTTP_200_OK, summary="Get my lead fit")
-async def get_my_lead_fit(id: EventId, actor: MemberAuth) -> LeadEligibility:
-    not_implemented()
+async def get_my_lead_fit(id: EventId, actor: MemberAuth, session: Session) -> LeadEligibility:
+    return await service.my_lead_fit(session, id, actor)
 
 
 @router.post(
     "/events/{id}/projects", status_code=status.HTTP_201_CREATED, summary="Claim a team lead role"
 )
-async def claim_lead(id: EventId, body: CreateTeamBody, actor: MemberAuth) -> Project:
-    not_implemented()
+async def claim_lead(
+    id: EventId,
+    body: CreateTeamBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Project:
+    project = await service.claim_lead(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    if project is None:
+        return cast(
+            Project,
+            problem_response(request, ErrorCode.LEAD_FIT_PENDING, "Lead fit is being computed"),
+        )
+    return await service.team_view(session, project, actor, clock.now())
 
 
 @router.post("/projects/{id}/ready", status_code=status.HTTP_200_OK, summary="Mark a core ready")
-async def mark_ready(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def mark_ready(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    project = await service.set_ready(session, id, actor, clock.now(), ready=True)
+    return await service.team_view(session, project, actor, clock.now())
 
 
 @router.delete(
     "/projects/{id}/ready", status_code=status.HTTP_204_NO_CONTENT, summary="Clear core readiness"
 )
-async def clear_ready(id: ProjectId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def clear_ready(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Response:
+    await service.set_ready(session, id, actor, clock.now(), ready=False)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
     "/projects/{id}/unclaim", status_code=status.HTTP_200_OK, summary="Unclaim and disband a core"
 )
-async def unclaim_lead(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def unclaim_lead(
+    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Project:
+    project = await service.unclaim(session, request.app.state.jobs, id, actor, clock.now())
+    return await service.team_view(session, project, actor, clock.now())
 
 
 @router.post(
@@ -402,8 +431,10 @@ async def list_formation_runs(id: EventId, actor: AdminAuth) -> list[FormationRu
     status_code=status.HTTP_200_OK,
     summary="List lead candidates",
 )
-async def list_lead_candidates(id: EventId, actor: AdminAuth) -> list[LeadCandidate]:
-    not_implemented()
+async def list_lead_candidates(
+    id: EventId, actor: AdminAuth, session: Session
+) -> list[LeadCandidate]:
+    return await service.list_lead_candidates(session, id)
 
 
 @router.post(
