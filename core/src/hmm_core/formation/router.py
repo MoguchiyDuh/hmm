@@ -245,8 +245,10 @@ async def reject_join_request(id: JoinRequestId, actor: MemberAuth) -> JoinReque
 
 
 @router.get("/projects/{id}/invites", status_code=status.HTTP_200_OK, summary="List team invites")
-async def list_invites(id: ProjectId, actor: MemberAuth) -> list[Invite]:
-    not_implemented()
+async def list_invites(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> list[Invite]:
+    return await service.list_invites(session, id, actor)
 
 
 @router.delete(
@@ -259,9 +261,11 @@ async def withdraw_invite(id: InviteId, actor: MemberAuth) -> Response:
 @router.get("/me/invites", status_code=status.HTTP_200_OK, summary="List my invites")
 async def list_my_invites(
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     status: Annotated[InviteStatus | None, Query()] = None,
 ) -> list[Invite]:
-    not_implemented()
+    return await service.list_my_invites(session, status, actor)
 
 
 @router.post("/invites/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept an invite")

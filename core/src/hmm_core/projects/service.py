@@ -189,6 +189,12 @@ def invite_view(
     actor: models.User,
 ) -> schemas.Invite:
     inviter = users.get(invite.invited_by) if invite.invited_by is not None else None
+    allowed: set[schemas.InviteAction] = set()
+    if invite.status == InviteStatus.PENDING:
+        if actor.id == project.lead_user_id:
+            allowed.add(schemas.InviteAction.WITHDRAW)
+        if actor.id == invite.user_id:
+            allowed |= {schemas.InviteAction.ACCEPT, schemas.InviteAction.DECLINE}
     return schemas.Invite.model_validate(
         {
             "id": invite.id,
@@ -208,9 +214,7 @@ def invite_view(
             "responded_at": invite.responded_at,
             "created_at": invite.created_at,
             "updated_at": invite.updated_at,
-            "allowed_actions": [schemas.InviteAction.WITHDRAW]
-            if actor.id == project.lead_user_id
-            else [],
+            "allowed_actions": [action for action in schemas.InviteAction if action in allowed],
         }
     )
 

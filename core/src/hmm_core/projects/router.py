@@ -11,6 +11,9 @@ from hmm_contracts.common import (
     UserId,
 )
 
+from hmm_core.formation import service as formation
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
@@ -114,8 +117,15 @@ async def continue_project(id: ProjectId, actor: MemberAuth) -> Project:
 @router.post(
     "/projects/{id}/invites", status_code=status.HTTP_201_CREATED, summary="Invite a member as lead"
 )
-async def create_invite(id: ProjectId, body: CreateProjectInviteBody, actor: MemberAuth) -> Invite:
-    not_implemented()
+async def create_invite(
+    id: ProjectId,
+    body: CreateProjectInviteBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
+) -> Invite:
+    invite = await formation.create_invite(session, id, body, actor, clock.now())
+    return (await formation.invite_views(session, [invite], actor))[0]
 
 
 @router.post(
