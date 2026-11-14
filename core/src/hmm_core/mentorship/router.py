@@ -11,6 +11,7 @@ from hmm_contracts.common import (
     MentorshipStatus,
 )
 
+from hmm_core.mentorship import service
 from hmm_core.mentorship.schemas import (
     AcknowledgeMentorshipBody,
     CloseMentorshipBody,
@@ -26,6 +27,8 @@ from hmm_core.mentorship.schemas import (
     ReplaceMentorOffersBody,
     UpdateHelpRequestBody,
 )
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import MemberAuth
@@ -35,8 +38,10 @@ internal = APIRouter(tags=["mentorship"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/me/mentor-offers", status_code=status.HTTP_200_OK, summary="List own mentor offers")
-async def get_mentor_offers(actor: MemberAuth) -> MentorOffers:
-    not_implemented()
+async def get_mentor_offers(
+    actor: MemberAuth, session: Session, clock: CurrentClock
+) -> MentorOffers:
+    return await service.mentor_offers_view(session, actor, clock.now())
 
 
 @router.put(
@@ -44,8 +49,10 @@ async def get_mentor_offers(actor: MemberAuth) -> MentorOffers:
     status_code=status.HTTP_200_OK,
     summary="Replace own mentor offers and capacity",
 )
-async def replace_mentor_offers(body: ReplaceMentorOffersBody, actor: MemberAuth) -> MentorOffers:
-    not_implemented()
+async def replace_mentor_offers(
+    body: ReplaceMentorOffersBody, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> MentorOffers:
+    return await service.replace_mentor_offers(session, actor, body, clock.now())
 
 
 @router.get("/help-requests", status_code=status.HTTP_200_OK, summary="List help requests")
