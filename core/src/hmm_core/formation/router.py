@@ -377,15 +377,28 @@ async def cancel_lead_offer(
     status_code=status.HTTP_201_CREATED,
     summary="Offer lead transfer",
 )
-async def transfer_lead(id: ProjectId, body: TransferLeadBody, actor: MemberAuth) -> LeadOffer:
-    not_implemented()
+async def transfer_lead(
+    id: ProjectId,
+    body: TransferLeadBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> LeadOffer:
+    offer = await service.transfer_lead(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    return await service.lead_offer_response(session, offer, actor)
 
 
 @router.post(
     "/projects/{id}/lead/step-down", status_code=status.HTTP_200_OK, summary="Step down as lead"
 )
-async def step_down(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def step_down(
+    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Project:
+    project = await service.step_down(session, request.app.state.jobs, id, actor, clock.now())
+    return await service.team_view(session, project, actor, clock.now())
 
 
 @router.post(

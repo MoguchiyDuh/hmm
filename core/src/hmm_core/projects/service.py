@@ -34,6 +34,12 @@ TERMINAL_TEAM_STATUSES: frozenset[str] = frozenset(
     }
 )
 STANDALONE_TRANSFER_TTL = timedelta(days=7)
+LEAD_CLOSED_TEAM_STATUSES: frozenset[str] = frozenset(
+    {TeamStatus.DISBANDED.value, TeamStatus.CANCELLED.value}
+)
+LEAD_CLOSED_PROJECT_STATUSES: frozenset[str] = frozenset(
+    {ProjectStatus.ABANDONED.value, ProjectStatus.DISBANDED.value, ProjectStatus.CANCELLED.value}
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -80,6 +86,13 @@ def project_listing(project: models.Project, area_keys: list[str]) -> schemas.Pr
         name=project.name,
         area_keys=area_keys,
         allowed_actions=[],
+    )
+
+
+def lead_changes_closed(project: models.Project) -> bool:
+    return (
+        project.team_status in LEAD_CLOSED_TEAM_STATUSES
+        or project.status in LEAD_CLOSED_PROJECT_STATUSES
     )
 
 
@@ -172,7 +185,7 @@ def project_actions(
                 schemas.ProjectAction.MERGE,
                 schemas.ProjectAction.INVITE,
             }
-        if project.team_status not in TERMINAL_TEAM_STATUSES:
+        if not lead_changes_closed(project):
             allowed |= {schemas.ProjectAction.TRANSFER_LEAD, schemas.ProjectAction.STEP_DOWN}
     if is_member and project.lead_user_id is None and project.status == ProjectStatus.PAUSED:
         allowed.add(schemas.ProjectAction.CLAIM_LEAD)

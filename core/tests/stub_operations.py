@@ -21,8 +21,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "formation_list_reserve",
         "formation_reopen_seats",
         "formation_run_formation",
-        "formation_step_down",
-        "formation_transfer_lead",
         "formation_update_formation",
         "formation_update_member_area",
         "formation_update_reserve_order",

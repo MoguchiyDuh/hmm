@@ -51,11 +51,13 @@ from hmm_contracts.notifications import (
     LeadAssignedPayload,
     LeadOfferDeclinedPayload,
     LeadOfferPayload,
+    LeadSteppedDownPayload,
     LeadTransferredPayload,
     NotificationPerson,
     ProjectInviteReceivedPayload,
     ProjectJoinRequestReceivedPayload,
     TeamDisbandedPayload,
+    TeamMemberLeftPayload,
 )
 from sqlalchemy import Select, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -89,6 +91,9 @@ ACCEPT_LABEL = "notifications.actions.accept"
 DECLINE_LABEL = "notifications.actions.decline"
 REJECT_LABEL = "notifications.actions.reject"
 CLOSED_TEAM_STATUSES: frozenset[str] = projects.TERMINAL_TEAM_STATUSES
+RESULT_TEAM_STATUSES: frozenset[str] = frozenset(
+    {TeamStatus.FINISHED.value, TeamStatus.WITHDRAWN.value}
+)
 FORCEABLE_TEAM_STATUSES: frozenset[str] = frozenset(
     {TeamStatus.LOCKED.value, TeamStatus.ACTIVE.value}
 )
@@ -2788,6 +2793,8 @@ async def lead_offer_expiry(
         cap = event.starts_at
     elif project.team_status == TeamStatus.ACTIVE.value:
         cap = event.ends_at
+    elif project.team_status in RESULT_TEAM_STATUSES:
+        return now + projects.STANDALONE_TRANSFER_TTL
     else:
         raise ProblemError(ErrorCode.INVALID_STATE, "This team cannot receive lead offers")
     return min(now + timedelta(hours=settings.lead_offer_hours), cap)
@@ -3114,12 +3121,6 @@ async def my_lead_offers(
     return await lead_offer_responses(session, list(await session.scalars(statement)), actor)
 
 
-def _lead_offer_project_closed(project: models.Project) -> bool:
-    return project.team_status in CLOSED_TEAM_STATUSES or (
-        project.event_id is None and project.status in TERMINAL_PROJECT_STATUSES
-    )
-
-
 async def _persisted_problem(session: AsyncSession, detail: str) -> ProblemError:
     await session.flush()
     return ProblemError(ErrorCode.INVALID_STATE, detail)
@@ -3135,7 +3136,7 @@ async def accept_lead_offer(
     offer, project, event = await locked_lead_offer(session, offer_id, actor)
     if offer.user_id != actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
-    if _lead_offer_project_closed(project):
+    if projects.lead_changes_closed(project):
         raise ProblemError(ErrorCode.INVALID_STATE, "This team is closed")
     if offer.status == LeadOfferStatus.ACCEPTED.value:
         return offer
@@ -3258,7 +3259,7 @@ async def decline_lead_offer(
     offer, project, event = await locked_lead_offer(session, offer_id, actor)
     if offer.user_id != actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
-    if _lead_offer_project_closed(project):
+    if projects.lead_changes_closed(project):
         raise ProblemError(ErrorCode.INVALID_STATE, "This team is closed")
     if offer.status == LeadOfferStatus.DECLINED.value:
         return offer
@@ -3319,3 +3320,376 @@ async def cancel_lead_offer(
     project.last_lead_action_at = now
     await session.flush()
     return None
+
+
+async def open_seat(
+    session: AsyncSession, project: models.Project, event: models.Event, now: datetime
+) -> None:
+    return None
+
+
+async def _locked_lead_project(
+    session: AsyncSession, project_id: UUID, actor: models.User, *, phase_gate: bool
+) -> tuple[models.Project, models.Event | None]:
+    project = await session.get(models.Project, project_id)
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    event: models.Event | None = None
+    formation: models.EventFormation | None = None
+    if project.event_id is not None:
+        event = await locked_formation_event(session, project.event_id, actor)
+        formation = await formation_row(session, event.id)
+    project = await session.scalar(
+        select(models.Project)
+        .where(models.Project.id == project_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if (
+        formation is not None
+        and (phase_gate or project.team_status not in RESULT_TEAM_STATUSES)
+        and FormationPhase(formation.phase) == FormationPhase.FORMING
+    ):
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    return project, event
+
+
+async def transfer_lead(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    body: schemas.TransferLeadBody,
+    actor: models.User,
+    now: datetime,
+) -> models.LeadOffer:
+    project, event = await _locked_lead_project(session, project_id, actor, phase_gate=True)
+    if projects.lead_changes_closed(project):
+        raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if body.user_id == actor.id:
+        raise ProblemError(ErrorCode.INVALID_STATE, "You are already the lead")
+    target = await session.scalar(
+        select(models.ProjectMember).where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.user_id == body.user_id,
+            models.ProjectMember.left_at.is_(None),
+        )
+    )
+    if target is None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "The target is not on this team")
+    if target.state != MemberState.CONFIRMED.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Only a confirmed member can take the lead")
+    pending = await session.scalar(
+        select(models.LeadOffer.id).where(
+            models.LeadOffer.project_id == project.id,
+            models.LeadOffer.status == LeadOfferStatus.PENDING.value,
+        )
+    )
+    if pending is not None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "A lead offer is already pending for this team")
+    tier = (
+        next(
+            (
+                entry.tier
+                for entry in await lead_order(session, project, now)
+                if entry.user.id == target.user_id
+            ),
+            None,
+        )
+        if event is not None
+        else None
+    )
+    offer = await create_lead_offer(
+        session,
+        project,
+        event,
+        target.user_id,
+        now,
+        source=LeadOfferSource.TRANSFER,
+        reason=f"Lead transfer offered by {actor.display_name}",
+        offered_by=actor.id,
+        tier=tier,
+    )
+    if event is not None:
+        fit = await stored_lead_fit(session, event.id, target.user_id)
+        target_user = await session.get_one(models.User, target.user_id)
+        if fit is None or float(fit.fit) < (await load_settings(session)).lead_fit_threshold:
+            await raise_alert(
+                session,
+                AlertKind.LEAD_BELOW_THRESHOLD,
+                now,
+                title=f"Lead transfer below threshold: {project.name}",
+                message=f"{target_user.display_name} has a lead fit below the threshold",
+                link=f"/admin/projects/{project.id}",
+                subject_type="project",
+                subject_id=project.id,
+                subject_title=project.name,
+                dedupe_key=f"lead_below_threshold:{project.id}:{target.user_id}",
+            )
+    project.last_lead_action_at = now
+    await session.flush()
+    await session.refresh(offer)
+    return offer
+
+
+async def _notify_lead_stepped_down(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event,
+    previous: models.User,
+    now: datetime,
+) -> None:
+    recipients = [
+        user_id for user_id in await team_member_ids(session, project.id) if user_id != previous.id
+    ]
+    await notify_many(
+        session,
+        recipients,
+        LeadSteppedDownPayload(
+            link=f"/projects/{project.id}",
+            event_id=event.id,
+            event_title=event.title,
+            project_id=project.id,
+            team_name=project.name,
+            previous_lead=notification_person(previous),
+        ),
+        now,
+        dedupe_key=f"lead_stepped_down:{project.id}:{previous.id}",
+    )
+    return None
+
+
+async def step_down(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> models.Project:
+    project, event = await _locked_lead_project(session, project_id, actor, phase_gate=True)
+    if projects.lead_changes_closed(project):
+        raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    member = await session.scalar(
+        select(models.ProjectMember).where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.user_id == actor.id,
+            models.ProjectMember.left_at.is_(None),
+        )
+    )
+    if member is None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "You are not on this team")
+    await close_pending_lead_offers(session, project.id, now)
+    project.lead_user_id = None
+    project.last_lead_action_at = now
+    member.role = MemberRole.MEMBER.value
+    await session.flush()
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.USER,
+        action=AuditAction.LEAD_STEP_DOWN,
+        entity_type=AuditEntityType.PROJECT,
+        entity_id=project.id,
+        before={"lead_user_id": str(actor.id)},
+        after={"lead_user_id": None},
+        reason=None,
+    )
+    if event is not None:
+        await _notify_lead_stepped_down(session, project, event, actor, now)
+    await start_succession(
+        session, project, event, now, exclude={actor.id}, reason="The lead stepped down"
+    )
+    await defer_job(session, jobs, JobName.REFRESH_RECOMMENDATIONS, project_id=str(project.id))
+    await session.flush()
+    await session.refresh(project)
+    return project
+
+
+async def _release_lead(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event,
+    user_id: UUID,
+    now: datetime,
+    *,
+    notice_reason: str,
+    audit_actor: UUID | None,
+    audit_kind: ActorKind | None,
+) -> None:
+    project.lead_user_id = None
+    project.last_lead_action_at = now
+    await close_pending_lead_offers(session, project.id, now)
+    if audit_kind is not None:
+        await record_audit(
+            session,
+            actor=audit_actor,
+            actor_kind=audit_kind,
+            action=AuditAction.LEAD_STEP_DOWN,
+            entity_type=AuditEntityType.PROJECT,
+            entity_id=project.id,
+            before={"lead_user_id": str(user_id)},
+            after={"lead_user_id": None},
+            reason=notice_reason,
+        )
+    previous = await session.get(models.User, user_id)
+    if previous is not None:
+        await _notify_lead_stepped_down(session, project, event, previous, now)
+    await start_succession(
+        session, project, event, now, exclude={user_id}, reason="The lead left the team"
+    )
+    return None
+
+
+async def remove_member_from_team(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event,
+    member: models.ProjectMember,
+    now: datetime,
+    *,
+    left_reason: LeftReason,
+    notice_reason: str,
+    audit_actor: UUID | None,
+    audit_kind: ActorKind | None,
+) -> EnrollmentStatus | None:
+    was_lead = project.lead_user_id == member.user_id
+    member.left_at = now
+    member.left_reason = left_reason.value
+    result: EnrollmentStatus | None = None
+    row = await live_enrollment_row(session, event.id, member.user_id, for_update=True)
+    if row is not None:
+        result = EnrollmentStatus(row.status)
+        if row.status == EnrollmentStatus.PLACED.value:
+            phase = FormationPhase((await formation_row(session, event.id)).phase)
+            if phase == FormationPhase.OPEN:
+                result = EnrollmentStatus.ACTIVE
+            elif phase in (FormationPhase.REVIEW, FormationPhase.LOCKED):
+                result = EnrollmentStatus.RESERVE
+                row.reserve_rank = None
+            else:
+                result = EnrollmentStatus.WITHDRAWN
+            row.status = result.value
+            row.status_at = now
+    await open_seat(session, project, event, now)
+    await session.flush()
+    remaining = await team_member_ids(session, project.id)
+    if was_lead:
+        await _release_lead(
+            session,
+            project,
+            event,
+            member.user_id,
+            now,
+            notice_reason=notice_reason,
+            audit_actor=audit_actor,
+            audit_kind=audit_kind,
+        )
+    if (
+        FormationPhase((await formation_row(session, event.id)).phase) == FormationPhase.OPEN
+        and project.team_status == TeamStatus.FORMING.value
+        and not remaining
+    ):
+        project.team_status = TeamStatus.DISBANDED.value
+        project.status = ProjectStatus.DISBANDED.value
+        project.lead_user_id = None
+        project.ready_at = None
+        await close_project_pending_items(session, project.id, now, reason="team_disbanded")
+        await record_audit(
+            session,
+            actor=audit_actor,
+            actor_kind=audit_kind or ActorKind.SYSTEM,
+            action=AuditAction.PROJECT_DISBAND,
+            entity_type=AuditEntityType.PROJECT,
+            entity_id=project.id,
+            before={"team_status": TeamStatus.FORMING.value},
+            after={"team_status": TeamStatus.DISBANDED.value, "reason": "empty_core"},
+            reason=notice_reason,
+        )
+    user = await session.get(models.User, member.user_id)
+    if user is not None and remaining:
+        await notify_many(
+            session,
+            remaining,
+            TeamMemberLeftPayload(
+                link=f"/projects/{project.id}",
+                event_id=event.id,
+                event_title=event.title,
+                project_id=project.id,
+                team_name=project.name,
+                member=notification_person(user),
+                member_count=len(remaining),
+                reason=notice_reason,
+            ),
+            now,
+            dedupe_key=f"team_member_left:{project.id}:{member.user_id}",
+        )
+    await session.flush()
+    return result
+
+
+async def leave_team(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> models.Project:
+    initial = await session.get(models.Project, project_id)
+    if initial is None or initial.event_id is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    project, event = await _locked_lead_project(session, project_id, actor, phase_gate=False)
+    if event is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if project.team_status in projects.LEAD_CLOSED_TEAM_STATUSES:
+        raise ProblemError(ErrorCode.INVALID_STATE, "You can no longer leave this team")
+    member = await session.scalar(
+        select(models.ProjectMember).where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.user_id == actor.id,
+            models.ProjectMember.left_at.is_(None),
+        )
+    )
+    if member is None:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if project.team_status in RESULT_TEAM_STATUSES:
+        was_lead = project.lead_user_id == actor.id
+        member.left_at = now
+        member.left_reason = LeftReason.LEFT.value
+        await session.flush()
+        if was_lead:
+            await _release_lead(
+                session,
+                project,
+                event,
+                actor.id,
+                now,
+                notice_reason="The member left the team",
+                audit_actor=actor.id,
+                audit_kind=ActorKind.USER,
+            )
+        await defer_job(session, jobs, JobName.REFRESH_RECOMMENDATIONS, project_id=str(project.id))
+        await session.flush()
+        await session.refresh(project)
+        return project
+    result = await remove_member_from_team(
+        session,
+        project,
+        event,
+        member,
+        now,
+        left_reason=LeftReason.LEFT,
+        notice_reason="The member left the team",
+        audit_actor=actor.id,
+        audit_kind=ActorKind.USER,
+    )
+    await defer_job(session, jobs, JobName.REFRESH_RECOMMENDATIONS, project_id=str(project.id))
+    if result == EnrollmentStatus.RESERVE:
+        await defer_job(session, jobs, JobName.RANK_RESERVE, event_id=str(event.id))
+    await session.flush()
+    await session.refresh(project)
+    return project
