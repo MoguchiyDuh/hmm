@@ -1,7 +1,6 @@
 UNIMPLEMENTED_OPERATIONS = set(
     [
         "attendance_cancel_event",
-        "attendance_create_event",
         "attendance_update_event",
         "formation_accept_invite",
         "formation_accept_join_request",

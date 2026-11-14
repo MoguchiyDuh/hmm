@@ -1,10 +1,29 @@
+import re
 from datetime import datetime, timedelta
 from uuid import UUID
 
 import procrastinate
-from hmm_contracts.common import AttendanceStatus, ConfirmationFactType, ErrorCode, Trust
+from hmm_contracts.common import (
+    ActorKind,
+    AreaImportance,
+    AttendanceRole,
+    AttendanceStatus,
+    AuditAction,
+    AuditEntityType,
+    ConfirmationFactType,
+    ErrorCode,
+    EventFormat,
+    EventKind,
+    EventOrigin,
+    EventReviewReason,
+    EventStatus,
+    RestrictionKind,
+    Trust,
+    ValidationIssue,
+)
+from hmm_contracts.imports import Location
 from pydantic import JsonValue
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -12,9 +31,11 @@ from hmm_core.attendance import schemas
 from hmm_core.attendance.service import attendance_view
 from hmm_core.catalog import service as catalog
 from hmm_core.feed import confirmations, digests, timeline
+from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams, apply_keyset, encode_cursor
+from hmm_core.platform.schemas import EventAction
 from hmm_core.platform.settings import load_settings
 
 
@@ -212,3 +233,197 @@ async def list_my_attendances(
         )
     }
     return [attendance_view(row, events[row.event_id], actor, actor) for row in rows]
+
+
+def normalize_event_title(title: str) -> str:
+    text = re.sub(r"[^a-z0-9]+", " ", title.casefold())
+    text = re.sub(r"\b(?:19|20)\d{2}\b", " ", text)
+    return " ".join(text.split())
+
+
+async def duplicate_candidates(
+    session: AsyncSession,
+    *,
+    title: str,
+    starts_at: datetime,
+    ends_at: datetime,
+    website_url: str | None,
+) -> list[models.Event]:
+    eligible = models.Event.status.not_in([EventStatus.ARCHIVED.value, EventStatus.CANCELLED.value])
+    found: dict[UUID, models.Event] = {}
+    if website_url is not None:
+        for row in await session.scalars(
+            select(models.Event).where(eligible, models.Event.website_url == website_url)
+        ):
+            found[row.id] = row
+    normalized = normalize_event_title(title)
+    for row in await session.scalars(
+        select(models.Event)
+        .where(
+            eligible,
+            models.Event.starts_at <= ends_at + timedelta(days=1),
+            models.Event.ends_at >= starts_at - timedelta(days=1),
+        )
+        .order_by(models.Event.starts_at, models.Event.id)
+        .limit(50)
+    ):
+        if normalize_event_title(row.title) == normalized:
+            found[row.id] = row
+    return sorted(found.values(), key=lambda row: (row.starts_at, row.id))[:20]
+
+
+async def member_event_view(
+    session: AsyncSession, event: models.Event, actor: models.User, now: datetime
+) -> schemas.MemberEvent:
+    area_keys = list(
+        await session.scalars(
+            select(models.Area.key)
+            .join(models.EventArea, models.EventArea.area_id == models.Area.id)
+            .where(models.EventArea.event_id == event.id)
+            .order_by(models.Area.sort, models.Area.key)
+        )
+    )
+    allowed: set[EventAction] = set()
+    if actor.is_admin or (event.created_by == actor.id and now < event.starts_at):
+        allowed.add(EventAction.EDIT)
+    if actor.is_admin or (
+        event.created_by == actor.id and event.status == EventStatus.PUBLISHED.value
+    ):
+        allowed.add(EventAction.CANCEL)
+    return schemas.MemberEvent(
+        id=event.id,
+        title=event.title,
+        kind=EventKind(event.kind),
+        starts_at=event.starts_at,
+        ends_at=event.ends_at,
+        timezone=event.timezone,
+        slug=event.slug,
+        summary=event.summary,
+        description_md=event.description_md,
+        format=EventFormat(event.format) if event.format is not None else EventFormat.ONLINE,
+        location=Location.model_validate(event.location) if event.location else None,
+        website_url=event.website_url,
+        organizer=event.organizer,
+        registration_url=event.registration_url,
+        registration_opens_at=event.registration_opens_at,
+        registration_deadline=event.registration_deadline,
+        language=list(event.language),
+        eligibility=event.eligibility,
+        themes=list(event.themes),
+        team_size_min=event.team_size_min,
+        team_size_max=event.team_size_max,
+        area_keys=area_keys,
+        status=EventStatus(event.status),
+        origin=EventOrigin(event.origin),
+        created_by=event.created_by,
+        formation_enabled=event.formation_enabled,
+        review_reasons=[EventReviewReason(reason) for reason in event.review_reasons],
+        created_at=event.created_at,
+        updated_at=event.updated_at,
+        allowed_actions=[action for action in EventAction if action in allowed],
+    )
+
+
+async def create_member_event(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    body: schemas.CreateMemberEventBody,
+    actor: models.User,
+    *,
+    confirm_new: bool,
+    now: datetime,
+) -> models.Event:
+    restricted = await session.scalar(
+        select(models.MemberRestriction.id)
+        .where(
+            models.MemberRestriction.user_id == actor.id,
+            models.MemberRestriction.kind == RestrictionKind.CREATING_EVENTS.value,
+            models.MemberRestriction.lifted_at.is_(None),
+            or_(models.MemberRestriction.until.is_(None), models.MemberRestriction.until > now),
+        )
+        .limit(1)
+    )
+    if restricted is not None:
+        raise ProblemError(ErrorCode.RESTRICTED, "Creating events is restricted for this member")
+    if body.ends_at < body.starts_at:
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, "ends_at must not precede starts_at")
+    website_url = str(body.website_url) if body.website_url is not None else None
+    candidates = await duplicate_candidates(
+        session,
+        title=body.title,
+        starts_at=body.starts_at,
+        ends_at=body.ends_at,
+        website_url=website_url,
+    )
+    if candidates and not confirm_new:
+        raise ProblemError(
+            ErrorCode.POSSIBLE_DUPLICATE,
+            "Similar events exist; resend with confirm_new=true",
+            errors=[ValidationIssue(loc=[str(row.id)], msg=row.title) for row in candidates],
+        )
+    reasons = [EventReviewReason.POSSIBLE_DUPLICATE] if candidates else []
+    payload = catalog.EventInput(
+        kind=body.kind,
+        title=body.title,
+        starts_at=body.starts_at,
+        ends_at=body.ends_at,
+        timezone=body.timezone,
+        formation_enabled=False,
+        format=body.format,
+        location=(body.location.model_dump(mode="json", exclude_none=True) or None)
+        if body.location is not None
+        else None,
+        website_url=website_url,
+        description_md=body.description_md,
+        areas=[
+            catalog.EventAreaInput(key=key, importance=AreaImportance.PRIMARY)
+            for key in body.area_keys
+        ],
+    )
+    event = await catalog.create_event(
+        session,
+        payload,
+        origin=EventOrigin.MEMBER,
+        status=EventStatus.PUBLISHED,
+        created_by=actor.id,
+        now=now,
+        review_reasons=reasons,
+    )
+    status = AttendanceStatus.ATTENDED if event.ends_at <= now else AttendanceStatus.GOING
+    session.add(
+        models.EventAttendance(
+            event_id=event.id,
+            user_id=actor.id,
+            status=status.value,
+            role=AttendanceRole.ORGANIZER.value,
+            proof_links=[],
+            note=None,
+            trust=Trust.SELF.value,
+            status_at=now,
+        )
+    )
+    await session.flush()
+    if status == AttendanceStatus.GOING:
+        await timeline.record_event_going(session, event.id, actor.id, now)
+    else:
+        await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(actor.id))
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.USER,
+        action=AuditAction.EVENT_CREATE,
+        entity_type=AuditEntityType.EVENT,
+        entity_id=event.id,
+        before=None,
+        after={
+            "slug": event.slug,
+            "kind": event.kind,
+            "title": event.title,
+            "starts_at": event.starts_at.isoformat(),
+            "ends_at": event.ends_at.isoformat(),
+            "formation_enabled": event.formation_enabled,
+            "review_reasons": list(event.review_reasons),
+        },
+        reason=None,
+    )
+    return event

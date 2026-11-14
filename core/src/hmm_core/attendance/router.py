@@ -74,9 +74,16 @@ async def list_attendees(
 async def create_event(
     body: CreateMemberEventBody,
     actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
     confirm_new: Annotated[bool, Query()] = False,
 ) -> MemberEvent:
-    not_implemented()
+    now = clock.now()
+    event = await events.create_member_event(
+        session, request.app.state.jobs, body, actor, confirm_new=confirm_new, now=now
+    )
+    return await events.member_event_view(session, event, actor, now)
 
 
 @router.patch(
