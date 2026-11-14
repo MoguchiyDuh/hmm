@@ -8,12 +8,18 @@ from hmm_contracts.common import (
     ReviewContext,
     ReviewId,
     ReviewWindowId,
+    ReviewWindowSubjectType,
     UserId,
 )
+from sqlalchemy import select
 
+from hmm_core import models
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import AdminAuth, MemberAuth
+from hmm_core.results import reviews
 from hmm_core.results.schemas import (
     AdminReview,
     AdminReviewPage,
@@ -24,7 +30,9 @@ from hmm_core.results.schemas import (
     ReportReviewBody,
     ResultToVerifyPage,
     Review,
+    ReviewAction,
     ReviewReport,
+    ReviewWindowAction,
     UpdateHostReviewBody,
     UpdateResultBody,
     UpdateReviewBody,
@@ -89,9 +97,25 @@ async def get_result(id: ProjectId, actor: MemberAuth) -> ProjectResult:
     summary="List open review windows and outstanding reviews",
 )
 async def list_pending_reviews(
-    actor: MemberAuth,
+    actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> list[PendingReviewWindow]:
-    not_implemented()
+    rows = await reviews.pending_windows(session, actor_id=actor.id, now=clock.now())
+    return [
+        PendingReviewWindow(
+            id=row.window.id,
+            subject_type=ReviewWindowSubjectType(row.window.subject_type),
+            subject_id=row.window.subject_id,
+            subject_title=row.subject_title,
+            opens_at=row.window.opens_at,
+            closes_at=row.window.closes_at,
+            to_review=[reviews.user_ref(user) for user in row.to_review],
+            submitted=[
+                reviews.build_review(review, actor, [ReviewAction.EDIT]) for review in row.submitted
+            ],
+            allowed_actions=[ReviewWindowAction.REVIEW],
+        )
+        for row in rows
+    ]
 
 
 @router.put(
@@ -104,8 +128,19 @@ async def update_review(
     reviewee_id: UserId,
     body: UpdateReviewBody,
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> Review:
-    not_implemented()
+    review = await reviews.submit_review(
+        session,
+        actor_id=actor.id,
+        window_id=id,
+        reviewee_id=reviewee_id,
+        rating=body.rating,
+        comment=body.comment,
+        now=clock.now(),
+    )
+    return reviews.build_review(review, actor, [ReviewAction.EDIT])
 
 
 @router.put(
@@ -118,8 +153,19 @@ async def update_host_review(
     reviewee_id: UserId,
     body: UpdateHostReviewBody,
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> Review:
-    not_implemented()
+    review = await reviews.submit_host_review(
+        session,
+        actor_id=actor.id,
+        event_id=id,
+        reviewee_id=reviewee_id,
+        rating=body.rating,
+        comment=body.comment,
+        now=clock.now(),
+    )
+    return reviews.build_review(review, actor, [])
 
 
 @router.get(
@@ -131,25 +177,63 @@ async def list_user_reviews(
     id: UserId,
     pagination: Annotated[CursorParams, Depends()],
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     context: Annotated[ReviewContext | None, Query()] = None,
 ) -> UserReviews:
-    not_implemented()
+    page = await reviews.user_reviews(session, target_id=id, context=context, params=pagination)
+    return UserReviews(
+        items=[
+            reviews.build_review(
+                review,
+                None
+                if review.context in {ReviewContext.HOST.value, ReviewContext.SPEAKER.value}
+                else page.users.get(review.reviewer_id),
+                [] if review.reviewer_id == actor.id else [ReviewAction.REPORT],
+            )
+            for review in page.items
+        ],
+        next_cursor=page.next_cursor,
+        reputation=page.reputation,
+    )
 
 
 @router.post(
     "/reviews/{id}/report", status_code=status.HTTP_201_CREATED, summary="Report a revealed review"
 )
-async def report_review(id: ReviewId, body: ReportReviewBody, actor: MemberAuth) -> ReviewReport:
-    not_implemented()
+async def report_review(
+    id: ReviewId, body: ReportReviewBody, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> ReviewReport:
+    report = await reviews.report_review(
+        session, actor_id=actor.id, review_id=id, reason=body.reason, now=clock.now()
+    )
+    return reviews.build_report(report)
 
 
 @router.get("/admin/reviews", status_code=status.HTTP_200_OK, summary="List reviews for moderation")
 async def list_admin_reviews(
     pagination: Annotated[CursorParams, Depends()],
     actor: AdminAuth,
+    session: Session,
     reported: Annotated[bool | None, Query()] = None,
 ) -> AdminReviewPage:
-    not_implemented()
+    page = await reviews.admin_review_page(session, reported=reported, params=pagination)
+    return AdminReviewPage(
+        items=[
+            AdminReview(
+                **reviews.build_review(
+                    review,
+                    page.users.get(review.reviewer_id),
+                    [] if review.removed_at is not None else [ReviewAction.REMOVE],
+                ).model_dump(),
+                reports=[
+                    reviews.build_report(report) for report in page.reports.get(review.id, [])
+                ],
+            )
+            for review in page.items
+        ],
+        next_cursor=page.next_cursor,
+    )
 
 
 @router.post(
@@ -157,5 +241,19 @@ async def list_admin_reviews(
     status_code=status.HTTP_200_OK,
     summary="Soft-remove a review with a reason",
 )
-async def remove_review(id: ReviewId, body: RemoveReviewBody, actor: AdminAuth) -> AdminReview:
-    not_implemented()
+async def remove_review(
+    id: ReviewId, body: RemoveReviewBody, actor: AdminAuth, session: Session, clock: CurrentClock
+) -> AdminReview:
+    review = await reviews.remove_review(
+        session, actor_id=actor.id, review_id=id, reason=body.reason, now=clock.now()
+    )
+    reviewer = await session.get(models.User, review.reviewer_id)
+    reports = await session.scalars(
+        select(models.ReviewReport)
+        .where(models.ReviewReport.review_id == id)
+        .order_by(models.ReviewReport.created_at, models.ReviewReport.id)
+    )
+    return AdminReview(
+        **reviews.build_review(review, reviewer, []).model_dump(),
+        reports=[reviews.build_report(report) for report in reports],
+    )

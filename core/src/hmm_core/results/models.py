@@ -74,6 +74,9 @@ class ReviewWindow(Mutable, Base):
     subject_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
     opens_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     closes_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    participants: Mapped[JsonValue] = mapped_column(
+        JSONB, nullable=False, server_default=text("'{}'::jsonb")
+    )
     revealed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
