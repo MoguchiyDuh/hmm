@@ -33,6 +33,7 @@ from hmm_core.notifications.models import (
     NotificationSetting,
 )
 from hmm_core.onboarding.models import (
+    OnboardingBaseline,
     OnboardingSubmission,
     Question,
     QuestionOption,
@@ -109,6 +110,7 @@ __all__ = [
     "Notification",
     "NotificationDelivery",
     "NotificationSetting",
+    "OnboardingBaseline",
     "OnboardingSubmission",
     "ParserHeartbeat",
     "Project",

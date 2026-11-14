@@ -131,17 +131,11 @@ UNIMPLEMENTED_OPERATIONS = set(
         "scores_create_activity",
         "scores_create_xp_adjustment",
         "scores_delete_activity",
-        "scores_get_metrics",
-        "scores_get_score_history",
-        "scores_get_scores",
         "scores_lift_restriction",
         "scores_list_activity",
         "scores_list_flags",
         "scores_list_restrictions",
-        "scores_recompute_member",
-        "scores_remove_score_override",
         "scores_resolve_flag",
-        "scores_set_score_override",
         "scores_update_activity",
     ]
 )
