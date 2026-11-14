@@ -1,11 +1,13 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from math import ceil
+from typing import cast
 from uuid import UUID
 
 import procrastinate
+from hmm_contracts.algo import LeadFit as AlgoLeadFit
 from hmm_contracts.common import (
     ConfirmKind,
     EnrollmentSource,
@@ -18,11 +20,13 @@ from hmm_contracts.common import (
     LeftReason,
     MemberRole,
     MemberState,
+    OnboardingStatus,
     TeamStatus,
     Trust,
 )
 from hmm_contracts.formation import placement_bounds
-from sqlalchemy import exists, func, select, update
+from sqlalchemy import Select, exists, func, or_, select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -39,6 +43,10 @@ LIVE_ENROLLMENT_STATES: frozenset[EnrollmentStatus] = frozenset(
     {EnrollmentStatus.ACTIVE, EnrollmentStatus.PLACED, EnrollmentStatus.RESERVE}
 )
 CAPACITY_TEAM_STATES = frozenset({TeamStatus.FORMING, TeamStatus.REVIEW, TeamStatus.LOCKED})
+ONBOARDED_STATUSES: frozenset[str] = frozenset(
+    {OnboardingStatus.COMPLETED.value, OnboardingStatus.REOPENED.value}
+)
+LEAD_FIT_PHASES: frozenset[FormationPhase] = frozenset({FormationPhase.OPEN, FormationPhase.LOCKED})
 
 
 @dataclass(frozen=True, slots=True)
@@ -930,3 +938,206 @@ async def withdraw_user_enrollments(
         await attendance.sync_going(session, event_id, user_id, going=False, now=now)
     await session.flush()
     return event_ids
+
+
+def _lead_fit_events_query() -> Select[models.Event]:
+    return (
+        select(models.Event)
+        .join(models.EventFormation, models.EventFormation.event_id == models.Event.id)
+        .where(
+            models.Event.status == EventStatus.PUBLISHED.value,
+            models.Event.formation_enabled.is_(True),
+            models.EventFormation.phase.in_(sorted(member.value for member in LEAD_FIT_PHASES)),
+        )
+        .order_by(models.Event.id)
+    )
+
+
+async def lead_fit_events(session: AsyncSession) -> list[models.Event]:
+    return list(await session.scalars(_lead_fit_events_query()))
+
+
+async def lead_fit_events_for_member(session: AsyncSession, user_id: UUID) -> list[models.Event]:
+    teams = select(models.ProjectMember.event_id).where(
+        models.ProjectMember.user_id == user_id,
+        models.ProjectMember.event_id.is_not(None),
+        models.ProjectMember.left_at.is_(None),
+        models.ProjectMember.is_team_row.is_(True),
+    )
+    return list(
+        await session.scalars(_lead_fit_events_query().where(models.Event.id.notin_(teams)))
+    )
+
+
+async def lead_fit_candidates(
+    session: AsyncSession, event_id: UUID, now: datetime
+) -> list[models.User]:
+    team_members = select(models.ProjectMember.user_id).where(
+        models.ProjectMember.event_id == event_id,
+        models.ProjectMember.left_at.is_(None),
+        models.ProjectMember.is_team_row.is_(True),
+    )
+    return list(
+        await session.scalars(
+            select(models.User)
+            .where(
+                models.User.onboarding_status.in_(sorted(ONBOARDED_STATUSES)),
+                models.User.banned_at.is_(None),
+                models.User.id.notin_(team_members),
+                models.User.dnd_indefinite.is_(False),
+                or_(models.User.dnd_until.is_(None), models.User.dnd_until <= now),
+            )
+            .order_by(models.User.id)
+        )
+    )
+
+
+async def stored_lead_fit(
+    session: AsyncSession, event_id: UUID, user_id: UUID
+) -> models.LeadFit | None:
+    return await session.scalar(
+        select(models.LeadFit).where(
+            models.LeadFit.event_id == event_id, models.LeadFit.user_id == user_id
+        )
+    )
+
+
+def validated_lead_fits(user_ids: set[UUID], fits: Sequence[AlgoLeadFit]) -> list[AlgoLeadFit]:
+    kept: dict[UUID, AlgoLeadFit] = {}
+    for fit in fits:
+        if fit.user_id not in user_ids or fit.user_id in kept:
+            continue
+        kept[fit.user_id] = AlgoLeadFit(
+            user_id=fit.user_id, fit=min(1.0, max(0.0, fit.fit)), reason=fit.reason
+        )
+    return sorted(kept.values(), key=lambda fit: str(fit.user_id))
+
+
+async def store_lead_fits(
+    session: AsyncSession,
+    event_id: UUID,
+    fits: Sequence[AlgoLeadFit],
+    algo_version: str,
+    now: datetime,
+) -> None:
+    for fit in fits:
+        value = Decimal(str(fit.fit)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        await session.execute(
+            insert(models.LeadFit)
+            .values(
+                event_id=event_id,
+                user_id=fit.user_id,
+                fit=value,
+                reason=fit.reason,
+                algo_version=algo_version,
+                computed_at=now,
+            )
+            .on_conflict_do_update(
+                index_elements=[models.LeadFit.event_id, models.LeadFit.user_id],
+                set_={
+                    "fit": value,
+                    "reason": fit.reason,
+                    "algo_version": algo_version,
+                    "computed_at": now,
+                },
+            )
+        )
+    return None
+
+
+async def my_lead_fit(
+    session: AsyncSession, event_id: UUID, actor: models.User
+) -> schemas.LeadEligibility:
+    event = await formation_event(session, event_id, actor)
+    if not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if await session.get(models.EventFormation, event_id) is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    fit = await stored_lead_fit(session, event_id, actor.id)
+    if fit is None:
+        raise ProblemError(ErrorCode.LEAD_FIT_PENDING, "Lead fit is being computed")
+    return cast(schemas.LeadEligibility, lead_eligibility(fit, await load_settings(session)))
+
+
+def lead_candidate_tier(
+    user_id: UUID,
+    fit: float,
+    willing_to_lead: bool,
+    lead_user_ids: set[UUID],
+    settings: RuntimeSettings,
+) -> int:
+    if user_id in lead_user_ids:
+        return 1
+    if willing_to_lead and fit >= settings.lead_fit_threshold:
+        return 2
+    if willing_to_lead:
+        return 3
+    return 4
+
+
+async def list_lead_candidates(
+    session: AsyncSession, event_id: UUID
+) -> list[schemas.LeadCandidate]:
+    event = await session.get(models.Event, event_id)
+    if event is None or not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if await session.get(models.EventFormation, event_id) is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    rows = (
+        await session.execute(
+            select(models.LeadFit, models.User)
+            .join(models.User, models.User.id == models.LeadFit.user_id)
+            .where(models.LeadFit.event_id == event_id)
+        )
+    ).all()
+    enrollments: dict[UUID, models.Enrollment] = {}
+    for enrollment in await session.scalars(
+        select(models.Enrollment)
+        .where(
+            models.Enrollment.event_id == event_id,
+            models.Enrollment.status.in_(sorted(member.value for member in LIVE_ENROLLMENT_STATES)),
+        )
+        .order_by(models.Enrollment.status_at.desc(), models.Enrollment.id.desc())
+    ):
+        enrollments.setdefault(enrollment.user_id, enrollment)
+    lead_user_ids: set[UUID] = {
+        lead_user_id
+        for lead_user_id in await session.scalars(
+            select(models.Project.lead_user_id).where(
+                models.Project.event_id == event_id,
+                models.Project.team_status.in_(
+                    [
+                        TeamStatus.FORMING.value,
+                        TeamStatus.REVIEW.value,
+                        TeamStatus.LOCKED.value,
+                        TeamStatus.ACTIVE.value,
+                    ]
+                ),
+                models.Project.lead_user_id.is_not(None),
+            )
+        )
+        if lead_user_id is not None
+    }
+    settings = await load_settings(session)
+    candidates: list[schemas.LeadCandidate] = []
+    for fit, user in rows:
+        value = float(fit.fit)
+        enrollment = enrollments.get(user.id)
+        willing = enrollment.willing_to_lead if enrollment else False
+        candidates.append(
+            schemas.LeadCandidate(
+                user=UserRef(
+                    id=user.id, display_name=user.display_name, avatar_url=user.avatar_url
+                ),
+                fit=value,
+                eligible=value >= settings.lead_fit_threshold,
+                reason=fit.reason,
+                computed_at=fit.computed_at,
+                willing_to_lead=willing,
+                tier=lead_candidate_tier(user.id, value, willing, lead_user_ids, settings),
+                enrolled_at=enrollment.created_at if enrollment else None,
+            )
+        )
+    return sorted(
+        candidates, key=lambda candidate: (candidate.tier, -candidate.fit, str(candidate.user.id))
+    )

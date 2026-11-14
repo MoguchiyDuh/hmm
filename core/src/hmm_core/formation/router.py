@@ -139,8 +139,8 @@ async def list_my_enrollments(
 
 
 @router.get("/events/{id}/lead-fit/me", status_code=status.HTTP_200_OK, summary="Get my lead fit")
-async def get_my_lead_fit(id: EventId, actor: MemberAuth) -> LeadEligibility:
-    not_implemented()
+async def get_my_lead_fit(id: EventId, actor: MemberAuth, session: Session) -> LeadEligibility:
+    return await service.my_lead_fit(session, id, actor)
 
 
 @router.post(
@@ -402,8 +402,10 @@ async def list_formation_runs(id: EventId, actor: AdminAuth) -> list[FormationRu
     status_code=status.HTTP_200_OK,
     summary="List lead candidates",
 )
-async def list_lead_candidates(id: EventId, actor: AdminAuth) -> list[LeadCandidate]:
-    not_implemented()
+async def list_lead_candidates(
+    id: EventId, actor: AdminAuth, session: Session
+) -> list[LeadCandidate]:
+    return await service.list_lead_candidates(session, id)
 
 
 @router.post(
