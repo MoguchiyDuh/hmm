@@ -2,7 +2,9 @@ from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from hmm_contracts.common import (
+    ActorKind,
     AreaKey,
+    ErrorCode,
     EventFormat,
     EventId,
     EventKind,
@@ -30,7 +32,7 @@ from hmm_core.catalog.schemas import (
 )
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth, ParserAuth
@@ -177,8 +179,26 @@ async def merge_event(id: EventId, body: MergeEventBody, actor: AdminAuth) -> Ev
 
 
 @router.post("/admin/events/{id}/cancel", status_code=status.HTTP_200_OK, summary="Cancel an event")
-async def cancel_event(id: EventId, body: ReasonBody, actor: AdminAuth) -> EventDetail:
-    not_implemented()
+async def cancel_event(
+    id: EventId,
+    body: ReasonBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> EventDetail:
+    if body.reason is None:
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, "reason is required")
+    event = await catalog.cancel_event(
+        session,
+        request.app.state.jobs,
+        id,
+        reason=body.reason,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN,
+        now=clock.now(),
+    )
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @internal.post("/events/import", status_code=status.HTTP_200_OK, summary="Import an event batch")

@@ -22,22 +22,33 @@ from hmm_contracts.common import (
     EventPhase,
     EventStatus,
     FormationPhase,
+    InviteKind,
+    InviteStatus,
     JoinedVia,
+    JoinRequestStatus,
+    LeadOfferSource,
+    LeadOfferStatus,
     MemberRole,
     MemberState,
+    MergeProposalStatus,
+    MergeProposedBy,
     ProjectOrigin,
     ProjectStatus,
     ProjectVisibility,
+    SwapRequestStatus,
     TeamStatus,
     Trust,
 )
+from hmm_contracts.notifications import AlertKind, NotificationChange, NotificationType
 from hmm_core import models
+from hmm_core.catalog import jobs as catalog_jobs
 from hmm_core.catalog import service as catalog
 from hmm_core.formation import service as formation
 from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.jobs import JOBS, REGISTRY, JobName
 from hmm_core.platform.settings import RuntimeSettings
 from pydantic import JsonValue
-from sqlalchemy import select
+from sqlalchemy import select, update
 from test_api_skeleton import assert_problem
 
 
@@ -1091,3 +1102,438 @@ async def test_catalog_list_requires_onboarded_member(harness: Harness) -> None:
     actor = await h.user(onboarded=False)
     async with await h.client(actor) as client:
         assert_problem(await client.get("/api/v1/events"), 403, ErrorCode.ONBOARDING_REQUIRED)
+
+
+async def catalog_team(
+    h: Harness, event: models.Event, member: models.User | None, status: TeamStatus
+) -> models.Project:
+    async with h.db() as session:
+        team = models.Project(
+            event_id=event.id,
+            name=f"{status.value} team",
+            description_md="Team description",
+            goal="Build together",
+            links=[],
+            visibility=ProjectVisibility.PUBLIC,
+            status=ProjectStatus.ACTIVE,
+            team_status=status.value,
+            origin=ProjectOrigin.ADMIN,
+        )
+        session.add(team)
+        await session.flush()
+        if member is not None:
+            session.add(
+                models.ProjectMember(
+                    project_id=team.id,
+                    event_id=event.id,
+                    user_id=member.id,
+                    role=MemberRole.MEMBER,
+                    state=MemberState.CONFIRMED,
+                    trust=Trust.SELF,
+                    joined_via=JoinedVia.ADMIN,
+                    is_team_row=True,
+                    joined_at=h.now,
+                )
+            )
+        return team
+
+
+async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    attendee = await h.user()
+    enrolled = await h.user()
+    member = await h.user()
+    historical = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=admin.id,
+            now=h.now,
+        )
+    forming = await catalog_team(h, event, member, TeamStatus.FORMING)
+    finished = await catalog_team(h, event, None, TeamStatus.FINISHED)
+    async with h.db() as session:
+        for user, status in (
+            (attendee, AttendanceStatus.GOING),
+            (historical, AttendanceStatus.ATTENDED),
+        ):
+            session.add(
+                models.EventAttendance(
+                    event_id=event.id,
+                    user_id=user.id,
+                    status=status,
+                    role=AttendanceRole.ATTENDEE,
+                    proof_links=[],
+                    trust=Trust.SELF,
+                    status_at=h.now - timedelta(days=1),
+                )
+            )
+        for user, status in (
+            (attendee, EnrollmentStatus.ACTIVE),
+            (enrolled, EnrollmentStatus.RESERVE),
+            (member, EnrollmentStatus.PLACED),
+            (historical, EnrollmentStatus.WITHDRAWN),
+        ):
+            session.add(
+                models.Enrollment(
+                    event_id=event.id,
+                    user_id=user.id,
+                    status=status,
+                    source=EnrollmentSource.SELF,
+                    status_at=h.now - timedelta(days=1),
+                )
+            )
+        invites = [
+            models.Invite(
+                project_id=forming.id,
+                event_id=event.id,
+                user_id=attendee.id,
+                kind=InviteKind.CORE,
+                status=status,
+                expires_at=h.now + timedelta(days=1),
+            )
+            for status in (InviteStatus.PENDING, InviteStatus.ACCEPTED)
+        ]
+        requests = [
+            models.JoinRequest(
+                project_id=forming.id,
+                event_id=event.id,
+                user_id=enrolled.id,
+                status=status,
+            )
+            for status in (JoinRequestStatus.PENDING, JoinRequestStatus.ACCEPTED)
+        ]
+        swaps = [
+            models.SwapRequest(
+                event_id=event.id,
+                from_team_id=forming.id,
+                from_user_id=member.id,
+                to_team_id=finished.id,
+                to_user_id=attendee.id,
+                requested_by=member.id,
+                status=status,
+            )
+            for status in (SwapRequestStatus.PENDING, SwapRequestStatus.DECLINED)
+        ]
+        merges = [
+            models.MergeProposal(
+                event_id=event.id,
+                absorbed_team_id=forming.id,
+                target_team_id=finished.id,
+                proposed_by=MergeProposedBy.SYSTEM,
+                status=status,
+            )
+            for status in (MergeProposalStatus.PENDING, MergeProposalStatus.DECLINED)
+        ]
+        offers = [
+            models.LeadOffer(
+                project_id=forming.id,
+                event_id=event.id,
+                user_id=enrolled.id,
+                source=LeadOfferSource.SUCCESSION,
+                reason="Lead needed",
+                status=status,
+                expires_at=h.now + timedelta(days=1),
+            )
+            for status in (LeadOfferStatus.PENDING, LeadOfferStatus.ACCEPTED)
+        ]
+        session.add_all([*invites, *requests, *swaps, *merges, *offers])
+        await session.flush()
+        assert await catalog.event_recipients(session, event.id) == sorted(
+            [attendee.id, enrolled.id, member.id], key=str
+        )
+    async with await h.client(admin) as client:
+        response = await client.post(
+            f"/api/v1/admin/events/{event.id}/cancel", json={"reason": "Organizer postponed"}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "cancelled"
+        assert response.json()["participation_phase"] == "closed"
+        async with h.db() as session:
+            attendances = {
+                row.user_id: row for row in await session.scalars(select(models.EventAttendance))
+            }
+            assert attendances[attendee.id].status == AttendanceStatus.CANCELLED
+            assert attendances[attendee.id].status_at == h.now
+            assert attendances[historical.id].status == AttendanceStatus.ATTENDED
+            assert attendances[historical.id].status_at == h.now - timedelta(days=1)
+            enrollments = {
+                row.user_id: row for row in await session.scalars(select(models.Enrollment))
+            }
+            for user in (attendee, enrolled, member):
+                assert enrollments[user.id].status == EnrollmentStatus.EXPIRED
+                assert enrollments[user.id].status_at == h.now
+            assert enrollments[historical.id].status == EnrollmentStatus.WITHDRAWN
+            assert enrollments[historical.id].status_at == h.now - timedelta(days=1)
+            teams = {row.id: row for row in await session.scalars(select(models.Project))}
+            assert teams[forming.id].team_status == TeamStatus.CANCELLED
+            assert teams[forming.id].status == ProjectStatus.CANCELLED
+            assert teams[finished.id].team_status == TeamStatus.FINISHED
+            assert teams[finished.id].status == ProjectStatus.ACTIVE
+            schedule = await session.get(models.EventFormation, event.id)
+            assert schedule is not None and schedule.phase == FormationPhase.CLOSED
+            for model, pending, terminal, terminal_status in (
+                (models.Invite, invites[0], invites[1], InviteStatus.ACCEPTED),
+                (models.JoinRequest, requests[0], requests[1], JoinRequestStatus.ACCEPTED),
+                (models.SwapRequest, swaps[0], swaps[1], SwapRequestStatus.DECLINED),
+                (models.MergeProposal, merges[0], merges[1], MergeProposalStatus.DECLINED),
+                (models.LeadOffer, offers[0], offers[1], LeadOfferStatus.ACCEPTED),
+            ):
+                rows = {row.id: row for row in await session.scalars(select(model))}
+                assert rows[pending.id].status == "closed"
+                assert rows[terminal.id].status == terminal_status
+            invite = await session.get(models.Invite, invites[0].id)
+            assert invite is not None and invite.closed_reason == "event_cancelled"
+            notifications = list(await session.scalars(select(models.Notification)))
+            cancelled = [
+                row for row in notifications if row.type == NotificationType.EVENT_CANCELLED
+            ]
+            assert {row.user_id for row in cancelled} == {attendee.id, enrolled.id, member.id}
+            assert len(cancelled) == 3
+            for notification in cancelled:
+                assert isinstance(notification.payload, dict)
+                assert notification.payload["reason"] == "Organizer postponed"
+                assert notification.payload["link"] == f"/events/{event.slug}"
+                assert (
+                    notification.dedupe_key == f"event_cancelled:{event.id}:{notification.user_id}"
+                )
+            alerts = list(await session.scalars(select(models.AdminAlert)))
+            assert len(alerts) == 1
+            assert alerts[0].type == AlertKind.EVENT_CANCELLED_WITH_TEAMS
+            assert alerts[0].severity == "warning"
+            assert alerts[0].subject_type == "event"
+            assert alerts[0].subject_id == event.id
+            assert isinstance(alerts[0].payload, dict)
+            assert alerts[0].payload["message"] == "1 teams were cancelled with the event"
+            assert alerts[0].payload["link"] == f"/admin/events/{event.id}"
+            audits = list(await session.scalars(select(models.AuditLog)))
+            assert len(audits) == 1
+            assert audits[0].action == AuditAction.EVENT_CANCEL
+            assert audits[0].entity_type == AuditEntityType.EVENT
+            assert audits[0].entity_id == str(event.id)
+            assert audits[0].actor_id == admin.id
+            assert audits[0].actor_kind == ActorKind.ADMIN
+            assert audits[0].reason == "Organizer postponed"
+            assert audits[0].before == {"status": "published"}
+            assert audits[0].after == {"status": "cancelled"}
+            updated_at = (await catalog.load_event(session, event.id)).updated_at
+            notification_ids = {row.id for row in notifications}
+            alert_ids = {row.id for row in alerts}
+            audit_ids = {row.id for row in audits}
+        h.advance(timedelta(seconds=1))
+        for reason in ("Organizer postponed", "Different reason"):
+            response = await client.post(
+                f"/api/v1/admin/events/{event.id}/cancel", json={"reason": reason}
+            )
+            assert response.status_code == 200, response.text
+        async with h.db() as session:
+            assert set(await session.scalars(select(models.Notification.id))) == notification_ids
+            assert set(await session.scalars(select(models.AdminAlert.id))) == alert_ids
+            assert set(await session.scalars(select(models.AuditLog.id))) == audit_ids
+            assert (await catalog.load_event(session, event.id)).updated_at == updated_at
+
+
+async def test_cancel_event_without_teams_has_no_alert(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=admin.id,
+            now=h.now,
+        )
+    async with await h.client(admin) as client:
+        response = await client.post(
+            f"/api/v1/admin/events/{event.id}/cancel", json={"reason": "Cancelled by organizer"}
+        )
+    assert response.status_code == 200, response.text
+    async with h.db() as session:
+        assert list(await session.scalars(select(models.AdminAlert))) == []
+        assert list(await session.scalars(select(models.Notification))) == []
+
+
+async def test_cancel_event_errors(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    member = await h.user()
+    async with h.db() as session:
+        archived = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.ARCHIVED,
+            created_by=None,
+            now=h.now,
+        )
+        published = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+    async with await h.client(admin) as client:
+        assert_problem(
+            await client.post(
+                f"/api/v1/admin/events/{archived.id}/cancel", json={"reason": "Cancel"}
+            ),
+            409,
+            ErrorCode.INVALID_STATE,
+        )
+        assert_problem(
+            await client.post(f"/api/v1/admin/events/{uuid4()}/cancel", json={"reason": "Cancel"}),
+            404,
+            ErrorCode.NOT_FOUND,
+        )
+        assert_problem(
+            await client.post(f"/api/v1/admin/events/{published.id}/cancel", json={}),
+            422,
+            ErrorCode.VALIDATION_ERROR,
+        )
+    async with await h.client(member) as client:
+        assert_problem(
+            await client.post(
+                f"/api/v1/admin/events/{published.id}/cancel", json={"reason": "Cancel"}
+            ),
+            403,
+            ErrorCode.FORBIDDEN,
+        )
+    async with h.db() as session:
+        assert (await catalog.load_event(session, archived.id)).status == EventStatus.ARCHIVED
+        assert (await catalog.load_event(session, published.id)).status == EventStatus.PUBLISHED
+        assert list(await session.scalars(select(models.AuditLog))) == []
+
+
+async def test_archive_old_events(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    events: dict[str, models.Event] = {}
+    async with h.db() as session:
+        for key, status, days in (
+            ("published", EventStatus.PUBLISHED, 200),
+            ("cancelled", EventStatus.CANCELLED, 200),
+            ("draft", EventStatus.DRAFT, 200),
+            ("recent", EventStatus.PUBLISHED, 100),
+            ("boundary", EventStatus.PUBLISHED, 180),
+            ("archived", EventStatus.ARCHIVED, 200),
+        ):
+            events[key] = await catalog.create_event(
+                session,
+                replace(
+                    event_input(h),
+                    title=key,
+                    formation_enabled=False,
+                    starts_at=h.now - timedelta(days=days + 2),
+                    ends_at=h.now - timedelta(days=days),
+                ),
+                origin=EventOrigin.MANUAL,
+                status=status,
+                created_by=None,
+                now=h.now,
+            )
+        await session.execute(
+            update(models.Event)
+            .where(models.Event.id == events["archived"].id)
+            .values(updated_at=h.now - timedelta(days=10))
+        )
+    assert JOBS[JobName.ARCHIVE_OLD_EVENTS].cron == "30 1 * * *"
+    assert JobName.ARCHIVE_OLD_EVENTS in REGISTRY
+    await catalog_jobs.archive_old_events(h.runtime)
+    async with h.db() as session:
+        for key, event in events.items():
+            stored = await catalog.load_event(session, event.id)
+            expected = (
+                EventStatus.PUBLISHED if key in ("recent", "boundary") else EventStatus.ARCHIVED
+            )
+            assert stored.status == expected
+        archived = await catalog.load_event(session, events["archived"].id)
+        assert archived.updated_at == h.now - timedelta(days=10)
+        first = {
+            row.id: (row.status, row.updated_at)
+            for row in await session.scalars(select(models.Event))
+        }
+        assert list(await session.scalars(select(models.AuditLog))) == []
+    await catalog_jobs.archive_old_events(h.runtime)
+    async with h.db() as session:
+        assert {
+            row.id: (row.status, row.updated_at)
+            for row in await session.scalars(select(models.Event))
+        } == first
+        session.add(models.Setting(key="event_archive_after_days", value=90, updated_by=admin.id))
+    await catalog_jobs.archive_old_events(h.runtime)
+    async with h.db() as session:
+        assert (
+            await catalog.load_event(session, events["recent"].id)
+        ).status == EventStatus.ARCHIVED
+        assert (
+            await catalog.load_event(session, events["boundary"].id)
+        ).status == EventStatus.ARCHIVED
+        assert (await catalog.load_event(session, events["archived"].id)).updated_at == first[
+            events["archived"].id
+        ][1]
+
+
+async def test_notify_event_changed(harness: Harness) -> None:
+    h = harness
+    attendee = await h.user()
+    member = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+        empty = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+        session.add(
+            models.EventAttendance(
+                event_id=event.id,
+                user_id=attendee.id,
+                status=AttendanceStatus.GOING,
+                role=AttendanceRole.ATTENDEE,
+                proof_links=[],
+                trust=Trust.SELF,
+                status_at=h.now,
+            )
+        )
+    await catalog_team(h, event, member, TeamStatus.FORMING)
+    changes = [
+        NotificationChange(
+            field="starts_at",
+            previous=event.starts_at.isoformat(),
+            current=(event.starts_at + timedelta(days=1)).isoformat(),
+        )
+    ]
+    async with h.db() as session:
+        await catalog.notify_event_changed(session, event, changes, h.now)
+        await catalog.notify_event_changed(session, event, changes, h.now)
+        await catalog.notify_event_changed(session, event, [], h.now)
+        await catalog.notify_event_changed(session, empty, changes, h.now)
+    async with h.db() as session:
+        notifications = list(await session.scalars(select(models.Notification)))
+        assert len(notifications) == 2
+        assert {row.user_id for row in notifications} == {attendee.id, member.id}
+        for row in notifications:
+            assert row.type == NotificationType.EVENT_CHANGED
+            assert isinstance(row.payload, dict)
+            assert row.payload["link"] == f"/events/{event.slug}"
+            assert row.payload["event_id"] == str(event.id)
+            assert row.payload["changes"] == [changes[0].model_dump(mode="json")]
+            assert row.payload["timezone"] == event.timezone
