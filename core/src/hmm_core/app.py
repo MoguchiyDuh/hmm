@@ -24,7 +24,7 @@ from hmm_core.platform.clock import SystemClock
 from hmm_core.platform.config import Config
 from hmm_core.platform.db import create_engine, create_sessionmaker, migration_head
 from hmm_core.platform.errors import register_exception_handlers
-from hmm_core.platform.jobs import create_jobs_app
+from hmm_core.platform.jobs import create_jobs_app, register_jobs
 from hmm_core.platform.openapi import build_openapi, operation_id
 from hmm_core.profiles import router as profiles
 from hmm_core.projects import router as projects
@@ -56,7 +56,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     engine = create_engine(config.database_url) if config.database_url else None
     app.state.engine = engine
     app.state.sessionmaker = create_sessionmaker(engine) if engine is not None else None
-    app.state.jobs = create_jobs_app(config.database_url) if config.database_url else None
+    app.state.jobs = (
+        register_jobs(create_jobs_app(config.database_url)) if config.database_url else None
+    )
     async with httpx.AsyncClient(timeout=10) as http:
         app.state.http = http
         try:

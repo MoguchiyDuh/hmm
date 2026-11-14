@@ -168,7 +168,7 @@ async def test_github_login_creates_and_resumes_user(
             "WHERE task_name = 'github_sync' AND args->>'user_id' = :user_id"
         ).bindparams(user_id=str(user.id)),
     )
-    assert jobs == 2
+    assert jobs == 1
 
 
 async def test_callback_failures_redirect_to_login(

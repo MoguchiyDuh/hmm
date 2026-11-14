@@ -47,6 +47,7 @@ Application:
 | `ADMIN_GITHUB_LOGINS` | api | Comma-separated bootstrap admins (§6.3) |
 | `BOT_SERVICE_TOKEN` `PARSER_SERVICE_TOKEN` | api, bot, parser | Service tokens (§3.2) |
 | `TELEGRAM_BOT_USERNAME` | api | Bot username for Telegram deep links (§6.5) |
+| `ALGORITHM` | worker | `fake` selects `hmm_algo.testing.FakeAlgorithm` for local development only; unset in production (§18.4) |
 | `LLM_BASE_URL` `LLM_API_KEY` `LLM_MODEL` | worker, parser | OpenAI-compatible chat endpoint |
 | `CORE_URL` | bot, parser | Internal API URL, `http://api:8000` |
 | `BOT_TOKEN` | bot | Telegram bot token |

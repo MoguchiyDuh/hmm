@@ -7,6 +7,7 @@ from uuid import UUID
 
 import psycopg
 import pytest
+from harness import Harness, open_harness
 from hmm_contracts.common import OnboardingStatus
 from hmm_core.models import User
 from hmm_core.platform.db import Base, create_engine
@@ -86,3 +87,9 @@ def stub_actor() -> User:
         is_admin=True,
         onboarding_status=OnboardingStatus.COMPLETED,
     )
+
+
+@pytest.fixture
+async def harness(engine: AsyncEngine, migrated_database: str) -> AsyncIterator[Harness]:
+    async with open_harness(engine, migrated_database) as value:
+        yield value
