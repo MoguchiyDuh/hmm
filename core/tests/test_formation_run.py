@@ -41,6 +41,7 @@ async def make_hackathon(
     team_size_max: int | None = None,
     starts_in: timedelta = timedelta(days=30),
     registration_deadline: datetime | None = None,
+    areas: Sequence[tuple[str, AreaImportance]] = (("backend", AreaImportance.PRIMARY),),
 ) -> models.Event:
     async with h.db() as session:
         event = await catalog.create_event(
@@ -55,7 +56,10 @@ async def make_hackathon(
                 team_size_min=team_size_min,
                 team_size_max=team_size_max,
                 formation_enabled=True,
-                areas=[catalog.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY)],
+                areas=[
+                    catalog.EventAreaInput(key=key, importance=importance)
+                    for key, importance in areas
+                ],
             ),
             origin=EventOrigin.MANUAL,
             status=EventStatus.PUBLISHED,
@@ -594,3 +598,194 @@ async def test_planned_lead_user(harness: Harness) -> None:
     assert plain_request.lead_fits == {}
     assert service.planned_lead_user(plain_facts, [other.id, willing.id]) == willing.id
     assert service.planned_lead_user(plain_facts, []) is None
+
+
+async def fallback_for(h: Harness, request: FormationRequest) -> tuple[FormationPlan, AlgoSettings]:
+    async with h.db() as session:
+        settings = (await h.runtime.algo_context(session)).settings
+    return service.fallback_plan(request, settings), settings
+
+
+async def area_ids(h: Harness) -> dict[str, UUID]:
+    async with h.db() as session:
+        return {area.key: area.id for area in await session.scalars(select(models.Area))}
+
+
+async def seed_score(h: Harness, user: models.User, area_id: UUID, value: int) -> None:
+    async with h.db() as session:
+        session.add(
+            models.AreaScore(
+                user_id=user.id, area_id=area_id, calculated=Decimal(value), calc_reason="x"
+            )
+        )
+
+
+async def test_fallback_main_open_shape(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    for index in range(2):
+        lead, member = await h.user(), await h.user()
+        await make_core(h, event, f"Core {index}", lead=lead, members=[member])
+    free = []
+    for index in range(10):
+        user = await h.user()
+        await enroll(h, event, user, created_at=h.now + timedelta(minutes=index))
+        free.append(user)
+    request = await request_for(h, event)
+    plan, settings = await fallback_for(h, request)
+    assert len(plan.teams) == 2
+    assert sorted(len(team.members) for team in plan.teams) == [6, 6]
+    assert [ranked.rank for ranked in plan.reserve] == [1, 2]
+    assert [ranked.user_id for ranked in plan.reserve] == [free[8].id, free[9].id]
+    assert plan.merges == []
+    assert all(team.project_id is not None and team.lead_user_id is None for team in plan.teams)
+    assert service.validate_plan(request, plan, settings) == []
+
+
+async def test_fallback_seeds_volunteers_by_tier(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=3)
+    strong, weak = await h.user(), await h.user()
+    plain = [await h.user() for _ in range(4)]
+    for user in plain[:2]:
+        await enroll(h, event, user)
+    await enroll(h, event, weak, willing=True)
+    await enroll(h, event, strong, willing=True)
+    for user in plain[2:]:
+        await enroll(h, event, user)
+    await add_fit(h, event, strong, 0.9)
+    await add_fit(h, event, weak, 0.3)
+    request = await request_for(h, event)
+    assert (request.bounds.new_teams, request.bounds.placed) == (2, 6)
+    plan, settings = await fallback_for(h, request)
+    assert [len(team.members) for team in plan.teams] == [3, 3]
+    assert [team.lead_user_id for team in plan.teams] == [strong.id, weak.id]
+    assert all(
+        team.lead_user_id in {member.user_id for member in team.members} for team in plan.teams
+    )
+    assert plan.reserve == []
+    assert service.validate_plan(request, plan, settings) == []
+
+
+async def test_fallback_area_coverage(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    ids = await area_ids(h)
+    areas = (("ml_ai", AreaImportance.PRIMARY), ("backend", AreaImportance.REQUIRED))
+    event = await make_hackathon(h, team_size_min=3, team_size_max=3, areas=areas)
+    scored = []
+    for value in (4, 9, 6):
+        user = await h.user()
+        await enroll(h, event, user)
+        await seed_score(h, user, ids["ml_ai"], value)
+        scored.append(user)
+    request = await request_for(h, event)
+    plan, settings = await fallback_for(h, request)
+    for team in plan.teams:
+        if team.project_id is None:
+            assert scored[1].id in {member.user_id for member in team.members}
+    assert service.validate_plan(request, plan, settings) == []
+
+    core_event = await make_hackathon(h, team_size_min=3, team_size_max=3, areas=areas)
+    lead = await h.user()
+    await make_core(h, core_event, "Core", lead=lead)
+    for _ in range(3):
+        await enroll(h, core_event, await h.user())
+    expert = await h.user()
+    await enroll(h, core_event, expert, created_at=h.now + timedelta(hours=1))
+    await seed_score(h, expert, ids["ml_ai"], 9)
+    core_request = await request_for(h, core_event)
+    core_plan, settings = await fallback_for(h, core_request)
+    [core_team] = core_plan.teams
+    assert {"ml_ai", "backend"} <= {member.area for member in core_team.members}
+    assert next(member for member in core_team.members if member.user_id == expert.id).area == (
+        "ml_ai"
+    )
+    assert service.validate_plan(core_request, core_plan, settings) == []
+
+
+async def test_fallback_undersized_cores_merge(harness: Harness) -> None:
+    h = harness
+    event, cores = await scenario_two_cores(h, 1)
+    request = await request_for(h, event)
+    assert (request.bounds.placed, request.bounds.undersized_cores) == (1, 2)
+    assert request.bounds.new_teams == 0
+    plan, settings = await fallback_for(h, request)
+    sizes = {team.project_id: len(team.members) for team in plan.teams}
+    assert all(size < request.viable for size in sizes.values())
+    [merge] = plan.merges
+    assert (sizes[merge.absorbed_team_id], sizes[merge.target_team_id]) == (2, 3)
+    assert {merge.absorbed_team_id, merge.target_team_id} == {core.id for core in cores}
+    assert service.validate_plan(request, plan, settings) == []
+
+    full_event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    for index in range(2):
+        lead = await h.user()
+        members = [await h.user() for _ in range(3)]
+        await make_core(h, full_event, f"Core {index}", lead=lead, members=members)
+    full_request = await request_for(h, full_event)
+    full_plan, settings = await fallback_for(h, full_request)
+    assert full_plan.merges == []
+    assert service.validate_plan(full_request, full_plan, settings) == []
+
+
+async def test_fallback_is_deterministic(harness: Harness) -> None:
+    h = harness
+    request = await scenario_mixed(h)
+    first, settings = await fallback_for(h, request)
+    second = service.fallback_plan(request, settings)
+    assert first.model_dump(mode="json") == second.model_dump(mode="json")
+    assert service.validate_plan(request, first, settings) == []
+
+
+async def test_fallback_empty_request(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=4, team_size_max=5)
+    request = await request_for(h, event)
+    assert (request.target, request.viable, request.max_size) == (5, 4, 5)
+    plan, settings = await fallback_for(h, request)
+    assert (plan.teams, plan.reserve, plan.merges) == ([], [], [])
+    assert service.validate_plan(request, plan, settings) == []
+
+
+async def test_fallback_core_headroom(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    lead, member = await h.user(), await h.user()
+    await make_core(h, event, "Core", lead=lead, members=[member])
+    for _ in range(5):
+        await enroll(h, event, await h.user())
+    request = await request_for(h, event)
+    assert request.bounds == Bounds(teams=1, new_teams=0, placed=4, reserve=1, undersized_cores=0)
+    plan, settings = await fallback_for(h, request)
+    [team] = plan.teams
+    assert len(team.members) == 6
+    assert len(plan.reserve) == 1
+    assert plan.merges == []
+    assert service.validate_plan(request, plan, settings) == []
+
+
+async def test_fallback_full_core_opens_new_team(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    lead = await h.user()
+    members = [await h.user() for _ in range(5)]
+    core = await make_core(h, event, "Core", lead=lead, members=members)
+    for _ in range(5):
+        await enroll(h, event, await h.user())
+    request = await request_for(h, event)
+    assert (request.bounds.new_teams, request.bounds.placed, request.bounds.reserve) == (1, 5, 0)
+    plan, settings = await fallback_for(h, request)
+    core_team = next(team for team in plan.teams if team.project_id == core.id)
+    assert [member.user_id for member in core_team.members] == [
+        lead.id,
+        *(member.id for member in members),
+    ]
+    new_teams = [team for team in plan.teams if team.project_id is None]
+    assert [len(team.members) for team in new_teams] == [5]
+    assert service.validate_plan(request, plan, settings) == []

@@ -13,11 +13,18 @@ from hmm_contracts.algo import (
     EnrolledMember,
     FormationPlan,
     FormationRequest,
+    MemberSnapshot,
+    PlannedMember,
+    PlannedMerge,
+    PlannedTeam,
+    RankedMember,
     TeamMemberSnapshot,
 )
 from hmm_contracts.algo import LeadFit as AlgoLeadFit
 from hmm_contracts.common import (
     ActorKind,
+    AreaImportance,
+    AreaKey,
     AuditAction,
     AuditEntityType,
     ConfirmKind,
@@ -4273,22 +4280,27 @@ def validate_plan(
         project_id: len(plan.teams[indexes[0]].members)
         for project_id, indexes in by_project.items()
     }
+    merged_ids = {
+        project_id
+        for merge in plan.merges
+        if merge.absorbed_team_id != merge.target_team_id
+        and merge.absorbed_team_id in sizes
+        and merge.target_team_id in sizes
+        and sizes[merge.absorbed_team_id] + sizes[merge.target_team_id] <= request.max_size
+        for project_id in (merge.absorbed_team_id, merge.target_team_id)
+    }
     for core_team in undersized:
+        if core_team.project_id in merged_ids:
+            continue
         size = len(core_team.members)
         fitting = any(
             other is not core_team
             and other.project_id is not None
+            and other.project_id not in merged_ids
             and len(other.members) + size <= request.max_size
             for other in plan.teams
         )
-        merged = any(
-            merge.absorbed_team_id == core_team.project_id
-            and merge.target_team_id != core_team.project_id
-            and merge.target_team_id in sizes
-            and sizes[merge.target_team_id] + size <= request.max_size
-            for merge in plan.merges
-        )
-        if fitting and not merged:
+        if fitting:
             errors.append(
                 _violation(
                     3, "Undersized core has no merge proposal", project_id=core_team.project_id
@@ -4347,3 +4359,202 @@ def validate_plan(
             errors.append(_violation(6, "Merge pair repeats", project_id=absorbed))
         seen.add((absorbed, target))
     return errors
+
+
+AREA_IMPORTANCE_RANK: dict[AreaImportance, int] = {
+    AreaImportance.PRIMARY: 0,
+    AreaImportance.REQUIRED: 1,
+    AreaImportance.NICE: 2,
+}
+
+
+def area_priority(request: FormationRequest) -> dict[AreaKey, int]:
+    priority: dict[AreaKey, int] = {}
+    for area in sorted(
+        request.hackathon.areas,
+        key=lambda area: (AREA_IMPORTANCE_RANK[area.importance], area.area),
+    ):
+        priority.setdefault(area.area, AREA_IMPORTANCE_RANK[area.importance])
+    return priority
+
+
+def area_score(member: MemberSnapshot, key: AreaKey) -> float:
+    score = member.area_scores.get(key)
+    return score.effective if score is not None else 0.0
+
+
+def best_area(request: FormationRequest, member: EnrolledMember) -> AreaKey | None:
+    if member.preferred_area is not None:
+        return member.preferred_area
+    priority = area_priority(request)
+    if not priority:
+        return None
+    return min(priority, key=lambda key: (-area_score(member, key), priority[key], key))
+
+
+@dataclass(slots=True)
+class PlanDraft:
+    project_id: UUID | None
+    members: list[PlannedMember]
+    lead_user_id: UUID | None = None
+
+
+def fallback_plan(request: FormationRequest, settings: AlgoSettings) -> FormationPlan:
+    viable, max_size, bounds = request.viable, request.max_size, request.bounds
+    priority = area_priority(request)
+    facts = formation_member_facts(request, settings)
+    cores = [
+        PlanDraft(
+            project_id=core.project_id,
+            members=[
+                PlannedMember(
+                    user_id=member.user_id, area=member.area, reason="Preserved core member"
+                )
+                for member in (core.lead, *core.members)
+            ],
+        )
+        for core in request.cores
+    ]
+    pool = sorted(request.unplaced, key=lambda member: (member.enrolled_at, str(member.user_id)))
+    placed = 0
+
+    def take(draft: PlanDraft, member: EnrolledMember, area: AreaKey | None, reason: str) -> None:
+        nonlocal placed
+        pool.remove(member)
+        draft.members.append(PlannedMember(user_id=member.user_id, area=area, reason=reason))
+        placed += 1
+
+    deficits = sorted(
+        (viable - len(draft.members), index)
+        for index, draft in enumerate(cores)
+        if len(draft.members) < viable
+    )
+    for deficit, index in deficits:
+        draft = cores[index]
+        for _ in range(deficit):
+            if not pool or placed >= bounds.placed:
+                break
+            covered = {member.area for member in draft.members if member.area is not None}
+            uncovered = [key for key in priority if key not in covered]
+            if uncovered:
+                key = uncovered[0]
+                chosen = min(
+                    pool,
+                    key=lambda member: (
+                        -area_score(member, key),
+                        member.enrolled_at,
+                        str(member.user_id),
+                    ),
+                )
+                take(draft, chosen, key, "Fills a core toward the viable size")
+            else:
+                chosen = pool[0]
+                take(
+                    draft,
+                    chosen,
+                    best_area(request, chosen),
+                    "Fills a core toward the viable size",
+                )
+        if not pool or placed >= bounds.placed:
+            break
+
+    new_teams: list[PlanDraft] = []
+    for _ in range(bounds.new_teams):
+        draft = PlanDraft(project_id=None, members=[])
+        new_teams.append(draft)
+        if not pool:
+            continue
+        volunteer = planned_lead_user(
+            facts, [member.user_id for member in pool if member.willing_to_lead]
+        )
+        chosen = next(
+            (member for member in pool if member.user_id == volunteer),
+            pool[0],
+        )
+        take(draft, chosen, best_area(request, chosen), "Seeds a new team")
+
+    while pool and placed < bounds.placed:
+        short = [
+            (len(draft.members), index, draft)
+            for index, draft in enumerate(new_teams)
+            if len(draft.members) < viable
+        ]
+        if not short:
+            break
+        draft = min(short, key=lambda entry: (entry[0], entry[1]))[2]
+        chosen = pool[0]
+        take(draft, chosen, best_area(request, chosen), "Fills a bounded team seat")
+
+    ranked_drafts = [(0, index, draft) for index, draft in enumerate(new_teams)] + [
+        (1, index, draft) for index, draft in enumerate(cores)
+    ]
+    while pool and placed < bounds.placed:
+        open_drafts = [entry for entry in ranked_drafts if len(entry[2].members) < max_size]
+        if not open_drafts:
+            break
+        draft = min(open_drafts, key=lambda entry: (len(entry[2].members), entry[0], entry[1]))[2]
+        chosen = pool[0]
+        take(draft, chosen, best_area(request, chosen), "Balances team sizes")
+
+    for draft in new_teams:
+        draft.lead_user_id = planned_lead_user(facts, [member.user_id for member in draft.members])
+
+    reserve = [
+        RankedMember(
+            user_id=member.user_id,
+            rank=rank,
+            reason="Kept on the reserve by the fallback planner",
+        )
+        for rank, member in enumerate(pool, start=1)
+    ]
+
+    merges: list[PlannedMerge] = []
+    used: set[UUID] = set()
+    undersized = sorted(
+        (len(draft.members), index)
+        for index, draft in enumerate(cores)
+        if len(draft.members) < viable
+    )
+    for _, index in undersized:
+        draft = cores[index]
+        if draft.project_id is None or draft.project_id in used:
+            continue
+        target = next(
+            (
+                other
+                for other in cores
+                if other is not draft
+                and other.project_id is not None
+                and other.project_id not in used
+                and len(other.members) + len(draft.members) <= max_size
+            ),
+            None,
+        )
+        if target is None or target.project_id is None:
+            continue
+        merges.append(
+            PlannedMerge(
+                absorbed_team_id=draft.project_id,
+                target_team_id=target.project_id,
+                reason="Undersized core fits into another team without exceeding the maximum",
+            )
+        )
+        used.update((draft.project_id, target.project_id))
+
+    return FormationPlan(
+        teams=[
+            PlannedTeam(
+                project_id=draft.project_id,
+                lead_user_id=draft.lead_user_id,
+                members=draft.members,
+                reason="Preserved core" if draft.project_id is not None else "New team",
+            )
+            for draft in [*cores, *new_teams]
+        ],
+        reserve=reserve,
+        merges=merges,
+        summary=(
+            "Deterministic fallback: cores filled to viable, volunteers seeded first, "
+            "then area coverage and balanced sizes"
+        ),
+    )
