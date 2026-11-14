@@ -78,6 +78,7 @@ from hmm_contracts.notifications import (
     LeadTransferredPayload,
     MergeProposedPayload,
     NotificationPerson,
+    PlacementLapsedPayload,
     ProjectInviteReceivedPayload,
     ProjectJoinRequestReceivedPayload,
     ReservePlacedPayload,
@@ -4061,6 +4062,149 @@ async def update_member_area(
     await session.refresh(project)
     await session.refresh(member)
     return project, member
+
+
+async def lapse_due_proposals(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    event: models.Event,
+    now: datetime,
+    *,
+    limit: int = 200,
+) -> int:
+    await formation_row(session, event.id)
+    timing = formation_timing(event, await load_settings(session), now)
+    rows = (
+        await session.execute(
+            select(models.ProjectMember, models.Project)
+            .join(models.Project, models.Project.id == models.ProjectMember.project_id)
+            .where(
+                models.Project.event_id == event.id,
+                models.Project.team_status == TeamStatus.LOCKED.value,
+                models.ProjectMember.left_at.is_(None),
+                models.ProjectMember.is_team_row.is_(True),
+                models.ProjectMember.state == MemberState.PROPOSED.value,
+                models.ProjectMember.confirm_by.is_not(None),
+                models.ProjectMember.confirm_by <= now,
+            )
+            .order_by(models.ProjectMember.confirm_by, models.ProjectMember.id)
+            .limit(limit)
+            .execution_options(populate_existing=True)
+        )
+    ).all()
+    projects_by_id: dict[UUID, models.Project] = {}
+    count = 0
+    for member, candidate_project in rows:
+        project = projects_by_id.get(candidate_project.id)
+        if project is None:
+            project = (
+                await session.scalars(
+                    select(models.Project)
+                    .where(models.Project.id == candidate_project.id)
+                    .with_for_update()
+                    .execution_options(populate_existing=True)
+                )
+            ).one()
+            projects_by_id[project.id] = project
+        await _confirm_deadline_lapse(
+            session,
+            project,
+            event,
+            member,
+            now,
+            timing=timing,
+            reason="The confirmation deadline passed",
+            succession=True,
+        )
+        count += 1
+    if count:
+        await enqueue_participation_jobs(session, jobs, event.id, reserve=False)
+    await session.flush()
+    return count
+
+
+async def _confirm_deadline_lapse(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event,
+    member: models.ProjectMember,
+    now: datetime,
+    *,
+    timing: FormationTiming,
+    reason: str,
+    succession: bool,
+) -> None:
+    was_lead = project.lead_user_id == member.user_id
+    confirm_by = cast(datetime, member.confirm_by)
+    confirm_kind = member.confirm_kind
+    member.left_at = now
+    member.left_reason = LeftReason.LAPSED.value
+    row = await live_enrollment_row(session, event.id, member.user_id, for_update=True)
+    if row is not None:
+        row.status = EnrollmentStatus.LAPSED.value
+        row.status_at = now
+        row.reserve_rank = None
+    await session.flush()
+    await open_seat(session, project, event, now)
+    await session.execute(
+        update(models.LeadOffer)
+        .where(
+            models.LeadOffer.project_id == project.id,
+            models.LeadOffer.user_id == member.user_id,
+            models.LeadOffer.status == LeadOfferStatus.PENDING.value,
+        )
+        .values(status=LeadOfferStatus.CLOSED.value, responded_at=now)
+    )
+    await notify(
+        session,
+        member.user_id,
+        PlacementLapsedPayload(
+            link=f"/events/{event.id}/formation",
+            event_id=event.id,
+            event_title=event.title,
+            project_id=project.id,
+            team_name=project.name,
+            confirm_by=confirm_by,
+            reason=reason,
+            reg_deadline=timing.reg_deadline,
+        ),
+        now,
+        dedupe_key=f"placement_lapsed:{project.id}:{member.user_id}",
+    )
+    await record_audit(
+        session,
+        actor=None,
+        actor_kind=ActorKind.SYSTEM,
+        action=AuditAction.SYSTEM_TRANSITION,
+        entity_type=AuditEntityType.PROJECT_MEMBER,
+        entity_id=member.id,
+        before={"state": MemberState.PROPOSED.value, "confirm_kind": confirm_kind},
+        after={
+            "left_reason": LeftReason.LAPSED.value,
+            "enrollment_status": EnrollmentStatus.LAPSED.value,
+        },
+        reason=reason,
+    )
+    if was_lead:
+        project.lead_user_id = None
+        project.last_lead_action_at = now
+        await close_pending_lead_offers(session, project.id, now)
+        await record_audit(
+            session,
+            actor=None,
+            actor_kind=ActorKind.SYSTEM,
+            action=AuditAction.LEAD_STEP_DOWN,
+            entity_type=AuditEntityType.PROJECT,
+            entity_id=project.id,
+            before={"lead_user_id": str(member.user_id)},
+            after={"lead_user_id": None},
+            reason=reason,
+        )
+        if succession:
+            await start_succession(
+                session, project, event, now, exclude={member.user_id}, reason=reason
+            )
+    await session.flush()
 
 
 async def expire_lead_offers(session: AsyncSession, event: models.Event, now: datetime) -> int:
