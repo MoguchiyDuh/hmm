@@ -2,8 +2,9 @@ import os
 from collections.abc import Mapping
 from typing import Self
 
+from hmm_contracts.algo import LLMConfig
 from hmm_contracts.common import Contract
-from pydantic import AnyHttpUrl, field_validator
+from pydantic import AnyHttpUrl, SecretStr, field_validator
 
 
 class Config(Contract):
@@ -16,6 +17,17 @@ class Config(Contract):
     parser_service_token: str | None = None
     telegram_bot_username: str | None = None
     admin_github_logins: frozenset[str] = frozenset()
+    algorithm: str | None = None
+    llm_base_url: str | None = None
+    llm_api_key: str | None = None
+    llm_model: str | None = None
+
+    def llm(self) -> LLMConfig | None:
+        if not (self.llm_base_url and self.llm_api_key and self.llm_model):
+            return None
+        return LLMConfig(
+            base_url=self.llm_base_url, api_key=SecretStr(self.llm_api_key), model=self.llm_model
+        )
 
     @field_validator("public_url")
     @classmethod
@@ -40,4 +52,8 @@ class Config(Contract):
             parser_service_token=env.get("PARSER_SERVICE_TOKEN") or None,
             telegram_bot_username=env.get("TELEGRAM_BOT_USERNAME") or None,
             admin_github_logins=frozenset(env.get("ADMIN_GITHUB_LOGINS", "").split(",")),
+            algorithm=env.get("ALGORITHM") or None,
+            llm_base_url=env.get("LLM_BASE_URL") or None,
+            llm_api_key=env.get("LLM_API_KEY") or None,
+            llm_model=env.get("LLM_MODEL") or None,
         )
