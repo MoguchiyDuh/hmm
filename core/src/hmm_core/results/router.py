@@ -8,12 +8,16 @@ from hmm_contracts.common import (
     ReviewContext,
     ReviewId,
     ReviewWindowId,
+    ReviewWindowSubjectType,
     UserId,
 )
 
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import AdminAuth, MemberAuth
+from hmm_core.results import reviews
 from hmm_core.results.schemas import (
     AdminReview,
     AdminReviewPage,
@@ -24,7 +28,9 @@ from hmm_core.results.schemas import (
     ReportReviewBody,
     ResultToVerifyPage,
     Review,
+    ReviewAction,
     ReviewReport,
+    ReviewWindowAction,
     UpdateHostReviewBody,
     UpdateResultBody,
     UpdateReviewBody,
@@ -89,9 +95,25 @@ async def get_result(id: ProjectId, actor: MemberAuth) -> ProjectResult:
     summary="List open review windows and outstanding reviews",
 )
 async def list_pending_reviews(
-    actor: MemberAuth,
+    actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> list[PendingReviewWindow]:
-    not_implemented()
+    rows = await reviews.pending_windows(session, actor_id=actor.id, now=clock.now())
+    return [
+        PendingReviewWindow(
+            id=row.window.id,
+            subject_type=ReviewWindowSubjectType(row.window.subject_type),
+            subject_id=row.window.subject_id,
+            subject_title=row.subject_title,
+            opens_at=row.window.opens_at,
+            closes_at=row.window.closes_at,
+            to_review=[reviews.user_ref(user) for user in row.to_review],
+            submitted=[
+                reviews.build_review(review, actor, [ReviewAction.EDIT]) for review in row.submitted
+            ],
+            allowed_actions=[ReviewWindowAction.REVIEW],
+        )
+        for row in rows
+    ]
 
 
 @router.put(
@@ -104,8 +126,19 @@ async def update_review(
     reviewee_id: UserId,
     body: UpdateReviewBody,
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> Review:
-    not_implemented()
+    review = await reviews.submit_review(
+        session,
+        actor_id=actor.id,
+        window_id=id,
+        reviewee_id=reviewee_id,
+        rating=body.rating,
+        comment=body.comment,
+        now=clock.now(),
+    )
+    return reviews.build_review(review, actor, [ReviewAction.EDIT])
 
 
 @router.put(
