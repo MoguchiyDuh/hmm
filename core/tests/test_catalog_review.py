@@ -386,6 +386,11 @@ async def test_merge_success(harness: Harness) -> None:
     assert rows[0].reason == "Same"
     assert await count(h, models.Event) == 2
     assert await count(h, models.EventArea, models.EventArea.event_id == source) == 1
+    jobs = await h.pending_jobs("recompute_member")
+    assert all(job["status"] == "todo" for job in jobs)
+    assert sorted(job["args"]["user_id"] for job in jobs) == sorted(
+        [str(member_a.id), str(member_b.id)]
+    )
 
 
 async def test_review_full_flow(harness: Harness) -> None:

@@ -24,6 +24,7 @@ from hmm_core.catalog import service as catalog
 from hmm_core.formation import service as formation
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.jobs import JobName, defer_job
 
 ATTENDANCE_RANK = {
     AttendanceStatus.CANCELLED.value: 1,
@@ -118,7 +119,7 @@ async def reject_event(
 
 async def merge_attendances(
     session: AsyncSession, source: models.Event, target: models.Event, now: datetime
-) -> None:
+) -> set[UUID]:
     source_rows = list(
         await session.scalars(
             select(models.EventAttendance)
@@ -134,7 +135,9 @@ async def merge_attendances(
             .with_for_update()
         )
     }
+    affected: set[UUID] = set()
     for source_row in source_rows:
+        affected.add(source_row.user_id)
         merged = target_rows.get(source_row.user_id)
         if merged is None:
             source_row.event_id = target.id
@@ -189,6 +192,7 @@ async def merge_attendances(
         ):
             merged.trust = Trust.TRUSTED.value
         await session.delete(source_row)
+    return affected
 
 
 async def merge_event(
@@ -250,7 +254,7 @@ async def merge_event(
         .where(models.EventSourcePerson.event_id == source.id)
         .values(event_id=target.id)
     )
-    await merge_attendances(session, source, target, now)
+    affected = await merge_attendances(session, source, target, now)
     source.status = EventStatus.ARCHIVED.value
     source.review_reasons = []
     await record_audit(
@@ -264,6 +268,8 @@ async def merge_event(
         after={"status": "archived", "merged_into": str(target.id)},
         reason=body.reason,
     )
+    for user_id in sorted(affected, key=str):
+        await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(user_id))
     await session.flush()
     await session.refresh(target)
     return target
