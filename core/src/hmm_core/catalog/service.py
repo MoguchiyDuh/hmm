@@ -1309,6 +1309,9 @@ async def update_event(
         )
     if changes.keys() & {"starts_at", "ends_at", "registration_deadline"}:
         await formation.dates_changed(session, jobs, event, previous_dates, now)
+    from hmm_core.recommendations import service as recommendations
+
+    await recommendations.enqueue_event_refresh(session, jobs, event_id)
     await session.flush()
     await session.refresh(event)
     return event
