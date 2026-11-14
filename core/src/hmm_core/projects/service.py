@@ -180,11 +180,9 @@ def project_actions(
             if project.seats_closed_at is not None:
                 allowed.add(schemas.ProjectAction.REOPEN_SEATS)
         if project.team_status in OPEN_TEAMS:
-            allowed |= {
-                schemas.ProjectAction.SWAP,
-                schemas.ProjectAction.MERGE,
-                schemas.ProjectAction.INVITE,
-            }
+            allowed.add(schemas.ProjectAction.INVITE)
+        if project.team_status == TeamStatus.REVIEW:
+            allowed |= {schemas.ProjectAction.SWAP, schemas.ProjectAction.MERGE}
         if not lead_changes_closed(project):
             allowed |= {schemas.ProjectAction.TRANSFER_LEAD, schemas.ProjectAction.STEP_DOWN}
     if is_member and project.lead_user_id is None and project.status == ProjectStatus.PAUSED:

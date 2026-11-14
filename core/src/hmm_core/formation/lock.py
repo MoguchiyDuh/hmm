@@ -13,9 +13,7 @@ from hmm_contracts.common import (
     LeadOfferStatus,
     LeftReason,
     MemberState,
-    MergeProposalStatus,
     ProjectStatus,
-    SwapRequestStatus,
     TeamStatus,
 )
 from hmm_contracts.notifications import (
@@ -24,7 +22,7 @@ from hmm_contracts.notifications import (
     TeamDisbandedPayload,
     TeamLockedPayload,
 )
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -44,34 +42,10 @@ from hmm_core.formation.lead_offers import (
 )
 from hmm_core.formation.leads import close_project_pending_items, formation_sizes
 from hmm_core.formation.members import open_seat
+from hmm_core.formation.swaps import close_swaps_and_merges
 from hmm_core.notifications.service import notify, notify_many, raise_alert, resolve_alerts
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.settings import load_settings
-
-
-async def _close_team_swap_merge_proposals(session: AsyncSession, project_id: UUID) -> None:
-    await session.execute(
-        update(models.SwapRequest)
-        .where(
-            models.SwapRequest.status == SwapRequestStatus.PENDING.value,
-            or_(
-                models.SwapRequest.from_team_id == project_id,
-                models.SwapRequest.to_team_id == project_id,
-            ),
-        )
-        .values(status=SwapRequestStatus.CLOSED.value)
-    )
-    await session.execute(
-        update(models.MergeProposal)
-        .where(
-            models.MergeProposal.status == MergeProposalStatus.PENDING.value,
-            or_(
-                models.MergeProposal.absorbed_team_id == project_id,
-                models.MergeProposal.target_team_id == project_id,
-            ),
-        )
-        .values(status=MergeProposalStatus.CLOSED.value)
-    )
 
 
 async def lock_team(
@@ -157,7 +131,7 @@ async def lock_team(
         project.last_lead_action_at = now
         await close_pending_lead_offers(session, project.id, now)
         await close_project_pending_items(session, project.id, now, reason="team_disbanded")
-        await _close_team_swap_merge_proposals(session, project.id)
+        await close_swaps_and_merges(session, project, event, now, reason="The team was disbanded")
         await record_audit(
             session,
             actor=None,
@@ -175,7 +149,7 @@ async def lock_team(
         await session.flush()
         return False
     await close_pending_lead_offers(session, project.id, now)
-    await _close_team_swap_merge_proposals(session, project.id)
+    await close_swaps_and_merges(session, project, event, now, reason="The team locked")
     await close_project_pending_items(session, project.id, now, reason="team_locked")
     project.team_status = TeamStatus.LOCKED.value
     project.status = ProjectStatus.ACTIVE.value

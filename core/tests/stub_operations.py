@@ -1,7 +1,5 @@
 UNIMPLEMENTED_OPERATIONS = set(
     [
-        "formation_accept_merge",
-        "formation_accept_swap",
         "formation_add_reserve_member",
         "formation_admin_add_member",
         "formation_admin_assign_lead",
@@ -11,10 +9,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "formation_admin_remove_member",
         "formation_admin_update_team_status",
         "formation_close_seats",
-        "formation_create_merge",
-        "formation_create_swap",
-        "formation_decline_merge",
-        "formation_decline_swap",
         "formation_list_reserve",
         "formation_reopen_seats",
         "formation_update_reserve_order",
