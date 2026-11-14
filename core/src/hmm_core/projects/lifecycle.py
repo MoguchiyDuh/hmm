@@ -14,6 +14,7 @@ from hmm_core.notifications.service import notify_many
 from hmm_core.platform.errors import ProblemError
 from hmm_core.projects import schemas
 from hmm_core.projects.common import project_member_ids
+from hmm_core.projects.idle import PAUSE_MANUAL
 from hmm_core.projects.views import CLOSED_PROJECT_STATUSES, lifecycle_open, project_response
 
 
@@ -50,6 +51,7 @@ async def _transition(
     if project.status not in {status.value for status in allowed_from}:
         raise ProblemError(ErrorCode.INVALID_STATE, message)
     project.status = target.value
+    project.paused_reason = PAUSE_MANUAL if target == ProjectStatus.PAUSED else None
     project.last_lead_action_at = now
     await session.flush()
     await session.refresh(project)

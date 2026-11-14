@@ -52,6 +52,9 @@ class Project(Mutable, Base):
         enum_check("team_status", TeamStatus),
         enum_check("origin", ProjectOrigin),
         CheckConstraint("team_status IS NULL OR event_id IS NOT NULL", name="team_event"),
+        CheckConstraint(
+            "paused_reason IS NULL OR paused_reason IN ('manual', 'idle')", name="paused_reason"
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -71,6 +74,7 @@ class Project(Mutable, Base):
     )
     status: Mapped[str] = mapped_column(Text, nullable=False)
     team_status: Mapped[str | None] = mapped_column(Text, nullable=True)
+    paused_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     origin: Mapped[str] = mapped_column(Text, nullable=False)
     ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     review_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

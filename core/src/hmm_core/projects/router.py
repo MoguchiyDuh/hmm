@@ -14,7 +14,7 @@ from hmm_contracts.common import (
 from hmm_core.formation import service as formation
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import MemberAuth
@@ -231,8 +231,8 @@ async def claim_lead(
 @router.get(
     "/projects/{id}/milestones", status_code=status.HTTP_200_OK, summary="List project milestones"
 )
-async def list_milestones(id: ProjectId, actor: MemberAuth) -> list[Milestone]:
-    not_implemented()
+async def list_milestones(id: ProjectId, actor: MemberAuth, session: Session) -> list[Milestone]:
+    return await service.list_milestones(session, id, actor)
 
 
 @router.post(
@@ -241,9 +241,13 @@ async def list_milestones(id: ProjectId, actor: MemberAuth) -> list[Milestone]:
     summary="Create milestone as project member",
 )
 async def create_milestone(
-    id: ProjectId, body: CreateMilestoneBody, actor: MemberAuth
+    id: ProjectId,
+    body: CreateMilestoneBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> Milestone:
-    not_implemented()
+    return await service.create_milestone(session, id, body, actor, clock.now())
 
 
 @router.patch(
@@ -256,8 +260,13 @@ async def update_milestone(
     mid: MilestoneId,
     body: UpdateMilestoneBody,
     actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
 ) -> Milestone:
-    not_implemented()
+    return await service.update_milestone(
+        session, request.app.state.jobs, id, mid, body, actor, clock.now()
+    )
 
 
 @router.delete(
@@ -265,15 +274,22 @@ async def update_milestone(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete milestone as project member",
 )
-async def delete_milestone(id: ProjectId, mid: MilestoneId, actor: MemberAuth) -> None:
-    not_implemented()
+async def delete_milestone(
+    id: ProjectId,
+    mid: MilestoneId,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> None:
+    await service.delete_milestone(session, request.app.state.jobs, id, mid, actor, clock.now())
 
 
 @router.get(
     "/projects/{id}/updates", status_code=status.HTTP_200_OK, summary="List project updates"
 )
-async def list_updates(id: ProjectId, actor: MemberAuth) -> list[ProjectUpdate]:
-    not_implemented()
+async def list_updates(id: ProjectId, actor: MemberAuth, session: Session) -> list[ProjectUpdate]:
+    return await service.list_updates(session, id, actor)
 
 
 @router.post(
@@ -282,22 +298,36 @@ async def list_updates(id: ProjectId, actor: MemberAuth) -> list[ProjectUpdate]:
     summary="Post update as project member",
 )
 async def create_update(
-    id: ProjectId, body: CreateProjectUpdateBody, actor: MemberAuth
+    id: ProjectId,
+    body: CreateProjectUpdateBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
 ) -> ProjectUpdate:
-    not_implemented()
+    return await service.create_update(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
 
 
 @router.post(
     "/projects/{id}/releases", status_code=status.HTTP_201_CREATED, summary="Ship a release as lead"
 )
 async def create_release(
-    id: ProjectId, body: CreateProjectReleaseBody, actor: MemberAuth
+    id: ProjectId,
+    body: CreateProjectReleaseBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
 ) -> ProjectRelease:
-    not_implemented()
+    return await service.create_release(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
 
 
 @router.get(
     "/projects/{id}/releases", status_code=status.HTTP_200_OK, summary="List project releases"
 )
-async def list_releases(id: ProjectId, actor: MemberAuth) -> list[ProjectRelease]:
-    not_implemented()
+async def list_releases(id: ProjectId, actor: MemberAuth, session: Session) -> list[ProjectRelease]:
+    return await service.list_releases(session, id, actor)

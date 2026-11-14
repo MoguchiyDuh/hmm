@@ -7,13 +7,5 @@ UNIMPLEMENTED_OPERATIONS = set(
         "formation_admin_move_member",
         "formation_admin_remove_member",
         "formation_admin_update_team_status",
-        "projects_create_milestone",
-        "projects_create_release",
-        "projects_create_update",
-        "projects_delete_milestone",
-        "projects_list_milestones",
-        "projects_list_releases",
-        "projects_list_updates",
-        "projects_update_milestone",
     ]
 )

@@ -2,7 +2,21 @@ from hmm_core.projects.bans import (
     remove_user_from_standalone_projects,
 )
 from hmm_core.projects.common import (
+    is_project_member,
+    member_project,
     project_member_ids,
+    visible_project,
+    writable_member_project,
+)
+from hmm_core.projects.idle import (
+    IDLE_PAUSE_FACTOR,
+    PAUSE_IDLE,
+    PAUSE_MANUAL,
+    mark_project_progress,
+    pause_idle_projects,
+    resume_idle_project,
+    run_project_timers,
+    warn_idle_projects,
 )
 from hmm_core.projects.lifecycle import (
     abandon_project,
@@ -17,12 +31,26 @@ from hmm_core.projects.members import (
     leave_project,
     remove_project_member,
 )
+from hmm_core.projects.milestones import (
+    create_milestone,
+    delete_milestone,
+    list_milestones,
+    milestone_view,
+    update_milestone,
+)
 from hmm_core.projects.records import (
     create_project,
     get_project,
     led_projects_count,
     list_my_projects,
     list_projects,
+)
+from hmm_core.projects.releases import (
+    CONTRIBUTION_MEMBER_WINDOW,
+    RELEASE_WINDOW_REPEAT,
+    create_release,
+    list_releases,
+    release_views,
 )
 from hmm_core.projects.succession import (
     ProjectLeadCandidate,
@@ -31,6 +59,11 @@ from hmm_core.projects.succession import (
     project_lead_offer_payload,
     standalone_lead_order,
     standalone_lead_succession,
+)
+from hmm_core.projects.updates import (
+    create_update,
+    list_updates,
+    update_view,
 )
 from hmm_core.projects.views import (
     CLOSED_PROJECT_STATUSES,
@@ -63,10 +96,15 @@ from hmm_core.projects.views import (
 
 __all__ = [
     "CLOSED_PROJECT_STATUSES",
+    "CONTRIBUTION_MEMBER_WINDOW",
+    "IDLE_PAUSE_FACTOR",
     "LEAD_CLOSED_PROJECT_STATUSES",
     "LEAD_CLOSED_TEAM_STATUSES",
     "OPEN_TEAMS",
+    "PAUSE_IDLE",
+    "PAUSE_MANUAL",
     "POST_RESULT_TEAM_STATUSES",
+    "RELEASE_WINDOW_REPEAT",
     "STANDALONE_TRANSFER_TTL",
     "TERMINAL_TEAM_STATUSES",
     "MemberRow",
@@ -75,20 +113,32 @@ __all__ = [
     "abandon_project",
     "claim_project_lead",
     "continue_project",
+    "create_milestone",
     "create_project",
+    "create_release",
+    "create_update",
+    "delete_milestone",
     "expire_project_lead_offers",
     "get_project",
     "invite_view",
+    "is_project_member",
     "join_request_view",
     "lead_changes_closed",
     "lead_offer_view",
     "leave_project",
     "led_projects_count",
     "lifecycle_open",
+    "list_milestones",
     "list_my_projects",
     "list_projects",
+    "list_releases",
+    "list_updates",
+    "mark_project_progress",
     "member_actions",
+    "member_project",
+    "milestone_view",
     "open_seats",
+    "pause_idle_projects",
     "pause_project",
     "pause_project_for_lead",
     "project_actions",
@@ -101,13 +151,21 @@ __all__ = [
     "project_ref",
     "project_response",
     "project_views",
+    "release_views",
     "remove_project_member",
     "remove_user_from_standalone_projects",
     "resolve_project_areas",
+    "resume_idle_project",
+    "run_project_timers",
     "standalone_lead_order",
     "standalone_lead_succession",
     "start_project",
     "team_size",
+    "update_milestone",
     "update_project",
+    "update_view",
     "user_ref",
+    "visible_project",
+    "warn_idle_projects",
+    "writable_member_project",
 ]
