@@ -3,9 +3,12 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, Request, status
 from hmm_contracts.common import AreaKey, UserId
 
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import MemberAuth, UserAuth
+from hmm_core.profiles import service
 from hmm_core.profiles.schemas import (
     Availability,
     Cv,
@@ -27,6 +30,8 @@ internal = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
 async def list_users(
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
     q: Annotated[str | None, Query()] = None,
     area: Annotated[AreaKey | None, Query()] = None,
     min_score: Annotated[float | None, Query(ge=0, le=10)] = None,
@@ -34,22 +39,46 @@ async def list_users(
     mentor: Annotated[bool | None, Query()] = None,
     sort: Annotated[Literal["xp", "activity", "score", "reputation", "name"], Query()] = "xp",
 ) -> UserSummaryPage:
-    not_implemented()
+    query = service.DirectoryQuery(
+        q=q,
+        area_key=area,
+        min_score=min_score,
+        available=available,
+        mentor=mentor,
+        sort=sort,
+    )
+    now = clock.now()
+    users, next_cursor = await service.list_directory(session, pagination, query, now)
+    items = await service.user_summaries(session, users, actor, now)
+    return UserSummaryPage(items=items, next_cursor=next_cursor)
 
 
 @router.get("/users/{id}", status_code=status.HTTP_200_OK, summary="Public profile")
-async def get_user(id: UserId, actor: MemberAuth) -> UserProfile:
-    not_implemented()
+async def get_user(
+    id: UserId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> UserProfile:
+    user = await service.get_user(session, id)
+    return await service.user_profile(session, user, actor, clock.now())
 
 
 @router.patch("/me/profile", status_code=status.HTTP_200_OK, summary="Edit profile fields")
-async def update_profile(body: UpdateProfileBody, actor: UserAuth) -> UserProfile:
-    not_implemented()
+async def update_profile(
+    body: UpdateProfileBody,
+    actor: UserAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
+) -> UserProfile:
+    target = await service.update_profile(session, request.app.state.jobs, actor, body)
+    return await service.user_profile(session, target, actor, clock.now())
 
 
 @router.put("/me/availability", status_code=status.HTTP_200_OK, summary="Set do-not-disturb")
-async def update_availability(body: UpdateAvailabilityBody, actor: MemberAuth) -> Availability:
-    not_implemented()
+async def update_availability(
+    body: UpdateAvailabilityBody, actor: MemberAuth, session: Session
+) -> Availability:
+    user = await service.set_availability(session, actor, body.dnd_until)
+    return service.availability_view(user)
 
 
 @router.post(
@@ -87,10 +116,8 @@ async def get_cv(id: UserId, actor: MemberAuth) -> Cv:
 @router.get(
     "/me/notification-settings", status_code=status.HTTP_200_OK, summary="Get notification settings"
 )
-async def get_notification_settings(
-    actor: UserAuth,
-) -> NotificationSettings:
-    not_implemented()
+async def get_notification_settings(actor: UserAuth, session: Session) -> NotificationSettings:
+    return await service.notification_settings(session, actor.id)
 
 
 @router.put(
@@ -99,6 +126,6 @@ async def get_notification_settings(
     summary="Update notification settings",
 )
 async def update_notification_settings(
-    body: UpdateNotificationSettingsBody, actor: UserAuth
+    body: UpdateNotificationSettingsBody, actor: UserAuth, session: Session
 ) -> NotificationSettings:
-    not_implemented()
+    return await service.update_notification_settings(session, actor.id, body)
