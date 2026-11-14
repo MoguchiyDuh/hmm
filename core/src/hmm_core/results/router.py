@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from hmm_contracts.common import (
     EventId,
     PlaceStatus,
@@ -19,7 +19,7 @@ from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import AdminAuth, MemberAuth
-from hmm_core.results import reviews
+from hmm_core.results import reviews, service
 from hmm_core.results.schemas import (
     AdminReview,
     AdminReviewPage,
@@ -47,8 +47,17 @@ internal = APIRouter(tags=["results"], responses=PROBLEM_RESPONSES)
 @router.post(
     "/projects/{id}/result", status_code=status.HTTP_201_CREATED, summary="Submit hackathon result"
 )
-async def create_result(id: ProjectId, body: CreateResultBody, actor: MemberAuth) -> ProjectResult:
-    not_implemented()
+async def create_result(
+    id: ProjectId,
+    body: CreateResultBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
+) -> ProjectResult:
+    return await service.submit_result(
+        session, request.app.state.jobs, id, body, actor, clock.now(), admin=actor.is_admin
+    )
 
 
 @router.patch(
@@ -87,8 +96,10 @@ async def verify_result(id: ProjectId, body: VerifyResultBody, actor: AdminAuth)
     status_code=status.HTTP_200_OK,
     summary="Get result with retrospective restricted to team and admins",
 )
-async def get_result(id: ProjectId, actor: MemberAuth) -> ProjectResult:
-    not_implemented()
+async def get_result(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> ProjectResult:
+    return await service.fetch_result(session, id, actor, clock.now(), admin=actor.is_admin)
 
 
 @router.get(
