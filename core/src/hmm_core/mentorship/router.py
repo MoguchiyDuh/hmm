@@ -188,10 +188,12 @@ async def accept_help_offer(
 @router.get("/me/mentorships", status_code=status.HTTP_200_OK, summary="List own mentorships")
 async def list_my_mentorships(
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     role: Annotated[MentorshipSide | None, Query()] = None,
     mentorship_status: Annotated[MentorshipStatus | None, Query(alias="status")] = None,
 ) -> list[Mentorship]:
-    not_implemented()
+    return await service.list_my_mentorships(session, actor, role, mentorship_status, clock.now())
 
 
 @router.get(
@@ -199,8 +201,10 @@ async def list_my_mentorships(
     status_code=status.HTTP_200_OK,
     summary="Get mentorship as participant or admin",
 )
-async def get_mentorship(id: MentorshipId, actor: MemberAuth) -> Mentorship:
-    not_implemented()
+async def get_mentorship(
+    id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Mentorship:
+    return await service.get_mentorship(session, actor, id, clock.now())
 
 
 @router.post(
@@ -209,9 +213,16 @@ async def get_mentorship(id: MentorshipId, actor: MemberAuth) -> Mentorship:
     summary="Record check-in as either participant",
 )
 async def create_checkin(
-    id: MentorshipId, body: CreateMentorshipCheckinBody, actor: MemberAuth
+    id: MentorshipId,
+    body: CreateMentorshipCheckinBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
 ) -> MentorshipCheckin:
-    not_implemented()
+    return await service.create_checkin(
+        session, request.app.state.jobs, actor, id, body, clock.now()
+    )
 
 
 @router.post(

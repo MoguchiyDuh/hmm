@@ -8,6 +8,7 @@ from hmm_contracts.common import (
     HelpOfferStatus,
     HelpRequestFormat,
     HelpRequestStatus,
+    MentorshipSide,
     MentorshipStatus,
     RestrictionKind,
     ReviewContext,
@@ -764,3 +765,98 @@ async def withdraw_all_for_ban(session: AsyncSession, user_id: UUID, now: dateti
         .values(active=False)
     )
     await session.flush()
+
+
+async def list_my_mentorships(
+    session: AsyncSession,
+    actor: models.User,
+    role: MentorshipSide | None,
+    mentorship_status: MentorshipStatus | None,
+    now: datetime,
+) -> list[schemas.Mentorship]:
+    statement = select(models.Mentorship).where(
+        or_(models.Mentorship.mentor_id == actor.id, models.Mentorship.learner_id == actor.id)
+    )
+    if role == MentorshipSide.MENTOR:
+        statement = statement.where(models.Mentorship.mentor_id == actor.id)
+    elif role == MentorshipSide.LEARNER:
+        statement = statement.where(models.Mentorship.learner_id == actor.id)
+    if mentorship_status is not None:
+        statement = statement.where(models.Mentorship.status == mentorship_status.value)
+    rows = list(
+        await session.scalars(
+            statement.order_by(models.Mentorship.started_at.desc(), models.Mentorship.id.desc())
+        )
+    )
+    return [await views.mentorship_view(session, row, actor, now) for row in rows]
+
+
+async def get_mentorship(
+    session: AsyncSession, actor: models.User, mentorship_id: UUID, now: datetime
+) -> schemas.Mentorship:
+    mentorship = await session.get(models.Mentorship, mentorship_id)
+    if mentorship is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if actor.id not in (mentorship.mentor_id, mentorship.learner_id) and not actor.is_admin:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return await views.mentorship_view(session, mentorship, actor, now)
+
+
+async def create_checkin(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    actor: models.User,
+    mentorship_id: UUID,
+    body: schemas.CreateMentorshipCheckinBody,
+    now: datetime,
+) -> schemas.MentorshipCheckin:
+    mentorship = await session.scalar(
+        select(models.Mentorship).where(models.Mentorship.id == mentorship_id).with_for_update()
+    )
+    if mentorship is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if actor.id not in (mentorship.mentor_id, mentorship.learner_id):
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if mentorship.status not in (MentorshipStatus.ACTIVE.value, MentorshipStatus.STALLED.value):
+        raise ProblemError(ErrorCode.INVALID_STATE)
+    if body.occurred_on > now.date():
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, "Check-in date is in the future")
+    if body.occurred_on < mentorship.started_at.date():
+        raise ProblemError(
+            ErrorCode.VALIDATION_ERROR, "Check-in date is before the mentorship started"
+        )
+    existing = await session.scalar(
+        select(models.MentorshipCheckin.id).where(
+            models.MentorshipCheckin.mentorship_id == mentorship.id,
+            models.MentorshipCheckin.author_id == actor.id,
+            models.MentorshipCheckin.occurred_on == body.occurred_on,
+        )
+    )
+    if existing is not None:
+        raise ProblemError(ErrorCode.CHECKIN_LIMIT)
+    row = models.MentorshipCheckin(
+        mentorship_id=mentorship.id,
+        author_id=actor.id,
+        note=body.note,
+        occurred_on=body.occurred_on,
+        minutes=body.minutes,
+    )
+    session.add(row)
+    await session.flush()
+    await session.refresh(row)
+    mentorship.last_checkin_at = now
+    if mentorship.status == MentorshipStatus.STALLED.value:
+        mentorship.status = MentorshipStatus.ACTIVE.value
+        mentorship.stalled_at = None
+    await session.flush()
+    for user_id in (mentorship.mentor_id, mentorship.learner_id):
+        await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(user_id))
+    return schemas.MentorshipCheckin(
+        id=row.id,
+        mentorship_id=row.mentorship_id,
+        author_id=row.author_id,
+        note=row.note,
+        occurred_on=row.occurred_on,
+        minutes=row.minutes,
+        created_at=row.created_at,
+    )

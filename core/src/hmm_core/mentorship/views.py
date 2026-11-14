@@ -215,7 +215,7 @@ def mentorship_actions(
     is_mentor = actor_id == mentorship.mentor_id
     is_learner = actor_id == mentorship.learner_id
     if is_mentor or is_learner:
-        if mentorship.status == MentorshipStatus.ACTIVE:
+        if mentorship.status in (MentorshipStatus.ACTIVE.value, MentorshipStatus.STALLED.value):
             actions.add(schemas.MentorshipAction.CHECK_IN)
             if mentorship.last_checkin_at is None:
                 actions.add(schemas.MentorshipAction.CANCEL)
@@ -223,8 +223,11 @@ def mentorship_actions(
                 actions.add(schemas.MentorshipAction.CLOSE)
             if is_mentor:
                 actions.add(schemas.MentorshipAction.PROPOSE_CLOSE)
-        elif mentorship.status == MentorshipStatus.CLOSING and is_learner:
-            actions.add(schemas.MentorshipAction.CLOSE)
+        elif mentorship.status == MentorshipStatus.CLOSING.value:
+            if mentorship.last_checkin_at is None:
+                actions.add(schemas.MentorshipAction.CANCEL)
+            if is_learner:
+                actions.add(schemas.MentorshipAction.CLOSE)
     if (
         is_mentor
         and mentorship.status == MentorshipStatus.CLOSED
