@@ -24,6 +24,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
+from hmm_core.feed.confirmations import refresh_member_confirmations
 from hmm_core.identity.github import GithubUser
 from hmm_core.identity.schemas import AccountAction
 from hmm_core.platform.audit import record_audit
@@ -464,7 +465,12 @@ async def set_admin(
 
 
 async def ban_user(
-    session: AsyncSession, user: models.User, reason: str, actor: UUID, now: datetime
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    user: models.User,
+    reason: str,
+    actor: UUID,
+    now: datetime,
 ) -> None:
     if user.banned_at is not None:
         return
@@ -487,10 +493,16 @@ async def ban_user(
         after={"banned_at": now.isoformat(), "ban_reason": reason},
         reason=reason,
     )
+    await refresh_member_confirmations(session, jobs, user.id, now)
 
 
 async def unban_user(
-    session: AsyncSession, user: models.User, actor: UUID, reason: str | None
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    user: models.User,
+    actor: UUID,
+    reason: str | None,
+    now: datetime,
 ) -> None:
     if user.banned_at is None:
         return
@@ -511,3 +523,4 @@ async def unban_user(
         after={"banned_at": None, "ban_reason": None},
         reason=reason,
     )
+    await refresh_member_confirmations(session, jobs, user.id, now)
