@@ -9,6 +9,7 @@ from hmm_contracts.algo import (
     EnrolledMember,
     MemberSnapshot,
     Rec,
+    Recommendations,
     RecommendRequest,
     TeamMemberSnapshot,
 )
@@ -26,6 +27,7 @@ from hmm_contracts.common import (
     RecommendationSubjectType,
     TeamStatus,
 )
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -447,3 +449,109 @@ async def project_recommendations(
         if actor.id == project.lead_user_id
         else [],
     )
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedRefresh:
+    row_id: UUID
+    request: RecommendRequest
+    enrolled_ids: frozenset[UUID]
+    others_ids: frozenset[UUID]
+
+
+async def prepare_refresh(
+    session: AsyncSession, project: models.Project, now: datetime, algo_version: str
+) -> PreparedRefresh | None:
+    if not recommendation_refreshable(project):
+        return None
+    context = await recommendation_context(session, project, now, algo_version)
+    previous = await latest_ready_row(session, project.id)
+    if previous is not None and previous.input_hash == context.input_hash:
+        return None
+    row = models.RecommendationSet(
+        subject_type=RecommendationSubjectType.PROJECT.value,
+        subject_id=project.id,
+        input_hash=context.input_hash,
+        status=RecommendationStatus.PENDING.value,
+        error=None,
+        enrolled=None,
+        others=None,
+        algo_version=algo_version,
+        completed_at=None,
+    )
+    session.add(row)
+    await session.flush()
+    return PreparedRefresh(
+        row_id=row.id,
+        request=context.request,
+        enrolled_ids=context.enrolled_ids,
+        others_ids=context.others_ids,
+    )
+
+
+async def locked_row(session: AsyncSession, row_id: UUID) -> models.RecommendationSet | None:
+    return await session.scalar(
+        select(models.RecommendationSet)
+        .where(models.RecommendationSet.id == row_id)
+        .with_for_update()
+    )
+
+
+async def mark_ready(
+    session: AsyncSession, row_id: UUID, result: Recommendations, now: datetime
+) -> None:
+    row = await locked_row(session, row_id)
+    if row is None:
+        return None
+    row.status = RecommendationStatus.READY.value
+    row.enrolled = [rec.model_dump(mode="json") for rec in result.enrolled]
+    row.others = [rec.model_dump(mode="json") for rec in result.others]
+    row.error = None
+    row.completed_at = now
+
+
+async def mark_failed(session: AsyncSession, row_id: UUID, error: Exception, now: datetime) -> None:
+    row = await locked_row(session, row_id)
+    if row is None:
+        return None
+    row.status = RecommendationStatus.FAILED.value
+    row.error = str(error)[:1000]
+    row.completed_at = now
+
+
+def validated_group(items: Sequence[Rec], ids: frozenset[UUID]) -> tuple[list[Rec], int]:
+    kept: list[Rec] = []
+    seen: set[UUID] = set()
+    dropped = 0
+    for item in items:
+        if item.user_id not in ids or item.user_id in seen:
+            dropped += 1
+            continue
+        reasons = [
+            reason.strip() for reason in item.reasons if isinstance(reason, str) and reason.strip()
+        ][:3]
+        if not reasons:
+            dropped += 1
+            continue
+        try:
+            rec = Rec(
+                user_id=item.user_id,
+                score=min(1.0, max(0.0, float(item.score))),
+                reasons=reasons,
+                tags=[str(tag) for tag in item.tags],
+                suggested_area=item.suggested_area,
+            )
+        except ValidationError:
+            dropped += 1
+            continue
+        seen.add(item.user_id)
+        kept.append(rec)
+    return kept, dropped
+
+
+def validated_recommendations(
+    result: Recommendations, enrolled_ids: frozenset[UUID], others_ids: frozenset[UUID]
+) -> tuple[Recommendations, int]:
+    enrolled, dropped_enrolled = validated_group(result.enrolled, enrolled_ids)
+    others, dropped_others = validated_group(result.others, others_ids)
+    return Recommendations(enrolled=enrolled, others=others), dropped_enrolled + dropped_others
