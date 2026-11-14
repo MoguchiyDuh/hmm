@@ -19,7 +19,7 @@ from hmm_core import models
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
