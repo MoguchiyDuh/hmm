@@ -26,6 +26,7 @@ from hmm_contracts.notifications import (
     InviteDeclinedPayload,
     InviteReceivedPayload,
     ProjectInviteReceivedPayload,
+    ProjectMemberJoinedPayload,
 )
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,7 +48,7 @@ from hmm_core.formation.common import (
 )
 from hmm_core.formation.enrollments import live_membership, resolve_preferred_area
 from hmm_core.formation.leads import close_event_pending_items, formation_sizes
-from hmm_core.notifications.service import notify
+from hmm_core.notifications.service import notify, notify_many
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.settings import load_settings
 from hmm_core.projects import schemas as project_schemas
@@ -295,6 +296,21 @@ async def create_invite(
             raise ProblemError(
                 ErrorCode.INVALID_STATE, "The invitee is already a member of this project"
             )
+        live_count = (
+            await session.scalar(
+                select(func.count())
+                .select_from(models.ProjectMember)
+                .where(
+                    models.ProjectMember.project_id == project.id,
+                    models.ProjectMember.left_at.is_(None),
+                )
+            )
+            or 0
+        )
+        if live_count >= settings.project_size_max:
+            raise ProblemError(
+                ErrorCode.PROJECT_FULL, f"Project has reached max size {settings.project_size_max}"
+            )
         kind = InviteKind.PROJECT.value
         expires_at = now + ttl
     invite = models.Invite(
@@ -512,24 +528,23 @@ async def accept_invite(
         InviteKind.CORE.value: JoinedVia.CORE_INVITE.value,
         InviteKind.FILL.value: JoinedVia.FILL_INVITE.value,
     }.get(invite.kind, JoinedVia.INVITE.value)
-    session.add(
-        models.ProjectMember(
-            project_id=project.id,
-            event_id=event.id if event is not None else None,
-            user_id=actor.id,
-            role=MemberRole.MEMBER.value,
-            area_id=invite.area_id,
-            state=MemberState.CONFIRMED.value,
-            trust=Trust.SELF.value,
-            joined_via=joined_via,
-            proposal_reason=None,
-            confirm_by=None,
-            confirm_kind=None,
-            is_team_row=event is not None,
-            joined_at=now,
-            confirmed_at=now,
-        )
+    member_row = models.ProjectMember(
+        project_id=project.id,
+        event_id=event.id if event is not None else None,
+        user_id=actor.id,
+        role=MemberRole.MEMBER.value,
+        area_id=invite.area_id,
+        state=MemberState.CONFIRMED.value,
+        trust=Trust.SELF.value,
+        joined_via=joined_via,
+        proposal_reason=None,
+        confirm_by=None,
+        confirm_kind=None,
+        is_team_row=event is not None,
+        joined_at=now,
+        confirmed_at=now,
     )
+    session.add(member_row)
     reserve = False
     if event is not None:
         enrollment = await live_enrollment_row(session, event.id, actor.id, for_update=True)
@@ -581,6 +596,25 @@ async def accept_invite(
             now,
             dedupe_key=f"invite_accepted:{invite.id}",
         )
+    if event is None:
+        from hmm_core.projects import service as projects
+        from hmm_core.recommendations import service as recommendations
+
+        member_ids = await projects.project_member_ids(session, project.id)
+        await notify_many(
+            session,
+            [user_id for user_id in member_ids if user_id != actor.id],
+            ProjectMemberJoinedPayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                member=notification_person(actor),
+                member_count=len(member_ids),
+            ),
+            now,
+            dedupe_key=f"project_member_joined:{member_row.id}",
+        )
+        await recommendations.enqueue_project_refresh(session, jobs, project.id)
     if event is not None:
         await enqueue_participation_jobs(session, jobs, event.id, reserve=reserve)
     await session.flush()

@@ -38,6 +38,7 @@ from hmm_core.projects.schemas import (
     UpdateMilestoneBody,
     UpdateProjectBody,
 )
+from hmm_core.recommendations import service as recommendations
 
 router = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
@@ -163,8 +164,10 @@ async def create_invite(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
+    request: Request,
 ) -> Invite:
     invite = await formation.create_invite(session, id, body, actor, clock.now())
+    await recommendations.enqueue_project_refresh(session, request.app.state.jobs, id)
     return (await formation.invite_views(session, [invite], actor))[0]
 
 
@@ -179,9 +182,11 @@ async def create_join_request(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
+    request: Request,
 ) -> JoinRequest:
-    request = await formation.create_join_request(session, id, body, actor, clock.now())
-    return (await formation.join_request_views(session, [request], actor))[0]
+    join_request = await formation.create_join_request(session, id, body, actor, clock.now())
+    await recommendations.enqueue_project_refresh(session, request.app.state.jobs, id)
+    return (await formation.join_request_views(session, [join_request], actor))[0]
 
 
 @router.delete(
@@ -193,16 +198,23 @@ async def remove_member(
     id: ProjectId,
     user_id: UserId,
     actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
     reason: Annotated[ReasonBody | None, Body()] = None,
 ) -> None:
-    not_implemented()
+    await service.remove_project_member(
+        session, request.app.state.jobs, id, user_id, reason, actor, clock.now()
+    )
 
 
 @router.post(
     "/projects/{id}/leave", status_code=status.HTTP_204_NO_CONTENT, summary="Leave a project"
 )
-async def leave_project(id: ProjectId, actor: MemberAuth) -> None:
-    not_implemented()
+async def leave_project(
+    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> None:
+    await service.leave_project(session, request.app.state.jobs, id, actor, clock.now())
 
 
 @router.post(
@@ -210,8 +222,10 @@ async def leave_project(id: ProjectId, actor: MemberAuth) -> None:
     status_code=status.HTTP_200_OK,
     summary="Claim lead of a paused leaderless project as member",
 )
-async def claim_lead(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def claim_lead(
+    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Project:
+    return await service.claim_project_lead(session, request.app.state.jobs, id, actor, clock.now())
 
 
 @router.get(

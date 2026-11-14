@@ -23,6 +23,7 @@ from hmm_contracts.notifications import (
     JoinRequestReceivedPayload,
     JoinRequestRejectedPayload,
     ProjectJoinRequestReceivedPayload,
+    ProjectMemberJoinedPayload,
 )
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,7 +41,7 @@ from hmm_core.formation.common import (
 from hmm_core.formation.enrollments import live_membership
 from hmm_core.formation.invites import close_invitee_items, invite_project, late_core_open
 from hmm_core.formation.leads import formation_sizes
-from hmm_core.notifications.service import notify
+from hmm_core.notifications.service import notify, notify_many
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.settings import load_settings
 from hmm_core.projects import schemas as project_schemas
@@ -361,24 +362,23 @@ async def accept_join_request(
             )
     request.status = JoinRequestStatus.ACCEPTED.value
     request.responded_at = now
-    session.add(
-        models.ProjectMember(
-            project_id=project.id,
-            event_id=event.id if event is not None else None,
-            user_id=request.user_id,
-            role=MemberRole.MEMBER.value,
-            area_id=None,
-            state=MemberState.CONFIRMED.value,
-            trust=Trust.SELF.value,
-            joined_via=JoinedVia.JOIN_REQUEST.value,
-            proposal_reason=None,
-            confirm_by=None,
-            confirm_kind=None,
-            is_team_row=event is not None,
-            joined_at=now,
-            confirmed_at=now,
-        )
+    member_row = models.ProjectMember(
+        project_id=project.id,
+        event_id=event.id if event is not None else None,
+        user_id=request.user_id,
+        role=MemberRole.MEMBER.value,
+        area_id=None,
+        state=MemberState.CONFIRMED.value,
+        trust=Trust.SELF.value,
+        joined_via=JoinedVia.JOIN_REQUEST.value,
+        proposal_reason=None,
+        confirm_by=None,
+        confirm_kind=None,
+        is_team_row=event is not None,
+        joined_at=now,
+        confirmed_at=now,
     )
+    session.add(member_row)
     reserve = False
     if enrollment is not None:
         reserve = enrollment.status == EnrollmentStatus.RESERVE.value
@@ -386,6 +386,25 @@ async def accept_join_request(
         enrollment.status_at = now
         enrollment.reserve_rank = None
     await session.flush()
+    if event is None:
+        from hmm_core.projects import service as projects
+        from hmm_core.recommendations import service as recommendations
+
+        member_ids = await projects.project_member_ids(session, project.id)
+        await notify_many(
+            session,
+            [user_id for user_id in member_ids if user_id != requester.id],
+            ProjectMemberJoinedPayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                member=notification_person(requester),
+                member_count=len(member_ids),
+            ),
+            now,
+            dedupe_key=f"project_member_joined:{member_row.id}",
+        )
+        await recommendations.enqueue_project_refresh(session, jobs, project.id)
     if event is not None:
         await close_invitee_items(
             session,
