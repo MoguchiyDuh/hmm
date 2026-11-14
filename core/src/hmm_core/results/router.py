@@ -65,8 +65,17 @@ async def create_result(
     status_code=status.HTTP_200_OK,
     summary="Edit result within the review window",
 )
-async def update_result(id: ProjectId, body: UpdateResultBody, actor: MemberAuth) -> ProjectResult:
-    not_implemented()
+async def update_result(
+    id: ProjectId,
+    body: UpdateResultBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
+) -> ProjectResult:
+    return await service.update_result(
+        session, request.app.state.jobs, id, body, actor, clock.now(), admin=actor.is_admin
+    )
 
 
 @router.get(

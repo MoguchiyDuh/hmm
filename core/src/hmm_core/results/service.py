@@ -18,7 +18,8 @@ from hmm_contracts.common import (
     SourcePersonRole,
     TeamStatus,
 )
-from sqlalchemy import ColumnElement, func, select
+from pydantic import JsonValue
+from sqlalchemy import ColumnElement, delete, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -208,13 +209,22 @@ async def apply_result_effects(
             )
             await ensure_attended(session, jobs, event_id=event.id, user_id=uid, now=now)
         await feed.record_project_shipped(session, project, release, actor_id, now)
-        await open_review_window(
-            session,
-            subject_type=ReviewWindowSubjectType.PROJECT,
-            subject_id=project.id,
-            participants=await result_review_participants(session, project_id=project.id),
-            now=now,
+        window_exists = await session.scalar(
+            select(
+                exists().where(
+                    models.ReviewWindow.subject_type == ReviewWindowSubjectType.PROJECT,
+                    models.ReviewWindow.subject_id == project.id,
+                )
+            )
         )
+        if not window_exists:
+            await open_review_window(
+                session,
+                subject_type=ReviewWindowSubjectType.PROJECT,
+                subject_id=project.id,
+                participants=await result_review_participants(session, project_id=project.id),
+                now=now,
+            )
     else:
         project.team_status = TeamStatus.WITHDRAWN.value
         project.status = ProjectStatus.ABANDONED.value
@@ -367,4 +377,187 @@ async def fetch_result(
     result = await session.get(models.ProjectResult, project_id)
     if result is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
+    return await build_result(session, result, project, actor, now, admin=admin)
+
+
+async def _delete_system_confirmations(
+    session: AsyncSession, fact_type: ConfirmationFactType, fact_id: UUID
+) -> list[UUID]:
+    return list(
+        await session.scalars(
+            delete(models.Confirmation)
+            .where(
+                models.Confirmation.fact_type == fact_type.value,
+                models.Confirmation.fact_id == fact_id,
+                models.Confirmation.confirmer_id.is_(None),
+                models.Confirmation.source == ConfirmationSource.SYSTEM.value,
+                models.Confirmation.withdrawn_at.is_(None),
+            )
+            .returning(models.Confirmation.id)
+        )
+    )
+
+
+async def remove_result_confirmations(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    *,
+    event: models.Event,
+    user_id: UUID,
+    member: models.ProjectMember | None,
+    now: datetime,
+) -> None:
+    if member is not None and await _delete_system_confirmations(
+        session, ConfirmationFactType.PROJECT_MEMBER, member.id
+    ):
+        await feed.recompute_fact_trust(
+            session,
+            jobs,
+            fact_type=ConfirmationFactType.PROJECT_MEMBER,
+            fact_id=member.id,
+            subject_user_id=user_id,
+            now=now,
+        )
+    attendance = await session.scalar(
+        select(models.EventAttendance).where(
+            models.EventAttendance.event_id == event.id,
+            models.EventAttendance.user_id == user_id,
+        )
+    )
+    if attendance is not None and await _delete_system_confirmations(
+        session, ConfirmationFactType.ATTENDANCE, attendance.id
+    ):
+        await feed.recompute_fact_trust(
+            session,
+            jobs,
+            fact_type=ConfirmationFactType.ATTENDANCE,
+            fact_id=attendance.id,
+            subject_user_id=user_id,
+            now=now,
+        )
+
+
+def _result_snapshot(result: models.ProjectResult) -> dict[str, JsonValue]:
+    return {
+        "outcome": result.outcome,
+        "place": result.place,
+        "award": result.award,
+        "place_status": result.place_status,
+        "repo_url": result.repo_url,
+        "demo_url": result.demo_url,
+        "presentation_url": result.presentation_url,
+        "retrospective_md": result.retrospective_md,
+        "participants": result.participants,
+        "member_areas": result.member_areas,
+    }
+
+
+async def update_result(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    body: schemas.UpdateResultBody,
+    actor: models.User,
+    now: datetime,
+    *,
+    admin: bool,
+) -> ProjectResultView:
+    project = await lock_project(session, project_id)
+    result = await session.scalar(
+        select(models.ProjectResult)
+        .where(models.ProjectResult.project_id == project_id)
+        .with_for_update()
+    )
+    if result is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    event = await session.get(models.Event, project.event_id) if project.event_id else None
+    if event is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    window = await open_result_window(session, project_id, now)
+    if not admin:
+        if actor.id not in {result.submitted_by, project.lead_user_id}:
+            raise ProblemError(ErrorCode.FORBIDDEN)
+        if result.outcome != ResultOutcome.FINISHED.value or window is None:
+            raise ProblemError(ErrorCode.INVALID_STATE, "Result is no longer editable")
+    team_ids = await team_member_ids(session, project_id)
+    members = await team_member_rows(session, project_id)
+    fields = body.model_fields_set
+    old_participants = {
+        UUID(key): bool(value) for key, value in cast(dict[str, bool], result.participants).items()
+    }
+    old_areas = {
+        UUID(key): str(value) for key, value in cast(dict[str, str], result.member_areas).items()
+    }
+    new_participants = (
+        dict(body.participants) if body.participants is not None else dict(old_participants)
+    )
+    new_areas = dict(body.member_areas) if body.member_areas is not None else dict(old_areas)
+    participants_changed = new_participants != old_participants
+    outcome_changed = body.outcome is not None and body.outcome.value != result.outcome
+    if not admin and (participants_changed or outcome_changed):
+        raise ProblemError(
+            ErrorCode.INVALID_STATE,
+            "Participants and outcome are locked once the review window opens",
+        )
+    if body.participants is not None or body.member_areas is not None:
+        await validate_team_lists(
+            session, team_ids=team_ids, participants=new_participants, member_areas=new_areas
+        )
+    before = _result_snapshot(result)
+    if "outcome" in fields and body.outcome is not None:
+        result.outcome = body.outcome.value
+    if "place" in fields:
+        result.place = body.place
+    if "award" in fields:
+        result.award = body.award
+    if "retrospective_md" in fields:
+        result.retrospective_md = body.retrospective_md
+    if "repo_url" in fields:
+        result.repo_url = str(body.repo_url) if body.repo_url is not None else None
+    if "demo_url" in fields:
+        result.demo_url = str(body.demo_url) if body.demo_url is not None else None
+    if "presentation_url" in fields:
+        result.presentation_url = (
+            str(body.presentation_url) if body.presentation_url is not None else None
+        )
+    if "member_areas" in fields and body.member_areas is not None:
+        result.member_areas = {str(key): value for key, value in body.member_areas.items()}
+    if "participants" in fields and body.participants is not None:
+        result.participants = {str(key): value for key, value in body.participants.items()}
+    if "place" in fields or "award" in fields:
+        result.place_verified_by = None
+        if result.place is None and result.award is None:
+            result.place_status = None
+            result.place_verified_at = None
+        else:
+            found = await winner_place(session, event.id, team_ids)
+            if found is not None:
+                result.place = found
+                result.place_status = PlaceStatus.VERIFIED.value
+                result.place_verified_at = now
+            else:
+                result.place_status = PlaceStatus.UNVERIFIED.value
+                result.place_verified_at = None
+    result.edited_at = now
+    await session.flush()
+    if participants_changed:
+        removed = {uid for uid, value in old_participants.items() if value is True} - {
+            uid for uid, value in new_participants.items() if value is True
+        }
+        for uid in sorted(removed):
+            await remove_result_confirmations(
+                session, jobs, event=event, user_id=uid, member=members.get(uid), now=now
+            )
+    await apply_result_effects(session, jobs, project, event, result, actor_id=actor.id, now=now)
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN if admin else ActorKind.USER,
+        action=AuditAction.RESULT_EDIT,
+        entity_type=AuditEntityType.PROJECT_RESULT,
+        entity_id=project_id,
+        before=before,
+        after=_result_snapshot(result),
+    )
+    await session.flush()
     return await build_result(session, result, project, actor, now, admin=admin)
