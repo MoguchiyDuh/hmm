@@ -254,8 +254,11 @@ async def list_invites(
 @router.delete(
     "/invites/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw an invite"
 )
-async def withdraw_invite(id: InviteId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def withdraw_invite(
+    id: InviteId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Response:
+    await service.withdraw_invite(session, id, actor, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me/invites", status_code=status.HTTP_200_OK, summary="List my invites")
@@ -277,8 +280,11 @@ async def accept_invite(
 
 
 @router.post("/invites/{id}/decline", status_code=status.HTTP_200_OK, summary="Decline an invite")
-async def decline_invite(id: InviteId, actor: MemberAuth) -> Invite:
-    not_implemented()
+async def decline_invite(
+    id: InviteId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Invite:
+    invite = await service.decline_invite(session, id, actor, clock.now())
+    return (await service.invite_views(session, [invite], actor))[0]
 
 
 @router.post(

@@ -40,6 +40,7 @@ from hmm_contracts.notifications import (
     FormationRescheduledPayload,
     InviteAcceptedPayload,
     InviteClosedPayload,
+    InviteDeclinedPayload,
     InviteReceivedPayload,
     NotificationPerson,
     ProjectInviteReceivedPayload,
@@ -2126,3 +2127,99 @@ async def accept_invite(
     await session.flush()
     await session.refresh(invite)
     return invite
+
+
+async def decline_invite(
+    session: AsyncSession, invite_id: UUID, actor: models.User, now: datetime
+) -> models.Invite:
+    invite, project, event, formation = await invite_context(session, invite_id, actor)
+    if actor.id != invite.user_id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if invite.status == InviteStatus.DECLINED.value:
+        return invite
+    if invite.status != InviteStatus.PENDING.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This invite is no longer pending")
+    if now >= invite.expires_at:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This invite has expired")
+    if event is not None and formation is not None:
+        if FormationPhase(formation.phase) == FormationPhase.FORMING:
+            raise ProblemError(
+                ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly"
+            )
+        if project.team_status not in (
+            TeamStatus.FORMING.value,
+            TeamStatus.REVIEW.value,
+            TeamStatus.LOCKED.value,
+        ):
+            raise ProblemError(ErrorCode.INVALID_STATE, "This team is no longer accepting members")
+    elif project.status in (
+        ProjectStatus.ABANDONED.value,
+        ProjectStatus.DISBANDED.value,
+        ProjectStatus.CANCELLED.value,
+    ):
+        raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
+    invite.status = InviteStatus.DECLINED.value
+    invite.responded_at = now
+    recipient = project.lead_user_id or invite.invited_by
+    if recipient is not None:
+        await notify(
+            session,
+            recipient,
+            InviteDeclinedPayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                invite_id=invite.id,
+                kind=InviteKind(invite.kind),
+                actor=notification_person(actor),
+                invitee=notification_person(actor),
+                expires_at=invite.expires_at,
+                event_id=event.id if event is not None else None,
+                event_title=event.title if event is not None else None,
+            ),
+            now,
+            dedupe_key=f"invite_declined:{invite.id}",
+        )
+    await session.flush()
+    await session.refresh(invite)
+    return invite
+
+
+async def withdraw_invite(
+    session: AsyncSession, invite_id: UUID, actor: models.User, now: datetime
+) -> None:
+    invite, project, event, formation = await invite_context(session, invite_id, actor)
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if invite.status == InviteStatus.WITHDRAWN.value:
+        return None
+    if invite.status != InviteStatus.PENDING.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This invite is no longer pending")
+    if formation is not None and FormationPhase(formation.phase) == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    invite.status = InviteStatus.WITHDRAWN.value
+    invite.responded_at = now
+    project.last_lead_action_at = now
+    invitee = await session.get(models.User, invite.user_id)
+    if invitee is not None:
+        await notify(
+            session,
+            invite.user_id,
+            InviteClosedPayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                invite_id=invite.id,
+                kind=InviteKind(invite.kind),
+                actor=notification_person(actor),
+                invitee=notification_person(invitee),
+                expires_at=invite.expires_at,
+                event_id=event.id if event is not None else None,
+                event_title=event.title if event is not None else None,
+                reason="The lead withdrew the invite",
+            ),
+            now,
+            dedupe_key=f"invite_closed:{invite.id}",
+        )
+    await session.flush()
+    return None

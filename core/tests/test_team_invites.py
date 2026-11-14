@@ -792,3 +792,156 @@ async def test_accept_concurrency(harness: Harness) -> None:
     [failed] = [response for response in results if response.status_code == 409]
     assert_problem(failed, 409, ErrorCode.TEAM_FULL)
     assert len(await live_members(h, models.ProjectMember.project_id == crowded.id)) == 4
+
+
+async def decline(h: Harness, actor: models.User, invite_id: UUID) -> httpx.Response:
+    async with await h.client(actor) as c:
+        return await c.post(f"/api/v1/invites/{invite_id}/decline")
+
+
+async def withdraw(h: Harness, actor: models.User, invite_id: UUID) -> httpx.Response:
+    async with await h.client(actor) as c:
+        return await c.delete(f"/api/v1/invites/{invite_id}")
+
+
+async def invite_row(h: Harness, invite_id: UUID) -> models.Invite:
+    async with h.db() as session:
+        return await session.get_one(models.Invite, invite_id)
+
+
+async def project_row(h: Harness, project_id: UUID) -> models.Project:
+    async with h.db() as session:
+        return await session.get_one(models.Project, project_id)
+
+
+async def test_decline_invite(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, invitee = await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    enrollment = await enroll(h, event, invitee)
+    target = await seed_invite(h, team, invitee, lead)
+    jobs = len(await h.pending_jobs())
+    h.advance(timedelta(minutes=5))
+
+    response = await decline(h, invitee, target.id)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "declined"
+    assert datetime.fromisoformat(body["responded_at"]) == h.now
+    assert body["allowed_actions"] == []
+    assert await live_members(h, models.ProjectMember.user_id == invitee.id) == []
+    [row] = await enrollment_rows(h, event, invitee)
+    assert (row.status, row.status_at) == (enrollment.status, enrollment.status_at)
+    assert (await project_row(h, team.id)).last_lead_action_at == team.last_lead_action_at
+    assert len(await notifications_for(h, lead, "invite_declined")) == 1
+    assert len(await h.pending_jobs()) == jobs
+
+    again = await decline(h, invitee, target.id)
+    assert again.status_code == 200, again.text
+    assert again.json() == body
+    assert len(await notifications_for(h, lead, "invite_declined")) == 1
+
+
+async def test_decline_gates(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, member, invitee = await h.user(), await h.user(), await h.user()
+    team = await seed_team(h, event, lead, members=[member])
+
+    accepted = await seed_invite(h, team, await h.user(), lead, status="accepted")
+    async with h.db() as session:
+        accepted_user = await session.get_one(models.User, accepted.user_id)
+    assert_problem(await decline(h, accepted_user, accepted.id), 409, ErrorCode.INVALID_STATE)
+
+    expired = await seed_invite(h, team, invitee, lead, expires_in=timedelta(seconds=-1))
+    assert_problem(await decline(h, invitee, expired.id), 409, ErrorCode.INVALID_STATE)
+    assert (await invite_row(h, expired.id)).status == "pending"
+    async with h.db() as session:
+        await session.execute(delete(models.Invite).where(models.Invite.id == expired.id))
+
+    target = await seed_invite(h, team, invitee, lead)
+    assert_problem(await decline(h, member, target.id), 403, ErrorCode.FORBIDDEN)
+    await set_formation(h, event, phase="forming")
+    assert_problem(await decline(h, invitee, target.id), 409, ErrorCode.FORMATION_IN_PROGRESS)
+    await set_formation(h, event, phase="open")
+    async with h.db() as session:
+        await session.execute(
+            update(models.Project)
+            .where(models.Project.id == team.id)
+            .values(team_status="disbanded")
+        )
+    assert_problem(await decline(h, invitee, target.id), 409, ErrorCode.INVALID_STATE)
+
+    standalone_lead, standalone_invitee = await h.user(), await h.user()
+    abandoned = await seed_standalone(h, standalone_lead, status="abandoned")
+    closed = await seed_invite(h, abandoned, standalone_invitee, standalone_lead, kind="project")
+    assert_problem(await decline(h, standalone_invitee, closed.id), 409, ErrorCode.INVALID_STATE)
+    assert_problem(await decline(h, invitee, uuid4()), 404, ErrorCode.NOT_FOUND)
+    async with h.anonymous() as c:
+        response = await c.post(f"/api/v1/invites/{target.id}/decline")
+    assert_problem(response, 401, ErrorCode.UNAUTHENTICATED)
+
+
+async def test_withdraw_invite(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, invitee = await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    enrollment = await enroll(h, event, invitee)
+    target = await seed_invite(h, team, invitee, lead)
+    jobs = len(await h.pending_jobs())
+
+    response = await withdraw(h, lead, target.id)
+    assert response.status_code == 204, response.text
+    assert response.content == b""
+    row = await invite_row(h, target.id)
+    assert row.status == "withdrawn"
+    assert row.responded_at == h.now
+    assert (await project_row(h, team.id)).last_lead_action_at == h.now
+    [notice] = await notifications_for(h, invitee, "invite_closed")
+    assert cast(dict[str, Any], notice.payload)["reason"]
+    assert await live_members(h, models.ProjectMember.user_id == invitee.id) == []
+    [stored] = await enrollment_rows(h, event, invitee)
+    assert (stored.status, stored.status_at) == (enrollment.status, enrollment.status_at)
+    assert len(await h.pending_jobs()) == jobs
+
+    again = await withdraw(h, lead, target.id)
+    assert again.status_code == 204, again.text
+    assert len(await notifications_for(h, invitee, "invite_closed")) == 1
+
+
+async def test_withdraw_gates(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, member, invitee = await h.user(), await h.user(), await h.user()
+    team = await seed_team(h, event, lead, members=[member])
+    target = await seed_invite(h, team, invitee, lead)
+
+    assert_problem(await withdraw(h, member, target.id), 403, ErrorCode.FORBIDDEN)
+    assert_problem(await withdraw(h, await h.admin(), target.id), 403, ErrorCode.FORBIDDEN)
+    accepted = await seed_invite(h, team, await h.user(), lead, status="accepted")
+    assert_problem(await withdraw(h, lead, accepted.id), 409, ErrorCode.INVALID_STATE)
+    await set_formation(h, event, phase="forming")
+    assert_problem(await withdraw(h, lead, target.id), 409, ErrorCode.FORMATION_IN_PROGRESS)
+    await set_formation(h, event, phase="open")
+    assert_problem(await withdraw(h, lead, uuid4()), 404, ErrorCode.NOT_FOUND)
+
+    assert (await withdraw(h, lead, target.id)).status_code == 204
+    response = await invite(h, lead, team.id, invitee)
+    assert response.status_code == 201, response.text
+
+
+async def test_withdraw_standalone_invite(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    lead, invitee = await h.user(), await h.user()
+    project = await seed_standalone(h, lead)
+    target = await seed_invite(h, project, invitee, lead, kind="project")
+    response = await withdraw(h, lead, target.id)
+    assert response.status_code == 204, response.text
+    assert len(await notifications_for(h, invitee, "invite_closed")) == 1
