@@ -9,10 +9,10 @@ import httpx
 import procrastinate
 from fastapi import FastAPI
 from hmm_algo.testing import FakeAlgorithm
-from hmm_contracts.common import OnboardingStatus
+from hmm_contracts.common import SEED_AREA_KEYS, OnboardingStatus
 from hmm_core.app import create_app
 from hmm_core.identity.service import SESSION_COOKIE, create_session
-from hmm_core.models import TelegramLink, User
+from hmm_core.models import Area, TelegramLink, User
 from hmm_core.platform.clock import FixedClock
 from hmm_core.platform.config import Config
 from hmm_core.platform.db import create_sessionmaker
@@ -84,6 +84,18 @@ class Harness:
             await session.flush()
             await session.refresh(user)
             return user
+
+    async def seed_areas(self, keys: tuple[str, ...] = SEED_AREA_KEYS) -> dict[str, Area]:
+        async with self.db() as session:
+            areas = {
+                key: Area(key=key, name=key.title(), description=key, sort=index * 10)
+                for index, key in enumerate(keys, start=1)
+            }
+            session.add_all(areas.values())
+            await session.flush()
+            for area in areas.values():
+                await session.refresh(area)
+            return areas
 
     async def admin(self, **fields: Any) -> User:
         return await self.user(admin=True, **fields)
