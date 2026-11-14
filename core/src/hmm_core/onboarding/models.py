@@ -94,6 +94,21 @@ class QuestionOption(Mutable, Base):
     area_hints: Mapped[JsonValue] = mapped_column(JSONB, nullable=False)
 
 
+class QuizSectionDef(Mutable, Base):
+    __tablename__ = "quiz_sections"
+    __table_args__ = (UniqueConstraint("quiz_id", "key"),)
+
+    id: Mapped[UUID] = mapped_column(
+        Uuid, server_default=text("uuidv7()"), nullable=False, primary_key=True
+    )
+    quiz_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False
+    )
+    key: Mapped[str] = mapped_column(Text, nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    visible_if: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
+
+
 class OnboardingSubmission(Mutable, Base):
     __tablename__ = "onboarding_submissions"
     __table_args__ = (
