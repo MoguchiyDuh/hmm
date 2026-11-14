@@ -1,12 +1,13 @@
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
 from hmm_contracts.common import (
     InviteStatus,
     JoinRequestStatus,
+    LeadOfferSource,
     LeadOfferStatus,
     MemberRole,
     MemberState,
@@ -24,6 +25,21 @@ from hmm_core.platform.settings import RuntimeSettings, load_settings
 from hmm_core.projects import schemas
 
 OPEN_TEAMS = frozenset({TeamStatus.FORMING, TeamStatus.REVIEW})
+TERMINAL_TEAM_STATUSES: frozenset[str] = frozenset(
+    {
+        TeamStatus.FINISHED.value,
+        TeamStatus.WITHDRAWN.value,
+        TeamStatus.DISBANDED.value,
+        TeamStatus.CANCELLED.value,
+    }
+)
+STANDALONE_TRANSFER_TTL = timedelta(days=7)
+LEAD_CLOSED_TEAM_STATUSES: frozenset[str] = frozenset(
+    {TeamStatus.DISBANDED.value, TeamStatus.CANCELLED.value}
+)
+LEAD_CLOSED_PROJECT_STATUSES: frozenset[str] = frozenset(
+    {ProjectStatus.ABANDONED.value, ProjectStatus.DISBANDED.value, ProjectStatus.CANCELLED.value}
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -70,6 +86,13 @@ def project_listing(project: models.Project, area_keys: list[str]) -> schemas.Pr
         name=project.name,
         area_keys=area_keys,
         allowed_actions=[],
+    )
+
+
+def lead_changes_closed(project: models.Project) -> bool:
+    return (
+        project.team_status in LEAD_CLOSED_TEAM_STATUSES
+        or project.status in LEAD_CLOSED_PROJECT_STATUSES
     )
 
 
@@ -162,7 +185,8 @@ def project_actions(
                 schemas.ProjectAction.MERGE,
                 schemas.ProjectAction.INVITE,
             }
-        allowed |= {schemas.ProjectAction.TRANSFER_LEAD, schemas.ProjectAction.STEP_DOWN}
+        if not lead_changes_closed(project):
+            allowed |= {schemas.ProjectAction.TRANSFER_LEAD, schemas.ProjectAction.STEP_DOWN}
     if is_member and project.lead_user_id is None and project.status == ProjectStatus.PAUSED:
         allowed.add(schemas.ProjectAction.CLAIM_LEAD)
     if actor.is_admin:
@@ -260,6 +284,17 @@ def lead_offer_view(
     actor: models.User,
 ) -> schemas.LeadOffer:
     offerer = users.get(offer.offered_by) if offer.offered_by is not None else None
+    pending = offer.status == LeadOfferStatus.PENDING.value
+    allowed: set[schemas.LeadOfferAction] = set()
+    if pending and actor.id == offer.user_id:
+        allowed |= {schemas.LeadOfferAction.ACCEPT, schemas.LeadOfferAction.DECLINE}
+    if (
+        pending
+        and offer.source == LeadOfferSource.TRANSFER.value
+        and offer.offered_by == actor.id
+        and project.lead_user_id == actor.id
+    ):
+        allowed.add(schemas.LeadOfferAction.CANCEL)
     return schemas.LeadOffer.model_validate(
         {
             "id": offer.id,
@@ -278,9 +313,7 @@ def lead_offer_view(
             "responded_at": offer.responded_at,
             "created_at": offer.created_at,
             "updated_at": offer.updated_at,
-            "allowed_actions": [schemas.LeadOfferAction.CANCEL]
-            if actor.id == project.lead_user_id
-            else [],
+            "allowed_actions": [action for action in schemas.LeadOfferAction if action in allowed],
         }
     )
 
@@ -343,6 +376,12 @@ def project_detail(
             ),
         }
     )
+
+
+async def standalone_lead_succession(
+    session: AsyncSession, project: models.Project, now: datetime, *, exclude: set[UUID]
+) -> None:
+    return None
 
 
 async def project_views(

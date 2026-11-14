@@ -329,23 +329,35 @@ async def decline_placement(
 @router.get("/me/lead-offers", status_code=status.HTTP_200_OK, summary="List my lead offers")
 async def list_my_lead_offers(
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     status: Annotated[LeadOfferStatus | None, Query()] = None,
 ) -> list[LeadOffer]:
-    not_implemented()
+    return await service.my_lead_offers(session, actor, status)
 
 
 @router.post(
     "/lead-offers/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept a lead role"
 )
-async def accept_lead_offer(id: LeadOfferId, actor: MemberAuth) -> LeadOffer:
-    not_implemented()
+async def accept_lead_offer(
+    id: LeadOfferId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> LeadOffer:
+    offer = await service.accept_lead_offer(session, request.app.state.jobs, id, actor, clock.now())
+    if isinstance(offer, ProblemError):
+        return cast(LeadOffer, problem_response(request, offer.code, offer.detail))
+    return await service.lead_offer_response(session, offer, actor)
 
 
 @router.post(
     "/lead-offers/{id}/decline", status_code=status.HTTP_200_OK, summary="Decline a lead role"
 )
-async def decline_lead_offer(id: LeadOfferId, actor: MemberAuth) -> LeadOffer:
-    not_implemented()
+async def decline_lead_offer(
+    id: LeadOfferId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> LeadOffer:
+    offer = await service.decline_lead_offer(session, id, actor, clock.now())
+    if isinstance(offer, ProblemError):
+        return cast(LeadOffer, problem_response(request, offer.code, offer.detail))
+    return await service.lead_offer_response(session, offer, actor)
 
 
 @router.delete(
@@ -353,8 +365,11 @@ async def decline_lead_offer(id: LeadOfferId, actor: MemberAuth) -> LeadOffer:
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Cancel a lead transfer offer",
 )
-async def cancel_lead_offer(id: LeadOfferId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def cancel_lead_offer(
+    id: LeadOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Response:
+    await service.cancel_lead_offer(session, id, actor, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
@@ -362,15 +377,28 @@ async def cancel_lead_offer(id: LeadOfferId, actor: MemberAuth) -> Response:
     status_code=status.HTTP_201_CREATED,
     summary="Offer lead transfer",
 )
-async def transfer_lead(id: ProjectId, body: TransferLeadBody, actor: MemberAuth) -> LeadOffer:
-    not_implemented()
+async def transfer_lead(
+    id: ProjectId,
+    body: TransferLeadBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> LeadOffer:
+    offer = await service.transfer_lead(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    return await service.lead_offer_response(session, offer, actor)
 
 
 @router.post(
     "/projects/{id}/lead/step-down", status_code=status.HTTP_200_OK, summary="Step down as lead"
 )
-async def step_down(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def step_down(
+    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Project:
+    project = await service.step_down(session, request.app.state.jobs, id, actor, clock.now())
+    return await service.team_view(session, project, actor, clock.now())
 
 
 @router.post(

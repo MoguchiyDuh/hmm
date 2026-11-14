@@ -1116,7 +1116,7 @@ async def test_ban_withdraws_live_enrollments(harness: Harness) -> None:
                 models.ProjectMember.user_id == member.id,
             )
         )
-    assert left_at is None
+    assert left_at == h.now
     assert await h.pending_jobs("rank_reserve") == rank_jobs
     before = await user_rows(h, member)
     h.advance(timedelta(hours=1))
