@@ -869,7 +869,7 @@ async def test_ban_keeps_sent_and_foreign_items(harness: Harness) -> None:
     await h.seed_areas()
     event = await make_hackathon(h)
     member, bystander, lead = await h.user(), await h.user(), await h.user()
-    team = await seed_team(h, event, member)
+    team = await seed_team(h, event, member, members=[await h.user()])
     other = await seed_team(h, event, lead, name="Other")
     sent = await seed_invite(h, team, await h.user(), member)
     foreign_invite = await seed_invite(h, other, bystander, lead)
