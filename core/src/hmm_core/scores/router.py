@@ -19,12 +19,12 @@ from hmm_core import models
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth
-from hmm_core.scores import service
+from hmm_core.scores import moderation, restrictions, service
 from hmm_core.scores.schemas import (
     ActivityEntry,
     ActivityEntryPage,
@@ -193,9 +193,14 @@ async def remove_score_override(
     summary="Adjust member XP",
 )
 async def create_xp_adjustment(
-    id: UserId, body: CreateXpAdjustmentBody, actor: AdminAuth
+    id: UserId,
+    body: CreateXpAdjustmentBody,
+    actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> XpAdjustment:
-    not_implemented()
+    row = await moderation.create_xp_adjustment(session, id, body, actor.id, clock.now())
+    return XpAdjustment.model_validate(row)
 
 
 @router.get(
@@ -205,12 +210,15 @@ async def create_xp_adjustment(
 )
 async def list_flags(
     actor: AdminAuth,
+    session: Session,
     pagination: Annotated[CursorParams, Depends()],
     status: Annotated[FlagStatus, Query()] = FlagStatus.TO_CHECK,
     user: Annotated[UserId | None, Query()] = None,
     subject_type: Annotated[FlagSubjectType | None, Query()] = None,
 ) -> FlagPage:
-    not_implemented()
+    return await moderation.list_flags(
+        session, pagination, status=status, user_id=user, subject_type=subject_type
+    )
 
 
 @router.post(
@@ -218,8 +226,18 @@ async def list_flags(
     status_code=status.HTTP_200_OK,
     summary="Resolve suspicious activity",
 )
-async def resolve_flag(id: FlagId, body: ResolveFlagBody, actor: AdminAuth) -> Flag:
-    not_implemented()
+async def resolve_flag(
+    id: FlagId,
+    body: ResolveFlagBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Flag:
+    row = await moderation.resolve_flag(
+        session, request.app.state.jobs, id, body, actor.id, clock.now()
+    )
+    return (await moderation.flag_views(session, [row]))[0]
 
 
 @router.get(
@@ -227,17 +245,31 @@ async def resolve_flag(id: FlagId, body: ResolveFlagBody, actor: AdminAuth) -> F
 )
 async def list_restrictions(
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
     user: Annotated[UserId | None, Query()] = None,
     active: Annotated[bool | None, Query()] = None,
 ) -> list[Restriction]:
-    not_implemented()
+    rows = await restrictions.list_restrictions(
+        session, user_id=user, active=active, now=clock.now()
+    )
+    return [restrictions.restriction_view(row, clock.now()) for row in rows]
 
 
 @router.delete(
     "/admin/restrictions/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Lift restriction"
 )
-async def lift_restriction(id: RestrictionId, body: LiftRestrictionBody, actor: AdminAuth) -> None:
-    not_implemented()
+async def lift_restriction(
+    id: RestrictionId,
+    body: LiftRestrictionBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> None:
+    await restrictions.lift_restriction(
+        session, request.app.state.jobs, id, actor.id, body.reason, clock.now()
+    )
 
 
 @router.post(
