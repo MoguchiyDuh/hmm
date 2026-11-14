@@ -16,7 +16,14 @@ def attendance_view(
     event: models.Event,
     owner: models.User,
     actor: models.User,
+    *,
+    can_confirm: bool = False,
 ) -> schemas.Attendance:
+    actions: list[schemas.AttendanceAction] = []
+    if actor.id == owner.id and attendance.status != AttendanceStatus.CANCELLED:
+        actions = [schemas.AttendanceAction.EDIT, schemas.AttendanceAction.REMOVE]
+    elif can_confirm and attendance.status == AttendanceStatus.ATTENDED:
+        actions = [schemas.AttendanceAction.CONFIRM]
     return schemas.Attendance(
         id=attendance.id,
         event_id=attendance.event_id,
@@ -38,9 +45,7 @@ def attendance_view(
         status_at=attendance.status_at,
         created_at=attendance.created_at,
         updated_at=attendance.updated_at,
-        allowed_actions=[schemas.AttendanceAction.EDIT, schemas.AttendanceAction.REMOVE]
-        if actor.id == owner.id and attendance.status != AttendanceStatus.CANCELLED
-        else [],
+        allowed_actions=actions,
     )
 
 
