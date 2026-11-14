@@ -24,7 +24,7 @@ from hmm_contracts.notifications import (
     HelpRequestExpiredPayload,
     LinkAction,
 )
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -733,3 +733,34 @@ async def accept_help_offer(
     )
     await session.flush()
     return await views.mentorship_view(session, mentorship, actor, now)
+
+
+async def withdraw_all_for_ban(session: AsyncSession, user_id: UUID, now: datetime) -> None:
+    rows = list(
+        await session.scalars(
+            select(models.HelpRequest)
+            .where(
+                models.HelpRequest.learner_id == user_id,
+                models.HelpRequest.status.in_(LIVE_STATUSES),
+            )
+            .with_for_update()
+        )
+    )
+    for row in rows:
+        row.status = HelpRequestStatus.CANCELLED.value
+        await close_pending_offers(session, row, "The learner was banned.", now)
+        await hide_feed_subject(session, "help_request", row.id, now)
+    await session.execute(
+        update(models.HelpOffer)
+        .where(
+            models.HelpOffer.mentor_id == user_id,
+            models.HelpOffer.status == HelpOfferStatus.PENDING.value,
+        )
+        .values(status=HelpOfferStatus.WITHDRAWN.value)
+    )
+    await session.execute(
+        update(models.MentorOffer)
+        .where(models.MentorOffer.user_id == user_id, models.MentorOffer.active.is_(True))
+        .values(active=False)
+    )
+    await session.flush()

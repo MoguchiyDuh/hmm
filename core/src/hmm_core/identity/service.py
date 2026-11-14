@@ -483,6 +483,9 @@ async def ban_user(
 
     await formation.withdraw_user_enrollments(session, user.id, now)
     await formation.withdraw_user_pending_items(session, user.id, now)
+    from hmm_core.mentorship.service import withdraw_all_for_ban
+
+    await withdraw_all_for_ban(session, user.id, now)
     await record_audit(
         session,
         actor=actor,
