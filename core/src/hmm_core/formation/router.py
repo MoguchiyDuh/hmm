@@ -445,18 +445,29 @@ async def update_member_area(
 @router.post(
     "/projects/{id}/swaps", status_code=status.HTTP_201_CREATED, summary="Propose a member swap"
 )
-async def create_swap(id: ProjectId, body: CreateSwapBody, actor: MemberAuth) -> Swap:
-    not_implemented()
+async def create_swap(
+    id: ProjectId, body: CreateSwapBody, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Swap:
+    swap = await service.create_swap(session, id, body, actor, clock.now())
+    return await service.swap_view(session, swap, actor, clock.now())
 
 
 @router.post("/swaps/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept a member swap")
-async def accept_swap(id: SwapRequestId, actor: MemberAuth) -> Swap:
-    not_implemented()
+async def accept_swap(
+    id: SwapRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Swap:
+    swap = await service.accept_swap(session, request.app.state.jobs, id, actor, clock.now())
+    if isinstance(swap, ProblemError):
+        return cast(Swap, problem_response(request, swap.code, swap.detail))
+    return await service.swap_view(session, swap, actor, clock.now())
 
 
 @router.post("/swaps/{id}/decline", status_code=status.HTTP_200_OK, summary="Decline a member swap")
-async def decline_swap(id: SwapRequestId, actor: MemberAuth) -> Swap:
-    not_implemented()
+async def decline_swap(
+    id: SwapRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Swap:
+    swap = await service.decline_swap(session, id, actor, clock.now())
+    return await service.swap_view(session, swap, actor, clock.now())
 
 
 @router.post(
