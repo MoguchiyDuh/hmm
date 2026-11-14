@@ -219,7 +219,7 @@ class Flag(Mutable, Base):
     )
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     resolution_note: Mapped[str | None] = mapped_column(Text, nullable=True)
-    penalty: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
+    penalty: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
 
 
 class MemberRestriction(Mutable, Base):

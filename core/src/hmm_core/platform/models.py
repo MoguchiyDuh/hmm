@@ -46,8 +46,8 @@ class AuditLog(Created, Base):
     action: Mapped[str] = mapped_column(Text, nullable=False)
     entity_type: Mapped[str] = mapped_column(Text, nullable=False)
     entity_id: Mapped[str] = mapped_column(Text, nullable=False)
-    before: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
-    after: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
+    before: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    after: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 

@@ -20,10 +20,10 @@ class GithubSnapshot(Mutable, Base):
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    profile: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
-    repos: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
-    languages: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
-    stats: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
+    profile: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    repos: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    languages: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    stats: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     manual_refresh_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

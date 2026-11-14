@@ -67,7 +67,7 @@ class Question(Mutable, Base):
     help: Mapped[str | None] = mapped_column(Text, nullable=True)
     required: Mapped[bool] = mapped_column(Boolean, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    visible_if: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
+    visible_if: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
     config: Mapped[JsonValue] = mapped_column(JSONB, nullable=False)
 
 
@@ -106,7 +106,7 @@ class QuizSectionDef(Mutable, Base):
     )
     key: Mapped[str] = mapped_column(Text, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    visible_if: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
+    visible_if: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
 
 
 class OnboardingSubmission(Mutable, Base):
