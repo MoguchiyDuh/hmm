@@ -12912,7 +12912,14 @@
             "type": "object"
           },
           "quiz": {
-            "$ref": "#/components/schemas/Quiz"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quiz"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "$ref": "#/components/schemas/OnboardingStatus"

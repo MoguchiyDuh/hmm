@@ -80,7 +80,7 @@ class OnboardingCv(ApiModel):
 
 class Onboarding(WithAllowedActions[OnboardingAction]):
     status: OnboardingStatus
-    quiz: Quiz
+    quiz: Quiz | None
     draft_answers: dict[str, OnboardingAnswer]
     cv: OnboardingCv
 
