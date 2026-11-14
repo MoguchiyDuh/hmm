@@ -462,8 +462,10 @@ async def decline_merge(id: MergeProposalId, actor: MemberAuth) -> Merge:
     status_code=status.HTTP_200_OK,
     summary="Override formation settings",
 )
-async def update_formation(id: EventId, body: UpdateFormationBody, actor: AdminAuth) -> Formation:
-    not_implemented()
+async def update_formation(
+    id: EventId, body: UpdateFormationBody, actor: AdminAuth, session: Session, clock: CurrentClock
+) -> Formation:
+    return await service.update_formation(session, id, body, actor, clock.now())
 
 
 @router.post(
@@ -472,9 +474,17 @@ async def update_formation(id: EventId, body: UpdateFormationBody, actor: AdminA
     summary="Enqueue formation",
 )
 async def run_formation(
-    id: EventId, actor: AdminAuth, body: ReasonBody | None = None
+    id: EventId,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+    body: ReasonBody | None = None,
 ) -> FormationRun:
-    not_implemented()
+    run = await service.request_formation_run(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    return service.formation_run_view(run)
 
 
 @router.get(
@@ -482,8 +492,10 @@ async def run_formation(
     status_code=status.HTTP_200_OK,
     summary="Inspect formation runs",
 )
-async def list_formation_runs(id: EventId, actor: AdminAuth) -> list[FormationRun]:
-    not_implemented()
+async def list_formation_runs(
+    id: EventId, actor: AdminAuth, session: Session
+) -> list[FormationRun]:
+    return await service.list_formation_runs(session, id, actor)
 
 
 @router.get(
