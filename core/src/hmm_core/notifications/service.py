@@ -1,5 +1,5 @@
 from collections.abc import Iterable
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import cast
 from uuid import UUID
 
@@ -7,6 +7,8 @@ from hmm_contracts.common import (
     AlertSeverity,
     AlertStatus,
     DeliveryStatus,
+    ErrorCode,
+    Locale,
     NotificationChannel,
 )
 from hmm_contracts.notifications import (
@@ -15,15 +17,32 @@ from hmm_contracts.notifications import (
     AdminAlert,
     AdminAlertPayload,
     AlertKind,
+    DeliveryAckResult,
     NotificationPayload,
     NotificationType,
+    PendingDelivery,
+    TelegramLinkBrokenPayload,
 )
-from pydantic import JsonValue
-from sqlalchemy import CursorResult, select, text, update
+from pydantic import JsonValue, TypeAdapter
+from sqlalchemy import CursorResult, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
+from hmm_core.notifications.schemas import (
+    InboxNotification,
+    InboxNotificationPage,
+    NotificationAction,
+    UnreadCount,
+)
+from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.pagination import CursorParams, keyset_page
+
+LEASE = timedelta(seconds=60)
+MAX_ATTEMPTS = 8
+BACKOFF_BASE = 30
+BACKOFF_CAP = 3600
+PENDING_TTL = timedelta(days=7)
 
 
 def channel_defaults(type: NotificationType) -> tuple[bool, bool]:
@@ -227,3 +246,189 @@ async def resolve_alerts(
         )
     )
     return cast(CursorResult[tuple[()]], result).rowcount
+
+
+def notification_view(row: models.Notification) -> InboxNotification:
+    return InboxNotification(
+        id=row.id,
+        user_id=row.user_id,
+        type=NotificationType(row.type),
+        payload=TypeAdapter(NotificationPayload).validate_python(row.payload),
+        created_at=row.created_at,
+        read_at=row.read_at,
+        allowed_actions=[NotificationAction.READ] if row.read_at is None else [],
+    )
+
+
+async def list_notifications(
+    session: AsyncSession, user_id: UUID, pagination: CursorParams, unread: bool | None
+) -> InboxNotificationPage:
+    statement = select(models.Notification).where(models.Notification.user_id == user_id)
+    if unread is not None:
+        statement = statement.where(
+            models.Notification.read_at.is_(None)
+            if unread
+            else models.Notification.read_at.is_not(None)
+        )
+    page = await keyset_page(
+        session,
+        statement,
+        pagination,
+        sort=[models.Notification.created_at],
+        id_column=models.Notification.id,
+        serialize=notification_view,
+    )
+    return InboxNotificationPage(items=page.items, next_cursor=page.next_cursor)
+
+
+async def unread_count(session: AsyncSession, user_id: UUID) -> UnreadCount:
+    count = await session.scalar(
+        select(func.count())
+        .select_from(models.Notification)
+        .where(models.Notification.user_id == user_id, models.Notification.read_at.is_(None))
+    )
+    return UnreadCount(count=count or 0)
+
+
+async def read_notification(
+    session: AsyncSession, user_id: UUID, notification_id: UUID, now: datetime
+) -> None:
+    row = await session.scalar(
+        select(models.Notification)
+        .where(models.Notification.id == notification_id, models.Notification.user_id == user_id)
+        .with_for_update()
+    )
+    if row is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if row.read_at is None:
+        row.read_at = now
+
+
+async def read_all_notifications(session: AsyncSession, user_id: UUID, now: datetime) -> None:
+    await session.execute(
+        update(models.Notification)
+        .where(models.Notification.user_id == user_id, models.Notification.read_at.is_(None))
+        .values(read_at=now)
+    )
+
+
+async def lease_deliveries(
+    session: AsyncSession, now: datetime, limit: int
+) -> list[PendingDelivery]:
+    await session.execute(
+        update(models.NotificationDelivery)
+        .where(
+            models.NotificationDelivery.status == DeliveryStatus.PENDING,
+            models.NotificationDelivery.created_at < now - PENDING_TTL,
+        )
+        .values(status=DeliveryStatus.SKIPPED)
+    )
+    rows = await session.execute(
+        select(models.NotificationDelivery, models.Notification, models.User, models.TelegramLink)
+        .join(
+            models.Notification,
+            models.Notification.id == models.NotificationDelivery.notification_id,
+        )
+        .join(models.User, models.User.id == models.Notification.user_id)
+        .join(models.TelegramLink, models.TelegramLink.user_id == models.Notification.user_id)
+        .where(
+            models.NotificationDelivery.status == DeliveryStatus.PENDING,
+            models.NotificationDelivery.channel == NotificationChannel.TELEGRAM,
+            models.NotificationDelivery.next_attempt_at <= now,
+            models.TelegramLink.broken_at.is_(None),
+            models.User.banned_at.is_(None),
+        )
+        .order_by(
+            models.NotificationDelivery.next_attempt_at,
+            models.NotificationDelivery.notification_id,
+        )
+        .limit(limit)
+        .with_for_update(of=models.NotificationDelivery, skip_locked=True)
+    )
+    deliveries: list[PendingDelivery] = []
+    for delivery, notification, user, link in rows:
+        delivery.next_attempt_at = now + LEASE
+        deliveries.append(
+            PendingDelivery(
+                delivery_id=notification.id,
+                notification_id=notification.id,
+                telegram_chat_id=link.chat_id,
+                locale=Locale(user.locale),
+                type=NotificationType(notification.type),
+                payload=TypeAdapter(NotificationPayload).validate_python(notification.payload),
+                created_at=notification.created_at,
+            )
+        )
+    await session.flush()
+    return deliveries
+
+
+async def acknowledge(
+    session: AsyncSession, now: datetime, results: list[DeliveryAckResult]
+) -> None:
+    for result in results:
+        row = await session.scalar(
+            select(models.NotificationDelivery)
+            .where(
+                models.NotificationDelivery.notification_id == result.delivery_id,
+                models.NotificationDelivery.channel == NotificationChannel.TELEGRAM,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if row is None or row.status == DeliveryStatus.SENT:
+            continue
+        if result.status == DeliveryStatus.SENT:
+            row.status = DeliveryStatus.SENT
+            row.external_id = result.external_id
+            row.last_error = None
+            continue
+        row.attempts += 1
+        row.last_error = result.error
+        if result.status == DeliveryStatus.FAILED:
+            if row.attempts >= MAX_ATTEMPTS:
+                row.status = DeliveryStatus.FAILED
+            else:
+                row.status = DeliveryStatus.PENDING
+                row.next_attempt_at = now + timedelta(
+                    seconds=min(BACKOFF_BASE * 2 ** (row.attempts - 1), BACKOFF_CAP)
+                )
+            continue
+        row.status = DeliveryStatus.FAILED
+        user_id = await session.scalar(
+            select(models.Notification.user_id).where(models.Notification.id == row.notification_id)
+        )
+        link = await session.scalar(
+            select(models.TelegramLink)
+            .where(models.TelegramLink.user_id == user_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if link is None or link.broken_at is not None:
+            continue
+        link.broken_at = now
+        await session.execute(
+            update(models.NotificationDelivery)
+            .where(
+                models.NotificationDelivery.notification_id.in_(
+                    select(models.Notification.id).where(
+                        models.Notification.user_id == link.user_id
+                    )
+                ),
+                models.NotificationDelivery.notification_id != row.notification_id,
+                models.NotificationDelivery.status == DeliveryStatus.PENDING,
+            )
+            .values(status=DeliveryStatus.SKIPPED)
+        )
+        await notify(
+            session,
+            link.user_id,
+            TelegramLinkBrokenPayload(
+                link="/settings",
+                broken_at=now,
+                reason=result.error or "Telegram chat is unavailable",
+            ),
+            now,
+            dedupe_key=f"telegram_link_broken:{link.user_id}:{now.isoformat()}",
+        )
+    await session.flush()
