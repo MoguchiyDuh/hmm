@@ -252,13 +252,16 @@ async def test_verify_and_repeat(harness: Harness, queue: Queue) -> None:
 
 
 async def test_reject_unverified(harness: Harness, queue: Queue) -> None:
-    response = await decide(harness, queue.admin, queue.unverified, decision="reject")
+    response = await decide(
+        harness, queue.admin, queue.unverified, decision="reject", reason="no proof"
+    )
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["place_status"] == "rejected"
     assert data["place_verified_by"] == str(queue.admin.id)
     assert "verify" not in data["allowed_actions"]
-    assert len(await audits(harness, AuditAction.RESULT_REJECT)) == 1
+    [audit] = await audits(harness, AuditAction.RESULT_REJECT)
+    assert audit.reason == "no proof"
 
 
 async def test_verify_errors(harness: Harness, queue: Queue) -> None:
