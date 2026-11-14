@@ -33,6 +33,7 @@ from hmm_contracts.common import (
     Trust,
 )
 from hmm_contracts.formation import placement_bounds
+from hmm_contracts.notifications import FormationRescheduledPayload, TeamDisbandedPayload
 from sqlalchemy import Select, exists, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -40,6 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hmm_core import models
 from hmm_core.attendance import service as attendance
 from hmm_core.formation import schemas
+from hmm_core.notifications.service import notify_many
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
@@ -1326,3 +1328,249 @@ async def team_view(
     if not isinstance(views[0], project_schemas.Project):
         raise ProblemError(ErrorCode.INTERNAL_ERROR)
     return views[0]
+
+
+@dataclass(frozen=True, slots=True)
+class FormationSizes:
+    min_size: int
+    max_size: int
+    target: int
+    viable: int
+    core_max: int
+
+
+def formation_sizes(
+    event: models.Event, formation: models.EventFormation, settings: RuntimeSettings
+) -> FormationSizes:
+    min_size = event.team_size_min or settings.team_size_default_min
+    max_size = event.team_size_max or settings.team_size_default_max
+    if min_size > max_size:
+        max_size = min_size
+    if max_size < 2:
+        max_size = 2
+    target = formation.target_override or max_size
+    target = min(max(target, min_size), max_size)
+    return FormationSizes(
+        min_size=min_size,
+        max_size=max_size,
+        target=target,
+        viable=min(max_size, max(min_size, ceil(target * settings.viable_ratio))),
+        core_max=min(max_size, max(2, ceil(target * settings.core_ratio))),
+    )
+
+
+async def maybe_early_start(
+    session: AsyncSession, event: models.Event, formation: models.EventFormation, now: datetime
+) -> bool:
+    if FormationPhase(formation.phase) != FormationPhase.OPEN:
+        return False
+    settings = await load_settings(session)
+    sizes = formation_sizes(event, formation, settings)
+    claimed = (
+        models.Project.event_id == event.id,
+        models.Project.team_status == TeamStatus.FORMING.value,
+        models.Project.origin.in_([ProjectOrigin.CLAIM.value, ProjectOrigin.LATE_CLAIM.value]),
+        models.Project.lead_user_id.is_not(None),
+    )
+    leads = await session.scalar(select(func.count()).select_from(models.Project).where(*claimed))
+    if not leads:
+        return False
+    pending = await session.scalar(
+        select(func.count())
+        .select_from(models.Project)
+        .where(*claimed, models.Project.ready_at.is_(None))
+    )
+    if pending:
+        return False
+    live_states = [EnrollmentStatus.ACTIVE.value, EnrollmentStatus.PLACED.value]
+    live = (
+        await session.scalar(
+            select(func.count())
+            .select_from(models.Enrollment)
+            .where(
+                models.Enrollment.event_id == event.id,
+                models.Enrollment.status.in_(live_states),
+            )
+        )
+        or 0
+    )
+    if live < sizes.viable:
+        return False
+    candidate = now + timedelta(hours=1)
+    if candidate >= formation.formation_at:
+        return False
+    previous = formation.formation_at
+    formation.formation_at = candidate
+    formation.review_ends_at = min(
+        candidate + timedelta(hours=settings.review_hours),
+        formation_timing(event, settings, now).team_deadline,
+    )
+    user_ids = list(
+        await session.scalars(
+            select(models.Enrollment.user_id).where(
+                models.Enrollment.event_id == event.id,
+                models.Enrollment.status.in_(live_states),
+            )
+        )
+    )
+    payload = FormationRescheduledPayload(
+        link=f"/events/{event.id}/formation",
+        event_id=event.id,
+        event_title=event.title,
+        previous_formation_at=previous,
+        formation_at=candidate,
+        timezone=event.timezone,
+        reason="Early start: every claimed lead is ready",
+    )
+    await notify_many(
+        session,
+        user_ids,
+        payload,
+        now,
+        dedupe_key=f"formation_rescheduled:{event.id}:{candidate.isoformat()}",
+    )
+    await session.flush()
+    return True
+
+
+async def close_project_pending_items(
+    session: AsyncSession, project_id: UUID, now: datetime, *, reason: str
+) -> None:
+    await session.execute(
+        update(models.Invite)
+        .where(
+            models.Invite.project_id == project_id,
+            models.Invite.status == InviteStatus.PENDING.value,
+        )
+        .values(status=InviteStatus.CLOSED.value, closed_reason=reason, responded_at=now)
+    )
+    await session.execute(
+        update(models.JoinRequest)
+        .where(
+            models.JoinRequest.project_id == project_id,
+            models.JoinRequest.status == JoinRequestStatus.PENDING.value,
+        )
+        .values(status=JoinRequestStatus.CLOSED.value, responded_at=now)
+    )
+    return None
+
+
+async def _locked_team(
+    session: AsyncSession, project_id: UUID, actor: models.User
+) -> tuple[models.Event, models.Project]:
+    project = await session.get(models.Project, project_id)
+    if project is None or project.event_id is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    event = await locked_formation_event(session, project.event_id, actor)
+    locked = await session.scalar(
+        select(models.Project)
+        .where(models.Project.id == project_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if locked is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return event, locked
+
+
+async def set_ready(
+    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime, *, ready: bool
+) -> models.Project:
+    event, project = await _locked_team(session, project_id, actor)
+    formation = await formation_row(session, event.id)
+    phase = FormationPhase(formation.phase)
+    if phase == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    if project.team_status != TeamStatus.FORMING.value:
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "Readiness is only available for a forming core"
+        )
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if phase != FormationPhase.OPEN:
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "Readiness is only available while formation is open"
+        )
+    if ready and project.ready_at is None:
+        project.ready_at = now
+        project.last_lead_action_at = now
+        await session.flush()
+        await maybe_early_start(session, event, formation, now)
+        await session.refresh(project)
+    elif not ready and project.ready_at is not None:
+        project.ready_at = None
+        project.last_lead_action_at = now
+        await session.flush()
+        await session.refresh(project)
+    return project
+
+
+async def unclaim(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> models.Project:
+    event, project = await _locked_team(session, project_id, actor)
+    formation = await formation_row(session, event.id)
+    if FormationPhase(formation.phase) == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    if project.team_status != TeamStatus.FORMING.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Only a forming core can be unclaimed")
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    members = list(
+        await session.scalars(
+            select(models.ProjectMember)
+            .where(
+                models.ProjectMember.project_id == project.id,
+                models.ProjectMember.left_at.is_(None),
+            )
+            .order_by(models.ProjectMember.joined_at, models.ProjectMember.id)
+        )
+    )
+    for member in members:
+        member.left_at = now
+        member.left_reason = LeftReason.DISBANDED.value
+        enrollment = await live_enrollment_row(session, event.id, member.user_id, for_update=True)
+        if enrollment is not None and enrollment.status == EnrollmentStatus.PLACED.value:
+            enrollment.status = EnrollmentStatus.ACTIVE.value
+            enrollment.status_at = now
+            enrollment.reserve_rank = None
+    project.team_status = TeamStatus.DISBANDED.value
+    project.status = ProjectStatus.DISBANDED.value
+    project.lead_user_id = None
+    project.ready_at = None
+    project.last_lead_action_at = now
+    await close_project_pending_items(session, project.id, now, reason="team_disbanded")
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.USER,
+        action=AuditAction.PROJECT_DISBAND,
+        entity_type=AuditEntityType.PROJECT,
+        entity_id=project.id,
+        before={"team_status": TeamStatus.FORMING.value, "lead_user_id": str(actor.id)},
+        after={
+            "team_status": TeamStatus.DISBANDED.value,
+            "lead_user_id": None,
+            "reason": "unclaimed",
+        },
+        reason=None,
+    )
+    others = [member.user_id for member in members if member.user_id != actor.id]
+    if others:
+        payload = TeamDisbandedPayload(
+            link=f"/events/{event.id}/formation",
+            event_id=event.id,
+            event_title=event.title,
+            project_id=project.id,
+            team_name=project.name,
+            reason="The lead unclaimed the team",
+        )
+        await notify_many(session, others, payload, now, dedupe_key=f"team_disbanded:{project.id}")
+    await session.flush()
+    await enqueue_participation_jobs(session, jobs, event.id, reserve=False)
+    await session.refresh(project)
+    return project

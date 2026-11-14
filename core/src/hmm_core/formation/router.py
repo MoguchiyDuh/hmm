@@ -171,22 +171,31 @@ async def claim_lead(
 
 
 @router.post("/projects/{id}/ready", status_code=status.HTTP_200_OK, summary="Mark a core ready")
-async def mark_ready(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def mark_ready(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    project = await service.set_ready(session, id, actor, clock.now(), ready=True)
+    return await service.team_view(session, project, actor, clock.now())
 
 
 @router.delete(
     "/projects/{id}/ready", status_code=status.HTTP_204_NO_CONTENT, summary="Clear core readiness"
 )
-async def clear_ready(id: ProjectId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def clear_ready(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Response:
+    await service.set_ready(session, id, actor, clock.now(), ready=False)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
     "/projects/{id}/unclaim", status_code=status.HTTP_200_OK, summary="Unclaim and disband a core"
 )
-async def unclaim_lead(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def unclaim_lead(
+    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Project:
+    project = await service.unclaim(session, request.app.state.jobs, id, actor, clock.now())
+    return await service.team_view(session, project, actor, clock.now())
 
 
 @router.post(
