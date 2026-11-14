@@ -219,59 +219,91 @@ async def reopen_seats(id: ProjectId, actor: MemberAuth) -> Response:
     status_code=status.HTTP_200_OK,
     summary="List team join requests",
 )
-async def list_join_requests(id: ProjectId, actor: MemberAuth) -> list[JoinRequest]:
-    not_implemented()
+async def list_join_requests(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> list[JoinRequest]:
+    return await service.list_join_requests(session, id, actor)
 
 
 @router.delete(
     "/join-requests/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw a join request"
 )
-async def withdraw_join_request(id: JoinRequestId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def withdraw_join_request(
+    id: JoinRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Response:
+    await service.withdraw_join_request(session, id, actor, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(
     "/join-requests/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept a join request"
 )
-async def accept_join_request(id: JoinRequestId, actor: MemberAuth) -> JoinRequest:
-    not_implemented()
+async def accept_join_request(
+    id: JoinRequestId,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> JoinRequest:
+    row = await service.accept_join_request(session, request.app.state.jobs, id, actor, clock.now())
+    return (await service.join_request_views(session, [row], actor))[0]
 
 
 @router.post(
     "/join-requests/{id}/reject", status_code=status.HTTP_200_OK, summary="Reject a join request"
 )
-async def reject_join_request(id: JoinRequestId, actor: MemberAuth) -> JoinRequest:
-    not_implemented()
+async def reject_join_request(
+    id: JoinRequestId,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> JoinRequest:
+    row = await service.reject_join_request(session, id, actor, clock.now())
+    return (await service.join_request_views(session, [row], actor))[0]
 
 
 @router.get("/projects/{id}/invites", status_code=status.HTTP_200_OK, summary="List team invites")
-async def list_invites(id: ProjectId, actor: MemberAuth) -> list[Invite]:
-    not_implemented()
+async def list_invites(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> list[Invite]:
+    return await service.list_invites(session, id, actor)
 
 
 @router.delete(
     "/invites/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw an invite"
 )
-async def withdraw_invite(id: InviteId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def withdraw_invite(
+    id: InviteId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Response:
+    await service.withdraw_invite(session, id, actor, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/me/invites", status_code=status.HTTP_200_OK, summary="List my invites")
 async def list_my_invites(
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     status: Annotated[InviteStatus | None, Query()] = None,
 ) -> list[Invite]:
-    not_implemented()
+    return await service.list_my_invites(session, status, actor)
 
 
 @router.post("/invites/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept an invite")
-async def accept_invite(id: InviteId, actor: MemberAuth) -> Invite:
-    not_implemented()
+async def accept_invite(
+    id: InviteId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Invite:
+    invite = await service.accept_invite(session, request.app.state.jobs, id, actor, clock.now())
+    return (await service.invite_views(session, [invite], actor))[0]
 
 
 @router.post("/invites/{id}/decline", status_code=status.HTTP_200_OK, summary="Decline an invite")
-async def decline_invite(id: InviteId, actor: MemberAuth) -> Invite:
-    not_implemented()
+async def decline_invite(
+    id: InviteId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Invite:
+    invite = await service.decline_invite(session, id, actor, clock.now())
+    return (await service.invite_views(session, [invite], actor))[0]
 
 
 @router.post(

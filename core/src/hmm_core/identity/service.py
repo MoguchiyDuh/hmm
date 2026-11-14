@@ -482,6 +482,7 @@ async def ban_user(
     from hmm_core.formation import service as formation
 
     await formation.withdraw_user_enrollments(session, user.id, now)
+    await formation.withdraw_user_pending_items(session, user.id, now)
     await record_audit(
         session,
         actor=actor,
