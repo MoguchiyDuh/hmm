@@ -3855,6 +3855,9 @@ async def decline_placement(
         raise ProblemError(
             ErrorCode.INVALID_STATE, "You have no pending placement; leave the team instead"
         )
+    was_lead = project.lead_user_id == actor.id
+    if was_lead:
+        member.role = MemberRole.MEMBER.value
     member.left_at = now
     member.left_reason = LeftReason.DECLINED.value
     row = await live_enrollment_row(session, event.id, actor.id, for_update=True)
@@ -3867,7 +3870,6 @@ async def decline_placement(
     row.reserve_rank = None
     if body.withdraw:
         await attendance.sync_going(session, event.id, actor.id, going=False, now=now)
-    was_lead = project.lead_user_id == actor.id
     await session.flush()
     remaining = await team_member_ids(session, project.id)
     await open_seat(session, project, event, now)
@@ -3915,6 +3917,150 @@ async def decline_placement(
     await session.flush()
     await session.refresh(row)
     return row
+
+
+async def departed_team_user_ids(
+    session: AsyncSession, project_id: UUID, user_ids: Sequence[UUID]
+) -> set[UUID]:
+    if not user_ids:
+        return set()
+    return set(
+        await session.scalars(
+            select(models.ProjectMember.user_id).where(
+                models.ProjectMember.project_id == project_id,
+                models.ProjectMember.user_id.in_(list(user_ids)),
+                models.ProjectMember.left_at.is_not(None),
+            )
+        )
+    )
+
+
+async def review_remove_member(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    user_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> EnrollmentStatus | None:
+    project = await session.get(models.Project, project_id)
+    if project is None or project.event_id is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    event = await locked_formation_event(session, project.event_id, actor)
+    if not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    formation = await formation_row(session, event.id)
+    if FormationPhase(formation.phase) == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    project = await session.scalar(
+        select(models.Project)
+        .where(models.Project.id == project_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if project.team_status != TeamStatus.REVIEW.value:
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "Members can only be removed while the team is in review"
+        )
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if user_id == actor.id:
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "You cannot remove yourself; leave the team instead"
+        )
+    member = await _own_team_row(session, project.id, user_id)
+    if member is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    await note_lead_action(session, project, actor, now)
+    previous: dict[str, JsonValue] = {"state": member.state, "role": member.role}
+    status = await remove_member_from_team(
+        session,
+        project,
+        event,
+        member,
+        now,
+        left_reason=LeftReason.REMOVED,
+        notice_reason="The lead removed the member from the team",
+        audit_actor=actor.id,
+        audit_kind=ActorKind.USER,
+    )
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.USER,
+        action=AuditAction.MEMBER_REMOVE,
+        entity_type=AuditEntityType.PROJECT_MEMBER,
+        entity_id=member.id,
+        before=previous,
+        after={
+            "left_reason": LeftReason.REMOVED.value,
+            "enrollment_status": status.value if status is not None else None,
+        },
+        reason=None,
+    )
+    await enqueue_participation_jobs(
+        session, jobs, event.id, reserve=status == EnrollmentStatus.RESERVE
+    )
+    await session.flush()
+    return status
+
+
+async def update_member_area(
+    session: AsyncSession,
+    project_id: UUID,
+    user_id: UUID,
+    body: schemas.UpdateMemberBody,
+    actor: models.User,
+    now: datetime,
+) -> tuple[models.Project, models.ProjectMember]:
+    project = await session.get(models.Project, project_id)
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if project.event_id is not None:
+        event = await locked_formation_event(session, project.event_id, actor)
+        if not event.formation_enabled:
+            raise ProblemError(ErrorCode.NOT_FOUND)
+        formation = await formation_row(session, event.id)
+        if FormationPhase(formation.phase) == FormationPhase.FORMING:
+            raise ProblemError(
+                ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly"
+            )
+    elif project.status in TERMINAL_PROJECT_STATUSES:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
+    project = await session.scalar(
+        select(models.Project)
+        .where(models.Project.id == project_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if project.team_status is not None and project.team_status in CLOSED_TEAM_STATUSES:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This team is closed")
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    member = await session.scalar(
+        select(models.ProjectMember)
+        .where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.user_id == user_id,
+            models.ProjectMember.left_at.is_(None),
+        )
+        .execution_options(populate_existing=True)
+    )
+    if member is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    area_id = await resolve_preferred_area(session, body.area_key)
+    if member.area_id == area_id:
+        return project, member
+    member.area_id = area_id
+    await note_lead_action(session, project, actor, now)
+    await session.flush()
+    await session.refresh(project)
+    await session.refresh(member)
+    return project, member
 
 
 async def expire_lead_offers(session: AsyncSession, event: models.Event, now: datetime) -> int:

@@ -429,9 +429,17 @@ async def add_reserve_member(
     summary="Assign a member area",
 )
 async def update_member_area(
-    id: ProjectId, user_id: UserId, body: UpdateMemberBody, actor: MemberAuth
+    id: ProjectId,
+    user_id: UserId,
+    body: UpdateMemberBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> ProjectMember:
-    not_implemented()
+    project, member = await service.update_member_area(
+        session, id, user_id, body, actor, clock.now()
+    )
+    return await service.team_member_view(session, project, member, actor)
 
 
 @router.post(
