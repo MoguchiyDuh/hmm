@@ -17,7 +17,7 @@ from hmm_contracts.common import (
 )
 from hmm_core import models
 from hmm_core.catalog import service as catalog
-from hmm_core.formation import service
+from hmm_core.formation import runs, service
 from hmm_core.platform.settings import load_settings
 from sqlalchemy import func, select, update
 from test_api_skeleton import assert_problem
@@ -537,7 +537,7 @@ async def test_list_runs(harness: Harness, monkeypatch: pytest.MonkeyPatch) -> N
             return FormationPlan(teams=[], reserve=[], merges=[], summary="Broken")
 
         monkeypatch.setattr(h.algorithm, "form_teams", boom)
-        monkeypatch.setattr(service, "fallback_plan", invalid)
+        monkeypatch.setattr(runs, "fallback_plan", invalid)
         failed = await c.post(run_url(event))
         assert failed.status_code == 202, failed.text
         await h.run_jobs()

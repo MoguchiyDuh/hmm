@@ -17,7 +17,7 @@ from hmm_contracts.common import (
 )
 from hmm_core import models
 from hmm_core.catalog import service as catalog
-from hmm_core.formation import service
+from hmm_core.formation import join_requests, service
 from sqlalchemy import func, select, update
 from test_api_skeleton import assert_problem
 
@@ -350,7 +350,7 @@ async def test_late_core_open(harness: Harness, monkeypatch: pytest.MonkeyPatch)
     async def always_open(*args: Any) -> bool:
         return True
 
-    monkeypatch.setattr(service, "late_core_open", always_open)
+    monkeypatch.setattr(join_requests, "late_core_open", always_open)
     await h.seed_areas()
     event = await make_hackathon(h)
     team = await seed_team(h, event, await h.user(), origin="late_claim")
@@ -548,7 +548,7 @@ async def test_accept_reserve_requester_at_late_core(
     request = await seed_request(h, team, requester)
 
     assert_problem(await respond(h, lead, request.id, "accept"), 409, ErrorCode.NOT_ENROLLED)
-    monkeypatch.setattr(service, "late_core_open", always_open)
+    monkeypatch.setattr(join_requests, "late_core_open", always_open)
     response = await respond(h, lead, request.id, "accept")
     assert response.status_code == 200, response.text
     assert (await enrollment_row(h, enrollment.id)).status == "placed"
