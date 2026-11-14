@@ -46,7 +46,7 @@ class JobName(StrEnum):
 
 RETRY_POLICY = procrastinate.RetryStrategy(max_attempts=5, exponential_wait=5)
 
-JOB_MODULES: tuple[str, ...] = ("hmm_core.platform.maintenance",)
+JOB_MODULES: tuple[str, ...] = ("hmm_core.platform.maintenance", "hmm_core.admin.jobs")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -167,7 +167,7 @@ def register_jobs(app: procrastinate.App) -> procrastinate.App:
 
 async def failure_alert(call_next: AsyncCallNext, context: JobContext, worker: Worker) -> Any:
     try:
-        return await call_next()
+        result = await call_next()
     except Exception as error:
         strategy = context.task.retry_strategy
         if (
@@ -177,9 +177,17 @@ async def failure_alert(call_next: AsyncCallNext, context: JobContext, worker: W
             await context.app.connector.execute_query_async(
                 query="""
                 INSERT INTO public.admin_alerts
-                    (type, severity, payload, dedupe_key, status)
+                    (type, severity, subject_type, payload, dedupe_key, status)
                 VALUES (
-                    'job_failing', 'critical', %(payload)s,
+                    'job_failing', 'critical', 'job',
+                    jsonb_build_object(
+                        'title', 'Job ' || %(task_name)s || ' failed',
+                        'message', %(error)s::text,
+                        'link', '/admin/system',
+                        'subject_title', %(task_name)s,
+                        'task_name', %(task_name)s,
+                        'job_id', %(job_id)s,
+                        'error', %(error)s::text),
                     'job_failing:' || %(task_name)s || ':' ||
                         to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD-HH24'),
                     'open'
@@ -187,13 +195,19 @@ async def failure_alert(call_next: AsyncCallNext, context: JobContext, worker: W
                 ON CONFLICT (dedupe_key) WHERE status = 'open' DO NOTHING
                 """,
                 task_name=context.job.task_name,
-                payload={
-                    "task_name": context.job.task_name,
-                    "job_id": context.job.id,
-                    "error": str(error),
-                },
+                job_id=context.job.id,
+                error=str(error),
             )
         raise
+    await context.app.connector.execute_query_async(
+        query="""
+        UPDATE public.admin_alerts SET status = 'resolved', resolved_at = now()
+        WHERE type = 'job_failing' AND status = 'open'
+            AND payload->>'task_name' = %(task_name)s
+        """,
+        task_name=context.job.task_name,
+    )
+    return result
 
 
 def create_jobs_app(database_url: str) -> procrastinate.App:

@@ -1,10 +1,11 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, Request, status
 from hmm_contracts.common import OnboardingStatus, SubjectId, UserId
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
+from hmm_core.admin import service as admin
 from hmm_core.admin.schemas import (
     AdminDashboard,
     AdminUser,
@@ -23,7 +24,7 @@ from hmm_core.admin.schemas import (
 from hmm_core.identity import service as identity
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import AdminAuth
 from hmm_core.platform.settings import SettingKey
@@ -71,19 +72,23 @@ async def admin_user(session: AsyncSession, user: models.User) -> AdminUser:
     status_code=status.HTTP_200_OK,
     summary="Get exception queue and operational counters",
 )
-async def get_dashboard(actor: AdminAuth) -> AdminDashboard:
-    not_implemented()
+async def get_dashboard(actor: AdminAuth, session: Session, clock: CurrentClock) -> AdminDashboard:
+    return await admin.dashboard(session, clock.now())
 
 
 @router.get("/admin/users", status_code=status.HTTP_200_OK, summary="List users")
 async def list_users(
     pagination: Annotated[CursorParams, Depends()],
     actor: AdminAuth,
+    session: Session,
     q: Annotated[str | None, Query()] = None,
     banned: Annotated[bool | None, Query()] = None,
     is_admin: Annotated[bool | None, Query(alias="admin")] = None,
 ) -> AdminUserPage:
-    not_implemented()
+    users, next_cursor = await admin.list_users(session, pagination, q, banned, is_admin)
+    return AdminUserPage(
+        items=[await admin_user(session, user) for user in users], next_cursor=next_cursor
+    )
 
 
 @router.patch(
@@ -130,11 +135,12 @@ async def unban_user(
 async def list_audit_entries(
     pagination: Annotated[CursorParams, Depends()],
     actor: AdminAuth,
+    session: Session,
     actor_id: Annotated[UserId | None, Query(alias="actor")] = None,
     entity_type: Annotated[str | None, Query()] = None,
     entity_id: Annotated[SubjectId | None, Query()] = None,
 ) -> AuditEntryPage:
-    not_implemented()
+    return await admin.list_audit_entries(session, pagination, actor_id, entity_type, entity_id)
 
 
 @router.get(
@@ -142,8 +148,8 @@ async def list_audit_entries(
     status_code=status.HTTP_200_OK,
     summary="List runtime settings with defaults and descriptions",
 )
-async def list_settings(actor: AdminAuth) -> list[Setting]:
-    not_implemented()
+async def list_settings(actor: AdminAuth, session: Session) -> list[Setting]:
+    return await admin.list_settings(session)
 
 
 @router.put(
@@ -151,8 +157,10 @@ async def list_settings(actor: AdminAuth) -> list[Setting]:
     status_code=status.HTTP_200_OK,
     summary="Update runtime setting validated against its key schema",
 )
-async def update_setting(key: SettingKey, body: UpdateSettingBody, actor: AdminAuth) -> Setting:
-    not_implemented()
+async def update_setting(
+    key: SettingKey, body: UpdateSettingBody, actor: AdminAuth, session: Session
+) -> Setting:
+    return await admin.update_setting(session, key, body.value, actor.id, body.reason)
 
 
 @router.get(
@@ -160,8 +168,10 @@ async def update_setting(key: SettingKey, body: UpdateSettingBody, actor: AdminA
     status_code=status.HTTP_200_OK,
     summary="Get parser heartbeats, job queues, algo version and failures",
 )
-async def get_system_status(actor: AdminAuth) -> SystemStatus:
-    not_implemented()
+async def get_system_status(
+    request: Request, actor: AdminAuth, session: Session, clock: CurrentClock
+) -> SystemStatus:
+    return await admin.system_status(session, request.app.state.config, clock.now())
 
 
 @router.post(
@@ -170,6 +180,8 @@ async def get_system_status(actor: AdminAuth) -> SystemStatus:
 async def retry_job(
     id: Annotated[int, Path(ge=1)],
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
     body: RetryJobBody | None = None,
 ) -> Job:
-    not_implemented()
+    return await admin.retry_job(session, id, actor.id, clock.now(), body.reason if body else None)

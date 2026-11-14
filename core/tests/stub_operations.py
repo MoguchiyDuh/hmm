@@ -1,12 +1,5 @@
 UNIMPLEMENTED_OPERATIONS = set(
     [
-        "admin_get_dashboard",
-        "admin_get_system_status",
-        "admin_list_audit_entries",
-        "admin_list_settings",
-        "admin_list_users",
-        "admin_retry_job",
-        "admin_update_setting",
         "attendance_cancel_event",
         "attendance_create_event",
         "attendance_delete_attendance",
@@ -105,8 +98,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "mentorship_replace_mentor_offers",
         "mentorship_update_help_request",
         "mentorship_withdraw_help_offer",
-        "notifications_list_alerts",
-        "notifications_resolve_alert",
         "onboarding_complete_member_review",
         "onboarding_get_member_review",
         "onboarding_get_onboarding",
