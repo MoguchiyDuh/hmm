@@ -84,13 +84,14 @@ class UserProfile(UserSummary):
 class Cv(WithAllowedActions[CvAction]):
     filename: str
     url: HttpUrl
-    text_status: CvTextStatus
+    text_status: CvTextStatus | None
+    text_error: str | None
 
 
 class UploadCvBody(ApiModel):
     file: bytes = Field(
-        max_length=5_000_000,
-        description="PDF, UTF-8 Markdown (.md), or UTF-8 Typst (.typ); maximum 5 MB",
+        ...,
+        description="PDF, UTF-8 Markdown (.md), or UTF-8 Typst (.typ)",
         json_schema_extra={"format": "binary"},
     )
 

@@ -26,6 +26,7 @@ from hmm_core.platform.db import create_engine, create_sessionmaker, migration_h
 from hmm_core.platform.errors import register_exception_handlers
 from hmm_core.platform.jobs import create_jobs_app, register_jobs
 from hmm_core.platform.openapi import build_openapi, operation_id
+from hmm_core.platform.storage import create_storage
 from hmm_core.profiles import router as profiles
 from hmm_core.projects import router as projects
 from hmm_core.recommendations import router as recommendations
@@ -53,6 +54,7 @@ async def readyz(request: Request) -> JSONResponse:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     config: Config = app.state.config
+    app.state.storage = create_storage(config)
     engine = create_engine(config.database_url) if config.database_url else None
     app.state.engine = engine
     app.state.sessionmaker = create_sessionmaker(engine) if engine is not None else None
@@ -81,6 +83,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.state.sessionmaker = None
     app.state.jobs = None
     app.state.http = None
+    app.state.storage = None
     app.state.clock = SystemClock()
     register_exception_handlers(app)
     app.add_api_route("/healthz", healthz, methods=["GET"], include_in_schema=False)

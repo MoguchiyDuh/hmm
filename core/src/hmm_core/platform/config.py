@@ -12,6 +12,11 @@ class Config(Contract):
     database_url: str | None = None
     github_client_id: str | None = None
     github_client_secret: str | None = None
+    github_token: str | None = None
+    s3_endpoint: str | None = None
+    s3_access_key: str | None = None
+    s3_secret_key: str | None = None
+    s3_bucket: str | None = None
     session_secret: str | None = None
     bot_service_token: str | None = None
     parser_service_token: str | None = None
@@ -47,6 +52,11 @@ class Config(Contract):
             database_url=env.get("DATABASE_URL") or None,
             github_client_id=env.get("GITHUB_CLIENT_ID") or None,
             github_client_secret=env.get("GITHUB_CLIENT_SECRET") or None,
+            github_token=env.get("GITHUB_TOKEN") or None,
+            s3_endpoint=env.get("S3_ENDPOINT") or None,
+            s3_access_key=env.get("S3_ACCESS_KEY") or None,
+            s3_secret_key=env.get("S3_SECRET_KEY") or None,
+            s3_bucket=env.get("S3_BUCKET") or None,
             session_secret=env.get("SESSION_SECRET") or None,
             bot_service_token=env.get("BOT_SERVICE_TOKEN") or None,
             parser_service_token=env.get("PARSER_SERVICE_TOKEN") or None,

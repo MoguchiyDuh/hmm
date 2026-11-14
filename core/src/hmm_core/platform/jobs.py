@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Concatenate, cast
 
+import httpx
 import procrastinate
 from hmm_contracts.algo import AlgoContext, Algorithm
 from procrastinate.exceptions import AlreadyEnqueued
@@ -21,6 +22,7 @@ from hmm_core.platform.algo import DatabaseAlgoCache, load_algorithm
 from hmm_core.platform.clock import Clock, SystemClock
 from hmm_core.platform.config import Config
 from hmm_core.platform.db import create_engine, create_sessionmaker
+from hmm_core.platform.storage import ObjectStore, create_storage
 
 
 class JobName(StrEnum):
@@ -50,6 +52,7 @@ JOB_MODULES: tuple[str, ...] = (
     "hmm_core.platform.maintenance",
     "hmm_core.admin.jobs",
     "hmm_core.catalog.jobs",
+    "hmm_core.profiles.jobs",
 )
 
 
@@ -109,6 +112,8 @@ class Runtime:
     algorithm: Algorithm
     clock: Clock
     log: logging.Logger
+    http: httpx.AsyncClient
+    storage: ObjectStore | None
 
     async def algo_context(self, session: AsyncSession) -> AlgoContext:
         from hmm_core.platform.settings import load_settings
@@ -268,7 +273,12 @@ async def defer_job(
 
 
 def build_runtime(
-    config: Config, engine: AsyncEngine, jobs: procrastinate.App, algorithm: Algorithm
+    config: Config,
+    engine: AsyncEngine,
+    jobs: procrastinate.App,
+    algorithm: Algorithm,
+    *,
+    http: httpx.AsyncClient,
 ) -> Runtime:
     return Runtime(
         config=config,
@@ -277,6 +287,8 @@ def build_runtime(
         algorithm=algorithm,
         clock=SystemClock(),
         log=logging.getLogger("hmm_core.jobs"),
+        http=http,
+        storage=create_storage(config),
     )
 
 
@@ -287,10 +299,11 @@ async def run() -> None:
     algorithm = load_algorithm(config)
     app = register_jobs(create_jobs_app(config.database_url))
     engine = create_engine(config.database_url)
-    runtime = build_runtime(config, engine, app, algorithm)
     try:
-        async with app.open_async():
-            await app.run_worker_async(concurrency=4, additional_context={"runtime": runtime})
+        async with httpx.AsyncClient(timeout=30) as http:
+            runtime = build_runtime(config, engine, app, algorithm, http=http)
+            async with app.open_async():
+                await app.run_worker_async(concurrency=4, additional_context={"runtime": runtime})
     finally:
         await engine.dispose()
 

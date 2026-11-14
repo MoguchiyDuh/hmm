@@ -2,6 +2,7 @@ import itertools
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -17,6 +18,7 @@ from hmm_core.platform.clock import FixedClock
 from hmm_core.platform.config import Config
 from hmm_core.platform.db import create_sessionmaker
 from hmm_core.platform.jobs import Runtime
+from hmm_core.platform.storage import ObjectStore
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -26,6 +28,32 @@ BOT_TOKEN = "bot-token"
 PARSER_TOKEN = "parser-token"
 
 _ids = itertools.count(10_000)
+
+
+class MemoryObjectStore:
+    def __init__(self) -> None:
+        self.objects: dict[str, bytes] = {}
+        self.content_types: dict[str, str] = {}
+        self.puts: list[str] = []
+        self.gets: list[str] = []
+        self.deleted: list[str] = []
+
+    async def put(self, key: str, data: bytes, *, content_type: str) -> None:
+        self.puts.append(key)
+        self.objects[key] = data
+        self.content_types[key] = content_type
+
+    async def get(self, key: str) -> bytes:
+        self.gets.append(key)
+        return self.objects[key]
+
+    async def delete(self, key: str) -> None:
+        self.deleted.append(key)
+        self.objects.pop(key, None)
+        self.content_types.pop(key, None)
+
+    async def presign_get(self, key: str, expires: timedelta) -> str:
+        return f"https://storage.test/{key}?expires={int(expires.total_seconds())}"
 
 
 class Harness:
@@ -44,7 +72,17 @@ class Harness:
             algorithm=self.algorithm,
             clock=clock,
             log=logging.getLogger("hmm_core.tests"),
+            http=self.app.state.http,
+            storage=self.app.state.storage,
         )
+
+    def inject_http(self, http: httpx.AsyncClient) -> None:
+        self.app.state.http = http
+        self.runtime = replace(self.runtime, http=http)
+
+    def inject_storage(self, storage: ObjectStore) -> None:
+        self.app.state.storage = storage
+        self.runtime = replace(self.runtime, storage=storage)
 
     @property
     def now(self) -> datetime:
@@ -169,6 +207,7 @@ def harness_config(database_url: str) -> Config:
         database_url=database_url,
         github_client_id="client-id",
         github_client_secret="client-secret",
+        github_token="test-token",
         session_secret="session-secret",
         bot_service_token=BOT_TOKEN,
         parser_service_token=PARSER_TOKEN,
