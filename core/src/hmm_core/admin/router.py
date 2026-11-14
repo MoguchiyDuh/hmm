@@ -5,6 +5,7 @@ from hmm_contracts.common import OnboardingStatus, SubjectId, UserId
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
+from hmm_core.admin import service as admin
 from hmm_core.admin.schemas import (
     AdminDashboard,
     AdminUser,
@@ -71,8 +72,8 @@ async def admin_user(session: AsyncSession, user: models.User) -> AdminUser:
     status_code=status.HTTP_200_OK,
     summary="Get exception queue and operational counters",
 )
-async def get_dashboard(actor: AdminAuth) -> AdminDashboard:
-    not_implemented()
+async def get_dashboard(actor: AdminAuth, session: Session, clock: CurrentClock) -> AdminDashboard:
+    return await admin.dashboard(session, clock.now())
 
 
 @router.get("/admin/users", status_code=status.HTTP_200_OK, summary="List users")
