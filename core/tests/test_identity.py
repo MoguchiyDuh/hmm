@@ -380,7 +380,7 @@ async def test_member_gate(app: FastAPI, github: FakeGithub, engine: AsyncEngine
             await connection.execute(
                 update(User).values(onboarding_status=OnboardingStatus.REOPENED)
             )
-        assert_problem(await client.get("/api/v1/areas"), 501, ErrorCode.NOT_IMPLEMENTED)
+        assert (await client.get("/api/v1/areas")).status_code == 200
         me = await client.get("/api/v1/me")
         assert me.json()["allowed_actions"] == [
             "refresh_github",
@@ -452,11 +452,11 @@ async def test_service_tokens_are_scoped(
         ):
             headers = {"Authorization": authorization} if authorization else {}
             assert_problem(await client.get(path, headers=headers), 401, ErrorCode.UNAUTHENTICATED)
-        assert_problem(
-            await client.get(path, headers={"Authorization": f"Bearer {valid_token}"}),
-            501,
-            ErrorCode.NOT_IMPLEMENTED,
-        )
+        response = await client.get(path, headers={"Authorization": f"Bearer {valid_token}"})
+        if path == "/api/v1/internal/areas":
+            assert response.status_code == 200, response.text
+        else:
+            assert_problem(response, 501, ErrorCode.NOT_IMPLEMENTED)
 
 
 @pytest.mark.parametrize("configured", [None, ""])
@@ -545,9 +545,7 @@ async def test_bot_resolves_user_and_clears_broken_link(
             await connection.execute(
                 update(User).values(onboarding_status=OnboardingStatus.COMPLETED)
             )
-        assert_problem(
-            await bot.get("/api/v1/areas", headers=bot_headers(123)), 501, ErrorCode.NOT_IMPLEMENTED
-        )
+        assert (await bot.get("/api/v1/areas", headers=bot_headers(123))).status_code == 200
         response = await bot.post("/api/v1/me/telegram/link-code", headers=bot_headers(123))
         assert response.status_code == 201, response.text
         async with engine.begin() as connection:
