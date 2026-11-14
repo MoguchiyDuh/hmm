@@ -121,15 +121,25 @@ async def list_review_queue(actor: AdminAuth) -> list[EventDetail]:
 @router.patch(
     "/admin/events/{id}", status_code=status.HTTP_200_OK, summary="Edit and lock event fields"
 )
-async def update_event(id: EventId, body: UpdateEventBody, actor: AdminAuth) -> EventDetail:
-    not_implemented()
+async def update_event(
+    id: EventId,
+    body: UpdateEventBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> EventDetail:
+    event = await catalog.update_event(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @router.get(
     "/admin/events/{id}/locks", status_code=status.HTTP_200_OK, summary="List event field locks"
 )
-async def list_event_locks(id: EventId, actor: AdminAuth) -> list[EventFieldLock]:
-    not_implemented()
+async def list_event_locks(id: EventId, actor: AdminAuth, session: Session) -> list[EventFieldLock]:
+    return await catalog.list_locks(session, id)
 
 
 @router.delete(
@@ -141,16 +151,21 @@ async def unlock_event_field(
     id: EventId,
     field: str,
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
     reason: Annotated[str | None, Query()] = None,
 ) -> Response:
-    not_implemented()
+    await catalog.unlock_field(session, id, field, actor, reason, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
     "/admin/events/{id}/revisions", status_code=status.HTTP_200_OK, summary="List event revisions"
 )
-async def list_event_revisions(id: EventId, actor: AdminAuth) -> list[EventRevision]:
-    not_implemented()
+async def list_event_revisions(
+    id: EventId, actor: AdminAuth, session: Session
+) -> list[EventRevision]:
+    return await catalog.list_revisions(session, id)
 
 
 @router.post(

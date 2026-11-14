@@ -1,6 +1,7 @@
 from dataclasses import replace
 from datetime import timedelta
 from decimal import Decimal
+from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
@@ -1537,3 +1538,600 @@ async def test_notify_event_changed(harness: Harness) -> None:
             assert row.payload["event_id"] == str(event.id)
             assert row.payload["changes"] == [changes[0].model_dump(mode="json")]
             assert row.payload["timezone"] == event.timezone
+
+
+@pytest.fixture
+async def editable_event(harness: Harness) -> models.Event:
+    h = harness
+    await h.seed_areas(("backend", "design"))
+    async with h.db() as session:
+        return await catalog.create_event(
+            session,
+            replace(
+                event_input(h),
+                team_size_min=2,
+                team_size_max=5,
+                areas=(
+                    catalog.EventAreaInput(
+                        key="backend", importance=AreaImportance.PRIMARY, headcount=2
+                    ),
+                ),
+            ),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+
+
+async def test_admin_patch_title_locks_revisions_and_audit(
+    harness: Harness, editable_event: models.Event
+) -> None:
+    h = harness
+    first = await h.admin()
+    second = await h.admin()
+    event = editable_event
+    async with await h.client(first) as client:
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}",
+            json={"title": "New title", "reason": "Correct title"},
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["title"] == "New title"
+        locks = await client.get(f"/api/v1/admin/events/{event.id}/locks")
+        assert locks.status_code == 200, locks.text
+        original_lock = locks.json()[0]
+        assert len(locks.json()) == 1
+        assert original_lock["field"] == "title"
+        assert original_lock["locked_by"] == str(first.id)
+        assert original_lock["allowed_actions"] == ["unlock"]
+        revisions = await client.get(f"/api/v1/admin/events/{event.id}/revisions")
+        assert revisions.status_code == 200, revisions.text
+        assert len(revisions.json()) == 1
+        revision = revisions.json()[0]
+        assert revision["origin"] == "admin"
+        assert revision["actor_id"] == str(first.id)
+        assert revision["ignored_fields"] == []
+        assert revision["diff"] == {"title": {"before": event.title, "after": "New title"}}
+    async with h.db() as session:
+        audits = list(await session.scalars(select(models.AuditLog)))
+        assert len(audits) == 1
+        assert audits[0].action == AuditAction.EVENT_EDIT
+        assert audits[0].actor_id == first.id
+        assert audits[0].actor_kind == ActorKind.ADMIN
+        assert audits[0].before == {"title": event.title}
+        assert audits[0].after == {"title": "New title"}
+        assert audits[0].reason == "Correct title"
+    h.advance(timedelta(hours=1))
+    async with await h.client(second) as client:
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}", json={"title": "Latest title"}
+        )
+        assert response.status_code == 200, response.text
+        response = await client.get(f"/api/v1/admin/events/{event.id}/locks")
+        assert response.status_code == 200, response.text
+        assert response.json() == [original_lock]
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}", json={"themes": ["Python"]}
+        )
+        assert response.status_code == 200, response.text
+        response = await client.get(f"/api/v1/admin/events/{event.id}/locks")
+        assert response.status_code == 200, response.text
+        assert [lock["field"] for lock in response.json()] == ["themes", "title"]
+        response = await client.get(f"/api/v1/admin/events/{event.id}/revisions")
+        assert response.status_code == 200, response.text
+        revisions = response.json()
+        assert [row["diff"] for row in revisions] == [
+            {"themes": {"before": [], "after": ["Python"]}},
+            {"title": {"before": "New title", "after": "Latest title"}},
+            {"title": {"before": event.title, "after": "New title"}},
+        ]
+        assert all(row["ignored_fields"] == [] for row in revisions)
+        assert [row["id"] for row in revisions] == [
+            row["id"]
+            for row in sorted(
+                revisions, key=lambda row: (row["created_at"], row["id"]), reverse=True
+            )
+        ]
+
+
+async def test_admin_patch_areas(harness: Harness, editable_event: models.Event) -> None:
+    h = harness
+    admin = await h.admin()
+    event = editable_event
+    payload = {"areas": [{"key": "design", "importance": "required", "headcount": 3}]}
+    async with await h.client(admin) as client:
+        response = await client.patch(f"/api/v1/admin/events/{event.id}", json=payload)
+        assert response.status_code == 200, response.text
+        assert [area["key"] for area in response.json()["areas"]] == ["design"]
+        async with h.db() as session:
+            rows = (
+                await session.execute(
+                    select(models.Area.key, models.EventArea.importance, models.EventArea.headcount)
+                    .join(models.EventArea, models.EventArea.area_id == models.Area.id)
+                    .where(models.EventArea.event_id == event.id)
+                )
+            ).all()
+            assert rows == [("design", "required", 3)]
+            locks = list(await session.scalars(select(models.EventFieldLock)))
+            assert len(locks) == 1 and locks[0].field == "areas"
+            revisions = list(await session.scalars(select(models.EventRevision)))
+            assert len(revisions) == 1
+            assert revisions[0].diff == {
+                "areas": {
+                    "before": [{"key": "backend", "importance": "primary", "headcount": 2}],
+                    "after": payload["areas"],
+                }
+            }
+            revision_id = revisions[0].id
+        jobs = await h.pending_jobs("compute_lead_fits")
+        assert len(jobs) == 1 and jobs[0]["args"] == {"event_id": str(event.id)}
+        assert_problem(
+            await client.patch(
+                f"/api/v1/admin/events/{event.id}",
+                json={
+                    "summary": "Should roll back",
+                    "areas": [{"key": "unknown", "importance": "primary"}],
+                },
+            ),
+            422,
+            ErrorCode.VALIDATION_ERROR,
+        )
+        response = await client.patch(f"/api/v1/admin/events/{event.id}", json=payload)
+        assert response.status_code == 200, response.text
+        async with h.db() as session:
+            assert list(await session.scalars(select(models.EventRevision.id))) == [revision_id]
+            assert (await catalog.load_event(session, event.id)).summary is None
+            assert [
+                lock.field for lock in await session.scalars(select(models.EventFieldLock))
+            ] == ["areas"]
+        response = await client.patch(f"/api/v1/admin/events/{event.id}", json={"areas": []})
+        assert response.status_code == 200, response.text
+        assert response.json()["areas"] == []
+
+
+async def test_unlock_event_field(harness: Harness, editable_event: models.Event) -> None:
+    h = harness
+    locker = await h.admin()
+    admin = await h.admin()
+    member = await h.user()
+    event = editable_event
+    async with await h.client(locker) as client:
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}", json={"title": "Locked title"}
+        )
+        assert response.status_code == 200, response.text
+    async with await h.client(admin) as client:
+        response = await client.delete(
+            f"/api/v1/admin/events/{event.id}/locks/title", params={"reason": "fix"}
+        )
+        assert response.status_code == 204, response.text
+        assert response.content == b""
+        response = await client.get(f"/api/v1/admin/events/{event.id}/locks")
+        assert response.status_code == 200 and response.json() == []
+        for field in ("title", "unknown"):
+            assert_problem(
+                await client.delete(f"/api/v1/admin/events/{event.id}/locks/{field}"),
+                404,
+                ErrorCode.NOT_FOUND,
+            )
+    async with await h.client(member) as client:
+        assert_problem(
+            await client.delete(f"/api/v1/admin/events/{event.id}/locks/title"),
+            403,
+            ErrorCode.FORBIDDEN,
+        )
+    async with h.db() as session:
+        audits = list(
+            await session.scalars(
+                select(models.AuditLog).where(
+                    models.AuditLog.action == AuditAction.EVENT_UNLOCK_FIELD
+                )
+            )
+        )
+        assert len(audits) == 1
+        assert audits[0].actor_id == admin.id
+        assert audits[0].before == {
+            "field": "title",
+            "locked_by": str(locker.id),
+            "locked_at": h.now.isoformat(),
+        }
+        assert audits[0].after is None
+        assert audits[0].reason == "fix"
+
+
+async def test_patch_event_merged_validation(
+    harness: Harness, editable_event: models.Event
+) -> None:
+    h = harness
+    admin = await h.admin()
+    event = editable_event
+    async with await h.client(admin) as client:
+        for payload in (
+            {"ends_at": (event.starts_at - timedelta(seconds=1)).isoformat()},
+            {"team_size_min": 6},
+            {"team_size_min": 21},
+            {"team_size_max": 21},
+        ):
+            assert_problem(
+                await client.patch(f"/api/v1/admin/events/{event.id}", json=payload),
+                422,
+                ErrorCode.VALIDATION_ERROR,
+            )
+        for field in (
+            "slug",
+            "kind",
+            "formation_enabled",
+            "title",
+            "starts_at",
+            "ends_at",
+            "timezone",
+            "language",
+            "themes",
+        ):
+            problem = assert_problem(
+                await client.patch(f"/api/v1/admin/events/{event.id}", json={field: None}),
+                422,
+                ErrorCode.VALIDATION_ERROR,
+            )
+            assert problem.detail == f"{field} cannot be null"
+        async with h.db() as session:
+            assert list(await session.scalars(select(models.EventRevision))) == []
+            assert list(await session.scalars(select(models.EventFieldLock))) == []
+            assert list(await session.scalars(select(models.AuditLog))) == []
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}",
+            json={
+                "starts_at": (event.starts_at + timedelta(days=1)).isoformat(),
+            },
+        )
+        assert response.status_code == 200, response.text
+
+
+async def test_patch_event_idempotency(harness: Harness, editable_event: models.Event) -> None:
+    h = harness
+    admin = await h.admin()
+    event = editable_event
+    async with await h.client(admin) as client:
+        for payload in ({"title": event.title}, {}, {"status": "published"}, {"areas": None}):
+            response = await client.patch(f"/api/v1/admin/events/{event.id}", json=payload)
+            assert response.status_code == 200, response.text
+    async with h.db() as session:
+        assert list(await session.scalars(select(models.EventRevision))) == []
+        assert list(await session.scalars(select(models.EventFieldLock))) == []
+        assert list(await session.scalars(select(models.AuditLog))) == []
+        assert list(await session.scalars(select(models.Notification))) == []
+        assert (await catalog.load_event(session, event.id)).updated_at == event.updated_at
+    assert await h.pending_jobs("compute_lead_fits") == []
+
+
+@pytest.mark.parametrize("blocker", ["enrollment", "team", "single_member"])
+async def test_patch_event_formation_guards(harness: Harness, blocker: str) -> None:
+    h = harness
+    admin = await h.admin()
+    member = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            replace(
+                event_input(h),
+                formation_enabled=False,
+                team_size_max=1 if blocker == "single_member" else 5,
+            ),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+        if blocker == "enrollment":
+            session.add(
+                models.Enrollment(
+                    event_id=event.id,
+                    user_id=member.id,
+                    status=EnrollmentStatus.ACTIVE,
+                    source=EnrollmentSource.SELF,
+                    status_at=h.now,
+                )
+            )
+    if blocker == "team":
+        await catalog_team(h, event, None, TeamStatus.FORMING)
+    async with await h.client(admin) as client:
+        assert_problem(
+            await client.patch(
+                f"/api/v1/admin/events/{event.id}", json={"formation_enabled": True}
+            ),
+            409,
+            ErrorCode.INVALID_STATE,
+        )
+    async with h.db() as session:
+        assert (await catalog.load_event(session, event.id)).formation_enabled is False
+        assert list(await session.scalars(select(models.EventFieldLock))) == []
+        assert list(await session.scalars(select(models.EventRevision))) == []
+
+
+async def test_patch_event_enable_and_disable_formation(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            replace(event_input(h), formation_enabled=False),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+    async with await h.client(admin) as client:
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}", json={"formation_enabled": True}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["formation"]["phase"] == "open"
+        async with h.db() as session:
+            schedule = await session.get(models.EventFormation, event.id)
+            assert schedule is not None
+            original = (schedule.phase, schedule.formation_at, schedule.review_ends_at)
+            lock = await session.get(models.EventFieldLock, (event.id, "formation_enabled"))
+            assert lock is not None and lock.locked_by == admin.id
+        jobs = await h.pending_jobs("compute_lead_fits")
+        assert len(jobs) == 1 and jobs[0]["args"] == {"event_id": str(event.id)}
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}", json={"formation_enabled": False}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["formation"] is None
+    async with h.db() as session:
+        schedule = await session.get(models.EventFormation, event.id)
+        assert schedule is not None
+        assert (schedule.phase, schedule.formation_at, schedule.review_ends_at) == original
+    assert len(await h.pending_jobs("compute_lead_fits")) == 1
+
+
+@pytest.mark.parametrize("team_status", [TeamStatus.DISBANDED, TeamStatus.CANCELLED])
+async def test_patch_event_terminal_rows_allow_formation(
+    harness: Harness, team_status: TeamStatus
+) -> None:
+    h = harness
+    admin = await h.admin()
+    member = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            replace(event_input(h), formation_enabled=False),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+        session.add_all(
+            models.Enrollment(
+                event_id=event.id,
+                user_id=member.id,
+                status=status,
+                source=EnrollmentSource.SELF,
+                status_at=h.now,
+            )
+            for status in (
+                EnrollmentStatus.WITHDRAWN,
+                EnrollmentStatus.LAPSED,
+                EnrollmentStatus.EXPIRED,
+            )
+        )
+    await catalog_team(h, event, None, team_status)
+    async with await h.client(admin) as client:
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}", json={"formation_enabled": True}
+        )
+    assert response.status_code == 200, response.text
+    assert response.json()["formation"]["phase"] == "open"
+
+
+async def test_patch_event_notifications_and_date_hook(
+    harness: Harness, editable_event: models.Event
+) -> None:
+    h = harness
+    event = editable_event
+    admin = await h.admin()
+    attendee = await h.user()
+    member = await h.user()
+    async with h.db() as session:
+        session.add(
+            models.EventAttendance(
+                event_id=event.id,
+                user_id=attendee.id,
+                status=AttendanceStatus.GOING,
+                role=AttendanceRole.ATTENDEE,
+                proof_links=[],
+                trust=Trust.SELF,
+                status_at=h.now,
+            )
+        )
+    await catalog_team(h, event, member, TeamStatus.FORMING)
+    new_start = event.starts_at + timedelta(days=1)
+    with patch.object(formation, "dates_changed", wraps=formation.dates_changed) as hook:
+        async with await h.client(admin) as client:
+            response = await client.patch(
+                f"/api/v1/admin/events/{event.id}", json={"starts_at": new_start.isoformat()}
+            )
+            assert response.status_code == 200, response.text
+            hook.assert_awaited_once()
+            assert hook.await_args is not None
+            assert hook.await_args.args[3] == formation.event_dates(event)
+            async with h.db() as session:
+                notifications = list(await session.scalars(select(models.Notification)))
+                assert len(notifications) == 2
+                assert {row.user_id for row in notifications} == {attendee.id, member.id}
+                for row in notifications:
+                    assert row.type == NotificationType.EVENT_CHANGED
+                    assert isinstance(row.payload, dict)
+                    assert row.payload["changes"] == [
+                        {
+                            "field": "starts_at",
+                            "previous": event.starts_at.isoformat(),
+                            "current": new_start.isoformat(),
+                        }
+                    ]
+            response = await client.patch(
+                f"/api/v1/admin/events/{event.id}", json={"format": "online"}
+            )
+            assert response.status_code == 200, response.text
+            async with h.db() as session:
+                notifications = list(await session.scalars(select(models.Notification)))
+                assert len(notifications) == 4
+                formats = [
+                    row
+                    for row in notifications
+                    if isinstance(row.payload, dict)
+                    and row.payload["changes"]
+                    == [{"field": "format", "previous": None, "current": "online"}]
+                ]
+                assert {row.user_id for row in formats} == {attendee.id, member.id}
+            response = await client.patch(
+                f"/api/v1/admin/events/{event.id}", json={"title": "New title"}
+            )
+            assert response.status_code == 200, response.text
+            hook.assert_awaited_once()
+    async with h.db() as session:
+        assert len(list(await session.scalars(select(models.Notification)))) == 4
+
+
+@pytest.mark.parametrize("reason", [None, "Organizer cancelled"])
+async def test_patch_event_status_cancellation(
+    harness: Harness, editable_event: models.Event, reason: str | None
+) -> None:
+    h = harness
+    admin = await h.admin()
+    member = await h.user()
+    event = editable_event
+    async with h.db() as session:
+        session.add(
+            models.EventAttendance(
+                event_id=event.id,
+                user_id=member.id,
+                status=AttendanceStatus.GOING,
+                role=AttendanceRole.ATTENDEE,
+                proof_links=[],
+                trust=Trust.SELF,
+                status_at=h.now,
+            )
+        )
+    async with await h.client(admin) as client:
+        assert_problem(
+            await client.patch(f"/api/v1/admin/events/{event.id}", json={"status": "draft"}),
+            409,
+            ErrorCode.INVALID_STATE,
+        )
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}",
+            json={
+                "status": "cancelled",
+                "reason": reason,
+                "title": "Ignore this",
+                "areas": [{"key": "unknown", "importance": "primary"}],
+            },
+        )
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "cancelled"
+    assert response.json()["title"] == event.title
+    assert response.json()["participation_phase"] == "closed"
+    async with h.db() as session:
+        attendance = await session.scalar(select(models.EventAttendance))
+        assert attendance is not None and attendance.status == AttendanceStatus.CANCELLED
+        audits = list(await session.scalars(select(models.AuditLog)))
+        assert len(audits) == 1 and audits[0].action == AuditAction.EVENT_CANCEL
+        assert audits[0].reason == (reason or "Cancelled by admin")
+        assert list(await session.scalars(select(models.EventRevision))) == []
+        assert list(await session.scalars(select(models.EventFieldLock))) == []
+
+
+async def test_patch_event_normalization(harness: Harness, editable_event: models.Event) -> None:
+    h = harness
+    admin = await h.admin()
+    event = editable_event
+    async with h.db() as session:
+        other = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+    payload = {
+        "slug": "corrected-event",
+        "kind": "contest",
+        "location": {"city": "Berlin", "address": None},
+        "prize": {"amount": 1000, "currency": "EUR", "description": None},
+        "difficulty": 6.25,
+        "website_url": "https://example.com/event",
+        "registration_url": "https://example.com/register",
+        "language": ["en"],
+        "review_reasons": ["manual", "low_confidence"],
+    }
+    async with await h.client(admin) as client:
+        response = await client.patch(f"/api/v1/admin/events/{event.id}", json=payload)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["difficulty"] == 6.3
+        assert body["review_reasons"] == ["manual", "low_confidence"]
+        assert body["kind"] == "contest"
+        response = await client.patch(f"/api/v1/admin/events/{event.id}", json=payload)
+        assert response.status_code == 200, response.text
+        assert_problem(
+            await client.patch(f"/api/v1/admin/events/{event.id}", json={"slug": other.slug}),
+            422,
+            ErrorCode.VALIDATION_ERROR,
+        )
+    async with h.db() as session:
+        stored = await catalog.load_event(session, event.id)
+        assert stored.location == {"city": "Berlin"}
+        assert stored.prize == {"amount": 1000.0, "currency": "EUR"}
+        assert stored.website_url == payload["website_url"]
+        assert stored.registration_url == payload["registration_url"]
+        assert stored.difficulty == Decimal("6.3")
+        revisions = list(await session.scalars(select(models.EventRevision)))
+        assert len(revisions) == 1
+        assert isinstance(revisions[0].diff, dict)
+        assert revisions[0].diff["difficulty"] == {"before": None, "after": "6.3"}
+        fields = set(await session.scalars(select(models.EventFieldLock.field)))
+        assert fields == payload.keys() - {"review_reasons"}
+        assert "status" not in fields
+
+
+async def test_patch_event_access_and_archived_edit(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    member = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.ARCHIVED,
+            created_by=None,
+            now=h.now,
+        )
+    async with await h.client(member) as client:
+        assert_problem(
+            await client.patch(f"/api/v1/admin/events/{event.id}", json={"title": "Not allowed"}),
+            403,
+            ErrorCode.FORBIDDEN,
+        )
+    async with await h.client(admin) as client:
+        assert_problem(
+            await client.patch(f"/api/v1/admin/events/{uuid4()}", json={"title": "Not found"}),
+            404,
+            ErrorCode.NOT_FOUND,
+        )
+        response = await client.patch(
+            f"/api/v1/admin/events/{event.id}", json={"title": "Archived edit"}
+        )
+        assert response.status_code == 200, response.text
+        assert response.json()["title"] == "Archived edit"
+        assert response.json()["status"] == "archived"
+        for endpoint in ("locks", "revisions"):
+            assert_problem(
+                await client.get(f"/api/v1/admin/events/{uuid4()}/{endpoint}"),
+                404,
+                ErrorCode.NOT_FOUND,
+            )
