@@ -30,8 +30,9 @@ from hmm_contracts.common import (
 from hmm_contracts.formation import Bounds, placement_bounds
 from hmm_core import models
 from hmm_core.catalog import service as catalog
+from hmm_core.formation import apply as formation_apply
 from hmm_core.formation import jobs as formation_jobs
-from hmm_core.formation import service
+from hmm_core.formation import runs, service
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.settings import load_settings
@@ -1444,7 +1445,7 @@ async def test_notify_failure_rolls_back(harness: Harness, monkeypatch: pytest.M
     async def failing_alert(*args: Any, **kwargs: Any) -> None:
         raise RuntimeError("alert failed")
 
-    monkeypatch.setattr(service, "raise_alert", failing_alert)
+    monkeypatch.setattr(formation_apply, "raise_alert", failing_alert)
     with pytest.raises(RuntimeError):
         await apply(h, run, request, plan)
     assert (
@@ -1777,7 +1778,7 @@ async def test_job_terminal_failure_restores_open(
         return FormationPlan(teams=[], reserve=[], merges=[], summary="Broken")
 
     monkeypatch.setattr(h.algorithm, "form_teams", boom)
-    monkeypatch.setattr(service, "fallback_plan", invalid)
+    monkeypatch.setattr(runs, "fallback_plan", invalid)
     await formation_jobs.run_formation(h.runtime, event_id=str(event.id))
     [run] = await runs_of(h, event)
     assert (run.status, run.output) == ("failed", None)

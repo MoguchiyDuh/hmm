@@ -15,8 +15,10 @@ from hmm_contracts.common import (
 from hmm_contracts.notifications import AlertKind
 from hmm_core import models
 from hmm_core.catalog import service as catalog
+from hmm_core.formation import lock
 from hmm_core.formation import service as formation
 from hmm_core.notifications.service import raise_alert
+from hmm_core.platform.settings import load_settings
 from sqlalchemy import func, select, update
 
 _titles = itertools.count(1)
@@ -849,15 +851,13 @@ async def test_shared_lapse_without_succession(harness: Harness) -> None:
             )
         ).one()
         row = await session.get_one(models.ProjectMember, member.id)
-        await formation._confirm_deadline_lapse(
+        await lock._confirm_deadline_lapse(
             session,
             project,
             locked_event,
             row,
             h.now,
-            timing=formation.formation_timing(
-                locked_event, await formation.load_settings(session), h.now
-            ),
+            timing=formation.formation_timing(locked_event, await load_settings(session), h.now),
             reason="Review ended",
             succession=False,
         )
