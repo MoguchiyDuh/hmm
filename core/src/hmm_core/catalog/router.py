@@ -36,7 +36,7 @@ from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implem
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth, ParserAuth
-from hmm_core.projects.schemas import Project
+from hmm_core.projects.schemas import ProjectView
 
 router = APIRouter(tags=["catalog"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["catalog"], responses=PROBLEM_RESPONSES)
@@ -91,8 +91,10 @@ async def get_event(
 
 
 @router.get("/events/{id}/projects", status_code=status.HTTP_200_OK, summary="List event projects")
-async def list_event_projects(id: EventId, actor: MemberAuth) -> list[Project]:
-    not_implemented()
+async def list_event_projects(
+    id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> list[ProjectView]:
+    return await catalog.list_event_projects(session, id, actor, clock.now())
 
 
 @router.post("/admin/events", status_code=status.HTTP_201_CREATED, summary="Create a manual event")

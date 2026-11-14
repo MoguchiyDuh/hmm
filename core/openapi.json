@@ -28559,7 +28559,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/Project"
+                    "$ref": "#/components/schemas/ProjectView"
                   },
                   "title": "Response Catalog List Event Projects",
                   "type": "array"

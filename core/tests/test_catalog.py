@@ -2135,3 +2135,277 @@ async def test_patch_event_access_and_archived_edit(harness: Harness) -> None:
                 404,
                 ErrorCode.NOT_FOUND,
             )
+
+
+async def listing_project(
+    h: Harness,
+    event: models.Event,
+    *,
+    name: str,
+    lead: models.User | None,
+    members: tuple[models.User, ...] = (),
+    team_status: TeamStatus | None = TeamStatus.FORMING,
+    visibility: ProjectVisibility = ProjectVisibility.PUBLIC,
+    area_keys: tuple[str, ...] = (),
+    **fields: object,
+) -> models.Project:
+    async with h.db() as session:
+        project = models.Project(
+            event_id=event.id,
+            name=name,
+            description_md="Project description",
+            goal="Ship it",
+            links=["https://example.com/repo"],
+            visibility=visibility,
+            status=ProjectStatus.ACTIVE,
+            team_status=team_status.value if team_status is not None else None,
+            origin=ProjectOrigin.ADMIN if team_status is not None else ProjectOrigin.STANDALONE,
+            lead_user_id=lead.id if lead is not None else None,
+            **fields,
+        )
+        session.add(project)
+        await session.flush()
+        areas = {
+            area.key: area.id
+            for area in await session.scalars(
+                select(models.Area).where(models.Area.key.in_(area_keys))
+            )
+        }
+        session.add_all(
+            models.ProjectArea(project_id=project.id, area_id=areas[key]) for key in area_keys
+        )
+        rows = [(lead, MemberRole.LEAD)] if lead is not None else []
+        rows += [(member, MemberRole.MEMBER) for member in members]
+        session.add_all(
+            models.ProjectMember(
+                project_id=project.id,
+                event_id=event.id,
+                user_id=user.id,
+                role=role,
+                state=MemberState.CONFIRMED,
+                trust=Trust.SELF,
+                joined_via=JoinedVia.ADMIN,
+                is_team_row=team_status is not None,
+                joined_at=h.now - timedelta(hours=index) if role == MemberRole.MEMBER else h.now,
+            )
+            for index, (user, role) in enumerate(rows)
+        )
+        return project
+
+
+async def published_event(h: Harness, **fields: object) -> models.Event:
+    async with h.db() as session:
+        return await catalog.create_event(
+            session,
+            replace(event_input(h), **fields),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+
+
+async def test_list_event_projects_full_views(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "design"))
+    event = await published_event(h)
+    lead, first, second, viewer = await h.user(), await h.user(), await h.user(), await h.user()
+    team = await listing_project(
+        h,
+        event,
+        name="Alpha team",
+        lead=lead,
+        members=(first, second),
+        area_keys=("design", "backend"),
+    )
+    standalone = await listing_project(h, event, name="Aardvark", lead=first, team_status=None)
+    async with await h.client(viewer) as client:
+        response = await client.get(f"/api/v1/events/{event.id}/projects")
+    assert response.status_code == 200, response.text
+    items = response.json()
+    assert [item["id"] for item in items] == [str(team.id), str(standalone.id)]
+    team_view, standalone_view = items
+    assert team_view["view"] == "full"
+    assert [member["user_id"] for member in team_view["members"]] == [
+        str(lead.id),
+        str(second.id),
+        str(first.id),
+    ]
+    assert team_view["members"][0]["role"] == "lead"
+    assert team_view["members"][0]["user"]["display_name"] == lead.display_name
+    assert team_view["area_keys"] == ["backend", "design"]
+    assert team_view["open_seats"] is None
+    assert team_view["status"] == "active"
+    assert team_view["team_status"] == "forming"
+    assert team_view["links"] == ["https://example.com/repo"]
+    assert team_view["allowed_actions"] == []
+    assert team_view["pending_invites"] is None
+    assert standalone_view["view"] == "full"
+    assert standalone_view["event_id"] == str(event.id)
+    assert standalone_view["team_status"] is None
+    assert standalone_view["open_seats"] is None
+
+
+async def test_list_event_projects_limited_view(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend",))
+    event = await published_event(h)
+    lead, member, outsider = await h.user(), await h.user(), await h.user()
+    project = await listing_project(
+        h,
+        event,
+        name="Hidden",
+        lead=lead,
+        members=(member,),
+        team_status=None,
+        visibility=ProjectVisibility.MEMBERS,
+        area_keys=("backend",),
+    )
+    async with await h.client(outsider) as client:
+        response = await client.get(f"/api/v1/events/{event.id}/projects")
+    assert response.status_code == 200, response.text
+    assert response.json() == [
+        {
+            "view": "limited",
+            "id": str(project.id),
+            "name": "Hidden",
+            "area_keys": ["backend"],
+            "allowed_actions": [],
+        }
+    ]
+    for user in (member, lead):
+        async with await h.client(user) as client:
+            response = await client.get(f"/api/v1/events/{event.id}/projects")
+        assert response.status_code == 200, response.text
+        [item] = response.json()
+        assert item["view"] == "full"
+        assert {row["user_id"] for row in item["members"]} == {str(lead.id), str(member.id)}
+    async with await h.client(member) as client:
+        [item] = (await client.get(f"/api/v1/events/{event.id}/projects")).json()
+    assert item["allowed_actions"] == ["leave"]
+
+
+async def test_list_event_projects_pending_items(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend",))
+    event = await published_event(h)
+    lead, member, outsider = await h.user(), await h.user(), await h.user()
+    invitee, requester, heir = await h.user(), await h.user(), await h.user()
+    team = await listing_project(h, event, name="Team", lead=lead, members=(member, heir))
+    async with h.db() as session:
+        backend = await session.scalar(select(models.Area).where(models.Area.key == "backend"))
+        assert backend is not None
+        session.add_all(
+            [
+                models.Invite(
+                    project_id=team.id,
+                    event_id=event.id,
+                    user_id=invitee.id,
+                    invited_by=lead.id,
+                    kind=InviteKind.FILL,
+                    status=InviteStatus.PENDING,
+                    area_id=backend.id,
+                    expires_at=h.now + timedelta(days=1),
+                ),
+                models.Invite(
+                    project_id=team.id,
+                    event_id=event.id,
+                    user_id=outsider.id,
+                    kind=InviteKind.FILL,
+                    status=InviteStatus.DECLINED,
+                    expires_at=h.now + timedelta(days=1),
+                ),
+                models.JoinRequest(
+                    project_id=team.id,
+                    event_id=event.id,
+                    user_id=requester.id,
+                    note="Let me in",
+                    status=JoinRequestStatus.PENDING,
+                ),
+                models.LeadOffer(
+                    project_id=team.id,
+                    event_id=event.id,
+                    user_id=heir.id,
+                    offered_by=lead.id,
+                    source=LeadOfferSource.TRANSFER,
+                    reason="Take over",
+                    status=LeadOfferStatus.PENDING,
+                    expires_at=h.now + timedelta(days=3),
+                ),
+            ]
+        )
+    async with await h.client(lead) as client:
+        response = await client.get(f"/api/v1/events/{event.id}/projects")
+    assert response.status_code == 200, response.text
+    [item] = response.json()
+    [invite] = item["pending_invites"]
+    assert invite["user_id"] == str(invitee.id)
+    assert invite["inviter"]["id"] == str(lead.id)
+    assert invite["area_key"] == "backend"
+    assert invite["project"] == {
+        "id": str(team.id),
+        "name": "Team",
+        "event_id": str(event.id),
+        "team_status": "forming",
+    }
+    [request] = item["pending_join_requests"]
+    assert request["user_id"] == str(requester.id) and request["note"] == "Let me in"
+    assert item["pending_lead_offer"]["user_id"] == str(heir.id)
+    assert item["pending_lead_offer"]["offerer"]["id"] == str(lead.id)
+    assert "transfer_lead" in item["allowed_actions"]
+    for user in (member, outsider):
+        async with await h.client(user) as client:
+            [item] = (await client.get(f"/api/v1/events/{event.id}/projects")).json()
+        assert item["view"] == "full"
+        assert item["pending_invites"] is None
+        assert item["pending_join_requests"] is None
+        assert item["pending_lead_offer"] is None
+
+
+async def test_list_event_projects_open_seats(harness: Harness) -> None:
+    h = harness
+    event = await published_event(h, team_size_min=2, team_size_max=5)
+    lead, other_lead = await h.user(), await h.user()
+    members = [await h.user() for _ in range(4)]
+    open_team = await listing_project(
+        h,
+        event,
+        name="Alpha",
+        lead=lead,
+        members=tuple(members[:2]),
+        team_status=TeamStatus.LOCKED,
+    )
+    closed_team = await listing_project(
+        h,
+        event,
+        name="Beta",
+        lead=other_lead,
+        members=tuple(members[2:]),
+        team_status=TeamStatus.LOCKED,
+        seats_closed_at=h.now,
+    )
+    async with await h.client(lead) as client:
+        items = (await client.get(f"/api/v1/events/{event.id}/projects")).json()
+    assert [item["id"] for item in items] == [str(open_team.id), str(closed_team.id)]
+    assert [item["open_seats"] for item in items] == [2, 2]
+    assert "close_seats" in items[0]["allowed_actions"]
+    async with await h.client(other_lead) as client:
+        items = (await client.get(f"/api/v1/events/{event.id}/projects")).json()
+    assert "reopen_seats" in items[1]["allowed_actions"]
+    assert "close_seats" not in items[1]["allowed_actions"]
+
+
+async def test_list_event_projects_errors(harness: Harness) -> None:
+    h = harness
+    event = await published_event(h)
+    member = await h.user()
+    async with await h.client(member) as client:
+        assert_problem(
+            await client.get(f"/api/v1/events/{uuid4()}/projects"), 404, ErrorCode.NOT_FOUND
+        )
+        response = await client.get(f"/api/v1/events/{event.id}/projects")
+        assert response.status_code == 200 and response.json() == []
+    async with h.anonymous() as client:
+        assert_problem(
+            await client.get(f"/api/v1/events/{event.id}/projects"), 401, ErrorCode.UNAUTHENTICATED
+        )

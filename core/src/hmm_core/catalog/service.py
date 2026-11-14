@@ -57,6 +57,8 @@ from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams, apply_keyset, encode_cursor
 from hmm_core.platform.schemas import EventAction, UserRef
 from hmm_core.platform.settings import RuntimeSettings, load_settings
+from hmm_core.projects import service as projects
+from hmm_core.projects.schemas import ProjectView
 
 SLUG_MAX = 100
 LIVE_ENROLLMENTS = frozenset(
@@ -1348,3 +1350,15 @@ async def list_revisions(session: AsyncSession, event_id: UUID) -> list[schemas.
             .order_by(models.EventRevision.created_at.desc(), models.EventRevision.id.desc())
         )
     ]
+
+
+async def list_event_projects(
+    session: AsyncSession, event_id: UUID, actor: models.User, now: datetime
+) -> list[ProjectView]:
+    event = await visible_event(session, event_id, actor)
+    rows = await session.scalars(
+        select(models.Project)
+        .where(models.Project.event_id == event.id)
+        .order_by(models.Project.team_status.is_(None), models.Project.name, models.Project.id)
+    )
+    return await projects.project_views(session, list(rows), actor, now)
