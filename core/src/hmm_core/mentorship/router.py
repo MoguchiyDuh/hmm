@@ -29,7 +29,7 @@ from hmm_core.mentorship.schemas import (
 )
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import MemberAuth
 
@@ -229,9 +229,16 @@ async def create_checkin(
     "/mentorships/{id}/close", status_code=status.HTTP_200_OK, summary="Close mentorship as learner"
 )
 async def close_mentorship(
-    id: MentorshipId, body: CloseMentorshipBody, actor: MemberAuth
+    id: MentorshipId,
+    body: CloseMentorshipBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
 ) -> Mentorship:
-    not_implemented()
+    return await service.close_mentorship(
+        session, request.app.state.jobs, actor, id, body, clock.now()
+    )
 
 
 @router.post(
@@ -239,8 +246,10 @@ async def close_mentorship(
     status_code=status.HTTP_200_OK,
     summary="Propose closing as mentor",
 )
-async def propose_close(id: MentorshipId, actor: MemberAuth) -> Mentorship:
-    not_implemented()
+async def propose_close(
+    id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+) -> Mentorship:
+    return await service.propose_close(session, request.app.state.jobs, actor, id, clock.now())
 
 
 @router.post(
@@ -249,9 +258,16 @@ async def propose_close(id: MentorshipId, actor: MemberAuth) -> Mentorship:
     summary="Acknowledge learner outcome as mentor",
 )
 async def acknowledge_outcome(
-    id: MentorshipId, body: AcknowledgeMentorshipBody, actor: MemberAuth
+    id: MentorshipId,
+    body: AcknowledgeMentorshipBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
 ) -> Mentorship:
-    not_implemented()
+    return await service.acknowledge_outcome(
+        session, request.app.state.jobs, actor, id, body, clock.now()
+    )
 
 
 @router.post(
@@ -259,5 +275,7 @@ async def acknowledge_outcome(
     status_code=status.HTTP_200_OK,
     summary="Cancel mentorship before first check-in as either participant",
 )
-async def cancel_mentorship(id: MentorshipId, actor: MemberAuth) -> Mentorship:
-    not_implemented()
+async def cancel_mentorship(
+    id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+) -> Mentorship:
+    return await service.cancel_mentorship(session, request.app.state.jobs, actor, id, clock.now())
