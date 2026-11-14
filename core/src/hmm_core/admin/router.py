@@ -115,19 +115,38 @@ async def update_user(
     "/admin/users/{id}/ban", status_code=status.HTTP_200_OK, summary="Ban user with a reason"
 )
 async def ban_user(
-    id: UserId, body: BanUserBody, actor: AdminAuth, session: Session, clock: CurrentClock
+    id: UserId,
+    body: BanUserBody,
+    request: Request,
+    actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> AdminUser:
     target = await identity.lock_user(session, id)
-    await identity.ban_user(session, target, body.reason, actor.id, clock.now())
+    await identity.ban_user(
+        session, request.app.state.jobs, target, body.reason, actor.id, clock.now()
+    )
     return await admin_user(session, target)
 
 
 @router.post("/admin/users/{id}/unban", status_code=status.HTTP_200_OK, summary="Unban user")
 async def unban_user(
-    id: UserId, actor: AdminAuth, session: Session, body: UnbanUserBody | None = None
+    id: UserId,
+    request: Request,
+    actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
+    body: UnbanUserBody | None = None,
 ) -> AdminUser:
     target = await identity.lock_user(session, id)
-    await identity.unban_user(session, target, actor.id, body.reason if body else None)
+    await identity.unban_user(
+        session,
+        request.app.state.jobs,
+        target,
+        actor.id,
+        body.reason if body else None,
+        clock.now(),
+    )
     return await admin_user(session, target)
 
 
