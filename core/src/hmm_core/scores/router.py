@@ -24,7 +24,7 @@ from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth
-from hmm_core.scores import restrictions, service
+from hmm_core.scores import moderation, restrictions, service
 from hmm_core.scores.schemas import (
     ActivityEntry,
     ActivityEntryPage,
@@ -193,9 +193,14 @@ async def remove_score_override(
     summary="Adjust member XP",
 )
 async def create_xp_adjustment(
-    id: UserId, body: CreateXpAdjustmentBody, actor: AdminAuth
+    id: UserId,
+    body: CreateXpAdjustmentBody,
+    actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> XpAdjustment:
-    not_implemented()
+    row = await moderation.create_xp_adjustment(session, id, body, actor.id, clock.now())
+    return XpAdjustment.model_validate(row)
 
 
 @router.get(
@@ -205,12 +210,15 @@ async def create_xp_adjustment(
 )
 async def list_flags(
     actor: AdminAuth,
+    session: Session,
     pagination: Annotated[CursorParams, Depends()],
     status: Annotated[FlagStatus, Query()] = FlagStatus.TO_CHECK,
     user: Annotated[UserId | None, Query()] = None,
     subject_type: Annotated[FlagSubjectType | None, Query()] = None,
 ) -> FlagPage:
-    not_implemented()
+    return await moderation.list_flags(
+        session, pagination, status=status, user_id=user, subject_type=subject_type
+    )
 
 
 @router.post(
