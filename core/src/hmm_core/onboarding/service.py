@@ -15,12 +15,14 @@ from hmm_contracts.common import (
     QuizStatus,
     SubmissionStatus,
 )
+from hmm_contracts.notifications import NotificationPerson, OnboardingReopenedPayload
 from pydantic import JsonValue, TypeAdapter
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
 from hmm_core.identity.service import lock_user
+from hmm_core.notifications.service import notify
 from hmm_core.onboarding import schemas
 from hmm_core.onboarding.answers import known_answers, submission_answers, validate_values
 from hmm_core.onboarding.schemas import (
@@ -669,3 +671,103 @@ async def submit_onboarding(
     )
     await defer_job(session, jobs, JobName.SCORE_ONBOARDING, user_id=str(actor.id))
     return await onboarding_view(session, actor, quiz, viewer=actor)
+
+
+async def user_onboarding_history(
+    session: AsyncSession, user_id: UUID
+) -> list[schemas.OnboardingSubmission]:
+    target = await session.get(models.User, user_id)
+    if target is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    rows = await session.scalars(
+        select(models.OnboardingSubmission)
+        .where(
+            models.OnboardingSubmission.user_id == user_id,
+            models.OnboardingSubmission.status == SubmissionStatus.SUBMITTED,
+        )
+        .order_by(
+            models.OnboardingSubmission.submitted_at,
+            models.OnboardingSubmission.created_at,
+            models.OnboardingSubmission.id,
+        )
+    )
+    history: list[schemas.OnboardingSubmission] = []
+    for row in rows.all():
+        quiz = await session.get(models.Quiz, row.quiz_id)
+        assert quiz is not None
+        history.append(
+            schemas.OnboardingSubmission(
+                id=row.id,
+                user_id=row.user_id,
+                quiz_id=row.quiz_id,
+                quiz=await quiz_view(session, quiz),
+                answers=ANSWER_MAP.validate_python(row.answers),
+                status=SubmissionStatus(row.status),
+                submitted_at=row.submitted_at,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+            )
+        )
+    return history
+
+
+async def reopen_onboarding(
+    session: AsyncSession,
+    user_id: UUID,
+    actor: models.User,
+    reason: str | None,
+    now: datetime,
+) -> schemas.Onboarding:
+    target = await lock_user(session, user_id)
+    if target.onboarding_status == OnboardingStatus.REOPENED:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Onboarding is already reopened")
+    if target.onboarding_status != OnboardingStatus.COMPLETED:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Onboarding is not submitted")
+    quiz = await require_published_quiz(session)
+    submission = await latest_submitted(session, user_id)
+    if submission is None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "No submitted onboarding")
+    _, questions = await definition(session, quiz.id)
+    answers = known_answers(questions, ANSWER_MAP.validate_python(submission.answers))
+    await session.execute(
+        delete(models.OnboardingSubmission).where(
+            models.OnboardingSubmission.user_id == user_id,
+            models.OnboardingSubmission.status == SubmissionStatus.DRAFT,
+        )
+    )
+    session.add(
+        models.OnboardingSubmission(
+            user_id=user_id,
+            quiz_id=quiz.id,
+            answers=dump_answers(answers),
+            status=SubmissionStatus.DRAFT,
+        )
+    )
+    await session.flush()
+    target.onboarding_status = OnboardingStatus.REOPENED
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN,
+        action=AuditAction.ONBOARDING_REOPEN,
+        entity_type=AuditEntityType.ONBOARDING,
+        entity_id=user_id,
+        before={"status": "completed"},
+        after={
+            "status": "reopened",
+            "quiz_id": str(quiz.id),
+            "source_submission_id": str(submission.id),
+        },
+        reason=reason,
+    )
+    await notify(
+        session,
+        user_id,
+        OnboardingReopenedPayload(
+            link="/onboarding",
+            actor=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+            reason=reason,
+        ),
+        now,
+    )
+    return await onboarding_view(session, target, quiz, viewer=actor)

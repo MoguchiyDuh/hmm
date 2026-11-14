@@ -127,8 +127,10 @@ async def delete_quiz(
     status_code=status.HTTP_200_OK,
     summary="Get onboarding submission history",
 )
-async def get_user_onboarding(id: UserId, actor: AdminAuth) -> list[OnboardingSubmission]:
-    not_implemented()
+async def get_user_onboarding(
+    id: UserId, actor: AdminAuth, session: Session
+) -> list[OnboardingSubmission]:
+    return await service.user_onboarding_history(session, id)
 
 
 @router.post(
@@ -137,9 +139,15 @@ async def get_user_onboarding(id: UserId, actor: AdminAuth) -> list[OnboardingSu
     summary="Reopen onboarding without locking access",
 )
 async def reopen_onboarding(
-    id: UserId, actor: AdminAuth, body: ReasonBody | None = None
+    id: UserId,
+    actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
+    body: ReasonBody | None = None,
 ) -> Onboarding:
-    not_implemented()
+    return await service.reopen_onboarding(
+        session, id, actor, body.reason if body is not None else None, clock.now()
+    )
 
 
 @router.get("/admin/member-reviews", status_code=status.HTTP_200_OK, summary="List member reviews")
