@@ -110,7 +110,7 @@ def member_actions(
     if (
         is_lead
         and other_confirmed
-        and (not member.is_team_row or project.team_status in OPEN_TEAMS)
+        and (not member.is_team_row or project.team_status == TeamStatus.REVIEW)
     ):
         allowed.add(schemas.ProjectMemberAction.REMOVE)
     if actor.is_admin:
