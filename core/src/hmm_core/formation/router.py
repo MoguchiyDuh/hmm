@@ -238,15 +238,29 @@ async def withdraw_join_request(
 @router.post(
     "/join-requests/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept a join request"
 )
-async def accept_join_request(id: JoinRequestId, actor: MemberAuth) -> JoinRequest:
-    not_implemented()
+async def accept_join_request(
+    id: JoinRequestId,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> JoinRequest:
+    row = await service.accept_join_request(session, request.app.state.jobs, id, actor, clock.now())
+    return (await service.join_request_views(session, [row], actor))[0]
 
 
 @router.post(
     "/join-requests/{id}/reject", status_code=status.HTTP_200_OK, summary="Reject a join request"
 )
-async def reject_join_request(id: JoinRequestId, actor: MemberAuth) -> JoinRequest:
-    not_implemented()
+async def reject_join_request(
+    id: JoinRequestId,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> JoinRequest:
+    row = await service.reject_join_request(session, id, actor, clock.now())
+    return (await service.join_request_views(session, [row], actor))[0]
 
 
 @router.get("/projects/{id}/invites", status_code=status.HTTP_200_OK, summary="List team invites")

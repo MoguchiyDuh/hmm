@@ -1,6 +1,5 @@
 UNIMPLEMENTED_OPERATIONS = set(
     [
-        "formation_accept_join_request",
         "formation_accept_lead_offer",
         "formation_accept_merge",
         "formation_accept_swap",
@@ -24,7 +23,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "formation_list_formation_runs",
         "formation_list_my_lead_offers",
         "formation_list_reserve",
-        "formation_reject_join_request",
         "formation_reopen_seats",
         "formation_run_formation",
         "formation_step_down",

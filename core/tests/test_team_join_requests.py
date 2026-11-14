@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 from collections.abc import Sequence
 from datetime import datetime, timedelta
@@ -467,3 +468,294 @@ async def test_withdraw_join_request_gates(harness: Harness) -> None:
     async with h.anonymous() as c:
         response = await c.delete(f"/api/v1/join-requests/{request.id}")
     assert_problem(response, 401, ErrorCode.UNAUTHENTICATED)
+
+
+async def respond(h: Harness, actor: models.User, request_id: UUID, action: str) -> httpx.Response:
+    async with await h.client(actor) as c:
+        return await c.post(f"/api/v1/join-requests/{request_id}/{action}")
+
+
+async def live_members(h: Harness, *conditions: Any) -> list[models.ProjectMember]:
+    async with h.db() as session:
+        return list(
+            await session.scalars(
+                select(models.ProjectMember).where(
+                    models.ProjectMember.left_at.is_(None), *conditions
+                )
+            )
+        )
+
+
+async def enrollment_row(h: Harness, enrollment_id: UUID) -> models.Enrollment:
+    async with h.db() as session:
+        return await session.get_one(models.Enrollment, enrollment_id)
+
+
+async def project_row(h: Harness, project_id: UUID) -> models.Project:
+    async with h.db() as session:
+        return await session.get_one(models.Project, project_id)
+
+
+async def always_open(*args: Any) -> bool:
+    return True
+
+
+async def test_accept_join_request(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, member, requester = await h.user(), await h.user(), await h.user()
+    team = await seed_team(h, event, lead, members=[member])
+    await seed_team(h, event, await h.user(), name="Other")
+    enrollment = await enroll(h, event, requester)
+    request = await seed_request(h, team, requester)
+
+    response = await respond(h, lead, request.id, "accept")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "accepted"
+    assert datetime.fromisoformat(body["responded_at"]) == h.now
+    assert body["allowed_actions"] == []
+    [row] = await live_members(h, models.ProjectMember.user_id == requester.id)
+    assert row.project_id == team.id
+    assert row.role == "member"
+    assert row.state == "confirmed"
+    assert row.joined_via == "join_request"
+    assert row.is_team_row is True
+    assert row.area_id is None
+    assert row.confirm_by is None
+    stored = await enrollment_row(h, enrollment.id)
+    assert stored.status == "placed"
+    assert stored.status_at == h.now
+    assert stored.reserve_rank is None
+    assert (await project_row(h, team.id)).last_lead_action_at == h.now
+    assert len(await notifications_for(h, requester, "join_request_accepted")) == 1
+    assert len(await h.pending_jobs("refresh_recommendations")) == 2
+    assert await h.pending_jobs("rank_reserve") == []
+
+
+async def test_accept_reserve_requester_at_late_core(
+    harness: Harness, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead = await h.user()
+    team = await seed_team(h, event, lead, origin="late_claim")
+    await set_formation(h, event, phase="locked")
+    requester = await h.user()
+    enrollment = await enroll(h, event, requester, status="reserve")
+    request = await seed_request(h, team, requester)
+
+    assert_problem(await respond(h, lead, request.id, "accept"), 409, ErrorCode.NOT_ENROLLED)
+    monkeypatch.setattr(service, "late_core_open", always_open)
+    response = await respond(h, lead, request.id, "accept")
+    assert response.status_code == 200, response.text
+    assert (await enrollment_row(h, enrollment.id)).status == "placed"
+    [job] = await h.pending_jobs("rank_reserve")
+    assert job["args"]["event_id"] == str(event.id)
+
+
+async def test_reject_join_request(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, requester = await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    enrollment = await enroll(h, event, requester)
+    request = await seed_request(h, team, requester)
+
+    response = await respond(h, lead, request.id, "reject")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "rejected"
+    assert datetime.fromisoformat(body["responded_at"]) == h.now
+    assert body["allowed_actions"] == []
+    assert await live_members(h, models.ProjectMember.user_id == requester.id) == []
+    stored = await enrollment_row(h, enrollment.id)
+    assert (stored.status, stored.status_at) == ("active", enrollment.status_at)
+    assert (await project_row(h, team.id)).last_lead_action_at == h.now
+    assert len(await notifications_for(h, requester, "join_request_rejected")) == 1
+    assert await h.pending_jobs() == []
+
+    again = await respond(h, lead, request.id, "reject")
+    assert again.status_code == 200, again.text
+    assert len(await notifications_for(h, requester, "join_request_rejected")) == 1
+
+
+async def test_respond_gates(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h, team_size_max=5)
+    lead, member, requester = await h.user(), await h.user(), await h.user()
+    team = await seed_team(h, event, lead, members=[member])
+    enrollment = await enroll(h, event, requester)
+    request = await seed_request(h, team, requester)
+
+    assert_problem(await respond(h, member, request.id, "accept"), 403, ErrorCode.FORBIDDEN)
+    assert_problem(await respond(h, member, request.id, "reject"), 403, ErrorCode.FORBIDDEN)
+
+    full_lead = await h.user()
+    full = await seed_team(
+        h, event, full_lead, members=[await h.user() for _ in range(4)], name="Full"
+    )
+    other_requester = await h.user()
+    await enroll(h, event, other_requester)
+    full_request = await seed_request(h, full, other_requester)
+    assert_problem(await respond(h, full_lead, full_request.id, "accept"), 409, ErrorCode.TEAM_FULL)
+
+    async with h.db() as session:
+        await session.execute(
+            update(models.Enrollment)
+            .where(models.Enrollment.id == enrollment.id)
+            .values(status="withdrawn")
+        )
+    assert_problem(await respond(h, lead, request.id, "accept"), 409, ErrorCode.NOT_ENROLLED)
+    async with h.db() as session:
+        await session.execute(
+            update(models.Enrollment)
+            .where(models.Enrollment.id == enrollment.id)
+            .values(status="active")
+        )
+
+    taken = await h.user()
+    await enroll(h, event, taken)
+    taken_request = await seed_request(h, team, taken)
+    await seed_team(h, event, await h.user(), members=[taken], name="Taken")
+    assert_problem(await respond(h, lead, taken_request.id, "accept"), 409, ErrorCode.INVALID_STATE)
+
+    await set_formation(h, event, phase="forming")
+    assert_problem(
+        await respond(h, lead, request.id, "accept"), 409, ErrorCode.FORMATION_IN_PROGRESS
+    )
+    assert_problem(
+        await respond(h, lead, request.id, "reject"), 409, ErrorCode.FORMATION_IN_PROGRESS
+    )
+    await set_formation(h, event, phase="open")
+
+    await set_formation(h, event, formation_at=h.now - timedelta(minutes=1))
+    assert_problem(await respond(h, lead, request.id, "accept"), 409, ErrorCode.INVALID_STATE)
+    await set_formation(h, event, formation_at=h.now + timedelta(days=1))
+
+    async with h.db() as session:
+        await session.execute(
+            update(models.Project).where(models.Project.id == team.id).values(team_status="review")
+        )
+    assert_problem(await respond(h, lead, request.id, "accept"), 409, ErrorCode.INVALID_STATE)
+
+    assert_problem(await respond(h, lead, uuid4(), "accept"), 404, ErrorCode.NOT_FOUND)
+    assert_problem(await respond(h, lead, uuid4(), "reject"), 404, ErrorCode.NOT_FOUND)
+
+
+async def test_respond_terminal(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, first, second = await h.user(), await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    await enroll(h, event, first)
+    await enroll(h, event, second)
+    accepted = await seed_request(h, team, first)
+    rejected = await seed_request(h, team, second)
+
+    first_accept = await respond(h, lead, accepted.id, "accept")
+    assert first_accept.status_code == 200, first_accept.text
+    assert_problem(await respond(h, lead, accepted.id, "reject"), 409, ErrorCode.INVALID_STATE)
+    h.advance(timedelta(minutes=5))
+    again = await respond(h, lead, accepted.id, "accept")
+    assert again.status_code == 200, again.text
+    assert again.json()["responded_at"] == first_accept.json()["responded_at"]
+
+    assert (await respond(h, lead, rejected.id, "reject")).status_code == 200
+    assert_problem(await respond(h, lead, rejected.id, "accept"), 409, ErrorCode.INVALID_STATE)
+
+
+async def test_respond_standalone(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    lead, member, requester, other = [await h.user() for _ in range(4)]
+    project = await seed_standalone(h, lead, recruiting=RECRUITING, members=[member])
+    request = await seed_request(h, project, requester)
+    other_request = await seed_request(h, project, other)
+
+    response = await respond(h, lead, request.id, "accept")
+    assert response.status_code == 200, response.text
+    [row] = await live_members(h, models.ProjectMember.user_id == requester.id)
+    assert row.is_team_row is False
+    assert row.event_id is None
+    assert row.joined_via == "join_request"
+    assert row.state == "confirmed"
+    assert await count(h, models.Enrollment, models.Enrollment.user_id == requester.id) == 0
+    assert await h.pending_jobs() == []
+    assert (await project_row(h, project.id)).last_lead_action_at == h.now
+    assert len(await notifications_for(h, requester, "join_request_accepted")) == 1
+
+    response = await respond(h, lead, other_request.id, "reject")
+    assert response.status_code == 200, response.text
+    assert len(await notifications_for(h, other, "join_request_rejected")) == 1
+
+
+async def test_accept_join_request_concurrency(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h, team_size_max=5)
+    lead = await h.user()
+    team = await seed_team(h, event, lead, members=[await h.user() for _ in range(3)])
+    x, y = await h.user(), await h.user()
+    await enroll(h, event, x)
+    await enroll(h, event, y)
+    request_x = await seed_request(h, team, x)
+    request_y = await seed_request(h, team, y)
+
+    results = await asyncio.gather(
+        respond(h, lead, request_x.id, "accept"), respond(h, lead, request_y.id, "accept")
+    )
+    assert sorted(response.status_code for response in results) == [200, 409]
+    [failed] = [response for response in results if response.status_code == 409]
+    assert_problem(failed, 409, ErrorCode.TEAM_FULL)
+    joined = await live_members(
+        h,
+        models.ProjectMember.project_id == team.id,
+        models.ProjectMember.joined_via == "join_request",
+    )
+    assert len(joined) == 1
+    assert len(await live_members(h, models.ProjectMember.project_id == team.id)) == 5
+
+
+async def test_two_teams_fill_by_invite_and_join_request(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(
+        h, team_size_min=3, team_size_max=6, registration_deadline=h.now + timedelta(days=6)
+    )
+    lead_a, lead_b, invitee, requester = [await h.user() for _ in range(4)]
+    team_a = await seed_team(h, event, lead_a, name="A")
+    team_b = await seed_team(h, event, lead_b, name="B")
+    invitee_enrollment = await enroll(h, event, invitee)
+    requester_enrollment = await enroll(h, event, requester)
+
+    async with await h.client(lead_a) as c:
+        created = await c.post(
+            f"/api/v1/projects/{team_a.id}/invites", json={"user_id": str(invitee.id)}
+        )
+    assert created.status_code == 201, created.text
+    async with await h.client(invitee) as c:
+        accepted = await c.post(f"/api/v1/invites/{created.json()['id']}/accept")
+    assert accepted.status_code == 200, accepted.text
+
+    async with await h.client(requester) as c:
+        requested = await c.post(
+            f"/api/v1/projects/{team_b.id}/join-requests", json={"note": "hello"}
+        )
+    assert requested.status_code == 201, requested.text
+    response = await respond(h, lead_b, UUID(requested.json()["id"]), "accept")
+    assert response.status_code == 200, response.text
+
+    async with h.db() as session:
+        for project_id, lead in ((team_a.id, lead_a), (team_b.id, lead_b)):
+            project = await session.get_one(models.Project, project_id)
+            view = await service.team_view(session, project, lead, h.now)
+            assert len(view.members) == 2
+            assert all(member.state == "confirmed" for member in view.members)
+    assert (await enrollment_row(h, invitee_enrollment.id)).status == "placed"
+    assert (await enrollment_row(h, requester_enrollment.id)).status == "placed"

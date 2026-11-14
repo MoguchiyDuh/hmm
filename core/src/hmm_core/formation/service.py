@@ -42,7 +42,9 @@ from hmm_contracts.notifications import (
     InviteClosedPayload,
     InviteDeclinedPayload,
     InviteReceivedPayload,
+    JoinRequestAcceptedPayload,
     JoinRequestReceivedPayload,
+    JoinRequestRejectedPayload,
     NotificationPerson,
     ProjectInviteReceivedPayload,
     ProjectJoinRequestReceivedPayload,
@@ -2459,3 +2461,180 @@ async def withdraw_join_request(
     request.responded_at = now
     await session.flush()
     return None
+
+
+async def accept_join_request(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    join_request_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> models.JoinRequest:
+    request, project, event, formation = await join_request_context(session, join_request_id, actor)
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if request.status == JoinRequestStatus.ACCEPTED.value:
+        return request
+    if request.status != JoinRequestStatus.PENDING.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This join request is no longer pending")
+    settings = await load_settings(session)
+    live_count_query = (
+        select(func.count())
+        .select_from(models.ProjectMember)
+        .where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.left_at.is_(None),
+        )
+    )
+    enrollment: models.Enrollment | None = None
+    if event is not None and formation is not None:
+        if FormationPhase(formation.phase) == FormationPhase.FORMING:
+            raise ProblemError(
+                ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly"
+            )
+        if project.team_status != TeamStatus.FORMING.value:
+            raise ProblemError(
+                ErrorCode.INVALID_STATE, "Join requests are only accepted by a forming core"
+            )
+        requester = await session.get(models.User, request.user_id)
+        if requester is None:
+            raise ProblemError(ErrorCode.NOT_FOUND)
+        if await live_membership(session, event.id, request.user_id) is not None:
+            raise ProblemError(
+                ErrorCode.INVALID_STATE, "The requester is already on a team for this event"
+            )
+        enrollment = await live_enrollment_row(session, event.id, request.user_id, for_update=True)
+        if enrollment is None:
+            raise ProblemError(ErrorCode.NOT_ENROLLED, "The requester is no longer enrolled")
+        late = await late_core_open(session, event, formation, project, now)
+        if enrollment.status == EnrollmentStatus.RESERVE.value and not late:
+            raise ProblemError(ErrorCode.NOT_ENROLLED, "An active enrollment is required")
+        if not late and now >= formation.formation_at:
+            raise ProblemError(ErrorCode.INVALID_STATE, "Join requests close at the formation time")
+        sizes = formation_sizes(event, formation, settings)
+        live_count = await session.scalar(live_count_query) or 0
+        if live_count >= sizes.max_size:
+            raise ProblemError(ErrorCode.TEAM_FULL, f"Team has reached max size {sizes.max_size}")
+    else:
+        if project.status in (
+            ProjectStatus.ABANDONED.value,
+            ProjectStatus.DISBANDED.value,
+            ProjectStatus.CANCELLED.value,
+        ):
+            raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
+        requester = await session.get(models.User, request.user_id)
+        if requester is None:
+            raise ProblemError(ErrorCode.NOT_FOUND)
+        member = await session.scalar(
+            select(models.ProjectMember.id).where(
+                models.ProjectMember.project_id == project.id,
+                models.ProjectMember.user_id == requester.id,
+                models.ProjectMember.left_at.is_(None),
+            )
+        )
+        if member is not None:
+            raise ProblemError(
+                ErrorCode.INVALID_STATE, "The requester is already a member of this project"
+            )
+        member_count = await session.scalar(live_count_query) or 0
+        if member_count >= settings.project_size_max:
+            raise ProblemError(
+                ErrorCode.PROJECT_FULL, f"Project has reached max size {settings.project_size_max}"
+            )
+    request.status = JoinRequestStatus.ACCEPTED.value
+    request.responded_at = now
+    session.add(
+        models.ProjectMember(
+            project_id=project.id,
+            event_id=event.id if event is not None else None,
+            user_id=request.user_id,
+            role=MemberRole.MEMBER.value,
+            area_id=None,
+            state=MemberState.CONFIRMED.value,
+            trust=Trust.SELF.value,
+            joined_via=JoinedVia.JOIN_REQUEST.value,
+            proposal_reason=None,
+            confirm_by=None,
+            confirm_kind=None,
+            is_team_row=event is not None,
+            joined_at=now,
+            confirmed_at=now,
+        )
+    )
+    reserve = False
+    if enrollment is not None:
+        reserve = enrollment.status == EnrollmentStatus.RESERVE.value
+        enrollment.status = EnrollmentStatus.PLACED.value
+        enrollment.status_at = now
+        enrollment.reserve_rank = None
+    await session.flush()
+    if event is not None:
+        await close_invitee_items(
+            session,
+            event,
+            requester,
+            now,
+            closed_reason="joined_team",
+            notified_reason="The invitee joined another team",
+            keep=None,
+        )
+    project.last_lead_action_at = now
+    await notify(
+        session,
+        requester.id,
+        JoinRequestAcceptedPayload(
+            link=f"/projects/{project.id}",
+            project_id=project.id,
+            project_name=project.name,
+            join_request_id=request.id,
+            requester=notification_person(requester),
+            lead=notification_person(actor),
+            event_id=event.id if event is not None else None,
+            event_title=event.title if event is not None else None,
+        ),
+        now,
+        dedupe_key=f"join_request_accepted:{request.id}",
+    )
+    if event is not None:
+        await enqueue_participation_jobs(session, jobs, event.id, reserve=reserve)
+    await session.flush()
+    await session.refresh(request)
+    return request
+
+
+async def reject_join_request(
+    session: AsyncSession, join_request_id: UUID, actor: models.User, now: datetime
+) -> models.JoinRequest:
+    request, project, event, formation = await join_request_context(session, join_request_id, actor)
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if request.status == JoinRequestStatus.REJECTED.value:
+        return request
+    if request.status != JoinRequestStatus.PENDING.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This join request is no longer pending")
+    if formation is not None and FormationPhase(formation.phase) == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    request.status = JoinRequestStatus.REJECTED.value
+    request.responded_at = now
+    project.last_lead_action_at = now
+    requester = await session.get(models.User, request.user_id)
+    if requester is not None:
+        await notify(
+            session,
+            requester.id,
+            JoinRequestRejectedPayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                join_request_id=request.id,
+                requester=notification_person(requester),
+                lead=notification_person(actor),
+                event_id=event.id if event is not None else None,
+                event_title=event.title if event is not None else None,
+            ),
+            now,
+            dedupe_key=f"join_request_rejected:{request.id}",
+        )
+    await session.flush()
+    await session.refresh(request)
+    return request
