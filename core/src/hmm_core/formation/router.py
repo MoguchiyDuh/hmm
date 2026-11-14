@@ -219,15 +219,20 @@ async def reopen_seats(id: ProjectId, actor: MemberAuth) -> Response:
     status_code=status.HTTP_200_OK,
     summary="List team join requests",
 )
-async def list_join_requests(id: ProjectId, actor: MemberAuth) -> list[JoinRequest]:
-    not_implemented()
+async def list_join_requests(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> list[JoinRequest]:
+    return await service.list_join_requests(session, id, actor)
 
 
 @router.delete(
     "/join-requests/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw a join request"
 )
-async def withdraw_join_request(id: JoinRequestId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def withdraw_join_request(
+    id: JoinRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Response:
+    await service.withdraw_join_request(session, id, actor, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

@@ -134,9 +134,14 @@ async def create_invite(
     summary="Request to join a project or hackathon team",
 )
 async def create_join_request(
-    id: ProjectId, body: CreateProjectJoinRequestBody, actor: MemberAuth
+    id: ProjectId,
+    body: CreateProjectJoinRequestBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> JoinRequest:
-    not_implemented()
+    request = await formation.create_join_request(session, id, body, actor, clock.now())
+    return (await formation.join_request_views(session, [request], actor))[0]
 
 
 @router.delete(
