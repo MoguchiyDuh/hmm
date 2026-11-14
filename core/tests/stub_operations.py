@@ -70,7 +70,5 @@ UNIMPLEMENTED_OPERATIONS = set(
         "projects_update_milestone",
         "projects_update_project",
         "recommendations_list_suggested_mentors",
-        "results_list_results_to_verify",
-        "results_verify_result",
     ]
 )

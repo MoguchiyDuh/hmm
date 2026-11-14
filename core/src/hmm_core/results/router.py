@@ -16,7 +16,7 @@ from sqlalchemy import select
 from hmm_core import models
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import AdminAuth, MemberAuth
 from hmm_core.results import reviews, service
@@ -86,9 +86,13 @@ async def update_result(
 async def list_results_to_verify(
     pagination: Annotated[CursorParams, Depends()],
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
     place_status: Annotated[PlaceStatus | None, Query()] = None,
 ) -> ResultToVerifyPage:
-    not_implemented()
+    return await service.result_verify_page(
+        session, pagination, actor, clock.now(), place_status=place_status
+    )
 
 
 @router.post(
@@ -96,8 +100,17 @@ async def list_results_to_verify(
     status_code=status.HTTP_200_OK,
     summary="Verify or reject a claimed place or award",
 )
-async def verify_result(id: ProjectId, body: VerifyResultBody, actor: AdminAuth) -> ProjectResult:
-    not_implemented()
+async def verify_result(
+    id: ProjectId,
+    body: VerifyResultBody,
+    actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
+) -> ProjectResult:
+    return await service.verify_result(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
 
 
 @router.get(
