@@ -54,13 +54,23 @@ async def list_users(
 
 
 @router.get("/users/{id}", status_code=status.HTTP_200_OK, summary="Public profile")
-async def get_user(id: UserId, actor: MemberAuth) -> UserProfile:
-    not_implemented()
+async def get_user(
+    id: UserId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> UserProfile:
+    user = await service.get_user(session, id)
+    return await service.user_profile(session, user, actor, clock.now())
 
 
 @router.patch("/me/profile", status_code=status.HTTP_200_OK, summary="Edit profile fields")
-async def update_profile(body: UpdateProfileBody, actor: UserAuth) -> UserProfile:
-    not_implemented()
+async def update_profile(
+    body: UpdateProfileBody,
+    actor: UserAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
+) -> UserProfile:
+    target = await service.update_profile(session, request.app.state.jobs, actor, body)
+    return await service.user_profile(session, target, actor, clock.now())
 
 
 @router.put("/me/availability", status_code=status.HTTP_200_OK, summary="Set do-not-disturb")

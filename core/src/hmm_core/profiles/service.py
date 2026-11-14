@@ -5,17 +5,30 @@ from decimal import Decimal
 from typing import Literal, cast
 from uuid import UUID
 
-from hmm_contracts.algo import MentorOffer
-from hmm_contracts.common import ErrorCode, ReviewContext
+import procrastinate
+from hmm_contracts.algo import MentorOffer, ReviewIn
+from hmm_contracts.common import (
+    ErrorCode,
+    FlagStatus,
+    FlagSubjectType,
+    GithubSnapshotStatus,
+    Locale,
+    MemberReviewStatus,
+    ReviewContext,
+    ReviewSubjectType,
+)
 from sqlalchemy import Numeric, Text, and_, exists, func, not_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
-from hmm_core.identity.service import ONBOARDED, dnd_active, dnd_until
+from hmm_core.identity.service import ONBOARDED, dnd_active, dnd_until, lock_user
 from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import Column, CursorParams, apply_keyset, encode_cursor
 from hmm_core.platform.schemas import AreaScoreSummary
 from hmm_core.profiles import schemas
+from hmm_core.profiles.github import github_summary
+from hmm_core.profiles.schemas import UpdateProfileBody
 from hmm_core.scores.reputation import reputation_summaries
 
 
@@ -219,3 +232,101 @@ async def user_summaries(
             )
         )
     return result
+
+
+async def get_user(session: AsyncSession, user_id: UUID) -> models.User:
+    user = await session.get(models.User, user_id)
+    if user is None or user.onboarding_status not in ONBOARDED or user.banned_at is not None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return user
+
+
+async def visible_reviews(session: AsyncSession, user_id: UUID) -> list[ReviewIn]:
+    flags = list(
+        await session.scalars(
+            select(models.Flag).where(
+                models.Flag.subject_type == FlagSubjectType.REVIEW.value,
+                models.Flag.subject_id.in_(
+                    select(models.Review.id).where(models.Review.reviewee_id == user_id)
+                ),
+            )
+        )
+    )
+    to_check = {flag.subject_id for flag in flags if flag.status == FlagStatus.TO_CHECK.value}
+    pardoned = {flag.subject_id for flag in flags if flag.status == FlagStatus.PARDONED.value}
+    rows = await session.scalars(
+        select(models.Review)
+        .where(
+            models.Review.reviewee_id == user_id,
+            models.Review.revealed_at.is_not(None),
+            models.Review.removed_at.is_(None),
+            models.Review.context.in_(
+                [ReviewContext.MEMBER.value, ReviewContext.LEAD.value, ReviewContext.MENTOR.value]
+            ),
+            models.Review.id.not_in(to_check),
+        )
+        .order_by(models.Review.created_at.desc(), models.Review.id.desc())
+        .limit(20)
+    )
+    return [
+        ReviewIn(
+            id=row.id,
+            reviewer_id=row.reviewer_id,
+            reviewee_id=row.reviewee_id,
+            context=ReviewContext(row.context),
+            rating=row.rating,
+            subject_type=ReviewSubjectType(row.subject_type),
+            subject_id=row.subject_id,
+            comment=row.comment,
+            created_at=row.created_at,
+            revealed_at=row.revealed_at,
+            removed_at=row.removed_at,
+            flag_status=FlagStatus.PARDONED if row.id in pardoned else None,
+        )
+        for row in rows
+    ]
+
+
+async def user_profile(
+    session: AsyncSession, user: models.User, actor: models.User, now: datetime
+) -> schemas.UserProfile:
+    summary = (await user_summaries(session, [user], actor, now))[0]
+    snapshot = await session.get(models.GithubSnapshot, user.id)
+    scores_reviewed_at = await session.scalar(
+        select(models.MemberReview.reviewed_at).where(
+            models.MemberReview.user_id == user.id,
+            models.MemberReview.status == MemberReviewStatus.REVIEWED.value,
+        )
+    )
+    return schemas.UserProfile(
+        **summary.model_dump(),
+        about_md=user.about_md,
+        contacts=cast(dict[str, str], user.contacts),
+        timezone=user.timezone,
+        locale=Locale(user.locale),
+        github=github_summary(snapshot),
+        github_status=GithubSnapshotStatus(snapshot.status) if snapshot is not None else None,
+        scores_reviewed_at=scores_reviewed_at,
+        reviews=await visible_reviews(session, user.id),
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+    )
+
+
+async def update_profile(
+    session: AsyncSession, jobs: procrastinate.App, actor: models.User, body: UpdateProfileBody
+) -> models.User:
+    target = await lock_user(session, actor.id)
+    provided = body.model_dump(exclude_unset=True)
+    for field in ("display_name", "about_md", "contacts", "locale"):
+        if field in provided and provided[field] is None:
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, f"{field} cannot be null")
+    changed = {key: value for key, value in provided.items() if getattr(target, key) != value}
+    if not changed:
+        return target
+    for key, value in changed.items():
+        setattr(target, key, value)
+    await session.flush()
+    await session.refresh(target)
+    await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(target.id))
+    return target
