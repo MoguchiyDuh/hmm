@@ -784,6 +784,32 @@ async def withdraw_all_for_ban(session: AsyncSession, user_id: UUID, now: dateti
     await session.flush()
 
 
+async def cancel_all_for_ban(
+    session: AsyncSession, jobs: procrastinate.App, user_id: UUID, now: datetime
+) -> None:
+    rows = list(
+        await session.scalars(
+            select(models.Mentorship)
+            .where(
+                or_(
+                    models.Mentorship.mentor_id == user_id,
+                    models.Mentorship.learner_id == user_id,
+                ),
+                models.Mentorship.status.in_(CLOSABLE_STATUSES),
+                models.Mentorship.outcome.is_(None),
+            )
+            .order_by(models.Mentorship.id)
+            .with_for_update()
+        )
+    )
+    for row in rows:
+        row.status = MentorshipStatus.CANCELLED.value
+        row.stalled_at = None
+        other = row.learner_id if row.mentor_id == user_id else row.mentor_id
+        await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(other))
+    await session.flush()
+
+
 async def list_my_mentorships(
     session: AsyncSession,
     actor: models.User,
