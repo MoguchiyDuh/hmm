@@ -452,11 +452,12 @@ async def test_service_tokens_are_scoped(
         ):
             headers = {"Authorization": authorization} if authorization else {}
             assert_problem(await client.get(path, headers=headers), 401, ErrorCode.UNAUTHENTICATED)
-        response = await client.get(path, headers={"Authorization": f"Bearer {valid_token}"})
-        if path == "/api/v1/internal/areas":
-            assert response.status_code == 200, response.text
-        else:
-            assert_problem(response, 501, ErrorCode.NOT_IMPLEMENTED)
+        response = await client.get(
+            path,
+            headers={"Authorization": f"Bearer {valid_token}"},
+            params={"wait": 0} if path.endswith("/pending") else None,
+        )
+        assert response.status_code == 200, response.text
 
 
 @pytest.mark.parametrize("configured", [None, ""])

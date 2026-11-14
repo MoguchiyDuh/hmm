@@ -1,3 +1,5 @@
+import asyncio
+import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -9,6 +11,7 @@ from hmm_contracts.notifications import (
     PendingDelivery,
 )
 
+from hmm_core.notifications import service
 from hmm_core.notifications.schemas import (
     Alert,
     AlertPage,
@@ -16,6 +19,8 @@ from hmm_core.notifications.schemas import (
     ResolveAlertBody,
     UnreadCount,
 )
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import AdminAuth, BotAuth, UserAuth
@@ -28,9 +33,10 @@ internal = APIRouter(tags=["notifications"], responses=PROBLEM_RESPONSES)
 async def list_notifications(
     pagination: Annotated[CursorParams, Depends()],
     actor: UserAuth,
+    session: Session,
     unread: Annotated[bool | None, Query()] = None,
 ) -> InboxNotificationPage:
-    not_implemented()
+    return await service.list_notifications(session, actor.id, pagination, unread)
 
 
 @router.get(
@@ -38,8 +44,8 @@ async def list_notifications(
     status_code=status.HTTP_200_OK,
     summary="Get unread notification count",
 )
-async def get_unread_count(actor: UserAuth) -> UnreadCount:
-    not_implemented()
+async def get_unread_count(actor: UserAuth, session: Session) -> UnreadCount:
+    return await service.unread_count(session, actor.id)
 
 
 @router.post(
@@ -47,8 +53,8 @@ async def get_unread_count(actor: UserAuth) -> UnreadCount:
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Mark all notifications read",
 )
-async def read_all_notifications(actor: UserAuth) -> None:
-    not_implemented()
+async def read_all_notifications(actor: UserAuth, session: Session, clock: CurrentClock) -> None:
+    await service.read_all_notifications(session, actor.id, clock.now())
 
 
 @router.post(
@@ -56,8 +62,10 @@ async def read_all_notifications(actor: UserAuth) -> None:
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Mark notification read",
 )
-async def read_notification(id: NotificationId, actor: UserAuth) -> None:
-    not_implemented()
+async def read_notification(
+    id: NotificationId, actor: UserAuth, session: Session, clock: CurrentClock
+) -> None:
+    await service.read_notification(session, actor.id, id, clock.now())
 
 
 @internal.get(
@@ -66,9 +74,17 @@ async def read_notification(id: NotificationId, actor: UserAuth) -> None:
     summary="Long-poll Telegram deliveries with a 60-second lease",
 )
 async def list_pending_deliveries(
-    query: Annotated[PendingDeliveriesQuery, Query()], actor: BotAuth
+    query: Annotated[PendingDeliveriesQuery, Query()],
+    actor: BotAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> list[PendingDelivery]:
-    not_implemented()
+    deadline = time.monotonic() + query.wait
+    while True:
+        leased = await service.lease_deliveries(session, clock.now(), query.limit)
+        if leased or time.monotonic() >= deadline:
+            return leased
+        await asyncio.sleep(1)
 
 
 @internal.post(
@@ -76,8 +92,10 @@ async def list_pending_deliveries(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Acknowledge Telegram delivery outcomes",
 )
-async def acknowledge_deliveries(body: DeliveryAck, actor: BotAuth) -> None:
-    not_implemented()
+async def acknowledge_deliveries(
+    body: DeliveryAck, actor: BotAuth, session: Session, clock: CurrentClock
+) -> None:
+    await service.acknowledge(session, clock.now(), body.results)
 
 
 @router.get("/admin/alerts", status_code=status.HTTP_200_OK, summary="List admin alerts")
