@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -7,6 +8,8 @@ from uuid import uuid4
 import pytest
 from harness import Harness
 from hmm_contracts.common import (
+    AttendanceRole,
+    AttendanceStatus,
     ConfirmKind,
     EnrollmentSource,
     EnrollmentStatus,
@@ -28,7 +31,8 @@ from hmm_contracts.formation import placement_bounds
 from hmm_core import models
 from hmm_core.catalog import service as catalog
 from hmm_core.formation import service as formation
-from sqlalchemy import update
+from hmm_core.formation.schemas import CreateEnrollmentBody
+from sqlalchemy import func, select, update
 from test_api_skeleton import assert_problem
 
 _titles = itertools.count(1)
@@ -426,3 +430,387 @@ async def test_formation_visibility(harness: Harness) -> None:
     async with h.anonymous() as client:
         response = await client.get(f"/api/v1/events/{draft.id}/formation")
     assert_problem(response, 401, ErrorCode.UNAUTHENTICATED)
+
+
+async def enrollment_rows(h: Harness, event: models.Event) -> list[models.Enrollment]:
+    async with h.db() as session:
+        return list(
+            await session.scalars(
+                select(models.Enrollment).where(models.Enrollment.event_id == event.id)
+            )
+        )
+
+
+async def attendance_rows(h: Harness, event: models.Event) -> list[models.EventAttendance]:
+    async with h.db() as session:
+        return list(
+            await session.scalars(
+                select(models.EventAttendance).where(models.EventAttendance.event_id == event.id)
+            )
+        )
+
+
+def enroll_url(event_id: Any) -> str:
+    return f"/api/v1/events/{event_id}/enroll"
+
+
+async def test_enroll_creates_active_enrollment(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend",))
+    member = await h.user()
+    event = await make_hackathon(h)
+    body = {"preferred_area_key": "backend", "note": "hi", "willing_to_lead": True}
+    async with await h.client(member) as c:
+        response = await c.post(enroll_url(event.id), json=body)
+    assert response.status_code == 201, response.text
+    data = response.json()
+    assert data["status"] == "active"
+    assert data["source"] == "self"
+    assert data["preferred_area_key"] == "backend"
+    assert data["note"] == "hi"
+    assert data["willing_to_lead"] is True
+    assert data["event_id"] == str(event.id)
+    assert data["event"]["id"] == str(event.id)
+    assert data["user"]["id"] == str(member.id)
+    assert data["team"] is None
+    assert data["reserve_rank"] is None
+    assert data["allowed_actions"] == ["edit", "withdraw"]
+    attendances = await attendance_rows(h, event)
+    assert [(row.user_id, row.status, row.role, row.trust) for row in attendances] == [
+        (member.id, "going", "attendee", "self")
+    ]
+    assert await h.pending_jobs("rank_reserve") == []
+    assert await h.pending_jobs("refresh_recommendations") == []
+
+
+async def test_enroll_refreshes_open_team_recommendations(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    event = await make_hackathon(h)
+    forming = await make_team(h, event, 1)
+    review = await make_team(h, event, 1, TeamStatus.REVIEW)
+    await make_team(h, event, 1, TeamStatus.DISBANDED)
+    await make_team(h, event, 1, TeamStatus.ACTIVE)
+    async with await h.client(member) as c:
+        response = await c.post(enroll_url(event.id), json={})
+    assert response.status_code == 201, response.text
+    jobs = await h.pending_jobs("refresh_recommendations")
+    assert [job["args"]["project_id"] for job in jobs] == [str(forming.id), str(review.id)]
+
+
+async def test_enroll_repeat_identical_and_conflicting(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    event = await make_hackathon(h)
+    await make_team(h, event, 1)
+    body = {"note": "hi", "willing_to_lead": False}
+    async with await h.client(member) as c:
+        first = await c.post(enroll_url(event.id), json=body)
+        assert first.status_code == 201, first.text
+        jobs = await h.pending_jobs()
+        second = await c.post(enroll_url(event.id), json=body)
+        assert second.status_code == 200, second.text
+        assert second.json()["id"] == first.json()["id"]
+        assert len(await enrollment_rows(h, event)) == 1
+        assert len(await attendance_rows(h, event)) == 1
+        assert await h.pending_jobs() == jobs
+        conflict = await c.post(enroll_url(event.id), json={**body, "note": "other"})
+        assert_problem(conflict, 409, ErrorCode.ALREADY_ENROLLED)
+    rows = await enrollment_rows(h, event)
+    assert [row.note for row in rows] == ["hi"]
+    assert await h.pending_jobs() == jobs
+
+
+async def test_enroll_preferred_area_validation(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "frontend"))
+    member = await h.user()
+    event = await make_hackathon(h)
+    async with await h.client(member) as c:
+        response = await c.post(enroll_url(event.id), json={"preferred_area_key": "nope"})
+        assert_problem(response, 422, ErrorCode.VALIDATION_ERROR)
+        assert await enrollment_rows(h, event) == []
+        response = await c.post(enroll_url(event.id), json={"preferred_area_key": "frontend"})
+    assert response.status_code == 201, response.text
+    assert response.json()["preferred_area_key"] == "frontend"
+
+
+async def test_participation_blocked_while_forming(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    event = await make_hackathon(h)
+    await set_phase(h, event, FormationPhase.FORMING)
+    async with await h.client(member) as c:
+        assert_problem(
+            await c.post(enroll_url(event.id), json={}), 409, ErrorCode.FORMATION_IN_PROGRESS
+        )
+        assert_problem(
+            await c.patch(enroll_url(event.id), json={"note": "x"}),
+            409,
+            ErrorCode.FORMATION_IN_PROGRESS,
+        )
+        assert_problem(await c.delete(enroll_url(event.id)), 409, ErrorCode.FORMATION_IN_PROGRESS)
+    assert await enrollment_rows(h, event) == []
+
+
+async def test_enroll_in_review_goes_to_reserve(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    event = await make_hackathon(h)
+    team = await make_team(h, event, 1)
+    await set_phase(h, event, FormationPhase.REVIEW)
+    async with await h.client(member) as c:
+        response = await c.post(enroll_url(event.id), json={})
+    assert response.status_code == 201, response.text
+    assert response.json()["status"] == "reserve"
+    assert response.json()["reserve_rank"] is None
+    rank = await h.pending_jobs("rank_reserve")
+    assert [job["args"] for job in rank] == [{"event_id": str(event.id)}]
+    refresh = await h.pending_jobs("refresh_recommendations")
+    assert [job["args"]["project_id"] for job in refresh] == [str(team.id)]
+
+
+async def test_enroll_time_boundaries(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    event = await make_hackathon(h, registration_deadline=h.now + timedelta(days=10))
+    late = await make_hackathon(h, registration_deadline=h.now + timedelta(hours=1))
+    await set_phase(h, late, FormationPhase.LOCKED)
+    past = await make_hackathon(h, registration_deadline=h.now - timedelta(minutes=1))
+    async with await h.client(member) as c:
+        response = await c.post(enroll_url(event.id), json={})
+        assert response.status_code == 201, response.text
+        response = await c.delete(enroll_url(event.id))
+        assert response.status_code == 204, response.text
+        response = await c.post(enroll_url(late.id), json={})
+        assert response.status_code == 201, response.text
+        assert response.json()["status"] == "reserve"
+        assert [job["args"] for job in await h.pending_jobs("rank_reserve")] == [
+            {"event_id": str(late.id)}
+        ]
+        assert_problem(await c.post(enroll_url(past.id), json={}), 409, ErrorCode.ENROLLMENT_CLOSED)
+        h.advance(timedelta(days=10))
+        assert_problem(
+            await c.post(enroll_url(event.id), json={}), 409, ErrorCode.ENROLLMENT_CLOSED
+        )
+
+
+async def test_withdraw_active_enrollment(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    event = await make_hackathon(h)
+    async with await h.client(member) as c:
+        response = await c.post(enroll_url(event.id), json={})
+        assert response.status_code == 201, response.text
+        h.advance(timedelta(hours=1))
+        response = await c.delete(enroll_url(event.id))
+        assert response.status_code == 204, response.text
+        assert response.content == b""
+        jobs = await h.pending_jobs()
+        response = await c.delete(enroll_url(event.id))
+        assert response.status_code == 204, response.text
+    rows = await enrollment_rows(h, event)
+    assert [(row.status, row.status_at, row.reserve_rank) for row in rows] == [
+        ("withdrawn", h.now, None)
+    ]
+    attendances = await attendance_rows(h, event)
+    assert [(row.status, row.status_at) for row in attendances] == [("cancelled", h.now)]
+    assert await h.pending_jobs() == jobs
+
+
+async def test_withdraw_reserve_and_attended(harness: Harness) -> None:
+    h = harness
+    reserve = await h.user()
+    attended = await h.user()
+    event = await make_hackathon(h)
+    await enroll(h, event, reserve, EnrollmentStatus.RESERVE, reserve_rank=1)
+    await enroll(h, event, attended)
+    async with h.db() as session:
+        session.add(
+            models.EventAttendance(
+                event_id=event.id,
+                user_id=attended.id,
+                status=AttendanceStatus.ATTENDED,
+                role=AttendanceRole.ATTENDEE,
+                proof_links=[],
+                trust=Trust.SELF,
+                status_at=h.now,
+            )
+        )
+    async with await h.client(reserve) as c:
+        response = await c.delete(enroll_url(event.id))
+    assert response.status_code == 204, response.text
+    assert [job["args"] for job in await h.pending_jobs("rank_reserve")] == [
+        {"event_id": str(event.id)}
+    ]
+    async with await h.client(attended) as c:
+        response = await c.delete(enroll_url(event.id))
+    assert response.status_code == 204, response.text
+    assert [row.status for row in await attendance_rows(h, event)] == ["attended"]
+
+
+async def test_team_member_cannot_enroll_or_withdraw(harness: Harness) -> None:
+    h = harness
+    event = await make_hackathon(h)
+    team = await make_team(h, event, 1)
+    async with h.db() as session:
+        member_id = await session.scalar(
+            select(models.ProjectMember.user_id).where(models.ProjectMember.project_id == team.id)
+        )
+        member = await session.get_one(models.User, member_id)
+    async with await h.client(member) as c:
+        assert_problem(await c.post(enroll_url(event.id), json={}), 409, ErrorCode.ALREADY_IN_TEAM)
+        assert_problem(await c.delete(enroll_url(event.id)), 409, ErrorCode.ALREADY_IN_TEAM)
+
+
+async def test_reactivation_reuses_enrollment(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend",))
+    member = await h.user()
+    event = await make_hackathon(h)
+    async with await h.client(member) as c:
+        first = await c.post(enroll_url(event.id), json={"note": "first"})
+        assert first.status_code == 201, first.text
+        attendance_id = (await attendance_rows(h, event))[0].id
+        assert (await c.delete(enroll_url(event.id))).status_code == 204
+        second = await c.post(
+            enroll_url(event.id),
+            json={"note": "second", "preferred_area_key": "backend", "willing_to_lead": True},
+        )
+    assert second.status_code == 201, second.text
+    data = second.json()
+    assert data["id"] == first.json()["id"]
+    assert data["status"] == "active"
+    assert (data["note"], data["preferred_area_key"], data["willing_to_lead"]) == (
+        "second",
+        "backend",
+        True,
+    )
+    assert len(await enrollment_rows(h, event)) == 1
+    attendances = await attendance_rows(h, event)
+    assert [(row.id, row.status) for row in attendances] == [(attendance_id, "going")]
+
+
+async def test_edit_enrollment(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend",))
+    member = await h.user()
+    outsider = await h.user()
+    event = await make_hackathon(h)
+    async with await h.client(member) as c:
+        created = await c.post(
+            enroll_url(event.id), json={"note": "old", "preferred_area_key": "backend"}
+        )
+        assert created.status_code == 201, created.text
+        h.advance(timedelta(hours=1))
+        response = await c.patch(enroll_url(event.id), json={"note": "new"})
+        assert response.status_code == 200, response.text
+        data = response.json()
+        assert data["note"] == "new"
+        assert data["status"] == created.json()["status"]
+        assert data["status_at"] == created.json()["status_at"]
+        assert data["preferred_area_key"] == "backend"
+        assert data["willing_to_lead"] is False
+        response = await c.patch(enroll_url(event.id), json={"preferred_area_key": None})
+        assert response.status_code == 200, response.text
+        assert response.json()["preferred_area_key"] is None
+        assert response.json()["note"] == "new"
+        response = await c.patch(enroll_url(event.id), json={"willing_to_lead": True})
+        assert response.status_code == 200, response.text
+        assert response.json()["willing_to_lead"] is True
+        jobs = await h.pending_jobs()
+        response = await c.patch(enroll_url(event.id), json={"willing_to_lead": True})
+        assert response.status_code == 200, response.text
+        assert await h.pending_jobs() == jobs
+        assert_problem(
+            await c.patch(enroll_url(event.id), json={"preferred_area_key": "nope"}),
+            422,
+            ErrorCode.VALIDATION_ERROR,
+        )
+    async with await h.client(outsider) as c:
+        assert_problem(
+            await c.patch(enroll_url(event.id), json={"note": "x"}), 409, ErrorCode.NOT_ENROLLED
+        )
+    h.advance(timedelta(days=31))
+    async with await h.client(member) as c:
+        assert_problem(
+            await c.patch(enroll_url(event.id), json={"note": "late"}),
+            409,
+            ErrorCode.ENROLLMENT_CLOSED,
+        )
+
+
+async def test_enroll_rollback_drops_jobs(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    event = await make_hackathon(h)
+    await make_team(h, event, 1)
+    await set_phase(h, event, FormationPhase.REVIEW)
+    assert await h.pending_jobs() == []
+    async with h.sessionmaker() as session:
+        await formation.enroll(session, h.jobs, event.id, CreateEnrollmentBody(), member, h.now)
+        await session.rollback()
+    assert await enrollment_rows(h, event) == []
+    assert await attendance_rows(h, event) == []
+    assert await h.pending_jobs() == []
+
+
+async def test_enrollment_visibility_and_auth(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    pending = await h.user(onboarded=False)
+    admin = await h.admin()
+    conference = await make_hackathon(h, kind=EventKind.CONFERENCE)
+    draft = await make_hackathon(h)
+    await set_status(h, draft, EventStatus.DRAFT)
+    event = await make_hackathon(h)
+    async with await h.client(member) as c:
+        for target in (conference.id, draft.id, uuid4()):
+            assert_problem(await c.post(enroll_url(target), json={}), 404, ErrorCode.NOT_FOUND)
+            assert_problem(
+                await c.patch(enroll_url(target), json={"note": "x"}), 404, ErrorCode.NOT_FOUND
+            )
+            assert_problem(await c.delete(enroll_url(target)), 404, ErrorCode.NOT_FOUND)
+    async with h.anonymous() as c:
+        assert_problem(await c.post(enroll_url(event.id), json={}), 401, ErrorCode.UNAUTHENTICATED)
+    async with await h.client(pending) as c:
+        assert_problem(
+            await c.post(enroll_url(event.id), json={}), 403, ErrorCode.ONBOARDING_REQUIRED
+        )
+    async with await h.client(admin) as c:
+        assert_problem(
+            await c.patch(enroll_url(event.id), json={"note": "x"}), 409, ErrorCode.NOT_ENROLLED
+        )
+        assert (await c.delete(enroll_url(event.id))).status_code == 204
+
+
+async def test_dnd_member_can_enroll(harness: Harness) -> None:
+    h = harness
+    member = await h.user(dnd_indefinite=True)
+    event = await make_hackathon(h)
+    async with await h.client(member) as c:
+        response = await c.post(enroll_url(event.id), json={})
+    assert response.status_code == 201, response.text
+
+
+async def test_concurrent_identical_enrolls(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    event = await make_hackathon(h)
+    async with await h.client(member) as first, await h.client(member) as second:
+        responses = await asyncio.gather(
+            first.post(enroll_url(event.id), json={"note": "same"}),
+            second.post(enroll_url(event.id), json={"note": "same"}),
+        )
+    assert sorted(response.status_code for response in responses) == [200, 201]
+    async with h.db() as session:
+        live = await session.scalar(
+            select(func.count())
+            .select_from(models.Enrollment)
+            .where(
+                models.Enrollment.event_id == event.id,
+                models.Enrollment.status.in_(["active", "placed", "reserve"]),
+            )
+        )
+    assert live == 1
+    assert len(await attendance_rows(h, event)) == 1

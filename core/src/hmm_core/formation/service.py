@@ -26,8 +26,10 @@ from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
+from hmm_core.attendance import service as attendance
 from hmm_core.formation import schemas
 from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.schemas import AreaScoreSummary, EventRef, ProjectRef, UserRef
 from hmm_core.platform.settings import RuntimeSettings, load_settings
 from hmm_core.projects import schemas as project_schemas
@@ -666,3 +668,192 @@ async def formation_participation(
             settings=settings,
         ),
     )
+
+
+async def formation_row(session: AsyncSession, event_id: UUID) -> models.EventFormation:
+    formation = await session.get(models.EventFormation, event_id)
+    if formation is None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Formation is not initialised")
+    return formation
+
+
+async def resolve_preferred_area(session: AsyncSession, key: str | None) -> UUID | None:
+    if key is None:
+        return None
+    area_id = await session.scalar(select(models.Area.id).where(models.Area.key == key))
+    if area_id is None:
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, f"Unknown area: {key}")
+    return area_id
+
+
+async def _enrollment_row(
+    session: AsyncSession, event_id: UUID, user_id: UUID, *, live: bool, for_update: bool
+) -> models.Enrollment | None:
+    states = sorted(member.value for member in LIVE_ENROLLMENT_STATES)
+    query = (
+        select(models.Enrollment)
+        .where(
+            models.Enrollment.event_id == event_id,
+            models.Enrollment.user_id == user_id,
+            models.Enrollment.status.in_(states)
+            if live
+            else models.Enrollment.status.notin_(states),
+        )
+        .order_by(models.Enrollment.status_at.desc(), models.Enrollment.id.desc())
+        .limit(1)
+    )
+    if for_update:
+        query = query.with_for_update().execution_options(populate_existing=True)
+    return await session.scalar(query)
+
+
+async def live_enrollment_row(
+    session: AsyncSession, event_id: UUID, user_id: UUID, *, for_update: bool = False
+) -> models.Enrollment | None:
+    return await _enrollment_row(session, event_id, user_id, live=True, for_update=for_update)
+
+
+async def latest_terminal_enrollment(
+    session: AsyncSession, event_id: UUID, user_id: UUID, *, for_update: bool = False
+) -> models.Enrollment | None:
+    return await _enrollment_row(session, event_id, user_id, live=False, for_update=for_update)
+
+
+async def enqueue_participation_jobs(
+    session: AsyncSession, jobs: procrastinate.App, event_id: UUID, *, reserve: bool
+) -> None:
+    if reserve:
+        await defer_job(session, jobs, JobName.RANK_RESERVE, event_id=str(event_id))
+    project_ids = list(
+        await session.scalars(
+            select(models.Project.id)
+            .where(
+                models.Project.event_id == event_id,
+                models.Project.team_status.in_(
+                    sorted(member.value for member in CAPACITY_TEAM_STATES)
+                ),
+            )
+            .order_by(models.Project.created_at, models.Project.id)
+        )
+    )
+    for project_id in project_ids:
+        await defer_job(session, jobs, JobName.REFRESH_RECOMMENDATIONS, project_id=str(project_id))
+    return None
+
+
+async def participation_event(
+    session: AsyncSession, event_id: UUID, actor: models.User
+) -> tuple[models.Event, FormationPhase]:
+    event = await locked_formation_event(session, event_id, actor)
+    if not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    phase = FormationPhase((await formation_row(session, event_id)).phase)
+    if phase == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    return event, phase
+
+
+async def enroll(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    event_id: UUID,
+    body: schemas.CreateEnrollmentBody,
+    actor: models.User,
+    now: datetime,
+) -> tuple[models.Enrollment, bool]:
+    event, phase = await participation_event(session, event_id, actor)
+    settings = await load_settings(session)
+    timing = formation_timing(event, settings, now)
+    if (
+        phase == FormationPhase.CLOSED
+        or event.status != EventStatus.PUBLISHED
+        or now >= timing.reg_deadline
+        or now >= event.starts_at
+    ):
+        raise ProblemError(ErrorCode.ENROLLMENT_CLOSED, "Enrollment is closed")
+    if await live_membership(session, event_id, actor.id) is not None:
+        raise ProblemError(ErrorCode.ALREADY_IN_TEAM, "You are already on a team for this event")
+    area_id = await resolve_preferred_area(session, body.preferred_area_key)
+    current = await live_enrollment_row(session, event_id, actor.id, for_update=True)
+    if current is not None:
+        if (current.preferred_area_id, current.note, current.willing_to_lead) == (
+            area_id,
+            body.note,
+            body.willing_to_lead,
+        ):
+            return current, False
+        raise ProblemError(ErrorCode.ALREADY_ENROLLED, "You are already enrolled in this event")
+    enrollment = await latest_terminal_enrollment(session, event_id, actor.id, for_update=True)
+    if enrollment is None:
+        enrollment = models.Enrollment(
+            event_id=event_id, user_id=actor.id, source=EnrollmentSource.SELF.value
+        )
+        session.add(enrollment)
+    enrollment.preferred_area_id = area_id
+    enrollment.note = body.note
+    enrollment.willing_to_lead = body.willing_to_lead
+    enrollment.status = (
+        EnrollmentStatus.ACTIVE if phase == FormationPhase.OPEN else EnrollmentStatus.RESERVE
+    ).value
+    enrollment.status_at = now
+    enrollment.reserve_rank = None
+    await attendance.sync_going(session, event_id, actor.id, going=True, now=now)
+    await enqueue_participation_jobs(
+        session, jobs, event_id, reserve=enrollment.status == EnrollmentStatus.RESERVE.value
+    )
+    await session.flush()
+    await session.refresh(enrollment)
+    return enrollment, True
+
+
+async def update_enrollment(
+    session: AsyncSession,
+    event_id: UUID,
+    body: schemas.UpdateEnrollmentBody,
+    actor: models.User,
+    now: datetime,
+) -> models.Enrollment:
+    event, _ = await participation_event(session, event_id, actor)
+    if now >= event.starts_at:
+        raise ProblemError(ErrorCode.ENROLLMENT_CLOSED, "Enrollment edits close at the event start")
+    row = await live_enrollment_row(session, event_id, actor.id, for_update=True)
+    if row is None:
+        raise ProblemError(ErrorCode.NOT_ENROLLED, "You are not enrolled in this event")
+    changes = body.model_dump(exclude_unset=True)
+    if "preferred_area_key" in changes:
+        changes["preferred_area_id"] = await resolve_preferred_area(
+            session, changes.pop("preferred_area_key")
+        )
+    if changes.get("willing_to_lead", False) is None:
+        del changes["willing_to_lead"]
+    for field, value in changes.items():
+        if getattr(row, field) != value:
+            setattr(row, field, value)
+    await session.flush()
+    await session.refresh(row)
+    return row
+
+
+async def withdraw_enrollment(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    event_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> None:
+    event, _ = await participation_event(session, event_id, actor)
+    if now >= event.starts_at:
+        raise ProblemError(ErrorCode.ENROLLMENT_CLOSED, "Enrollment is closed")
+    if await live_membership(session, event_id, actor.id) is not None:
+        raise ProblemError(ErrorCode.ALREADY_IN_TEAM, "Leave the team first")
+    row = await live_enrollment_row(session, event_id, actor.id, for_update=True)
+    if row is None:
+        return None
+    reserve = row.status == EnrollmentStatus.RESERVE.value
+    row.status = EnrollmentStatus.WITHDRAWN.value
+    row.status_at = now
+    row.reserve_rank = None
+    await attendance.sync_going(session, event_id, actor.id, going=False, now=now)
+    await enqueue_participation_jobs(session, jobs, event_id, reserve=reserve)
+    await session.flush()
+    return None

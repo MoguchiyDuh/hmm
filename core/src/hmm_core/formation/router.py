@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from hmm_contracts.common import (
     EnrollmentStatus,
     ErrorCode,
@@ -71,22 +71,43 @@ async def get_formation(
 @router.post(
     "/events/{id}/enroll", status_code=status.HTTP_201_CREATED, summary="Enroll in an event"
 )
-async def enroll(id: EventId, body: CreateEnrollmentBody, actor: MemberAuth) -> Enrollment:
-    not_implemented()
+async def enroll(
+    id: EventId,
+    body: CreateEnrollmentBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+    response: Response,
+) -> Enrollment:
+    enrollment, changed = await service.enroll(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    if not changed:
+        response.status_code = status.HTTP_200_OK
+    return (await service.enrollment_views(session, [enrollment], actor, clock.now()))[0]
 
 
 @router.patch("/events/{id}/enroll", status_code=status.HTTP_200_OK, summary="Edit enrollment")
 async def update_enrollment(
-    id: EventId, body: UpdateEnrollmentBody, actor: MemberAuth
+    id: EventId,
+    body: UpdateEnrollmentBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> Enrollment:
-    not_implemented()
+    row = await service.update_enrollment(session, id, body, actor, clock.now())
+    return (await service.enrollment_views(session, [row], actor, clock.now()))[0]
 
 
 @router.delete(
     "/events/{id}/enroll", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw enrollment"
 )
-async def withdraw_enrollment(id: EventId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def withdraw_enrollment(
+    id: EventId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Response:
+    await service.withdraw_enrollment(session, request.app.state.jobs, id, actor, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(

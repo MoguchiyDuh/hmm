@@ -12,6 +12,7 @@ from hmm_core.catalog.schemas import EventSummary
 from hmm_core.models import User
 from hmm_core.platform.security import member, user
 from pydantic import TypeAdapter, ValidationError
+from stub_operations import UNIMPLEMENTED_OPERATIONS
 
 
 def test_openapi_security_ranges_names_and_project_views() -> None:
@@ -59,6 +60,8 @@ async def test_action_routes_exist_and_fixed_bodies_are_callable(stub_actor: Use
                 {"SessionCookie": []},
                 {"BotServiceToken": [], "TelegramUser": []},
             ]
+            if operation["operationId"] not in UNIMPLEMENTED_OPERATIONS:
+                continue
             path = route.path.format(id=UUID("019a7b32-0000-7000-8000-000000000001"))
             response = await client.request(route.method, path, json=route.body)
             assert response.status_code == 501, response.text
