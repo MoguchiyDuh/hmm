@@ -11,7 +11,9 @@ from hmm_contracts.common import (
     ReviewWindowSubjectType,
     UserId,
 )
+from sqlalchemy import select
 
+from hmm_core import models
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
@@ -199,17 +201,39 @@ async def list_user_reviews(
 @router.post(
     "/reviews/{id}/report", status_code=status.HTTP_201_CREATED, summary="Report a revealed review"
 )
-async def report_review(id: ReviewId, body: ReportReviewBody, actor: MemberAuth) -> ReviewReport:
-    not_implemented()
+async def report_review(
+    id: ReviewId, body: ReportReviewBody, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> ReviewReport:
+    report = await reviews.report_review(
+        session, actor_id=actor.id, review_id=id, reason=body.reason, now=clock.now()
+    )
+    return reviews.build_report(report)
 
 
 @router.get("/admin/reviews", status_code=status.HTTP_200_OK, summary="List reviews for moderation")
 async def list_admin_reviews(
     pagination: Annotated[CursorParams, Depends()],
     actor: AdminAuth,
+    session: Session,
     reported: Annotated[bool | None, Query()] = None,
 ) -> AdminReviewPage:
-    not_implemented()
+    page = await reviews.admin_review_page(session, reported=reported, params=pagination)
+    return AdminReviewPage(
+        items=[
+            AdminReview(
+                **reviews.build_review(
+                    review,
+                    page.users.get(review.reviewer_id),
+                    [] if review.removed_at is not None else [ReviewAction.REMOVE],
+                ).model_dump(),
+                reports=[
+                    reviews.build_report(report) for report in page.reports.get(review.id, [])
+                ],
+            )
+            for review in page.items
+        ],
+        next_cursor=page.next_cursor,
+    )
 
 
 @router.post(
@@ -217,5 +241,19 @@ async def list_admin_reviews(
     status_code=status.HTTP_200_OK,
     summary="Soft-remove a review with a reason",
 )
-async def remove_review(id: ReviewId, body: RemoveReviewBody, actor: AdminAuth) -> AdminReview:
-    not_implemented()
+async def remove_review(
+    id: ReviewId, body: RemoveReviewBody, actor: AdminAuth, session: Session, clock: CurrentClock
+) -> AdminReview:
+    review = await reviews.remove_review(
+        session, actor_id=actor.id, review_id=id, reason=body.reason, now=clock.now()
+    )
+    reviewer = await session.get(models.User, review.reviewer_id)
+    reports = await session.scalars(
+        select(models.ReviewReport)
+        .where(models.ReviewReport.review_id == id)
+        .order_by(models.ReviewReport.created_at, models.ReviewReport.id)
+    )
+    return AdminReview(
+        **reviews.build_review(review, reviewer, []).model_dump(),
+        reports=[reviews.build_report(report) for report in reports],
+    )

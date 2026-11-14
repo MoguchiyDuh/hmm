@@ -5,23 +5,31 @@ from uuid import UUID
 
 from hmm_contracts.algo import ReviewIn
 from hmm_contracts.common import (
+    ActorKind,
     AttendanceRole,
     AttendanceStatus,
+    AuditAction,
+    AuditEntityType,
     ErrorCode,
     FlagStatus,
     FlagSubjectType,
     MentorshipKind,
     ReviewContext,
+    ReviewReportStatus,
     ReviewSubjectType,
 )
-from sqlalchemy import select
+from hmm_contracts.notifications import AlertKind, NotificationPerson, ReviewRemovedPayload
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
 from hmm_core.identity.service import ONBOARDED
+from hmm_core.notifications.service import notify, raise_alert, resolve_alerts
+from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.pagination import CursorParams, apply_keyset, encode_cursor
 from hmm_core.platform.schemas import UserRef
+from hmm_core.results import schemas
 from hmm_core.results.schemas import Review, ReviewAction, ReviewRatingSummary
 from hmm_core.results.windows import subject_details, window_participants
 from hmm_core.scores.reputation import reputation_summary
@@ -381,3 +389,180 @@ async def load_reviews_received(
             )
         )
     return received
+
+
+def build_report(report: models.ReviewReport) -> schemas.ReviewReport:
+    return schemas.ReviewReport(
+        id=report.id,
+        review_id=report.review_id,
+        reporter_id=report.reporter_id,
+        reason=report.reason,
+        status=ReviewReportStatus(report.status),
+        created_at=report.created_at,
+    )
+
+
+async def report_review(
+    session: AsyncSession, *, actor_id: UUID, review_id: UUID, reason: str, now: datetime
+) -> models.ReviewReport:
+    review = await session.scalar(
+        select(models.Review).where(models.Review.id == review_id).with_for_update()
+    )
+    if review is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if review.revealed_at is None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Review is not revealed")
+    if review.removed_at is not None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Review has been removed")
+    if review.reviewer_id == actor_id:
+        raise ProblemError(ErrorCode.FORBIDDEN, "You cannot report your own review")
+    existing = await session.scalar(
+        select(models.ReviewReport).where(
+            models.ReviewReport.review_id == review_id,
+            models.ReviewReport.reporter_id == actor_id,
+            models.ReviewReport.status == ReviewReportStatus.OPEN,
+        )
+    )
+    if existing is not None:
+        return existing
+    report = models.ReviewReport(
+        review_id=review_id, reporter_id=actor_id, reason=reason, status=ReviewReportStatus.OPEN
+    )
+    session.add(report)
+    await session.flush()
+    title, link = await subject_details(
+        session, subject_type=ReviewSubjectType(review.subject_type), subject_id=review.subject_id
+    )
+    reporter = await session.get(models.User, actor_id)
+    if reporter is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    await raise_alert(
+        session,
+        AlertKind.REVIEW_REPORTED,
+        now,
+        title="Review reported",
+        message=f"{reporter.display_name} reported a review: {reason}",
+        link=link,
+        subject_type="review",
+        subject_id=review.id,
+        subject_title=title,
+        dedupe_key=f"review_reported:{review.id}",
+    )
+    return report
+
+
+@dataclass(frozen=True)
+class AdminReviewPageData:
+    items: list[models.Review]
+    reports: dict[UUID, list[models.ReviewReport]]
+    users: dict[UUID, models.User]
+    next_cursor: str | None
+
+
+async def admin_review_page(
+    session: AsyncSession, *, reported: bool | None, params: CursorParams
+) -> AdminReviewPageData:
+    open_report = (
+        select(models.ReviewReport.id)
+        .where(
+            models.ReviewReport.review_id == models.Review.id,
+            models.ReviewReport.status == ReviewReportStatus.OPEN,
+        )
+        .exists()
+    )
+    statement = select(models.Review)
+    if reported is True:
+        statement = statement.where(open_report)
+    elif reported is False:
+        statement = statement.where(~open_report)
+    statement = apply_keyset(
+        statement,
+        params,
+        sort=[models.Review.created_at],
+        id_column=models.Review.id,
+        descending=True,
+    )
+    rows = list(await session.scalars(statement))
+    items = rows[: params.limit]
+    next_cursor = (
+        encode_cursor([items[-1].created_at, items[-1].id]) if len(rows) > params.limit else None
+    )
+    if not items:
+        return AdminReviewPageData(items=[], reports={}, users={}, next_cursor=None)
+    user_ids = {review.reviewer_id for review in items} | {review.reviewee_id for review in items}
+    users = {
+        user.id: user
+        for user in await session.scalars(select(models.User).where(models.User.id.in_(user_ids)))
+    }
+    reports: dict[UUID, list[models.ReviewReport]] = {}
+    for report in await session.scalars(
+        select(models.ReviewReport)
+        .where(models.ReviewReport.review_id.in_([review.id for review in items]))
+        .order_by(models.ReviewReport.created_at, models.ReviewReport.id)
+    ):
+        reports.setdefault(report.review_id, []).append(report)
+    return AdminReviewPageData(items=items, reports=reports, users=users, next_cursor=next_cursor)
+
+
+async def remove_review(
+    session: AsyncSession, *, actor_id: UUID, review_id: UUID, reason: str, now: datetime
+) -> models.Review:
+    review = await session.scalar(
+        select(models.Review).where(models.Review.id == review_id).with_for_update()
+    )
+    if review is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if review.removed_at is not None:
+        return review
+    review.removed_at = now
+    review.removed_by = actor_id
+    review.removed_reason = reason
+    await session.execute(
+        update(models.ReviewReport)
+        .where(
+            models.ReviewReport.review_id == review_id,
+            models.ReviewReport.status == ReviewReportStatus.OPEN,
+        )
+        .values(status=ReviewReportStatus.RESOLVED)
+    )
+    await record_audit(
+        session,
+        actor=actor_id,
+        actor_kind=ActorKind.ADMIN,
+        action=AuditAction.REVIEW_REMOVE,
+        entity_type=AuditEntityType.REVIEW,
+        entity_id=review.id,
+        before={"removed_at": None, "removed_by": None, "removed_reason": None},
+        after={
+            "removed_at": now.isoformat(),
+            "removed_by": str(actor_id),
+            "removed_reason": reason,
+        },
+        reason=reason,
+    )
+    reviewee = await session.get(models.User, review.reviewee_id)
+    if reviewee is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    title, link = await subject_details(
+        session, subject_type=ReviewSubjectType(review.subject_type), subject_id=review.subject_id
+    )
+    await notify(
+        session,
+        review.reviewer_id,
+        ReviewRemovedPayload(
+            link=link,
+            actions=(),
+            review_id=review.id,
+            reviewee=NotificationPerson(
+                user_id=review.reviewee_id, display_name=reviewee.display_name
+            ),
+            subject_title=title,
+            reason=reason,
+        ),
+        now,
+        dedupe_key=f"review_removed:{review.id}",
+    )
+    await resolve_alerts(session, f"review_reported:{review.id}", now, note=reason, actor=actor_id)
+    await session.flush()
+    await session.refresh(review, ["updated_at"])
+    return review
