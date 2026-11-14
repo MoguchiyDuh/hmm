@@ -133,3 +133,14 @@ class OnboardingSubmission(Mutable, Base):
     answers: Mapped[JsonValue] = mapped_column(JSONB, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class OnboardingBaseline(Mutable, Base):
+    __tablename__ = "onboarding_baselines"
+
+    user_id: Mapped[UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, primary_key=True
+    )
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    area_scores: Mapped[JsonValue] = mapped_column(JSONB, nullable=False)
+    discrepancies: Mapped[JsonValue] = mapped_column(JSONB, nullable=False)

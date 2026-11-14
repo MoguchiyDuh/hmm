@@ -1,9 +1,13 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from hmm_contracts.common import (
     ActivityEntryId,
+    ActorKind,
     AreaKey,
+    AuditAction,
+    AuditEntityType,
+    ErrorCode,
     FlagId,
     FlagStatus,
     FlagSubjectType,
@@ -11,10 +15,16 @@ from hmm_contracts.common import (
     UserId,
 )
 
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core import models
+from hmm_core.platform.audit import record_audit
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
+from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth
+from hmm_core.scores import service
 from hmm_core.scores.schemas import (
     ActivityEntry,
     ActivityEntryPage,
@@ -32,6 +42,7 @@ from hmm_core.scores.schemas import (
     UpdateActivityBody,
     XpAdjustment,
 )
+from hmm_core.scores.snapshot import build_member_snapshot
 
 router = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
@@ -40,8 +51,8 @@ internal = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
 @router.get(
     "/users/{id}/scores", status_code=status.HTTP_200_OK, summary="Get effective scores and reasons"
 )
-async def get_scores(id: UserId, actor: MemberAuth) -> list[MemberAreaScore]:
-    not_implemented()
+async def get_scores(id: UserId, actor: MemberAuth, session: Session) -> list[MemberAreaScore]:
+    return await service.list_scores(session, id, actor)
 
 
 @router.get(
@@ -52,10 +63,11 @@ async def get_scores(id: UserId, actor: MemberAuth) -> list[MemberAreaScore]:
 async def get_score_history(
     id: UserId,
     actor: MemberAuth,
+    session: Session,
     pagination: Annotated[CursorParams, Depends()],
     area: Annotated[AreaKey | None, Query()] = None,
 ) -> AreaScoreEventPage:
-    not_implemented()
+    return await service.list_score_history(session, id, actor, pagination, area)
 
 
 @router.get("/users/{id}/activity", status_code=status.HTTP_200_OK, summary="List solo activity")
@@ -87,8 +99,18 @@ async def delete_activity(id: ActivityEntryId, actor: MemberAuth) -> None:
 
 
 @router.get("/users/{id}/metrics", status_code=status.HTTP_200_OK, summary="Get member metrics")
-async def get_metrics(id: UserId, actor: MemberAuth) -> MemberMetrics:
-    not_implemented()
+async def get_metrics(
+    id: UserId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> MemberMetrics:
+    snapshot = await build_member_snapshot(session, id, clock.now())
+    return MemberMetrics(
+        xp=snapshot.xp,
+        activity=snapshot.activity,
+        reputation=snapshot.reputation,
+        hackathons_finished=snapshot.hackathons_finished,
+        projects_shipped=snapshot.projects_shipped,
+        mentorships_completed=snapshot.mentorships_completed,
+    )
 
 
 @router.put(
@@ -101,8 +123,22 @@ async def set_score_override(
     area_key: AreaKey,
     body: SetScoreOverrideBody,
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
 ) -> MemberAreaScore:
-    not_implemented()
+    view = await service.set_score_override(
+        session,
+        request.app.state.jobs,
+        id,
+        area_key,
+        body.value,
+        body.reason,
+        body.evidence,
+        actor.id,
+        clock.now(),
+    )
+    return service.member_area_score(view.area, view.score, actor=actor)
 
 
 @router.delete(
@@ -114,9 +150,21 @@ async def remove_score_override(
     id: UserId,
     area_key: AreaKey,
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
     body: ReasonBody | None = None,
 ) -> MemberAreaScore:
-    not_implemented()
+    view = await service.remove_score_override(
+        session,
+        request.app.state.jobs,
+        id,
+        area_key,
+        body.reason if body is not None else None,
+        actor.id,
+        clock.now(),
+    )
+    return service.member_area_score(view.area, view.score, actor=actor)
 
 
 @router.post(
@@ -177,5 +225,22 @@ async def lift_restriction(id: RestrictionId, body: LiftRestrictionBody, actor: 
     status_code=status.HTTP_202_ACCEPTED,
     summary="Enqueue member recomputation",
 )
-async def recompute_member(id: UserId, actor: AdminAuth, body: ReasonBody | None = None) -> None:
-    not_implemented()
+async def recompute_member(
+    id: UserId,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    body: ReasonBody | None = None,
+) -> None:
+    if await session.get(models.User, id) is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN,
+        action=AuditAction.MEMBER_RECOMPUTE,
+        entity_type=AuditEntityType.USER,
+        entity_id=str(id),
+        reason=body.reason if body is not None else None,
+    )
+    await defer_job(session, request.app.state.jobs, JobName.RECOMPUTE_MEMBER, user_id=str(id))

@@ -98,7 +98,7 @@ class AreaScoreEvent(Created, Base):
     old_effective: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False)
     new_effective: Mapped[Decimal] = mapped_column(Numeric(4, 2), nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
-    algo_version: Mapped[str] = mapped_column(Text, nullable=False)
+    algo_version: Mapped[str | None] = mapped_column(Text, nullable=True)
     actor_id: Mapped[UUID | None] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
