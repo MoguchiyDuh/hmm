@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from hmm_contracts.common import MemberReviewStatus, QuizId, UserId
 
 from hmm_core.onboarding import service
@@ -32,15 +32,15 @@ internal = APIRouter(tags=["onboarding"], responses=PROBLEM_RESPONSES)
 @router.get(
     "/onboarding", status_code=status.HTTP_200_OK, summary="Get onboarding definition and draft"
 )
-async def get_onboarding(actor: UserAuth) -> Onboarding:
-    not_implemented()
+async def get_onboarding(actor: UserAuth, session: Session) -> Onboarding:
+    return await service.get_onboarding(session, actor)
 
 
 @router.put(
     "/onboarding/answers", status_code=status.HTTP_200_OK, summary="Autosave onboarding answers"
 )
-async def update_answers(body: UpdateAnswersBody, actor: UserAuth) -> Onboarding:
-    not_implemented()
+async def update_answers(body: UpdateAnswersBody, actor: UserAuth, session: Session) -> Onboarding:
+    return await service.update_answers(session, actor, body)
 
 
 @router.post(
@@ -48,8 +48,10 @@ async def update_answers(body: UpdateAnswersBody, actor: UserAuth) -> Onboarding
     status_code=status.HTTP_200_OK,
     summary="Submit onboarding and unlock access",
 )
-async def submit_onboarding(actor: UserAuth) -> Onboarding:
-    not_implemented()
+async def submit_onboarding(
+    actor: UserAuth, session: Session, clock: CurrentClock, request: Request
+) -> Onboarding:
+    return await service.submit_onboarding(session, request.app.state.jobs, actor, clock.now())
 
 
 @router.get("/admin/quizzes", status_code=status.HTTP_200_OK, summary="List quiz versions")

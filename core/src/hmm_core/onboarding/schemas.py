@@ -76,6 +76,7 @@ class UpdateAnswersBody(ApiModel):
 class OnboardingCv(ApiModel):
     present: bool
     text_status: CvTextStatus | None
+    text_error: str | None
 
 
 class Onboarding(WithAllowedActions[OnboardingAction]):
