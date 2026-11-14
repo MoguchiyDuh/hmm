@@ -28,7 +28,7 @@ from hmm_contracts.common import (
 )
 from hmm_contracts.imports import Location, Prize
 from pydantic import JsonValue
-from sqlalchemy import exists, func, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -38,6 +38,7 @@ from hmm_core.formation import service as formation
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
+from hmm_core.platform.pagination import CursorParams, apply_keyset, encode_cursor
 from hmm_core.platform.schemas import EventAction, UserRef
 from hmm_core.platform.settings import RuntimeSettings, load_settings
 
@@ -704,3 +705,154 @@ async def visible_event(session: AsyncSession, event_id: UUID, actor: models.Use
             if not involved:
                 raise ProblemError(ErrorCode.NOT_FOUND)
     return event
+
+
+async def list_events(
+    session: AsyncSession,
+    pagination: CursorParams,
+    actor: models.User,
+    now: datetime,
+    *,
+    kind: EventKind | None = None,
+    phase: EventPhase | None = None,
+    formation: bool | None = None,
+    participation_phase: FormationPhase | None = None,
+    area: str | None = None,
+    format: EventFormat | None = None,
+    q: str | None = None,
+    from_: datetime | None = None,
+    to: datetime | None = None,
+    mine: bool | None = None,
+    origin: EventOrigin | None = None,
+) -> schemas.EventSummaryPage:
+    involved = (
+        select(models.EventAttendance.id)
+        .where(
+            models.EventAttendance.event_id == models.Event.id,
+            models.EventAttendance.user_id == actor.id,
+        )
+        .exists()
+        | select(models.Enrollment.id)
+        .where(
+            models.Enrollment.event_id == models.Event.id,
+            models.Enrollment.user_id == actor.id,
+        )
+        .exists()
+        | select(models.ProjectMember.id)
+        .where(
+            models.ProjectMember.event_id == models.Event.id,
+            models.ProjectMember.user_id == actor.id,
+            models.ProjectMember.left_at.is_(None),
+        )
+        .exists()
+    )
+    statement = select(models.Event).where(
+        or_(
+            models.Event.status == EventStatus.PUBLISHED,
+            and_(models.Event.status == EventStatus.CANCELLED, involved),
+        )
+    )
+    if kind is not None:
+        statement = statement.where(models.Event.kind == kind.value)
+    if formation is not None:
+        statement = statement.where(models.Event.formation_enabled.is_(formation))
+    if origin is not None:
+        statement = statement.where(models.Event.origin == origin.value)
+    if format is not None:
+        statement = statement.where(models.Event.format == format.value)
+    if phase is not None:
+        reg_deadline = func.coalesce(models.Event.registration_deadline, models.Event.starts_at)
+        opened = or_(
+            models.Event.registration_opens_at.is_(None),
+            models.Event.registration_opens_at <= now,
+        )
+        phase_filters = {
+            EventPhase.UPCOMING: [models.Event.registration_opens_at > now],
+            EventPhase.REGISTRATION_OPEN: [opened, reg_deadline > now],
+            EventPhase.REGISTRATION_CLOSED: [
+                opened,
+                reg_deadline <= now,
+                models.Event.starts_at > now,
+            ],
+            EventPhase.ONGOING: [
+                opened,
+                reg_deadline <= now,
+                models.Event.starts_at <= now,
+                models.Event.ends_at > now,
+            ],
+            EventPhase.ENDED: [
+                opened,
+                reg_deadline <= now,
+                models.Event.starts_at <= now,
+                models.Event.ends_at <= now,
+            ],
+        }
+        statement = statement.where(*phase_filters[phase])
+    if participation_phase is not None:
+        statement = statement.where(
+            select(models.EventFormation.event_id)
+            .where(
+                models.EventFormation.event_id == models.Event.id,
+                models.EventFormation.phase == participation_phase.value,
+            )
+            .exists()
+        )
+    if area is not None:
+        statement = statement.where(
+            select(models.EventArea.event_id)
+            .join(models.Area, models.Area.id == models.EventArea.area_id)
+            .where(models.EventArea.event_id == models.Event.id, models.Area.key == area)
+            .exists()
+        )
+    if q is not None:
+        escaped = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pattern = f"%{escaped}%"
+        statement = statement.where(
+            or_(
+                models.Event.title.ilike(pattern, escape="\\"),
+                models.Event.summary.ilike(pattern, escape="\\"),
+            )
+        )
+    if from_ is not None:
+        statement = statement.where(models.Event.ends_at >= from_)
+    if to is not None:
+        statement = statement.where(models.Event.starts_at <= to)
+    if mine is True:
+        statement = statement.where(involved)
+    statement = apply_keyset(
+        statement,
+        pagination,
+        sort=[models.Event.starts_at],
+        id_column=models.Event.id,
+        descending=True,
+    )
+    rows = list(await session.scalars(statement))
+    items = rows[: pagination.limit]
+    if not items:
+        return schemas.EventSummaryPage(items=[], next_cursor=None)
+    next_cursor = (
+        encode_cursor([items[-1].starts_at, items[-1].id]) if len(rows) > pagination.limit else None
+    )
+    settings = await load_settings(session)
+    event_ids = [item.id for item in items]
+    areas = await area_details(session, event_ids)
+    counts = await attendance_counts(session, event_ids)
+    phases = await formation_phases(session, event_ids)
+    states = await participation_states(session, items, actor, now)
+    return schemas.EventSummaryPage(
+        items=[
+            event_summary(
+                item,
+                actor=actor,
+                now=now,
+                settings=settings,
+                areas=areas.get(item.id, []),
+                counts=counts[item.id],
+                attendance=states[item.id].attendance,
+                participation_phase=phases.get(item.id),
+                state=states[item.id],
+            )
+            for item in items
+        ],
+        next_cursor=next_cursor,
+    )

@@ -22,6 +22,13 @@ from hmm_contracts.common import (
     EventPhase,
     EventStatus,
     FormationPhase,
+    JoinedVia,
+    MemberRole,
+    MemberState,
+    ProjectOrigin,
+    ProjectStatus,
+    ProjectVisibility,
+    TeamStatus,
     Trust,
 )
 from hmm_core import models
@@ -723,3 +730,364 @@ async def test_event_detail_formation_block(harness: Harness, kind: EventKind) -
             "lead_fit": None,
         }
         assert body["formation"]["allowed_actions"] == []
+
+
+@pytest.fixture
+async def catalog_events(harness: Harness) -> dict[str, models.Event]:
+    h = harness
+    await h.seed_areas(("backend",))
+    payloads = {
+        "hackathon": replace(
+            event_input(h),
+            title="Python 100%_\\ Festival",
+            starts_at=h.now + timedelta(days=10),
+            ends_at=h.now + timedelta(days=12),
+            format=EventFormat.ONLINE,
+            areas=(catalog.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY),),
+        ),
+        "conference": replace(
+            event_input(h),
+            kind=EventKind.CONFERENCE,
+            title="Systems conference",
+            summary="A systems gathering",
+            starts_at=h.now + timedelta(days=20),
+            ends_at=h.now + timedelta(days=22),
+            registration_deadline=h.now - timedelta(days=1),
+            format=EventFormat.HYBRID,
+        ),
+        "contest": replace(
+            event_input(h),
+            kind=EventKind.CONTEST,
+            title="Code contest",
+            registration_opens_at=h.now + timedelta(days=5),
+            format=EventFormat.OFFLINE,
+        ),
+        "cancelled": replace(event_input(h), title="Cancelled event"),
+        "draft": replace(event_input(h), title="Draft event"),
+        "archived": replace(event_input(h), title="Archived event"),
+    }
+    events: dict[str, models.Event] = {}
+    async with h.db() as session:
+        for key, payload in payloads.items():
+            events[key] = await catalog.create_event(
+                session,
+                payload,
+                origin={"conference": EventOrigin.MEMBER, "contest": EventOrigin.IMPORT}.get(
+                    key, EventOrigin.MANUAL
+                ),
+                status={
+                    "cancelled": EventStatus.CANCELLED,
+                    "draft": EventStatus.DRAFT,
+                    "archived": EventStatus.ARCHIVED,
+                }.get(key, EventStatus.PUBLISHED),
+                created_by=None,
+                now=h.now,
+            )
+        schedule = await session.get(models.EventFormation, events["contest"].id)
+        assert schedule is not None
+        schedule.phase = FormationPhase.REVIEW
+    return events
+
+
+@pytest.mark.parametrize("admin", [False, True])
+async def test_catalog_list_visibility_and_summaries(
+    harness: Harness, catalog_events: dict[str, models.Event], admin: bool
+) -> None:
+    h = harness
+    actor = await h.user(admin=admin)
+    async with await h.client(actor) as client:
+        response = await client.get("/api/v1/events")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["next_cursor"] is None
+    assert [item["id"] for item in body["items"]] == [
+        str(catalog_events[key].id) for key in ("contest", "conference", "hackathon")
+    ]
+    for item in body["items"]:
+        assert item["status"] == "published"
+        assert item["attendance_counts"] == {"going": 0, "attended": 0}
+        assert item["my_attendance"] is None
+        assert "going" in item["allowed_actions"]
+        assert "attended" not in item["allowed_actions"]
+    contest, conference, hackathon = body["items"]
+    assert contest["areas"] == []
+    assert contest["participation_phase"] == "review"
+    assert conference["areas"] == []
+    assert conference["participation_phase"] is None
+    assert hackathon["areas"] == [
+        {"key": "backend", "name": "Backend", "importance": "primary", "headcount": None}
+    ]
+    assert hackathon["participation_phase"] == "open"
+
+
+async def test_catalog_list_involved_cancelled_event(
+    harness: Harness, catalog_events: dict[str, models.Event]
+) -> None:
+    h = harness
+    actor = await h.user()
+    async with h.db() as session:
+        for key in ("cancelled", "archived", "draft"):
+            session.add(
+                models.EventAttendance(
+                    event_id=catalog_events[key].id,
+                    user_id=actor.id,
+                    status=AttendanceStatus.GOING,
+                    role=AttendanceRole.ATTENDEE,
+                    proof_links=[],
+                    trust=Trust.SELF,
+                    status_at=h.now,
+                )
+            )
+    async with await h.client(actor) as client:
+        response = await client.get("/api/v1/events")
+    assert response.status_code == 200, response.text
+    items = {item["id"]: item for item in response.json()["items"]}
+    assert set(items) == {
+        str(catalog_events[key].id) for key in ("contest", "conference", "hackathon", "cancelled")
+    }
+    cancelled = items[str(catalog_events["cancelled"].id)]
+    assert cancelled["status"] == "cancelled"
+    assert cancelled["attendance_counts"] == {"going": 1, "attended": 0}
+    assert cancelled["my_attendance"]["status"] == "going"
+    assert cancelled["allowed_actions"] == []
+
+
+async def test_catalog_list_filters(
+    harness: Harness, catalog_events: dict[str, models.Event]
+) -> None:
+    h = harness
+    actor = await h.user()
+    async with await h.client(actor) as client:
+        for query, expected in (
+            ({"kind": "conference"}, "conference"),
+            ({"formation": "false"}, "conference"),
+            ({"format": "online"}, "hackathon"),
+            ({"origin": "import"}, "contest"),
+            ({"area": "backend"}, "hackathon"),
+            ({"q": "pyThOn"}, "hackathon"),
+            ({"q": "GATHERING"}, "conference"),
+            ({"q": "%"}, "hackathon"),
+            ({"q": "_"}, "hackathon"),
+            ({"q": "\\"}, "hackathon"),
+            ({"participation_phase": "open"}, "hackathon"),
+            ({"participation_phase": "review"}, "contest"),
+            ({"phase": "registration_open"}, "hackathon"),
+            ({"phase": "registration_closed"}, "conference"),
+            ({"phase": "upcoming"}, "contest"),
+        ):
+            response = await client.get("/api/v1/events", params=query)
+            assert response.status_code == 200, response.text
+            assert [item["id"] for item in response.json()["items"]] == [
+                str(catalog_events[expected].id)
+            ], query
+        for query in (
+            {"participation_phase": "locked"},
+            {"phase": "ended"},
+            {"q": "does not exist"},
+        ):
+            response = await client.get("/api/v1/events", params=query)
+            assert response.status_code == 200, response.text
+            assert response.json() == {"items": [], "next_cursor": None}
+        response = await client.get("/api/v1/events", params={"q": ""})
+        assert response.status_code == 200, response.text
+        assert len(response.json()["items"]) == 3
+        async with h.db() as session:
+            area = await session.scalar(select(models.Area).where(models.Area.key == "backend"))
+            assert area is not None
+            area.archived_at = h.now
+        response = await client.get("/api/v1/events", params={"area": "backend"})
+        assert response.status_code == 200, response.text
+        assert [item["id"] for item in response.json()["items"]] == [
+            str(catalog_events["hackathon"].id)
+        ]
+        h.advance(timedelta(days=10))
+        response = await client.get("/api/v1/events", params={"phase": "ongoing"})
+        assert response.status_code == 200, response.text
+        assert [item["id"] for item in response.json()["items"]] == [
+            str(catalog_events["hackathon"].id)
+        ]
+        h.advance(timedelta(days=2))
+        response = await client.get("/api/v1/events", params={"phase": "ended"})
+        assert response.status_code == 200, response.text
+        assert [item["id"] for item in response.json()["items"]] == [
+            str(catalog_events["hackathon"].id)
+        ]
+
+
+async def test_catalog_list_date_overlap(harness: Harness) -> None:
+    h = harness
+    actor = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            replace(
+                event_input(h),
+                starts_at=h.now + timedelta(days=10),
+                ends_at=h.now + timedelta(days=12),
+            ),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+    async with await h.client(actor) as client:
+        for params in (
+            {"from": (h.now + timedelta(days=11)).isoformat()},
+            {"from": event.ends_at.isoformat()},
+            {"to": event.starts_at.isoformat()},
+            {
+                "from": (h.now + timedelta(days=11)).isoformat(),
+                "to": (h.now + timedelta(days=11)).isoformat(),
+            },
+        ):
+            response = await client.get("/api/v1/events", params=params)
+            assert response.status_code == 200, response.text
+            assert [item["id"] for item in response.json()["items"]] == [str(event.id)]
+        for params in (
+            {"from": (h.now + timedelta(days=13)).isoformat()},
+            {"to": (h.now + timedelta(days=9)).isoformat()},
+        ):
+            response = await client.get("/api/v1/events", params=params)
+            assert response.status_code == 200, response.text
+            assert response.json() == {"items": [], "next_cursor": None}
+
+
+@pytest.mark.parametrize("attendance_status", [AttendanceStatus.GOING, AttendanceStatus.ATTENDED])
+async def test_catalog_list_mine(
+    harness: Harness,
+    catalog_events: dict[str, models.Event],
+    attendance_status: AttendanceStatus,
+) -> None:
+    h = harness
+    actor = await h.user()
+    async with h.db() as session:
+        unrelated = await catalog.create_event(
+            session,
+            replace(event_input(h), title="Unrelated event"),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=actor.id,
+            now=h.now,
+        )
+        session.add(
+            models.EventAttendance(
+                event_id=catalog_events["hackathon"].id,
+                user_id=actor.id,
+                status=attendance_status,
+                role=AttendanceRole.ATTENDEE,
+                proof_links=[],
+                trust=Trust.SELF,
+                status_at=h.now,
+            )
+        )
+        session.add(
+            models.Enrollment(
+                event_id=catalog_events["contest"].id,
+                user_id=actor.id,
+                status=EnrollmentStatus.ACTIVE,
+                source=EnrollmentSource.SELF,
+                status_at=h.now,
+            )
+        )
+        project = models.Project(
+            event_id=catalog_events["conference"].id,
+            name="Event team",
+            description_md="Team description",
+            goal="Build",
+            links=[],
+            visibility=ProjectVisibility.PUBLIC,
+            status=ProjectStatus.ACTIVE,
+            team_status=TeamStatus.FORMING,
+            origin=ProjectOrigin.ADMIN,
+        )
+        session.add(project)
+        await session.flush()
+        membership = models.ProjectMember(
+            project_id=project.id,
+            event_id=catalog_events["conference"].id,
+            user_id=actor.id,
+            role=MemberRole.MEMBER,
+            state=MemberState.CONFIRMED,
+            trust=Trust.SELF,
+            joined_via=JoinedVia.ADMIN,
+            is_team_row=True,
+            joined_at=h.now,
+        )
+        session.add(membership)
+        await session.flush()
+        membership_id = membership.id
+    expected = {str(catalog_events[key].id) for key in ("hackathon", "contest", "conference")}
+    async with await h.client(actor) as client:
+        response = await client.get("/api/v1/events", params={"mine": "true"})
+        assert response.status_code == 200, response.text
+        assert {item["id"] for item in response.json()["items"]} == expected
+        for params in ({"mine": "false"}, {}):
+            response = await client.get("/api/v1/events", params=params)
+            assert response.status_code == 200, response.text
+            assert {item["id"] for item in response.json()["items"]} == expected | {
+                str(unrelated.id)
+            }
+        async with h.db() as session:
+            stored = await session.get(models.ProjectMember, membership_id)
+            assert stored is not None
+            stored.left_at = h.now
+        response = await client.get("/api/v1/events", params={"mine": "true"})
+        assert response.status_code == 200, response.text
+        assert {item["id"] for item in response.json()["items"]} == expected - {
+            str(catalog_events["conference"].id)
+        }
+
+
+@pytest.mark.parametrize("tied_dates", [False, True])
+async def test_catalog_list_cursor(harness: Harness, tied_dates: bool) -> None:
+    h = harness
+    actor = await h.user()
+    events: list[models.Event] = []
+    async with h.db() as session:
+        for index in range(3):
+            events.append(
+                await catalog.create_event(
+                    session,
+                    replace(
+                        event_input(h),
+                        starts_at=h.now + timedelta(days=10 if tied_dates else 10 + index),
+                    ),
+                    origin=EventOrigin.MANUAL,
+                    status=EventStatus.PUBLISHED,
+                    created_by=None,
+                    now=h.now,
+                )
+            )
+    ordered = sorted(events, key=lambda event: (event.starts_at, event.id), reverse=True)
+    async with await h.client(actor) as client:
+        first = await client.get("/api/v1/events", params={"limit": 2})
+        assert first.status_code == 200, first.text
+        first_page = first.json()
+        assert [item["id"] for item in first_page["items"]] == [
+            str(event.id) for event in ordered[:2]
+        ]
+        assert first_page["next_cursor"] is not None
+        second = await client.get(
+            "/api/v1/events", params={"limit": 2, "cursor": first_page["next_cursor"]}
+        )
+        assert second.status_code == 200, second.text
+        second_page = second.json()
+        assert [item["id"] for item in second_page["items"]] == [str(ordered[2].id)]
+        assert second_page["next_cursor"] is None
+        assert {item["id"] for item in first_page["items"]}.isdisjoint(
+            item["id"] for item in second_page["items"]
+        )
+        assert_problem(
+            await client.get("/api/v1/events", params={"cursor": "garbage"}),
+            400,
+            ErrorCode.BAD_REQUEST,
+        )
+
+
+async def test_catalog_list_requires_onboarded_member(harness: Harness) -> None:
+    h = harness
+    async with h.anonymous() as client:
+        assert_problem(await client.get("/api/v1/events"), 401, ErrorCode.UNAUTHENTICATED)
+    actor = await h.user(onboarded=False)
+    async with await h.client(actor) as client:
+        assert_problem(await client.get("/api/v1/events"), 403, ErrorCode.ONBOARDING_REQUIRED)

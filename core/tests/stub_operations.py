@@ -12,7 +12,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "catalog_list_event_locks",
         "catalog_list_event_projects",
         "catalog_list_event_revisions",
-        "catalog_list_events",
         "catalog_list_review_queue",
         "catalog_list_tracked_events",
         "catalog_merge_event",

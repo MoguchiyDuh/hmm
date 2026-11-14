@@ -44,6 +44,8 @@ internal = APIRouter(tags=["catalog"], responses=PROBLEM_RESPONSES)
 async def list_events(
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
     kind: Annotated[EventKind | None, Query()] = None,
     phase: Annotated[EventPhase | None, Query()] = None,
     formation: Annotated[bool | None, Query()] = None,
@@ -59,7 +61,23 @@ async def list_events(
     mine: Annotated[bool | None, Query()] = None,
     origin: Annotated[EventOrigin | None, Query()] = None,
 ) -> EventSummaryPage:
-    not_implemented()
+    return await catalog.list_events(
+        session,
+        pagination,
+        actor,
+        clock.now(),
+        kind=kind,
+        phase=phase,
+        formation=formation,
+        participation_phase=participation_phase,
+        area=area,
+        format=format,
+        q=q,
+        from_=from_,
+        to=to,
+        mine=mine,
+        origin=origin,
+    )
 
 
 @router.get("/events/{id}", status_code=status.HTTP_200_OK, summary="Get event details")
