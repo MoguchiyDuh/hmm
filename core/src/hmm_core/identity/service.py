@@ -385,6 +385,10 @@ def dnd_until(user: models.User) -> datetime | Literal["indefinite"] | None:
     return "indefinite" if user.dnd_indefinite else user.dnd_until
 
 
+def dnd_active(user: models.User, now: datetime) -> bool:
+    return user.dnd_indefinite or (user.dnd_until is not None and user.dnd_until > now)
+
+
 async def lock_user(session: AsyncSession, user_id: UUID) -> models.User:
     user = await session.scalar(
         select(models.User)

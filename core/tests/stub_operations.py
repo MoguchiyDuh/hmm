@@ -120,7 +120,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "profiles_get_cv",
         "profiles_get_notification_settings",
         "profiles_get_user",
-        "profiles_list_users",
         "profiles_refresh_github",
         "profiles_update_availability",
         "profiles_update_notification_settings",

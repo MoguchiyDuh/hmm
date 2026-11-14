@@ -3,9 +3,12 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Depends, Query, Request, status
 from hmm_contracts.common import AreaKey, UserId
 
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import MemberAuth, UserAuth
+from hmm_core.profiles import service
 from hmm_core.profiles.schemas import (
     Availability,
     Cv,
@@ -27,6 +30,8 @@ internal = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
 async def list_users(
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
     q: Annotated[str | None, Query()] = None,
     area: Annotated[AreaKey | None, Query()] = None,
     min_score: Annotated[float | None, Query(ge=0, le=10)] = None,
@@ -34,7 +39,18 @@ async def list_users(
     mentor: Annotated[bool | None, Query()] = None,
     sort: Annotated[Literal["xp", "activity", "score", "reputation", "name"], Query()] = "xp",
 ) -> UserSummaryPage:
-    not_implemented()
+    query = service.DirectoryQuery(
+        q=q,
+        area_key=area,
+        min_score=min_score,
+        available=available,
+        mentor=mentor,
+        sort=sort,
+    )
+    now = clock.now()
+    users, next_cursor = await service.list_directory(session, pagination, query, now)
+    items = await service.user_summaries(session, users, actor, now)
+    return UserSummaryPage(items=items, next_cursor=next_cursor)
 
 
 @router.get("/users/{id}", status_code=status.HTTP_200_OK, summary="Public profile")
