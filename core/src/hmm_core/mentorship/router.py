@@ -156,16 +156,22 @@ async def open_help_request(
     summary="Offer help to learner",
 )
 async def create_help_offer(
-    id: HelpRequestId, body: CreateHelpOfferBody, actor: MemberAuth
+    id: HelpRequestId,
+    body: CreateHelpOfferBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> HelpOffer:
-    not_implemented()
+    return await service.create_help_offer(session, actor, id, body, clock.now())
 
 
 @router.delete(
     "/help-offers/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw own help offer"
 )
-async def withdraw_help_offer(id: HelpOfferId, actor: MemberAuth) -> None:
-    not_implemented()
+async def withdraw_help_offer(
+    id: HelpOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> None:
+    await service.withdraw_help_offer(session, actor, id, clock.now())
 
 
 @router.post(
@@ -173,8 +179,10 @@ async def withdraw_help_offer(id: HelpOfferId, actor: MemberAuth) -> None:
     status_code=status.HTTP_201_CREATED,
     summary="Accept help offer and start mentorship as learner",
 )
-async def accept_help_offer(id: HelpOfferId, actor: MemberAuth) -> Mentorship:
-    not_implemented()
+async def accept_help_offer(
+    id: HelpOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Mentorship:
+    return await service.accept_help_offer(session, actor, id, clock.now())
 
 
 @router.get("/me/mentorships", status_code=status.HTTP_200_OK, summary="List own mentorships")
