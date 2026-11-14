@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from hmm_contracts.common import (
     AreaKey,
     HelpOfferId,
@@ -11,6 +11,7 @@ from hmm_contracts.common import (
     MentorshipStatus,
 )
 
+from hmm_core.mentorship import service
 from hmm_core.mentorship.schemas import (
     AcknowledgeMentorshipBody,
     CloseMentorshipBody,
@@ -26,6 +27,8 @@ from hmm_core.mentorship.schemas import (
     ReplaceMentorOffersBody,
     UpdateHelpRequestBody,
 )
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import MemberAuth
@@ -35,8 +38,10 @@ internal = APIRouter(tags=["mentorship"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/me/mentor-offers", status_code=status.HTTP_200_OK, summary="List own mentor offers")
-async def get_mentor_offers(actor: MemberAuth) -> MentorOffers:
-    not_implemented()
+async def get_mentor_offers(
+    actor: MemberAuth, session: Session, clock: CurrentClock
+) -> MentorOffers:
+    return await service.mentor_offers_view(session, actor, clock.now())
 
 
 @router.put(
@@ -44,23 +49,42 @@ async def get_mentor_offers(actor: MemberAuth) -> MentorOffers:
     status_code=status.HTTP_200_OK,
     summary="Replace own mentor offers and capacity",
 )
-async def replace_mentor_offers(body: ReplaceMentorOffersBody, actor: MemberAuth) -> MentorOffers:
-    not_implemented()
+async def replace_mentor_offers(
+    body: ReplaceMentorOffersBody, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> MentorOffers:
+    return await service.replace_mentor_offers(session, actor, body, clock.now())
 
 
 @router.get("/help-requests", status_code=status.HTTP_200_OK, summary="List help requests")
 async def list_help_requests(
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
     area: Annotated[AreaKey | None, Query()] = None,
     request_status: Annotated[HelpRequestStatus, Query(alias="status")] = HelpRequestStatus.OPEN,
 ) -> HelpRequestPage:
-    not_implemented()
+    return await service.list_help_requests(
+        session,
+        actor,
+        pagination,
+        area_key=area,
+        request_status=request_status,
+        now=clock.now(),
+    )
 
 
 @router.post("/help-requests", status_code=status.HTTP_201_CREATED, summary="Create a help request")
-async def create_help_request(body: CreateHelpRequestBody, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def create_help_request(
+    body: CreateHelpRequestBody,
+    actor: MemberAuth,
+    request: Request,
+    session: Session,
+    clock: CurrentClock,
+) -> HelpRequest:
+    return await service.create_help_request(
+        session, request.app.state.jobs, actor, body, clock.now()
+    )
 
 
 @router.get(
@@ -68,8 +92,10 @@ async def create_help_request(body: CreateHelpRequestBody, actor: MemberAuth) ->
     status_code=status.HTTP_200_OK,
     summary="Get help request respecting direct-request visibility",
 )
-async def get_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def get_help_request(
+    id: HelpRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> HelpRequest:
+    return await service.get_help_request(session, actor, id, clock.now())
 
 
 @router.patch(
@@ -78,9 +104,13 @@ async def get_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
     summary="Edit open help request as learner",
 )
 async def update_help_request(
-    id: HelpRequestId, body: UpdateHelpRequestBody, actor: MemberAuth
+    id: HelpRequestId,
+    body: UpdateHelpRequestBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> HelpRequest:
-    not_implemented()
+    return await service.update_help_request(session, actor, id, body, clock.now())
 
 
 @router.post(
@@ -88,8 +118,10 @@ async def update_help_request(
     status_code=status.HTTP_200_OK,
     summary="Cancel help request as learner",
 )
-async def cancel_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def cancel_help_request(
+    id: HelpRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> HelpRequest:
+    return await service.cancel_help_request(session, actor, id, clock.now())
 
 
 @router.post(
@@ -99,8 +131,12 @@ async def cancel_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpReque
     description="Only the target mentor may decline a direct request in the open state. "
     "Notify the learner, who may immediately open it to everyone without the three-day wait.",
 )
-async def decline_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def decline_help_request(
+    id: HelpRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> HelpRequest:
+    return await service.decline_help_request(
+        session, request.app.state.jobs, actor, id, clock.now()
+    )
 
 
 @router.post(
@@ -108,8 +144,10 @@ async def decline_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequ
     status_code=status.HTTP_200_OK,
     summary="Open direct help request to everyone as learner",
 )
-async def open_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def open_help_request(
+    id: HelpRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> HelpRequest:
+    return await service.open_help_request(session, request.app.state.jobs, actor, id, clock.now())
 
 
 @router.post(
@@ -118,16 +156,22 @@ async def open_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest
     summary="Offer help to learner",
 )
 async def create_help_offer(
-    id: HelpRequestId, body: CreateHelpOfferBody, actor: MemberAuth
+    id: HelpRequestId,
+    body: CreateHelpOfferBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> HelpOffer:
-    not_implemented()
+    return await service.create_help_offer(session, actor, id, body, clock.now())
 
 
 @router.delete(
     "/help-offers/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw own help offer"
 )
-async def withdraw_help_offer(id: HelpOfferId, actor: MemberAuth) -> None:
-    not_implemented()
+async def withdraw_help_offer(
+    id: HelpOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> None:
+    await service.withdraw_help_offer(session, actor, id, clock.now())
 
 
 @router.post(
@@ -135,8 +179,10 @@ async def withdraw_help_offer(id: HelpOfferId, actor: MemberAuth) -> None:
     status_code=status.HTTP_201_CREATED,
     summary="Accept help offer and start mentorship as learner",
 )
-async def accept_help_offer(id: HelpOfferId, actor: MemberAuth) -> Mentorship:
-    not_implemented()
+async def accept_help_offer(
+    id: HelpOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Mentorship:
+    return await service.accept_help_offer(session, actor, id, clock.now())
 
 
 @router.get("/me/mentorships", status_code=status.HTTP_200_OK, summary="List own mentorships")
