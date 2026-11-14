@@ -80,11 +80,10 @@ async def test_migration_roundtrip_and_uuid_defaults(session: AsyncSession) -> N
     assert user.id.version == 7
     assert user.created_at.utcoffset() == timedelta(0)
     assert user.updated_at.utcoffset() == timedelta(0)
-    assert len(Base.metadata.tables) == 63
     names = set(
         await session.scalars(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'"))
     )
-    assert set(Base.metadata.tables) <= names
+    assert set(Base.metadata.tables) == names - {"alembic_version"}
     assert await session.scalar(text("SELECT count(*) FROM settings")) == 0
 
 

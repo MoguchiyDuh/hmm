@@ -32,7 +32,13 @@ from hmm_core.notifications.models import (
     NotificationDelivery,
     NotificationSetting,
 )
-from hmm_core.onboarding.models import OnboardingSubmission, Question, QuestionOption, Quiz
+from hmm_core.onboarding.models import (
+    OnboardingSubmission,
+    Question,
+    QuestionOption,
+    Quiz,
+    QuizSectionDef,
+)
 from hmm_core.platform.db import Base
 from hmm_core.platform.models import AlgoCache, AuditLog, Setting
 from hmm_core.profiles.models import CvFile, GithubSnapshot
@@ -115,6 +121,7 @@ __all__ = [
     "Question",
     "QuestionOption",
     "Quiz",
+    "QuizSectionDef",
     "RecommendationSet",
     "ReleaseContribution",
     "Review",
