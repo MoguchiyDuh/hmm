@@ -7,7 +7,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "attendance_list_my_attendances",
         "attendance_set_attendance",
         "attendance_update_event",
-        "catalog_import_events",
         "catalog_list_review_queue",
         "catalog_list_tracked_events",
         "catalog_merge_event",

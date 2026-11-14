@@ -219,8 +219,14 @@ async def cancel_event(
 
 
 @internal.post("/events/import", status_code=status.HTTP_200_OK, summary="Import an event batch")
-async def import_events(body: EventImportBatch, actor: ParserAuth) -> EventImportResponse:
-    not_implemented()
+async def import_events(
+    body: EventImportBatch,
+    actor: ParserAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> EventImportResponse:
+    return await catalog.import_events(session, request.app.state.jobs, body, clock.now())
 
 
 @internal.get(
