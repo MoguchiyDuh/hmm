@@ -759,3 +759,159 @@ async def test_two_teams_fill_by_invite_and_join_request(harness: Harness) -> No
             assert all(member.state == "confirmed" for member in view.members)
     assert (await enrollment_row(h, invitee_enrollment.id)).status == "placed"
     assert (await enrollment_row(h, requester_enrollment.id)).status == "placed"
+
+
+async def seed_invite(
+    h: Harness,
+    project: models.Project,
+    user: models.User,
+    inviter: models.User,
+    *,
+    kind: str = "core",
+    status: str = "pending",
+) -> models.Invite:
+    async with h.db() as session:
+        invite = models.Invite(
+            project_id=project.id,
+            event_id=project.event_id,
+            user_id=user.id,
+            invited_by=inviter.id,
+            kind=kind,
+            message=None,
+            area_id=None,
+            status=status,
+            closed_reason=None,
+            expires_at=h.now + timedelta(days=7),
+            responded_at=None,
+        )
+        session.add(invite)
+        await session.flush()
+        await session.refresh(invite)
+        return invite
+
+
+async def ban(h: Harness, user: models.User) -> httpx.Response:
+    async with await h.client(await h.admin()) as c:
+        return await c.post(f"/api/v1/admin/users/{user.id}/ban", json={"reason": "spam"})
+
+
+async def invite_state(h: Harness, invite_id: UUID) -> tuple[str, datetime | None]:
+    async with h.db() as session:
+        row = await session.get_one(models.Invite, invite_id)
+        return row.status, row.responded_at
+
+
+async def request_state(h: Harness, request_id: UUID) -> tuple[str, datetime | None]:
+    async with h.db() as session:
+        row = await session.get_one(models.JoinRequest, request_id)
+        return row.status, row.responded_at
+
+
+async def test_ban_withdraws_pending_items(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, member = await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    other = await seed_team(h, event, await h.user(), name="Other")
+    standalone = await seed_standalone(h, lead, recruiting=RECRUITING)
+    core = await seed_invite(h, team, member, lead)
+    project_invite = await seed_invite(h, standalone, member, lead, kind="project")
+    request = await seed_request(h, other, member)
+    accepted = await seed_invite(h, other, member, lead, status="accepted")
+    rejected = await seed_request(h, standalone, member, status="rejected")
+    notices = await count(h, models.Notification)
+    jobs = await h.pending_jobs()
+
+    response = await ban(h, member)
+    assert response.status_code == 200, response.text
+    assert await invite_state(h, core.id) == ("withdrawn", h.now)
+    assert await invite_state(h, project_invite.id) == ("withdrawn", h.now)
+    assert await request_state(h, request.id) == ("withdrawn", h.now)
+    assert await invite_state(h, accepted.id) == ("accepted", None)
+    assert await request_state(h, rejected.id) == ("rejected", None)
+    async with h.db() as session:
+        banned = await session.get_one(models.User, member.id)
+    assert banned.banned_at == h.now
+    assert banned.ban_reason == "spam"
+    assert (
+        await count(
+            h,
+            models.AuditLog,
+            models.AuditLog.action == "user_ban",
+            models.AuditLog.entity_id == str(member.id),
+        )
+        == 1
+    )
+    assert await count(h, models.Notification) == notices
+    assert await h.pending_jobs() == jobs
+
+
+async def test_ban_bypasses_formation_phase(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, member = await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    other = await seed_team(h, event, await h.user(), name="Other")
+    core = await seed_invite(h, team, member, lead)
+    request = await seed_request(h, other, member)
+    await set_formation(h, event, phase="forming")
+
+    response = await ban(h, member)
+    assert response.status_code == 200, response.text
+    assert await invite_state(h, core.id) == ("withdrawn", h.now)
+    assert await request_state(h, request.id) == ("withdrawn", h.now)
+
+
+async def test_ban_keeps_sent_and_foreign_items(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    member, bystander, lead = await h.user(), await h.user(), await h.user()
+    team = await seed_team(h, event, member)
+    other = await seed_team(h, event, lead, name="Other")
+    sent = await seed_invite(h, team, await h.user(), member)
+    foreign_invite = await seed_invite(h, other, bystander, lead)
+    foreign_request = await seed_request(h, team, bystander)
+
+    response = await ban(h, member)
+    assert response.status_code == 200, response.text
+    assert await invite_state(h, sent.id) == ("pending", None)
+    assert await invite_state(h, foreign_invite.id) == ("pending", None)
+    assert await request_state(h, foreign_request.id) == ("pending", None)
+
+
+async def test_withdraw_user_pending_items_direct(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, member, idle = await h.user(), await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    pending = await seed_invite(h, team, member, lead)
+    request = await seed_request(h, team, member)
+
+    async with h.db() as session:
+        assert await service.withdraw_user_pending_items(session, member.id, h.now) is None
+    later = h.advance(timedelta(minutes=5))
+    async with h.db() as session:
+        assert await service.withdraw_user_pending_items(session, member.id, later) is None
+        assert await service.withdraw_user_pending_items(session, idle.id, later) is None
+    assert await invite_state(h, pending.id) == ("withdrawn", later - timedelta(minutes=5))
+    assert await request_state(h, request.id) == ("withdrawn", later - timedelta(minutes=5))
+
+
+async def test_repeated_ban_is_noop(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, member = await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    assert (await ban(h, member)).status_code == 200
+    pending = await seed_invite(h, team, member, lead)
+    request = await seed_request(h, team, member)
+
+    response = await ban(h, member)
+    assert response.status_code == 200, response.text
+    assert await invite_state(h, pending.id) == ("pending", None)
+    assert await request_state(h, request.id) == ("pending", None)

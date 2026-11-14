@@ -2638,3 +2638,23 @@ async def reject_join_request(
     await session.flush()
     await session.refresh(request)
     return request
+
+
+async def withdraw_user_pending_items(session: AsyncSession, user_id: UUID, now: datetime) -> None:
+    await session.execute(
+        update(models.Invite)
+        .where(
+            models.Invite.user_id == user_id,
+            models.Invite.status == InviteStatus.PENDING.value,
+        )
+        .values(status=InviteStatus.WITHDRAWN.value, responded_at=now)
+    )
+    await session.execute(
+        update(models.JoinRequest)
+        .where(
+            models.JoinRequest.user_id == user_id,
+            models.JoinRequest.status == JoinRequestStatus.PENDING.value,
+        )
+        .values(status=JoinRequestStatus.WITHDRAWN.value, responded_at=now)
+    )
+    return None
