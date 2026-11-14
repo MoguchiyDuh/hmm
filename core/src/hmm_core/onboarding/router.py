@@ -18,6 +18,7 @@ from hmm_core.onboarding.schemas import (
     UpdateMemberReviewBody,
     UpdateQuizBody,
 )
+from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
@@ -68,8 +69,10 @@ async def create_quiz(body: CreateQuizBody, actor: AdminAuth, session: Session) 
     status_code=status.HTTP_201_CREATED,
     summary="Clone quiz into a draft",
 )
-async def clone_quiz(id: QuizId, actor: AdminAuth, body: ReasonBody | None = None) -> Quiz:
-    not_implemented()
+async def clone_quiz(
+    id: QuizId, actor: AdminAuth, session: Session, body: ReasonBody | None = None
+) -> Quiz:
+    return await service.clone_quiz(session, actor, id, body.reason if body else None)
 
 
 @router.get("/admin/quizzes/{id}", status_code=status.HTTP_200_OK, summary="Get full quiz tree")
@@ -88,16 +91,24 @@ async def update_quiz(id: QuizId, body: UpdateQuizBody, actor: AdminAuth, sessio
     "/admin/quizzes/{id}/validate", status_code=status.HTTP_200_OK, summary="Validate quiz tree"
 )
 async def validate_quiz(
-    id: QuizId, actor: AdminAuth, body: ReasonBody | None = None
+    id: QuizId, actor: AdminAuth, session: Session, body: ReasonBody | None = None
 ) -> QuizValidation:
-    not_implemented()
+    return await service.validate_quiz(session, actor, id, body.reason if body else None)
 
 
 @router.post(
     "/admin/quizzes/{id}/publish", status_code=status.HTTP_200_OK, summary="Publish and freeze quiz"
 )
-async def publish_quiz(id: QuizId, actor: AdminAuth, body: ReasonBody | None = None) -> Quiz:
-    not_implemented()
+async def publish_quiz(
+    id: QuizId,
+    actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
+    body: ReasonBody | None = None,
+) -> Quiz:
+    return await service.publish_quiz(
+        session, actor, id, body.reason if body else None, clock.now()
+    )
 
 
 @router.delete(

@@ -1,4 +1,6 @@
+import asyncio
 from copy import deepcopy
+from datetime import datetime
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -6,6 +8,7 @@ import httpx
 from harness import Harness
 from hmm_contracts.common import ActorKind, AuditAction, AuditEntityType, ErrorCode
 from hmm_core import models
+from hmm_core.models import Area, AuditLog, Quiz
 from sqlalchemy import func, select, update
 from test_api_skeleton import assert_problem
 
@@ -363,3 +366,349 @@ async def test_access_and_foreign_ids(harness: Harness) -> None:
         assert response.json() == second
     assert await tree_counts(h, quiz["id"]) == (6, 4, 2)
     assert await tree_counts(h, second["id"]) == (0, 0, 0)
+
+
+def definition_with_new_ids() -> dict[str, Any]:
+    payload = deepcopy(DEFINITION)
+    for question in payload["questions"]:
+        question["id"] = str(uuid4())
+        for option in question["options"]:
+            option["id"] = str(uuid4())
+    return payload
+
+
+async def test_clone_roundtrip(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "frontend"))
+    admin = await h.admin()
+    async with await h.client(admin) as client:
+        quiz = await create_quiz(client)
+        path = f"{QUIZZES}/{quiz['id']}"
+        response = await client.put(path, json=DEFINITION)
+        assert response.status_code == 200, response.text
+        response = await client.post(f"{path}/publish")
+        assert response.status_code == 200, response.text
+        source = response.json()
+        response = await client.post(f"{path}/clone", json={"reason": "Revise definition"})
+        assert response.status_code == 201, response.text
+        clone = response.json()
+        assert clone["id"] != source["id"]
+        assert clone["version"] == source["version"] + 1
+        assert clone["status"] == "draft"
+        assert clone["title"] == "Onboarding copy"
+        assert clone["published_at"] is None
+        assert clone["created_by"] == str(admin.id)
+        assert clone["allowed_actions"] == ["edit", "validate", "publish", "clone", "delete"]
+        assert clone["sections"] == source["sections"]
+        source_ids = {
+            item["id"]
+            for question in source["questions"]
+            for item in [question, *question["options"]]
+        }
+        clone_ids = {
+            item["id"]
+            for question in clone["questions"]
+            for item in [question, *question["options"]]
+        }
+        assert source_ids.isdisjoint(clone_ids)
+        assert len(clone_ids) == 10
+        for source_question, clone_question in zip(
+            source["questions"], clone["questions"], strict=True
+        ):
+            expected = deepcopy(source_question)
+            actual = deepcopy(clone_question)
+            del expected["id"]
+            del actual["id"]
+            for option in [*expected["options"], *actual["options"]]:
+                del option["id"]
+            assert actual == expected
+        response = await client.get(path)
+        assert response.status_code == 200, response.text
+        assert response.json() == source
+        response = await client.post(f"{QUIZZES}/{clone['id']}/clone")
+        assert response.status_code == 201, response.text
+        assert response.json()["version"] == clone["version"] + 1
+    async with h.db() as session:
+        audit = await session.scalar(
+            select(AuditLog).where(
+                AuditLog.action == AuditAction.QUIZ_CLONE,
+                AuditLog.entity_id == clone["id"],
+            )
+        )
+        assert audit is not None
+        assert audit.actor_id == admin.id
+        assert audit.actor_kind == ActorKind.ADMIN
+        assert audit.entity_type == AuditEntityType.QUIZ
+        assert audit.before == {"source_id": source["id"], "source_version": source["version"]}
+        assert audit.after == {
+            "id": clone["id"],
+            "version": clone["version"],
+            "title": clone["title"],
+        }
+        assert audit.reason == "Revise definition"
+        source_section_ids = set(
+            await session.scalars(
+                select(models.QuizSectionDef.id).where(
+                    models.QuizSectionDef.quiz_id == UUID(source["id"])
+                )
+            )
+        )
+        clone_section_ids = set(
+            await session.scalars(
+                select(models.QuizSectionDef.id).where(
+                    models.QuizSectionDef.quiz_id == UUID(clone["id"])
+                )
+            )
+        )
+        assert len(clone_section_ids) == 2
+        assert source_section_ids.isdisjoint(clone_section_ids)
+    assert await h.pending_jobs() == []
+
+
+async def test_validate_endpoint(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "frontend"))
+    admin = await h.admin()
+    async with await h.client(admin) as client:
+        quiz = await create_quiz(client)
+        path = f"{QUIZZES}/{quiz['id']}"
+        response = await client.put(path, json=DEFINITION)
+        assert response.status_code == 200, response.text
+        response = await client.post(f"{path}/validate")
+        assert response.status_code == 200, response.text
+        assert response.json() == {"errors": [], "warnings": []}
+        async with h.db() as session:
+            await session.execute(
+                update(Area).where(Area.key == "backend").values(archived_at=h.now)
+            )
+        response = await client.post(f"{path}/validate", json={"reason": "Check archived area"})
+        assert response.status_code == 200, response.text
+        assert response.json() == {
+            "errors": [
+                {
+                    "loc": ["questions", index, "options", 0, "area_hints", "backend"],
+                    "msg": "Area backend is archived",
+                }
+                for index in (0, 2)
+            ],
+            "warnings": [],
+        }
+    async with h.db() as session:
+        audits = list(
+            await session.scalars(
+                select(AuditLog)
+                .where(AuditLog.action == AuditAction.QUIZ_VALIDATE)
+                .order_by(AuditLog.created_at)
+            )
+        )
+        assert len(audits) == 2
+        assert audits[0].after == {"errors": 0, "warnings": 0}
+        assert audits[1].after == {"errors": 2, "warnings": 0}
+        assert audits[1].reason == "Check archived area"
+        assert all(
+            audit.actor_id == admin.id
+            and audit.actor_kind == ActorKind.ADMIN
+            and audit.entity_type == AuditEntityType.QUIZ
+            and audit.entity_id == quiz["id"]
+            and audit.before is None
+            for audit in audits
+        )
+
+
+async def test_publish_first_quiz_as_unonboarded_admin(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "frontend"))
+    admin = await h.user(admin=True, onboarded=False)
+    async with await h.client(admin) as client:
+        quiz = await create_quiz(client)
+        path = f"{QUIZZES}/{quiz['id']}"
+        response = await client.put(path, json=DEFINITION)
+        assert response.status_code == 200, response.text
+        response = await client.post(f"{path}/publish", json={"reason": "Launch onboarding"})
+        assert response.status_code == 200, response.text
+        published = response.json()
+        assert published["status"] == "published"
+        assert datetime.fromisoformat(published["published_at"]) == h.now
+        assert published["allowed_actions"] == ["validate", "clone"]
+        response = await client.post(f"{path}/validate")
+        assert response.status_code == 200, response.text
+        assert response.json() == {"errors": [], "warnings": []}
+    async with h.db() as session:
+        audit = await session.scalar(
+            select(AuditLog).where(AuditLog.action == AuditAction.QUIZ_PUBLISH)
+        )
+        assert audit is not None
+        assert audit.actor_id == admin.id
+        assert audit.actor_kind == ActorKind.ADMIN
+        assert audit.entity_type == AuditEntityType.QUIZ
+        assert audit.entity_id == quiz["id"]
+        assert audit.before == {"status": "draft"}
+        assert audit.after == {
+            "status": "published",
+            "published_at": h.now.isoformat(),
+            "archived_id": None,
+            "archived_version": None,
+        }
+        assert audit.reason == "Launch onboarding"
+    assert await h.pending_jobs() == []
+
+
+async def test_publish_archives_previous_and_retains_definition(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "frontend"))
+    admin = await h.admin()
+    async with await h.client(admin) as client:
+        first = await create_quiz(client)
+        first_path = f"{QUIZZES}/{first['id']}"
+        response = await client.put(first_path, json=DEFINITION)
+        assert response.status_code == 200, response.text
+        response = await client.post(f"{first_path}/publish")
+        assert response.status_code == 200, response.text
+        snapshot = response.json()
+        second = await create_quiz(client)
+        second_path = f"{QUIZZES}/{second['id']}"
+        payload = definition_with_new_ids()
+        payload["title"] = "Second"
+        payload["questions"][1]["text"] = "Years of coding"
+        response = await client.put(second_path, json=payload)
+        assert response.status_code == 200, response.text
+        response = await client.post(f"{second_path}/publish")
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "published"
+        assert response.json()["title"] == "Second"
+        assert response.json()["questions"][1]["text"] == "Years of coding"
+        response = await client.get(first_path)
+        assert response.status_code == 200, response.text
+        archived = response.json()
+        assert archived["status"] == "archived"
+        assert archived["allowed_actions"] == ["validate", "clone"]
+        for field in ("sections", "questions", "published_at"):
+            assert archived[field] == snapshot[field]
+    async with h.db() as session:
+        assert await session.scalar(select(func.count()).where(Quiz.status == "published")) == 1
+        audits = list(
+            await session.scalars(
+                select(AuditLog)
+                .where(AuditLog.action == AuditAction.QUIZ_PUBLISH)
+                .order_by(AuditLog.created_at)
+            )
+        )
+        assert len(audits) == 2
+        assert audits[1].entity_id == second["id"]
+        assert audits[1].after == {
+            "status": "published",
+            "published_at": h.now.isoformat(),
+            "archived_id": first["id"],
+            "archived_version": first["version"],
+        }
+
+
+async def test_concurrent_publish_two_drafts(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "frontend"))
+    admin = await h.admin()
+    async with await h.client(admin) as client:
+        first = await create_quiz(client)
+        second = await create_quiz(client)
+        first_path = f"{QUIZZES}/{first['id']}"
+        second_path = f"{QUIZZES}/{second['id']}"
+        response = await client.put(first_path, json=DEFINITION)
+        assert response.status_code == 200, response.text
+        first_tree = response.json()
+        payload = definition_with_new_ids()
+        payload["questions"][1]["text"] = "Years of coding"
+        response = await client.put(second_path, json=payload)
+        assert response.status_code == 200, response.text
+        second_tree = response.json()
+        responses = await asyncio.gather(
+            client.post(f"{second_path}/publish"), client.post(f"{first_path}/publish")
+        )
+        assert [response.status_code for response in responses] == [200, 200], [
+            response.text for response in responses
+        ]
+        async with h.db() as session:
+            statuses = list(await session.scalars(select(Quiz.status)))
+            assert sorted(statuses) == ["archived", "published"]
+            archived_id = await session.scalar(select(Quiz.id).where(Quiz.status == "archived"))
+            assert archived_id is not None
+        response = await client.get(f"{QUIZZES}/{archived_id}")
+        assert response.status_code == 200, response.text
+        archived = response.json()
+        expected = first_tree if archived["id"] == first["id"] else second_tree
+        assert archived["status"] == "archived"
+        assert archived["sections"] == expected["sections"]
+        assert archived["questions"] == expected["questions"]
+
+
+async def test_concurrent_publish_same_draft(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "frontend"))
+    admin = await h.admin()
+    async with await h.client(admin) as client:
+        quiz = await create_quiz(client)
+        path = f"{QUIZZES}/{quiz['id']}"
+        response = await client.put(path, json=DEFINITION)
+        assert response.status_code == 200, response.text
+        responses = await asyncio.gather(
+            client.post(f"{path}/publish"), client.post(f"{path}/publish")
+        )
+        assert sorted(response.status_code for response in responses) == [200, 409]
+        failed = next(response for response in responses if response.status_code == 409)
+        assert_problem(failed, 409, ErrorCode.NOT_DRAFT)
+    async with h.db() as session:
+        assert await session.scalar(select(func.count()).where(Quiz.status == "published")) == 1
+        assert (
+            await session.scalar(
+                select(func.count()).where(AuditLog.action == AuditAction.QUIZ_PUBLISH)
+            )
+            == 1
+        )
+
+
+async def test_publish_invalid_draft(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "frontend"))
+    admin = await h.admin()
+    async with await h.client(admin) as client:
+        quiz = await create_quiz(client)
+        path = f"{QUIZZES}/{quiz['id']}"
+        response = await client.put(path, json=DEFINITION)
+        assert response.status_code == 200, response.text
+        snapshot = response.json()
+        async with h.db() as session:
+            await session.execute(
+                update(Area).where(Area.key == "backend").values(archived_at=h.now)
+            )
+        assert_problem(await client.post(f"{path}/publish"), 422, ErrorCode.VALIDATION_ERROR)
+        response = await client.get(path)
+        assert response.status_code == 200, response.text
+        assert response.json() == snapshot
+        assert response.json()["status"] == "draft"
+    async with h.db() as session:
+        assert (
+            await session.scalar(
+                select(func.count()).where(AuditLog.action == AuditAction.QUIZ_PUBLISH)
+            )
+            == 0
+        )
+
+
+async def test_publish_missing_and_archived(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas(("backend", "frontend"))
+    admin = await h.admin()
+    async with await h.client(admin) as client:
+        assert_problem(await client.post(f"{QUIZZES}/{uuid4()}/publish"), 404, ErrorCode.NOT_FOUND)
+        first = await create_quiz(client)
+        first_path = f"{QUIZZES}/{first['id']}"
+        response = await client.put(first_path, json=DEFINITION)
+        assert response.status_code == 200, response.text
+        response = await client.post(f"{first_path}/publish")
+        assert response.status_code == 200, response.text
+        second = await create_quiz(client)
+        second_path = f"{QUIZZES}/{second['id']}"
+        response = await client.put(second_path, json=definition_with_new_ids())
+        assert response.status_code == 200, response.text
+        response = await client.post(f"{second_path}/publish")
+        assert response.status_code == 200, response.text
+        assert_problem(await client.post(f"{first_path}/publish"), 409, ErrorCode.NOT_DRAFT)

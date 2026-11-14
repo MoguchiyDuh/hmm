@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from hmm_contracts.algo import QuizQuestion, QuizSection
@@ -302,3 +303,140 @@ async def delete_quiz(
         reason=reason,
     )
     await session.execute(delete(models.Quiz).where(models.Quiz.id == quiz.id))
+
+
+async def clone_quiz(
+    session: AsyncSession, actor: models.User, quiz_id: UUID, reason: str | None
+) -> schemas.Quiz:
+    await lock_quizzes(session)
+    source = await require_quiz(session, quiz_id, for_update=True)
+    sections, questions, options = await tree_rows(session, source.id)
+    clone = models.Quiz(
+        version=await next_version(session),
+        title=f"{source.title[:195]} copy",
+        status=QuizStatus.DRAFT,
+        created_by=actor.id,
+    )
+    session.add(clone)
+    await session.flush()
+    session.add_all(
+        models.QuizSectionDef(
+            quiz_id=clone.id,
+            key=section.key,
+            position=section.position,
+            visible_if=section.visible_if,
+        )
+        for section in sections
+    )
+    new_questions = [
+        models.Question(
+            quiz_id=clone.id,
+            section=question.section,
+            key=question.key,
+            type=question.type,
+            text=question.text,
+            help=question.help,
+            required=question.required,
+            position=question.position,
+            visible_if=question.visible_if,
+            config=question.config,
+        )
+        for question in questions
+    ]
+    session.add_all(new_questions)
+    await session.flush()
+    for new_question, source_question in zip(new_questions, questions, strict=True):
+        for option in options[source_question.id]:
+            assert isinstance(option.area_hints, dict)
+            session.add(
+                models.QuestionOption(
+                    question_id=new_question.id,
+                    key=option.key,
+                    label=option.label,
+                    position=option.position,
+                    area_hints=dict(option.area_hints),
+                )
+            )
+    await session.flush()
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN,
+        action=AuditAction.QUIZ_CLONE,
+        entity_type=AuditEntityType.QUIZ,
+        entity_id=clone.id,
+        before={"source_id": str(source.id), "source_version": source.version},
+        after={"id": str(clone.id), "version": clone.version, "title": clone.title},
+        reason=reason,
+    )
+    return await quiz_view(session, clone)
+
+
+async def validate_quiz(
+    session: AsyncSession, actor: models.User, quiz_id: UUID, reason: str | None
+) -> schemas.QuizValidation:
+    quiz = await require_quiz(session, quiz_id)
+    sections, questions = await definition(session, quiz_id)
+    areas = list(
+        await session.scalars(select(models.Area).order_by(models.Area.sort, models.Area.key))
+    )
+    result = validate_definition(sections, questions, areas)
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN,
+        action=AuditAction.QUIZ_VALIDATE,
+        entity_type=AuditEntityType.QUIZ,
+        entity_id=quiz.id,
+        before=None,
+        after={"errors": len(result.errors), "warnings": len(result.warnings)},
+        reason=reason,
+    )
+    return result
+
+
+async def publish_quiz(
+    session: AsyncSession,
+    actor: models.User,
+    quiz_id: UUID,
+    reason: str | None,
+    now: datetime,
+) -> schemas.Quiz:
+    await lock_quizzes(session)
+    quiz = await require_quiz(session, quiz_id, for_update=True)
+    if quiz.status != QuizStatus.DRAFT:
+        raise ProblemError(ErrorCode.NOT_DRAFT)
+    sections, questions = await definition(session, quiz_id)
+    areas = list(
+        await session.scalars(select(models.Area).order_by(models.Area.sort, models.Area.key))
+    )
+    result = validate_definition(sections, questions, areas)
+    if result.errors:
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, "Quiz definition has validation errors")
+    previous = await session.scalar(
+        select(models.Quiz).where(models.Quiz.status == QuizStatus.PUBLISHED).with_for_update()
+    )
+    if previous is not None:
+        previous.status = QuizStatus.ARCHIVED
+        await session.flush()
+    quiz.status = QuizStatus.PUBLISHED
+    quiz.published_at = now
+    await session.flush()
+    await session.refresh(quiz)
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN,
+        action=AuditAction.QUIZ_PUBLISH,
+        entity_type=AuditEntityType.QUIZ,
+        entity_id=quiz.id,
+        before={"status": "draft"},
+        after={
+            "status": "published",
+            "published_at": now.isoformat(),
+            "archived_id": str(previous.id) if previous else None,
+            "archived_version": previous.version if previous else None,
+        },
+        reason=reason,
+    )
+    return await quiz_view(session, quiz)
