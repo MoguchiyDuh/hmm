@@ -139,3 +139,46 @@ async def run_formation(
             )
         runtime.log.warning("Formation run %s failed", run_id_value, exc_info=error)
         return None
+
+
+@job(JobName.RANK_RESERVE)
+async def rank_reserve(runtime: Runtime, event_id: str | None = None) -> None:
+    now = runtime.clock.now()
+    if event_id is None:
+        async with runtime.sessionmaker.begin() as session:
+            for target in await service.reserve_ranking_events(session):
+                await defer_job(session, runtime.jobs, JobName.RANK_RESERVE, event_id=str(target))
+        return None
+    try:
+        async with runtime.sessionmaker.begin() as session:
+            event = await session.get(models.Event, UUID(event_id))
+            if (
+                event is None
+                or not event.formation_enabled
+                or event.status != EventStatus.PUBLISHED.value
+            ):
+                return None
+            formation = await session.get(models.EventFormation, event.id)
+            if formation is None or FormationPhase(formation.phase) not in (
+                FormationPhase.REVIEW,
+                FormationPhase.LOCKED,
+            ):
+                return None
+            request = await service.build_reserve_request(session, event, formation, now)
+            if request is None:
+                return None
+            ctx = await runtime.algo_context(session)
+        ranked = await call_algo("rank_reserve", runtime.algorithm.rank_reserve(ctx, request))
+        async with runtime.sessionmaker.begin() as session:
+            await service.apply_reserve_ranking(
+                session,
+                UUID(event_id),
+                service.validated_reserve_ranking(
+                    [member.user_id for member in request.reserve], ranked
+                ),
+            )
+    except Exception as error:
+        runtime.log.warning("Rank reserve failed for %s", event_id, exc_info=error)
+        async with runtime.sessionmaker.begin() as session:
+            await service.apply_reserve_ranking(session, UUID(event_id), None)
+    return None
