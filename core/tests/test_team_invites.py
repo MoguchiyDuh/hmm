@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 from collections.abc import Sequence
 from datetime import datetime, timedelta
@@ -15,7 +16,7 @@ from hmm_contracts.common import (
 )
 from hmm_core import models
 from hmm_core.catalog import service as catalog
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from test_api_skeleton import assert_problem
 
 _titles = itertools.count(1)
@@ -479,3 +480,315 @@ async def test_invite_lists(harness: Harness) -> None:
     assert response.status_code == 200, response.text
     assert response.json()[0]["inviter"] is None
     assert response.json()[0]["invited_by"] is None
+
+
+async def accept(h: Harness, actor: models.User, invite_id: UUID) -> httpx.Response:
+    async with await h.client(actor) as c:
+        return await c.post(f"/api/v1/invites/{invite_id}/accept")
+
+
+async def live_members(h: Harness, *conditions: Any) -> list[models.ProjectMember]:
+    async with h.db() as session:
+        return list(
+            await session.scalars(
+                select(models.ProjectMember).where(
+                    models.ProjectMember.left_at.is_(None), *conditions
+                )
+            )
+        )
+
+
+async def enrollment_rows(
+    h: Harness, event: models.Event, user: models.User
+) -> list[models.Enrollment]:
+    async with h.db() as session:
+        return list(
+            await session.scalars(
+                select(models.Enrollment).where(
+                    models.Enrollment.event_id == event.id, models.Enrollment.user_id == user.id
+                )
+            )
+        )
+
+
+async def test_accept_core_invite(harness: Harness) -> None:
+    h = harness
+    areas = await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, other, invitee, second_lead = [await h.user() for _ in range(4)]
+    team = await seed_team(h, event, lead, members=[other])
+    second = await seed_team(h, event, second_lead, name="Second")
+    enrollment = await enroll(h, event, invitee)
+    async with h.db() as session:
+        await session.execute(
+            update(models.Enrollment)
+            .where(models.Enrollment.id == enrollment.id)
+            .values(willing_to_lead=True)
+        )
+    target = await seed_invite(h, team, invitee, lead)
+    async with h.db() as session:
+        await session.execute(
+            update(models.Invite)
+            .where(models.Invite.id == target.id)
+            .values(area_id=areas["backend"].id)
+        )
+        session.add(
+            models.JoinRequest(
+                project_id=second.id,
+                event_id=event.id,
+                user_id=invitee.id,
+                note="please",
+                status="pending",
+            )
+        )
+    rival = await seed_invite(h, second, invitee, second_lead)
+
+    response = await accept(h, invitee, target.id)
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "accepted"
+    assert datetime.fromisoformat(body["responded_at"]) == h.now
+    assert body["allowed_actions"] == []
+    assert body["closed_reason"] is None
+    assert datetime.fromisoformat(body["expires_at"]) == target.expires_at
+
+    [member] = await live_members(h, models.ProjectMember.user_id == invitee.id)
+    assert member.project_id == team.id
+    assert member.role == "member"
+    assert member.state == "confirmed"
+    assert member.is_team_row is True
+    assert member.joined_via == "core_invite"
+    assert member.area_id == areas["backend"].id
+    assert member.confirmed_at == h.now
+    assert member.confirm_by is None
+    [row] = await enrollment_rows(h, event, invitee)
+    assert row.status == "placed"
+    assert row.status_at == h.now
+    assert row.reserve_rank is None
+    assert row.preferred_area_id == areas["backend"].id
+    assert row.note == "hi"
+    assert row.willing_to_lead is True
+    async with h.db() as session:
+        closed = await session.get_one(models.Invite, rival.id)
+        request = await session.scalar(
+            select(models.JoinRequest).where(models.JoinRequest.user_id == invitee.id)
+        )
+    assert closed.status == "closed"
+    assert closed.closed_reason == "joined_team"
+    assert closed.responded_at == h.now
+    assert request is not None
+    assert request.status == "closed"
+    assert request.responded_at == h.now
+    assert len(await notifications_for(h, lead, "invite_accepted")) == 1
+    [closed_notice] = await notifications_for(h, second_lead, "invite_closed")
+    assert cast(dict[str, Any], closed_notice.payload)["reason"]
+    assert len(await h.pending_jobs("refresh_recommendations")) == 2
+    assert await h.pending_jobs("rank_reserve") == []
+
+
+async def test_accept_without_live_enrollment(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, withdrawn, fresh = await h.user(), await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    stored = await enroll(h, event, withdrawn, status="withdrawn")
+    first = await seed_invite(h, team, withdrawn, lead)
+    second = await seed_invite(h, team, fresh, lead)
+
+    assert (await accept(h, withdrawn, first.id)).status_code == 200
+    [row] = await enrollment_rows(h, event, withdrawn)
+    assert row.id == stored.id
+    assert row.status == "placed"
+    assert row.status_at == h.now
+    assert row.source == "self"
+
+    assert (await accept(h, fresh, second.id)).status_code == 200
+    [created] = await enrollment_rows(h, event, fresh)
+    assert created.status == "placed"
+    assert created.source == "invite"
+
+
+async def test_accept_fill_from_reserve(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, a, b, invitee = [await h.user() for _ in range(4)]
+    team = await seed_team(h, event, lead, team_status="review", members=[a, b])
+    enrollment = await enroll(h, event, invitee, status="reserve")
+    async with h.db() as session:
+        await session.execute(
+            update(models.Enrollment)
+            .where(models.Enrollment.id == enrollment.id)
+            .values(reserve_rank=2)
+        )
+    fill = await seed_invite(h, team, invitee, lead, kind="fill")
+
+    assert (await accept(h, invitee, fill.id)).status_code == 200
+    [member] = await live_members(h, models.ProjectMember.user_id == invitee.id)
+    assert member.joined_via == "fill_invite"
+    [row] = await enrollment_rows(h, event, invitee)
+    assert row.status == "placed"
+    assert row.reserve_rank is None
+    [job] = await h.pending_jobs("rank_reserve")
+    assert job["args"]["event_id"] == str(event.id)
+    assert len(await h.pending_jobs("refresh_recommendations")) == 1
+
+
+async def test_accept_retry(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, invitee = await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    target = await seed_invite(h, team, invitee, lead)
+
+    first = await accept(h, invitee, target.id)
+    assert first.status_code == 200, first.text
+    jobs = len(await h.pending_jobs())
+    second = await accept(h, invitee, target.id)
+    assert second.status_code == 200, second.text
+    assert second.json() == first.json()
+    assert len(await live_members(h, models.ProjectMember.user_id == invitee.id)) == 1
+    assert len(await notifications_for(h, lead, "invite_accepted")) == 1
+    assert len(await h.pending_jobs()) == jobs
+
+
+async def test_accept_gates(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h, team_size_max=5)
+    lead, invitee = await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+
+    expired = await seed_invite(h, team, invitee, lead, expires_in=timedelta(seconds=-1))
+    assert_problem(await accept(h, invitee, expired.id), 409, ErrorCode.INVALID_STATE)
+    async with h.db() as session:
+        assert (await session.get_one(models.Invite, expired.id)).status == "pending"
+        await session.execute(delete(models.Invite).where(models.Invite.id == expired.id))
+
+    target = await seed_invite(h, team, invitee, lead)
+    await set_formation(h, event, phase="forming")
+    assert_problem(await accept(h, invitee, target.id), 409, ErrorCode.FORMATION_IN_PROGRESS)
+    await set_formation(h, event, phase="open")
+
+    async with h.db() as session:
+        await session.execute(
+            update(models.Project)
+            .where(models.Project.id == team.id)
+            .values(team_status="disbanded")
+        )
+    assert_problem(await accept(h, invitee, target.id), 409, ErrorCode.INVALID_STATE)
+    async with h.db() as session:
+        await session.execute(
+            update(models.Project).where(models.Project.id == team.id).values(team_status="forming")
+        )
+
+    full_lead = await h.user()
+    full = await seed_team(
+        h, event, full_lead, members=[await h.user() for _ in range(4)], name="Full"
+    )
+    full_invite = await seed_invite(h, full, invitee, full_lead)
+    assert_problem(await accept(h, invitee, full_invite.id), 409, ErrorCode.TEAM_FULL)
+
+    taken = await h.user()
+    await seed_team(h, event, await h.user(), members=[taken], name="Taken")
+    taken_invite = await seed_invite(h, team, taken, lead)
+    assert_problem(await accept(h, taken, taken_invite.id), 409, ErrorCode.ALREADY_IN_TEAM)
+
+    assert_problem(await accept(h, await h.user(), target.id), 403, ErrorCode.FORBIDDEN)
+    assert_problem(await accept(h, lead, target.id), 403, ErrorCode.FORBIDDEN)
+    assert_problem(await accept(h, invitee, uuid4()), 404, ErrorCode.NOT_FOUND)
+    async with h.anonymous() as c:
+        response = await c.post(f"/api/v1/invites/{target.id}/accept")
+    assert_problem(response, 401, ErrorCode.UNAUTHENTICATED)
+
+
+async def test_accept_terminal_and_dnd(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, declined_user, withdrawn_user, dnd_user = [await h.user() for _ in range(4)]
+    team = await seed_team(h, event, lead)
+    declined = await seed_invite(h, team, declined_user, lead, status="declined")
+    withdrawn = await seed_invite(h, team, withdrawn_user, lead, status="withdrawn")
+    assert_problem(await accept(h, declined_user, declined.id), 409, ErrorCode.INVALID_STATE)
+    assert_problem(await accept(h, withdrawn_user, withdrawn.id), 409, ErrorCode.INVALID_STATE)
+
+    target = await seed_invite(h, team, dnd_user, lead)
+    async with h.db() as session:
+        await session.execute(
+            update(models.User).where(models.User.id == dnd_user.id).values(dnd_indefinite=True)
+        )
+    response = await accept(h, dnd_user, target.id)
+    assert response.status_code == 200, response.text
+
+
+async def test_accept_standalone_invite(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    lead, member = await h.user(), await h.user()
+    project = await seed_standalone(h, lead)
+    target = await seed_invite(h, project, member, lead, kind="project")
+    response = await accept(h, member, target.id)
+    assert response.status_code == 200, response.text
+    [row] = await live_members(h, models.ProjectMember.user_id == member.id)
+    assert row.is_team_row is False
+    assert row.event_id is None
+    assert row.joined_via == "invite"
+    assert row.state == "confirmed"
+    assert await count(h, models.Enrollment, models.Enrollment.user_id == member.id) == 0
+    assert await h.pending_jobs() == []
+    assert len(await notifications_for(h, lead, "invite_accepted")) == 1
+
+    full_lead = await h.user()
+    full = await seed_standalone(h, full_lead, members=[await h.user() for _ in range(19)])
+    outsider = await h.user()
+    full_invite = await seed_invite(h, full, outsider, full_lead, kind="project")
+    assert_problem(await accept(h, outsider, full_invite.id), 409, ErrorCode.PROJECT_FULL)
+
+
+async def test_accept_prevents_double_booking(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, other_lead, member = await h.user(), await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    other = await seed_team(h, event, other_lead, name="Other")
+    target = await seed_invite(h, team, member, lead)
+    rival = await seed_invite(h, other, member, other_lead)
+
+    assert (await accept(h, member, target.id)).status_code == 200
+    async with h.db() as session:
+        assert (await session.get_one(models.Invite, rival.id)).status == "closed"
+    assert_problem(await accept(h, member, rival.id), 409, ErrorCode.INVALID_STATE)
+    rows = await live_members(
+        h, models.ProjectMember.user_id == member.id, models.ProjectMember.event_id == event.id
+    )
+    assert len(rows) == 1
+
+
+async def test_accept_concurrency(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    lead, invitee = await h.user(), await h.user()
+    team = await seed_team(h, event, lead)
+    target = await seed_invite(h, team, invitee, lead)
+    first, second = await asyncio.gather(
+        accept(h, invitee, target.id), accept(h, invitee, target.id)
+    )
+    assert (first.status_code, second.status_code) == (200, 200)
+    assert len(await live_members(h, models.ProjectMember.user_id == invitee.id)) == 1
+    assert len(await notifications_for(h, lead, "invite_accepted")) == 1
+
+    small = await make_hackathon(h, team_size_max=4)
+    small_lead, a, b, x, y = [await h.user() for _ in range(5)]
+    crowded = await seed_team(h, small, small_lead, members=[a, b])
+    invite_x = await seed_invite(h, crowded, x, small_lead)
+    invite_y = await seed_invite(h, crowded, y, small_lead)
+    results = await asyncio.gather(accept(h, x, invite_x.id), accept(h, y, invite_y.id))
+    assert sorted(response.status_code for response in results) == [200, 409]
+    [failed] = [response for response in results if response.status_code == 409]
+    assert_problem(failed, 409, ErrorCode.TEAM_FULL)
+    assert len(await live_members(h, models.ProjectMember.project_id == crowded.id)) == 4

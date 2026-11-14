@@ -1,6 +1,5 @@
 UNIMPLEMENTED_OPERATIONS = set(
     [
-        "formation_accept_invite",
         "formation_accept_join_request",
         "formation_accept_lead_offer",
         "formation_accept_merge",

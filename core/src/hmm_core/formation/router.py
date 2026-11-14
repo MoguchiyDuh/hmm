@@ -269,8 +269,11 @@ async def list_my_invites(
 
 
 @router.post("/invites/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept an invite")
-async def accept_invite(id: InviteId, actor: MemberAuth) -> Invite:
-    not_implemented()
+async def accept_invite(
+    id: InviteId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Invite:
+    invite = await service.accept_invite(session, request.app.state.jobs, id, actor, clock.now())
+    return (await service.invite_views(session, [invite], actor))[0]
 
 
 @router.post("/invites/{id}/decline", status_code=status.HTTP_200_OK, summary="Decline an invite")

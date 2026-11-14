@@ -38,6 +38,8 @@ from hmm_contracts.notifications import (
     ActionKey,
     ApiAction,
     FormationRescheduledPayload,
+    InviteAcceptedPayload,
+    InviteClosedPayload,
     InviteReceivedPayload,
     NotificationPerson,
     ProjectInviteReceivedPayload,
@@ -1921,3 +1923,206 @@ async def list_my_invites(
         statement = statement.where(models.Invite.status == status.value)
     statement = statement.order_by(models.Invite.created_at.desc(), models.Invite.id.desc())
     return await invite_views(session, list(await session.scalars(statement)), actor)
+
+
+async def close_invitee_items(
+    session: AsyncSession,
+    event: models.Event,
+    invitee: models.User,
+    now: datetime,
+    *,
+    closed_reason: str,
+    notified_reason: str,
+    keep: UUID | None,
+) -> None:
+    statement = select(models.Invite).where(
+        models.Invite.event_id == event.id,
+        models.Invite.user_id == invitee.id,
+        models.Invite.status == InviteStatus.PENDING.value,
+    )
+    if keep is not None:
+        statement = statement.where(models.Invite.id != keep)
+    closing = list(await session.scalars(statement))
+    await close_event_pending_items(session, event.id, invitee.id, now, reason=closed_reason)
+    if not closing:
+        return None
+    projects_by_id = {
+        project.id: project
+        for project in await session.scalars(
+            select(models.Project).where(
+                models.Project.id.in_({invite.project_id for invite in closing})
+            )
+        )
+    }
+    for invite in closing:
+        project = projects_by_id[invite.project_id]
+        recipient = project.lead_user_id or invite.invited_by
+        if recipient is None:
+            continue
+        await notify(
+            session,
+            recipient,
+            InviteClosedPayload(
+                link=f"/projects/{invite.project_id}",
+                project_id=invite.project_id,
+                project_name=project.name,
+                invite_id=invite.id,
+                kind=InviteKind(invite.kind),
+                actor=notification_person(invitee),
+                invitee=notification_person(invitee),
+                expires_at=invite.expires_at,
+                event_id=event.id,
+                event_title=event.title,
+                reason=notified_reason,
+            ),
+            now,
+            dedupe_key=f"invite_closed:{invite.id}",
+        )
+    return None
+
+
+async def accept_invite(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    invite_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> models.Invite:
+    invite, project, event, formation = await invite_context(session, invite_id, actor)
+    if actor.id != invite.user_id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if invite.status == InviteStatus.ACCEPTED.value:
+        return invite
+    if invite.status != InviteStatus.PENDING.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This invite is no longer pending")
+    if now >= invite.expires_at:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This invite has expired")
+    settings = await load_settings(session)
+    live_count_query = (
+        select(func.count())
+        .select_from(models.ProjectMember)
+        .where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.left_at.is_(None),
+        )
+    )
+    if event is not None and formation is not None:
+        if FormationPhase(formation.phase) == FormationPhase.FORMING:
+            raise ProblemError(
+                ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly"
+            )
+        if project.team_status not in (
+            TeamStatus.FORMING.value,
+            TeamStatus.REVIEW.value,
+            TeamStatus.LOCKED.value,
+        ):
+            raise ProblemError(ErrorCode.INVALID_STATE, "This team is no longer accepting members")
+        if await live_membership(session, event.id, actor.id) is not None:
+            raise ProblemError(
+                ErrorCode.ALREADY_IN_TEAM, "You are already on a team for this event"
+            )
+        sizes = formation_sizes(event, formation, settings)
+        live_count = await session.scalar(live_count_query) or 0
+        if live_count >= sizes.max_size:
+            raise ProblemError(ErrorCode.TEAM_FULL, f"Team has reached max size {sizes.max_size}")
+    else:
+        if project.status in (
+            ProjectStatus.ABANDONED.value,
+            ProjectStatus.DISBANDED.value,
+            ProjectStatus.CANCELLED.value,
+        ):
+            raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
+        member = await session.scalar(
+            select(models.ProjectMember.id).where(
+                models.ProjectMember.project_id == project.id,
+                models.ProjectMember.user_id == actor.id,
+                models.ProjectMember.left_at.is_(None),
+            )
+        )
+        if member is not None:
+            raise ProblemError(ErrorCode.INVALID_STATE, "You are already a member of this project")
+        member_count = await session.scalar(live_count_query) or 0
+        if member_count >= settings.project_size_max:
+            raise ProblemError(
+                ErrorCode.PROJECT_FULL, f"Project has reached max size {settings.project_size_max}"
+            )
+    invite.status = InviteStatus.ACCEPTED.value
+    invite.responded_at = now
+    joined_via = {
+        InviteKind.CORE.value: JoinedVia.CORE_INVITE.value,
+        InviteKind.FILL.value: JoinedVia.FILL_INVITE.value,
+    }.get(invite.kind, JoinedVia.INVITE.value)
+    session.add(
+        models.ProjectMember(
+            project_id=project.id,
+            event_id=event.id if event is not None else None,
+            user_id=actor.id,
+            role=MemberRole.MEMBER.value,
+            area_id=invite.area_id,
+            state=MemberState.CONFIRMED.value,
+            trust=Trust.SELF.value,
+            joined_via=joined_via,
+            proposal_reason=None,
+            confirm_by=None,
+            confirm_kind=None,
+            is_team_row=event is not None,
+            joined_at=now,
+            confirmed_at=now,
+        )
+    )
+    reserve = False
+    if event is not None:
+        enrollment = await live_enrollment_row(session, event.id, actor.id, for_update=True)
+        if enrollment is None:
+            enrollment = await latest_terminal_enrollment(
+                session, event.id, actor.id, for_update=True
+            )
+        if enrollment is None:
+            enrollment = models.Enrollment(
+                event_id=event.id,
+                user_id=actor.id,
+                source=EnrollmentSource.INVITE.value,
+                willing_to_lead=False,
+            )
+            session.add(enrollment)
+        else:
+            reserve = enrollment.status == EnrollmentStatus.RESERVE.value
+        enrollment.status = EnrollmentStatus.PLACED.value
+        enrollment.status_at = now
+        enrollment.reserve_rank = None
+    await session.flush()
+    if event is not None:
+        await close_invitee_items(
+            session,
+            event,
+            actor,
+            now,
+            closed_reason="joined_team",
+            notified_reason="The invitee joined another team",
+            keep=invite.id,
+        )
+    recipient = project.lead_user_id or invite.invited_by
+    if recipient is not None:
+        await notify(
+            session,
+            recipient,
+            InviteAcceptedPayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                invite_id=invite.id,
+                kind=InviteKind(invite.kind),
+                actor=notification_person(actor),
+                invitee=notification_person(actor),
+                expires_at=invite.expires_at,
+                event_id=event.id if event is not None else None,
+                event_title=event.title if event is not None else None,
+            ),
+            now,
+            dedupe_key=f"invite_accepted:{invite.id}",
+        )
+    if event is not None:
+        await enqueue_participation_jobs(session, jobs, event.id, reserve=reserve)
+    await session.flush()
+    await session.refresh(invite)
+    return invite
