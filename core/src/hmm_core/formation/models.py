@@ -200,7 +200,9 @@ class FormationRun(Mutable, Base):
     status: Mapped[str] = mapped_column(Text, nullable=False)
     planner: Mapped[str] = mapped_column(Text, nullable=False)
     input: Mapped[JsonValue] = mapped_column(JSONB, nullable=False)
-    output: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
-    validation_errors: Mapped[JsonValue | None] = mapped_column(JSONB, nullable=True)
+    output: Mapped[JsonValue | None] = mapped_column(JSONB(none_as_null=True), nullable=True)
+    validation_errors: Mapped[JsonValue | None] = mapped_column(
+        JSONB(none_as_null=True), nullable=True
+    )
     algo_version: Mapped[str] = mapped_column(Text, nullable=False)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
