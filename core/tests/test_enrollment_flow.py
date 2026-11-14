@@ -814,3 +814,204 @@ async def test_concurrent_identical_enrolls(harness: Harness) -> None:
         )
     assert live == 1
     assert len(await attendance_rows(h, event)) == 1
+
+
+def enrollments_url(event_id: Any) -> str:
+    return f"/api/v1/events/{event_id}/enrollments"
+
+
+async def join_team(
+    h: Harness, team: models.Project, event: models.Event, user: models.User
+) -> None:
+    async with h.db() as session:
+        session.add(
+            models.ProjectMember(
+                project_id=team.id,
+                event_id=event.id,
+                user_id=user.id,
+                role=MemberRole.MEMBER,
+                state=MemberState.CONFIRMED,
+                trust=Trust.SELF,
+                joined_via=JoinedVia.ADMIN,
+                is_team_row=True,
+                joined_at=h.now,
+            )
+        )
+
+
+async def test_list_enrollments_roster(harness: Harness) -> None:
+    h = harness
+    areas = await h.seed_areas(("backend",))
+    first = await h.user()
+    second = await h.user()
+    third = await h.user()
+    viewer = await h.user()
+    event = await make_hackathon(h)
+    team = await make_team(h, event, 1)
+    await enroll(h, event, first)
+    await enroll(h, event, second, willing_to_lead=True, preferred_area_id=areas["backend"].id)
+    await enroll(h, event, third, EnrollmentStatus.PLACED)
+    await join_team(h, team, event, third)
+    async with await h.client(viewer) as c:
+        response = await c.get(enrollments_url(event.id))
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["next_cursor"] is None
+    items = body["items"]
+    assert [item["user"]["id"] for item in items] == [str(first.id), str(second.id), str(third.id)]
+    assert [item["user"]["display_name"] for item in items] == [
+        first.display_name,
+        second.display_name,
+        third.display_name,
+    ]
+    assert [item["preferred_area_key"] for item in items] == [None, "backend", None]
+    assert [item["willing_to_lead"] for item in items] == [False, True, False]
+    assert [item["team"] for item in items[:2]] == [None, None]
+    assert items[2]["team"]["id"] == str(team.id)
+    assert items[2]["team"]["team_status"] == "forming"
+    assert all(item["allowed_actions"] == [] for item in items)
+
+
+async def test_list_enrollments_top_scores(harness: Harness) -> None:
+    h = harness
+    areas = await h.seed_areas(("backend", "frontend", "mobile", "data", "design"))
+    member = await h.user()
+    event = await make_hackathon(h)
+    await enroll(h, event, member)
+    async with h.db() as session:
+        await session.execute(
+            update(models.Area)
+            .where(models.Area.id == areas["design"].id)
+            .values(archived_at=h.now)
+        )
+        for key, calculated, override in (
+            ("backend", "8.0", None),
+            ("frontend", "2.0", "6.5"),
+            ("mobile", "3.0", None),
+            ("data", "9.0", None),
+            ("design", "10.0", None),
+        ):
+            session.add(
+                models.AreaScore(
+                    user_id=member.id,
+                    area_id=areas[key].id,
+                    calculated=Decimal(calculated),
+                    calc_reason=f"calc {key}",
+                    override=Decimal(override) if override else None,
+                    override_reason="admin bump" if override else None,
+                    override_at=h.now if override else None,
+                )
+            )
+    async with await h.client(member) as c:
+        response = await c.get(enrollments_url(event.id))
+    assert response.status_code == 200, response.text
+    [item] = response.json()["items"]
+    assert item["top_scores"] == [
+        {"area_key": "data", "effective": 9.0, "reason": "calc data"},
+        {"area_key": "backend", "effective": 8.0, "reason": "calc backend"},
+        {"area_key": "frontend", "effective": 6.5, "reason": "admin bump"},
+    ]
+    assert item["allowed_actions"] == ["edit", "withdraw"]
+
+
+async def test_list_enrollments_cursor(harness: Harness) -> None:
+    h = harness
+    viewer = await h.user()
+    event = await make_hackathon(h)
+    users = [await h.user() for _ in range(3)]
+    for user in users:
+        await enroll(h, event, user)
+    seen: list[str] = []
+    cursor: str | None = None
+    async with await h.client(viewer) as c:
+        for _ in range(3):
+            params: dict[str, Any] = {"limit": 1}
+            if cursor is not None:
+                params["cursor"] = cursor
+            response = await c.get(enrollments_url(event.id), params=params)
+            assert response.status_code == 200, response.text
+            body = response.json()
+            assert len(body["items"]) == 1
+            seen.append(body["items"][0]["user"]["id"])
+            cursor = body["next_cursor"]
+            if len(seen) < 3:
+                assert cursor is not None
+        assert cursor is None
+        response = await c.get(enrollments_url(event.id), params={"cursor": "not-a-cursor"})
+        assert_problem(response, 400, ErrorCode.BAD_REQUEST)
+    assert seen == [str(user.id) for user in users]
+
+
+async def test_list_enrollments_excludes_terminal(harness: Harness) -> None:
+    h = harness
+    viewer = await h.user()
+    event = await make_hackathon(h)
+    for status in (EnrollmentStatus.WITHDRAWN, EnrollmentStatus.LAPSED, EnrollmentStatus.EXPIRED):
+        await enroll(h, event, await h.user(), status)
+    reserve = await h.user()
+    await enroll(h, event, reserve, EnrollmentStatus.RESERVE, reserve_rank=1)
+    async with await h.client(viewer) as c:
+        response = await c.get(enrollments_url(event.id))
+    assert response.status_code == 200, response.text
+    items = response.json()["items"]
+    assert [(item["user"]["id"], item["status"], item["reserve_rank"]) for item in items] == [
+        (str(reserve.id), "reserve", 1)
+    ]
+
+
+async def test_list_my_enrollments(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    reservist = await h.user()
+    first = await make_hackathon(h)
+    second = await make_hackathon(h)
+    third = await make_hackathon(h)
+    await enroll(h, second, member, EnrollmentStatus.WITHDRAWN)
+    h.advance(timedelta(hours=1))
+    active = await enroll(h, first, member)
+    await enroll(h, third, reservist, EnrollmentStatus.RESERVE, reserve_rank=1)
+    await enroll(h, third, reservist, EnrollmentStatus.WITHDRAWN)
+    async with await h.client(member) as c:
+        response = await c.get("/api/v1/me/enrollments")
+    assert response.status_code == 200, response.text
+    items = response.json()
+    assert [(item["event_id"], item["status"]) for item in items] == [
+        (str(first.id), "active"),
+        (str(second.id), "withdrawn"),
+    ]
+    assert items[0]["id"] == str(active.id)
+    assert all(item["user"]["id"] == str(member.id) for item in items)
+    async with await h.client(reservist) as c:
+        response = await c.get("/api/v1/me/enrollments", params={"status": "reserve"})
+        assert response.status_code == 200, response.text
+        assert [(item["event_id"], item["status"]) for item in response.json()] == [
+            (str(third.id), "reserve")
+        ]
+        assert_problem(
+            await c.get("/api/v1/me/enrollments", params={"status": "bogus"}),
+            422,
+            ErrorCode.VALIDATION_ERROR,
+        )
+
+
+async def test_list_enrollments_visibility_and_auth(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    pending = await h.user(onboarded=False)
+    admin = await h.admin()
+    conference = await make_hackathon(h, kind=EventKind.CONFERENCE)
+    draft = await make_hackathon(h)
+    await set_status(h, draft, EventStatus.DRAFT)
+    async with await h.client(member) as c:
+        for target in (conference.id, draft.id, uuid4()):
+            assert_problem(await c.get(enrollments_url(target)), 404, ErrorCode.NOT_FOUND)
+    async with await h.client(admin) as c:
+        response = await c.get(enrollments_url(draft.id))
+    assert response.status_code == 200, response.text
+    assert response.json() == {"items": [], "next_cursor": None}
+    async with h.anonymous() as c:
+        assert_problem(await c.get(enrollments_url(draft.id)), 401, ErrorCode.UNAUTHENTICATED)
+        assert_problem(await c.get("/api/v1/me/enrollments"), 401, ErrorCode.UNAUTHENTICATED)
+    async with await h.client(pending) as c:
+        assert_problem(await c.get(enrollments_url(draft.id)), 403, ErrorCode.ONBOARDING_REQUIRED)
+        assert_problem(await c.get("/api/v1/me/enrollments"), 403, ErrorCode.ONBOARDING_REQUIRED)

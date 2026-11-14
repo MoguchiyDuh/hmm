@@ -117,8 +117,10 @@ async def list_enrollments(
     id: EventId,
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
 ) -> EnrollmentPage:
-    not_implemented()
+    return await service.list_enrollments(session, id, actor, pagination, clock.now())
 
 
 @router.get("/events/{id}/reserve", status_code=status.HTTP_200_OK, summary="List ranked reserve")
@@ -129,9 +131,11 @@ async def list_reserve(id: EventId, actor: MemberAuth) -> list[Enrollment]:
 @router.get("/me/enrollments", status_code=status.HTTP_200_OK, summary="List my enrollments")
 async def list_my_enrollments(
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     status: Annotated[EnrollmentStatus | None, Query()] = None,
 ) -> list[Enrollment]:
-    not_implemented()
+    return await service.list_my_enrollments(session, actor, status, clock.now())
 
 
 @router.get("/events/{id}/lead-fit/me", status_code=status.HTTP_200_OK, summary="Get my lead fit")

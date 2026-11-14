@@ -30,6 +30,7 @@ from hmm_core.attendance import service as attendance
 from hmm_core.formation import schemas
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
+from hmm_core.platform.pagination import CursorParams, keyset_page
 from hmm_core.platform.schemas import AreaScoreSummary, EventRef, ProjectRef, UserRef
 from hmm_core.platform.settings import RuntimeSettings, load_settings
 from hmm_core.projects import schemas as project_schemas
@@ -857,3 +858,42 @@ async def withdraw_enrollment(
     await enqueue_participation_jobs(session, jobs, event_id, reserve=reserve)
     await session.flush()
     return None
+
+
+async def list_enrollments(
+    session: AsyncSession,
+    event_id: UUID,
+    actor: models.User,
+    pagination: CursorParams,
+    now: datetime,
+) -> schemas.EnrollmentPage:
+    event = await formation_event(session, event_id, actor)
+    if not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    statement = select(models.Enrollment).where(
+        models.Enrollment.event_id == event_id,
+        models.Enrollment.status.in_(sorted(member.value for member in LIVE_ENROLLMENT_STATES)),
+    )
+    page = await keyset_page(
+        session,
+        statement,
+        pagination,
+        sort=[models.Enrollment.created_at],
+        id_column=models.Enrollment.id,
+        serialize=lambda row: row,
+        descending=False,
+    )
+    return schemas.EnrollmentPage(
+        items=await enrollment_views(session, page.items, actor, now),
+        next_cursor=page.next_cursor,
+    )
+
+
+async def list_my_enrollments(
+    session: AsyncSession, actor: models.User, status: EnrollmentStatus | None, now: datetime
+) -> list[schemas.Enrollment]:
+    statement = select(models.Enrollment).where(models.Enrollment.user_id == actor.id)
+    if status is not None:
+        statement = statement.where(models.Enrollment.status == status.value)
+    statement = statement.order_by(models.Enrollment.status_at.desc(), models.Enrollment.id.desc())
+    return await enrollment_views(session, list(await session.scalars(statement)), actor, now)
