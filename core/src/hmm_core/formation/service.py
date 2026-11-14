@@ -60,6 +60,7 @@ from hmm_contracts.notifications import (
     ActionKey,
     AlertKind,
     ApiAction,
+    FormationReadyPayload,
     FormationRescheduledPayload,
     InviteAcceptedPayload,
     InviteClosedPayload,
@@ -73,11 +74,15 @@ from hmm_contracts.notifications import (
     LeadOfferPayload,
     LeadSteppedDownPayload,
     LeadTransferredPayload,
+    MergeProposedPayload,
     NotificationPerson,
     ProjectInviteReceivedPayload,
     ProjectJoinRequestReceivedPayload,
+    ReservePlacedPayload,
     TeamDisbandedPayload,
     TeamMemberLeftPayload,
+    TeamProposedPayload,
+    TeamReconfirmPayload,
 )
 from pydantic import JsonValue
 from sqlalchemy import Select, exists, func, or_, select, update
@@ -4633,6 +4638,7 @@ async def apply_plan(
         else {}
     )
     placed_ids: set[UUID] = set()
+    project_ids: list[UUID] = []
     for index, team in enumerate(plan.teams, start=1):
         if team.project_id is not None:
             project = await session.scalar(
@@ -4672,6 +4678,7 @@ async def apply_plan(
             session.add(project)
             await session.flush()
             confirm_by = project.review_ends_at or team_review
+        project_ids.append(project.id)
         rows: dict[UUID, models.ProjectMember] = {
             row.user_id: row
             for row in await session.scalars(
@@ -4794,4 +4801,238 @@ async def apply_plan(
         reason=None,
     )
     await enqueue_participation_jobs(session, jobs, event.id, reserve=bool(plan.reserve))
+    await notify_formation(session, event, formation, run, request, plan, project_ids, now)
     return True
+
+
+async def _live_team_rows(session: AsyncSession, project_id: UUID) -> list[models.ProjectMember]:
+    return list(
+        await session.scalars(
+            select(models.ProjectMember)
+            .where(
+                models.ProjectMember.project_id == project_id,
+                models.ProjectMember.left_at.is_(None),
+                models.ProjectMember.is_team_row.is_(True),
+            )
+            .order_by(models.ProjectMember.joined_at, models.ProjectMember.id)
+        )
+    )
+
+
+async def _users_by_id(session: AsyncSession, user_ids: set[UUID]) -> dict[UUID, models.User]:
+    if not user_ids:
+        return {}
+    return {
+        user.id: user
+        for user in await session.scalars(select(models.User).where(models.User.id.in_(user_ids)))
+    }
+
+
+async def notify_formation(
+    session: AsyncSession,
+    event: models.Event,
+    formation: models.EventFormation,
+    run: models.FormationRun,
+    request: FormationRequest,
+    plan: FormationPlan,
+    project_ids: Sequence[UUID],
+    now: datetime,
+) -> None:
+    rerun = run.kind == FormationKind.MAIN.value and run.round > 1
+    existing = {(core.project_id, core.lead.user_id) for core in request.cores} | {
+        (core.project_id, member.user_id) for core in request.cores for member in core.members
+    }
+    for index, team in enumerate(plan.teams):
+        project = await session.get(models.Project, project_ids[index])
+        if project is None:
+            continue
+        rows = await _live_team_rows(session, project.id)
+        users = await _users_by_id(session, {row.user_id for row in rows})
+        people = tuple(notification_person(users[row.user_id]) for row in rows)
+        proposed_count = sum(1 for row in rows if row.state == MemberState.PROPOSED.value)
+        confirmed_count = len(rows) - proposed_count
+        area_ids = {row.area_id for row in rows if row.area_id is not None}
+        area_keys: dict[UUID, str] = (
+            {
+                area_id: key
+                for area_id, key in await session.execute(
+                    select(models.Area.id, models.Area.key).where(models.Area.id.in_(area_ids))
+                )
+            }
+            if area_ids
+            else {}
+        )
+        planned = {member.user_id for member in team.members}
+        for row in rows:
+            if row.user_id not in planned or row.confirm_by is None:
+                continue
+            if rerun and row.state == MemberState.CONFIRMED.value:
+                continue
+            confirm_by = row.confirm_by
+            link = f"/projects/{project.id}"
+            if (project.id, row.user_id) in existing:
+                if row.user_id == project.lead_user_id:
+                    await notify(
+                        session,
+                        row.user_id,
+                        FormationReadyPayload(
+                            link=link,
+                            event_id=event.id,
+                            event_title=event.title,
+                            project_id=project.id,
+                            team_name=project.name,
+                            project_member_id=row.id,
+                            confirm_by=confirm_by,
+                            timezone=event.timezone,
+                            members=people,
+                            proposed_count=proposed_count,
+                            confirmed_count=confirmed_count,
+                        ),
+                        now,
+                        dedupe_key=f"formation_ready:{row.id}:{run.id}:{row.user_id}",
+                    )
+                else:
+                    await notify(
+                        session,
+                        row.user_id,
+                        TeamReconfirmPayload(
+                            link=link,
+                            event_id=event.id,
+                            event_title=event.title,
+                            project_id=project.id,
+                            team_name=project.name,
+                            project_member_id=row.id,
+                            confirm_by=confirm_by,
+                            timezone=event.timezone,
+                            members=people,
+                        ),
+                        now,
+                        dedupe_key=f"team_reconfirm:{row.id}:{run.id}:{row.user_id}",
+                    )
+                continue
+            await notify(
+                session,
+                row.user_id,
+                TeamProposedPayload(
+                    link=link,
+                    event_id=event.id,
+                    event_title=event.title,
+                    project_id=project.id,
+                    team_name=project.name,
+                    project_member_id=row.id,
+                    confirm_by=confirm_by,
+                    timezone=event.timezone,
+                    members=people,
+                    proposal_reason=row.proposal_reason or "",
+                    area_key=area_keys.get(row.area_id) if row.area_id is not None else None,
+                ),
+                now,
+                dedupe_key=f"team_proposed:{row.id}:{run.id}:{row.user_id}",
+            )
+    for ranked in plan.reserve:
+        await notify(
+            session,
+            ranked.user_id,
+            ReservePlacedPayload(
+                link=f"/events/{event.id}/formation",
+                event_id=event.id,
+                event_title=event.title,
+                rank=ranked.rank,
+                reserve_count=len(plan.reserve),
+            ),
+            now,
+            dedupe_key=f"reserve_placed:{run.id}:{ranked.user_id}",
+        )
+    sizes = {team.project_id: len(team.members) for team in plan.teams if team.project_id}
+    for core in request.cores:
+        size = sizes.get(core.project_id)
+        if size is None or size >= request.viable:
+            continue
+        project = await session.get(models.Project, core.project_id)
+        if project is None:
+            continue
+        await raise_alert(
+            session,
+            AlertKind.FORMATION_UNDERSIZED,
+            now,
+            title=f"Core below viable size: {project.name}",
+            message=f"{size} of {request.viable} members after formation",
+            link=f"/admin/events/{event.id}/formation",
+            subject_type="project",
+            subject_id=project.id,
+            subject_title=project.name,
+            dedupe_key=f"formation_undersized:{project.id}:{run.round}",
+        )
+    proposals = list(
+        await session.scalars(
+            select(models.MergeProposal)
+            .where(
+                models.MergeProposal.run_id == run.id,
+                models.MergeProposal.status == MergeProposalStatus.PENDING.value,
+            )
+            .order_by(models.MergeProposal.created_at, models.MergeProposal.id)
+        )
+    )
+    for proposal in proposals:
+        absorbed = await session.get(models.Project, proposal.absorbed_team_id)
+        target = await session.get(models.Project, proposal.target_team_id)
+        if absorbed is None or target is None:
+            continue
+        absorbed_rows = await _live_team_rows(session, absorbed.id)
+        target_rows = await _live_team_rows(session, target.id)
+        users = await _users_by_id(
+            session,
+            {row.user_id for row in target_rows}
+            | ({target.lead_user_id} if target.lead_user_id is not None else set()),
+        )
+        target_lead = users.get(target.lead_user_id) if target.lead_user_id is not None else None
+        if target_lead is None:
+            order = await lead_order(session, target, now)
+            target_lead = order[0].user if order else None
+        if target_lead is None:
+            continue
+        merged_size = len(absorbed_rows) + len(target_rows)
+        if merged_size < 1:
+            continue
+        members = tuple(notification_person(users[row.user_id]) for row in target_rows)
+        expires_at = target.review_ends_at or formation.review_ends_at or event.starts_at
+        reason = next(
+            (
+                merge.reason
+                for merge in plan.merges
+                if merge.absorbed_team_id == proposal.absorbed_team_id
+                and merge.target_team_id == proposal.target_team_id
+            ),
+            "Undersized teams fit together",
+        )
+        recipients = [
+            (lead_id, project)
+            for lead_id, project in (
+                (absorbed.lead_user_id, absorbed),
+                (target.lead_user_id, target),
+            )
+            if lead_id is not None
+        ]
+        for lead_id, project in recipients:
+            await notify(
+                session,
+                lead_id,
+                MergeProposedPayload(
+                    link=f"/projects/{project.id}",
+                    event_id=event.id,
+                    event_title=event.title,
+                    project_id=project.id,
+                    team_name=project.name,
+                    merge_proposal_id=proposal.id,
+                    target_project_id=target.id,
+                    target_team_name=target.name,
+                    target_lead=notification_person(target_lead),
+                    members=members,
+                    merged_size=merged_size,
+                    expires_at=expires_at,
+                    reason=reason,
+                ),
+                now,
+                dedupe_key=f"merge_proposed:{proposal.id}:{lead_id}",
+            )
+    await session.flush()

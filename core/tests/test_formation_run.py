@@ -1224,3 +1224,241 @@ async def test_apply_requires_forming_phase(harness: Harness) -> None:
     assert error.value.code == ErrorCode.INVALID_STATE
     assert await run_counts(h, event) == counts
     assert (await load(h, models.FormationRun, run.id)).status == "running"
+
+
+async def notifications_of(h: Harness) -> list[models.Notification]:
+    async with h.db() as session:
+        return list(
+            await session.scalars(
+                select(models.Notification).order_by(
+                    models.Notification.created_at, models.Notification.id
+                )
+            )
+        )
+
+
+def by_type(rows: list[models.Notification], kind: str) -> list[models.Notification]:
+    return [row for row in rows if row.type == kind]
+
+
+def payload_of(row: models.Notification) -> dict[str, Any]:
+    return cast(dict[str, Any], row.payload)
+
+
+async def test_notify_main_open(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    leads, members = [], []
+    for index in range(2):
+        lead, member = await h.user(), await h.user()
+        await make_core(h, event, f"Core {index}", lead=lead, members=[member])
+        leads.append(lead)
+        members.append(member)
+    for _ in range(10):
+        await enroll(h, event, await h.user())
+    outsider = await h.user()
+    await enroll(h, event, outsider, status="withdrawn")
+    _, _, plan = await apply_fallback(h, event)
+    formation = await load(h, models.EventFormation, event.id)
+    rows = await notifications_of(h)
+
+    ready = by_type(rows, "formation_ready")
+    assert sorted(row.user_id for row in ready) == sorted(lead.id for lead in leads)
+    for row in ready:
+        payload = payload_of(row)
+        assert (payload["proposed_count"], payload["confirmed_count"]) == (6, 0)
+        assert datetime.fromisoformat(payload["confirm_by"]) == formation.review_ends_at
+        assert len(payload["members"]) == 6
+    reconfirm = by_type(rows, "team_reconfirm")
+    assert sorted(row.user_id for row in reconfirm) == sorted(member.id for member in members)
+    proposed = by_type(rows, "team_proposed")
+    assert len(proposed) == 8
+    for row in proposed:
+        payload = payload_of(row)
+        assert payload["proposal_reason"]
+        assert payload["confirm_by"]
+        assert len(payload["members"]) == 6
+        assert payload["area_key"] in {None, "backend"}
+    reserve = by_type(rows, "reserve_placed")
+    assert sorted(payload_of(row)["rank"] for row in reserve) == [1, 2]
+    assert all(payload_of(row)["reserve_count"] == 2 for row in reserve)
+    assert sorted(row.user_id for row in reserve) == sorted(
+        ranked.user_id for ranked in plan.reserve
+    )
+    assert all(row.user_id != outsider.id for row in rows)
+    assert len(rows) == 14
+    keys = [row.dedupe_key for row in rows]
+    assert None not in keys
+    assert len(keys) == len(set(keys))
+
+
+async def test_notify_new_team_lead_offers(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=3)
+    for index in range(6):
+        user = await h.user()
+        await enroll(h, event, user, willing=index < 2)
+        await add_fit(h, event, user, 0.9 if index < 2 else 0.2)
+    await apply_fallback(h, event)
+    rows = await notifications_of(h)
+    async with h.db() as session:
+        offers = list(
+            await session.scalars(
+                select(models.LeadOffer).where(models.LeadOffer.event_id == event.id)
+            )
+        )
+    lead_offers = by_type(rows, "lead_offer")
+    assert len(lead_offers) == len(offers) == 2
+    assert sorted(row.user_id for row in lead_offers) == sorted(offer.user_id for offer in offers)
+    assert len(by_type(rows, "team_proposed")) == 6
+    assert by_type(rows, "formation_ready") == []
+    assert by_type(rows, "team_reconfirm") == []
+
+
+async def test_notify_undersized_alerts(harness: Harness) -> None:
+    h = harness
+    event, cores = await scenario_two_cores(h, 1)
+    request = await request_for(h, event)
+    plan, _ = await fallback_for(h, request)
+    run = await start_run(h, event)
+    async with h.db() as session:
+        assert await service.apply_plan(
+            session, h.jobs, run, request, plan, [], FormationPlanner.FALLBACK, "fake-1", h.now
+        )
+        alerts = await session.scalar(select(func.count()).select_from(models.AdminAlert))
+        notices = await session.scalar(select(func.count()).select_from(models.Notification))
+        await service.notify_formation(
+            session,
+            await session.get_one(models.Event, event.id),
+            await session.get_one(models.EventFormation, event.id),
+            await session.get_one(models.FormationRun, run.id),
+            request,
+            plan,
+            [cast(UUID, team.project_id) for team in plan.teams],
+            h.now,
+        )
+        assert await session.scalar(select(func.count()).select_from(models.AdminAlert)) == alerts
+        assert (
+            await session.scalar(select(func.count()).select_from(models.Notification)) == notices
+        )
+    async with h.db() as session:
+        stored = list(await session.scalars(select(models.AdminAlert)))
+    assert len(stored) == 2
+    for alert in stored:
+        assert (alert.type, alert.severity, alert.subject_type, alert.status) == (
+            "formation_undersized",
+            "info",
+            "project",
+            "open",
+        )
+        assert alert.dedupe_key == f"formation_undersized:{alert.subject_id}:{run.round}"
+    assert {alert.subject_id for alert in stored} == {core.id for core in cores}
+
+
+async def test_notify_merge_proposed(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    absorbed_lead, absorbed_member = await h.user(), await h.user()
+    target_lead, target_member = await h.user(), await h.user()
+    absorbed = await make_core(h, event, "Small", lead=absorbed_lead, members=[absorbed_member])
+    target = await make_core(h, event, "Large", lead=target_lead, members=[target_member])
+    extra = await h.user()
+    await enroll(h, event, extra)
+    _, _, plan = await apply_fallback(h, event)
+    [planned] = plan.merges
+    assert (planned.absorbed_team_id, planned.target_team_id) == (target.id, absorbed.id)
+    async with h.db() as session:
+        [proposal] = list(await session.scalars(select(models.MergeProposal)))
+    merged = by_type(await notifications_of(h), "merge_proposed")
+    assert sorted(row.user_id for row in merged) == sorted((absorbed_lead.id, target_lead.id))
+    for row in merged:
+        payload = payload_of(row)
+        assert payload["merged_size"] == 5
+        assert payload["target_team_name"] == "Small"
+        assert payload["target_project_id"] == str(absorbed.id)
+        assert payload["expires_at"]
+        assert payload["merge_proposal_id"] == str(proposal.id)
+        expected = target.id if row.user_id == target_lead.id else absorbed.id
+        assert payload["project_id"] == str(expected)
+
+    leaderless_event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    led_lead, led_member = await h.user(), await h.user()
+    first, second = await h.user(), await h.user()
+    led = await make_core(h, leaderless_event, "Led", lead=led_lead, members=[led_member])
+    open_core = await make_core(h, leaderless_event, "Open", members=[first, second])
+    _, _, leaderless_plan = await apply_fallback(h, leaderless_event)
+    [leaderless_merge] = leaderless_plan.merges
+    assert (leaderless_merge.absorbed_team_id, leaderless_merge.target_team_id) == (
+        led.id,
+        open_core.id,
+    )
+    merged = [
+        row
+        for row in by_type(await notifications_of(h), "merge_proposed")
+        if payload_of(row)["event_id"] == str(leaderless_event.id)
+    ]
+    assert [row.user_id for row in merged] == [led_lead.id]
+    assert payload_of(merged[0])["target_lead"]["user_id"] in {str(first.id), str(second.id)}
+
+
+async def test_notify_review_rerun_skips_confirmed(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    await set_phase(h, event, FormationPhase.REVIEW, rounds=1)
+    lead, confirmed = await h.user(), await h.user()
+    project = await make_core(
+        h, event, "Review", lead=lead, members=[confirmed], team_status="review"
+    )
+    async with h.db() as session:
+        await session.execute(
+            update(models.Project)
+            .where(models.Project.id == project.id)
+            .values(review_ends_at=h.now + timedelta(hours=12))
+        )
+    newcomer = await h.user()
+    await enroll(h, event, newcomer)
+    run, _, _ = await apply_fallback(h, event, phase=FormationPhase.REVIEW)
+    assert run.round == 2
+    rows = await notifications_of(h)
+    assert [row.user_id for row in rows if row.user_id in {lead.id, confirmed.id}] == []
+    assert [(row.user_id, row.type) for row in rows] == [(newcomer.id, "team_proposed")]
+
+
+async def test_notify_failure_rolls_back(harness: Harness, monkeypatch: pytest.MonkeyPatch) -> None:
+    h = harness
+    event, _ = await scenario_two_cores(h, 1)
+    request = await request_for(h, event)
+    plan, _ = await fallback_for(h, request)
+    run = await start_run(h, event)
+    members = await count(h, models.ProjectMember, models.ProjectMember.event_id == event.id)
+
+    async def failing_alert(*args: Any, **kwargs: Any) -> None:
+        raise RuntimeError("alert failed")
+
+    monkeypatch.setattr(service, "raise_alert", failing_alert)
+    with pytest.raises(RuntimeError):
+        await apply(h, run, request, plan)
+    assert (
+        await count(h, models.ProjectMember, models.ProjectMember.event_id == event.id) == members
+    )
+    assert await count(h, models.Notification) == 0
+    assert await h.pending_jobs("rank_reserve") == []
+    assert await h.pending_jobs("refresh_recommendations") == []
+    assert (await load(h, models.FormationRun, run.id)).status == "running"
+
+
+async def test_notify_replay_is_idempotent(harness: Harness) -> None:
+    h = harness
+    request = await scenario_mixed(h)
+    event = await load(h, models.Event, request.hackathon.id)
+    plan, _ = await fallback_for(h, request)
+    run = await start_run(h, event)
+    assert await apply(h, run, request, plan) is True
+    first = await count(h, models.Notification)
+    assert first > 0
+    assert await apply(h, run, request, plan) is False
+    assert await count(h, models.Notification) == first
