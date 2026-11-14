@@ -24,6 +24,7 @@ from hmm_core.catalog import service as catalog
 from hmm_core.formation import service as formation
 from hmm_core.platform.errors import ProblemError
 from sqlalchemy import func, select, update
+from test_api_skeleton import assert_problem
 
 _titles = itertools.count(1)
 
@@ -617,3 +618,497 @@ async def test_lead_succession_excluded_defaults_empty(harness: Harness) -> None
             select(models.Project.lead_succession_excluded).where(models.Project.id == team.id)
         )
     assert stored == []
+
+
+async def offer(
+    h: Harness,
+    project: models.Project,
+    user: models.User,
+    *,
+    source: str = "transfer",
+    offered_by: models.User | None = None,
+    expires_in: timedelta = timedelta(hours=12),
+    reason: str = "r",
+) -> models.LeadOffer:
+    async with h.db() as session:
+        row = models.LeadOffer(
+            project_id=project.id,
+            event_id=project.event_id,
+            user_id=user.id,
+            source=source,
+            offered_by=offered_by.id if offered_by is not None else None,
+            tier=None,
+            reason=reason,
+            status=LeadOfferStatus.PENDING.value,
+            expires_at=h.now + expires_in,
+        )
+        session.add(row)
+        await session.flush()
+        await session.refresh(row)
+        return row
+
+
+async def transfer_team(
+    h: Harness, *, team_status: str = TeamStatus.FORMING.value
+) -> tuple[models.Event, models.Project, models.User, models.User]:
+    event = await make_hackathon(h)
+    lead = await h.user()
+    member = await h.user()
+    team = await make_team(h, event, lead=lead, team_status=team_status)
+    await add_member(h, event, team, lead, role="lead")
+    await add_member(h, event, team, member)
+    return event, team, lead, member
+
+
+async def stored_offer(h: Harness, offer_id: UUID) -> models.LeadOffer:
+    async with h.db() as session:
+        return await session.get_one(models.LeadOffer, offer_id)
+
+
+async def stored_project(h: Harness, project_id: UUID) -> models.Project:
+    async with h.db() as session:
+        return await session.get_one(models.Project, project_id)
+
+
+async def member_row(
+    h: Harness, project: models.Project, user: models.User
+) -> models.ProjectMember:
+    async with h.db() as session:
+        row = await session.scalar(
+            select(models.ProjectMember).where(
+                models.ProjectMember.project_id == project.id,
+                models.ProjectMember.user_id == user.id,
+            )
+        )
+        assert row is not None
+        return row
+
+
+async def pending_offers(h: Harness, project: models.Project) -> list[models.LeadOffer]:
+    async with h.db() as session:
+        return list(
+            await session.scalars(
+                select(models.LeadOffer).where(
+                    models.LeadOffer.project_id == project.id,
+                    models.LeadOffer.status == LeadOfferStatus.PENDING.value,
+                )
+            )
+        )
+
+
+async def row_counts(h: Harness) -> tuple[int, int, int]:
+    return (
+        await count(h, models.AuditLog, models.AuditLog.id.is_not(None)),
+        await count(h, models.Notification, models.Notification.id.is_not(None)),
+        len(await h.pending_jobs()),
+    )
+
+
+async def test_list_my_lead_offers(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    actor = await h.user()
+    other = await h.user()
+    first_team = await make_team(h, event)
+    second_team = await make_team(h, event, team_status=TeamStatus.REVIEW.value)
+    third_team = await make_team(h, event)
+    await add_member(h, event, first_team, actor)
+    await add_member(h, event, third_team, other)
+    first = await offer(h, first_team, actor, source="succession")
+    second = await offer(h, second_team, actor, source="formation")
+    await offer(h, third_team, other, source="succession")
+
+    async with await h.client(actor) as c:
+        response = await c.get("/api/v1/me/lead-offers")
+        assert response.status_code == 200, response.text
+        items = response.json()
+        assert [item["id"] for item in items] == [str(second.id), str(first.id)]
+        assert items[0]["project"]["team_status"] == "review"
+        assert items[0]["source"] == "formation"
+        assert items[0]["tier"] is None
+        assert items[0]["expires_at"] is not None
+        assert all(item["allowed_actions"] == ["accept", "decline"] for item in items)
+        accepted = await c.get("/api/v1/me/lead-offers", params={"status": "accepted"})
+        assert accepted.json() == []
+    async with await h.client(await h.user()) as c:
+        assert (await c.get("/api/v1/me/lead-offers")).json() == []
+    async with h.anonymous() as c:
+        assert_problem(await c.get("/api/v1/me/lead-offers"), 401, ErrorCode.UNAUTHENTICATED)
+
+    _, team, lead, member = await transfer_team(h)
+    pending = await offer(h, team, member, offered_by=lead)
+    async with h.db() as session:
+        row = await session.get_one(models.Project, team.id)
+        lead_row = await session.get_one(models.User, lead.id)
+        view = await formation.team_view(session, row, lead_row, h.now)
+    assert view.pending_lead_offer is not None
+    assert view.pending_lead_offer.id == pending.id
+    assert [action.value for action in view.pending_lead_offer.allowed_actions] == ["cancel"]
+    async with await h.client(member) as c:
+        items = (await c.get("/api/v1/me/lead-offers")).json()
+    assert [(item["id"], item["allowed_actions"]) for item in items] == [
+        (str(pending.id), ["accept", "decline"])
+    ]
+
+
+async def test_accept_transfer_offer(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event, team, lead, member = await transfer_team(h)
+    third = await h.user()
+    await add_member(h, event, team, third)
+    before = await member_row(h, team, member)
+    pending = await offer(h, team, member, offered_by=lead)
+
+    async with await h.client(member) as c:
+        response = await c.post(f"/api/v1/lead-offers/{pending.id}/accept")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["status"] == "accepted"
+    assert datetime.fromisoformat(body["responded_at"]) == h.now
+    assert body["allowed_actions"] == []
+
+    project = await stored_project(h, team.id)
+    assert project.lead_user_id == member.id
+    assert project.last_lead_action_at == h.now
+    assert project.lead_succession_excluded == []
+    previous = await member_row(h, team, lead)
+    assert (previous.role, previous.state, previous.left_at) == ("member", "confirmed", None)
+    promoted = await member_row(h, team, member)
+    assert promoted.role == "lead"
+    assert promoted.confirmed_at == before.confirmed_at
+    async with h.db() as session:
+        audits = list(
+            await session.scalars(
+                select(models.AuditLog).where(models.AuditLog.entity_id == str(team.id))
+            )
+        )
+        notices = list(
+            await session.scalars(
+                select(models.Notification).where(models.Notification.type == "lead_transferred")
+            )
+        )
+    assert [(a.action, a.actor_id, a.actor_kind) for a in audits] == [
+        ("lead_transfer", member.id, "user")
+    ]
+    assert sorted(n.user_id for n in notices) == sorted([lead.id, member.id, third.id])
+    for notice in notices:
+        assert isinstance(notice.payload, dict)
+        previous_lead = notice.payload["previous_lead"]
+        assert isinstance(previous_lead, dict)
+        assert previous_lead["user_id"] == str(lead.id)
+    jobs = await h.pending_jobs()
+    assert [job["task_name"] for job in jobs] == ["refresh_recommendations"]
+    assert jobs[0]["args"]["project_id"] == str(team.id)
+
+
+@pytest.mark.parametrize("team_status", [TeamStatus.FORMING.value, TeamStatus.REVIEW.value])
+async def test_accept_succession_offer(harness: Harness, team_status: str) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    review_ends_at = h.now + timedelta(hours=6)
+    team = await make_team(h, event, team_status=team_status, review_ends_at=review_ends_at)
+    member = await h.user()
+    other = await h.user()
+    await add_member(h, event, team, member, state="proposed")
+    await add_member(h, event, team, other)
+    pending = await offer(h, team, member, source="succession")
+
+    async with await h.client(member) as c:
+        response = await c.post(f"/api/v1/lead-offers/{pending.id}/accept")
+    assert response.status_code == 200, response.text
+    promoted = await member_row(h, team, member)
+    assert (promoted.role, promoted.state) == ("lead", "confirmed")
+    assert promoted.confirm_by is None
+    assert promoted.confirm_kind is None
+    project = await stored_project(h, team.id)
+    assert project.lead_user_id == member.id
+    assert project.review_ends_at == review_ends_at
+    assert (
+        await count(
+            h,
+            models.AuditLog,
+            models.AuditLog.entity_id == str(team.id),
+            models.AuditLog.action == "lead_assign",
+            models.AuditLog.actor_kind == "user",
+        )
+        == 1
+    )
+    async with h.db() as session:
+        notices = list(
+            await session.scalars(
+                select(models.Notification).where(models.Notification.type == "lead_assigned")
+            )
+        )
+    assert sorted(n.user_id for n in notices) == sorted([member.id, other.id])
+    assert all(isinstance(n.payload, dict) and n.payload["reason"] for n in notices)
+
+
+async def test_accept_lead_offer_gates(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event, team, lead, member = await transfer_team(h)
+    pending = await offer(h, team, member, offered_by=lead)
+    async with await h.client(lead) as c:
+        response = await c.post(f"/api/v1/lead-offers/{pending.id}/accept")
+        assert_problem(response, 403, ErrorCode.FORBIDDEN)
+        response = await c.post(f"/api/v1/lead-offers/{uuid4()}/accept")
+        assert_problem(response, 404, ErrorCode.NOT_FOUND)
+    async with await h.client(member) as c:
+        first = await c.post(f"/api/v1/lead-offers/{pending.id}/accept")
+        assert first.status_code == 200, first.text
+        counts = await row_counts(h)
+        h.advance(timedelta(minutes=5))
+        second = await c.post(f"/api/v1/lead-offers/{pending.id}/accept")
+        assert second.status_code == 200, second.text
+        assert second.json()["responded_at"] == first.json()["responded_at"]
+        assert await row_counts(h) == counts
+
+    declined_team = await make_team(h, event)
+    declined_user = await h.user()
+    await add_member(h, event, declined_team, declined_user)
+    declined = await offer(h, declined_team, declined_user, source="succession")
+    async with h.db() as session:
+        await session.execute(
+            update(models.LeadOffer)
+            .where(models.LeadOffer.id == declined.id)
+            .values(status="declined", responded_at=h.now)
+        )
+    async with await h.client(declined_user) as c:
+        response = await c.post(f"/api/v1/lead-offers/{declined.id}/accept")
+        assert_problem(response, 409, ErrorCode.INVALID_STATE)
+
+    expired_team = await make_team(h, event)
+    stale = await h.user()
+    following = await h.user()
+    await add_member(h, event, expired_team, stale, fit=0.9)
+    await add_member(h, event, expired_team, following, fit=0.5)
+    expired = await offer(
+        h, expired_team, stale, source="succession", expires_in=-timedelta(minutes=1)
+    )
+    async with await h.client(stale) as c:
+        response = await c.post(f"/api/v1/lead-offers/{expired.id}/accept")
+        assert (
+            assert_problem(response, 409, ErrorCode.INVALID_STATE).detail
+            == "This lead offer has expired"
+        )
+    assert (await stored_offer(h, expired.id)).status == "expired"
+    assert [(row.user_id, row.source) for row in await pending_offers(h, expired_team)] == [
+        (following.id, "succession")
+    ]
+
+    led_team = await make_team(h, event, lead=lead)
+    candidate = await h.user()
+    await add_member(h, event, led_team, candidate)
+    formation_offer = await offer(h, led_team, candidate, source="formation")
+    async with await h.client(candidate) as c:
+        response = await c.post(f"/api/v1/lead-offers/{formation_offer.id}/accept")
+        assert (
+            assert_problem(response, 409, ErrorCode.INVALID_STATE).detail
+            == "This team already has a lead"
+        )
+    assert (await stored_offer(h, formation_offer.id)).status == "closed"
+
+    left_team = await make_team(h, event)
+    leaver = await h.user()
+    await add_member(h, event, left_team, leaver)
+    left_offer = await offer(h, left_team, leaver, source="succession")
+    async with h.db() as session:
+        await session.execute(
+            update(models.ProjectMember)
+            .where(models.ProjectMember.project_id == left_team.id)
+            .values(left_at=h.now, left_reason="left")
+        )
+    async with await h.client(leaver) as c:
+        response = await c.post(f"/api/v1/lead-offers/{left_offer.id}/accept")
+        assert_problem(response, 409, ErrorCode.INVALID_STATE)
+
+    finished_team = await make_team(h, event, team_status=TeamStatus.FINISHED.value)
+    finisher = await h.user()
+    await add_member(h, event, finished_team, finisher)
+    finished_offer = await offer(h, finished_team, finisher, source="succession")
+    async with await h.client(finisher) as c:
+        response = await c.post(f"/api/v1/lead-offers/{finished_offer.id}/accept")
+        assert_problem(response, 409, ErrorCode.INVALID_STATE)
+
+
+async def test_decline_transfer_offer(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    _, team, lead, member = await transfer_team(h)
+    pending = await offer(h, team, member, offered_by=lead)
+    async with await h.client(member) as c:
+        response = await c.post(f"/api/v1/lead-offers/{pending.id}/decline")
+        assert response.status_code == 200, response.text
+        assert response.json()["status"] == "declined"
+        counts = await row_counts(h)
+        repeat = await c.post(f"/api/v1/lead-offers/{pending.id}/decline")
+        assert repeat.status_code == 200, repeat.text
+        assert await row_counts(h) == counts
+    project = await stored_project(h, team.id)
+    assert project.lead_user_id == lead.id
+    assert project.lead_succession_excluded == []
+    assert (await member_row(h, team, lead)).role == "lead"
+    assert await pending_offers(h, team) == []
+    async with h.db() as session:
+        notices = list(
+            await session.scalars(
+                select(models.Notification).where(models.Notification.type == "lead_offer_declined")
+            )
+        )
+    assert [n.user_id for n in notices] == [lead.id]
+    assert isinstance(notices[0].payload, dict) and notices[0].payload["reason"]
+    assert await count(h, models.AuditLog, models.AuditLog.id.is_not(None)) == 0
+    assert await h.pending_jobs() == []
+
+    async with await h.client(await h.user()) as c:
+        response = await c.post(f"/api/v1/lead-offers/{pending.id}/decline")
+        assert_problem(response, 403, ErrorCode.FORBIDDEN)
+    async with h.db() as session:
+        await session.execute(
+            update(models.LeadOffer)
+            .where(models.LeadOffer.id == pending.id)
+            .values(status="expired")
+        )
+    async with await h.client(member) as c:
+        response = await c.post(f"/api/v1/lead-offers/{pending.id}/decline")
+        assert_problem(response, 409, ErrorCode.INVALID_STATE)
+    late = await offer(h, team, member, offered_by=lead, expires_in=-timedelta(minutes=1))
+    async with await h.client(member) as c:
+        response = await c.post(f"/api/v1/lead-offers/{late.id}/decline")
+        assert (
+            assert_problem(response, 409, ErrorCode.INVALID_STATE).detail
+            == "This lead offer has expired"
+        )
+    assert (await stored_offer(h, late.id)).status == "expired"
+
+
+@pytest.mark.parametrize("team_status", [TeamStatus.LOCKED.value, TeamStatus.REVIEW.value])
+async def test_decline_succession_offer(harness: Harness, team_status: str) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    team = await make_team(h, event, team_status=team_status)
+    former = await h.user()
+    strong = await h.user()
+    weak = await h.user()
+    await add_member(h, event, team, former, fit=0.2)
+    await add_member(h, event, team, strong, fit=0.8)
+    await add_member(h, event, team, weak, fit=0.5)
+    offered, _, _ = await succession(h, team, event, {former.id})
+    assert offered == strong.id
+    [first] = await pending_offers(h, team)
+
+    async with await h.client(strong) as c:
+        response = await c.post(f"/api/v1/lead-offers/{first.id}/decline")
+        assert response.status_code == 200, response.text
+    [second] = await pending_offers(h, team)
+    assert (second.user_id, second.source) == (weak.id, "succession")
+    excluded = (await stored_project(h, team.id)).lead_succession_excluded
+    assert sorted(str(value) for value in excluded) == sorted([str(former.id), str(strong.id)])
+
+    async with await h.client(weak) as c:
+        response = await c.post(f"/api/v1/lead-offers/{second.id}/decline")
+        assert response.status_code == 200, response.text
+    assert await pending_offers(h, team) == []
+    project = await stored_project(h, team.id)
+    alerts = await count(
+        h,
+        models.AdminAlert,
+        models.AdminAlert.type == "forced_lead",
+        models.AdminAlert.subject_id == team.id,
+    )
+    if team_status == TeamStatus.LOCKED.value:
+        assert project.lead_user_id == strong.id
+        assert project.lead_succession_excluded == []
+        assert alerts == 1
+    else:
+        assert project.lead_user_id is None
+        assert sorted(str(value) for value in project.lead_succession_excluded) == sorted(
+            [str(former.id), str(strong.id), str(weak.id)]
+        )
+        assert alerts == 0
+
+
+async def test_cancel_lead_offer(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    _, team, lead, member = await transfer_team(h)
+    pending = await offer(h, team, member, offered_by=lead)
+    async with await h.client(member) as c:
+        response = await c.delete(f"/api/v1/lead-offers/{pending.id}")
+        assert_problem(response, 403, ErrorCode.FORBIDDEN)
+    h.advance(timedelta(minutes=1))
+    async with await h.client(lead) as c:
+        response = await c.delete(f"/api/v1/lead-offers/{pending.id}")
+        assert response.status_code == 204, response.text
+        cancelled = await stored_offer(h, pending.id)
+        assert cancelled.status == "cancelled"
+        assert cancelled.responded_at == h.now
+        project = await stored_project(h, team.id)
+        assert project.last_lead_action_at == h.now
+        assert project.lead_user_id == lead.id
+        assert await row_counts(h) == (0, 0, 0)
+        h.advance(timedelta(minutes=1))
+        repeat = await c.delete(f"/api/v1/lead-offers/{pending.id}")
+        assert repeat.status_code == 204, repeat.text
+        assert (await stored_offer(h, pending.id)).responded_at == cancelled.responded_at
+        assert (await stored_project(h, team.id)).last_lead_action_at == cancelled.responded_at
+
+        formation_offer = await offer(h, team, member, source="formation", offered_by=lead)
+        response = await c.delete(f"/api/v1/lead-offers/{formation_offer.id}")
+        assert_problem(response, 409, ErrorCode.INVALID_STATE)
+        async with h.db() as session:
+            await session.execute(
+                update(models.LeadOffer)
+                .where(models.LeadOffer.id == formation_offer.id)
+                .values(status="closed", responded_at=h.now)
+            )
+        accepted = await offer(h, team, member, offered_by=lead)
+        async with h.db() as session:
+            await session.execute(
+                update(models.LeadOffer)
+                .where(models.LeadOffer.id == accepted.id)
+                .values(status="accepted", responded_at=h.now)
+            )
+        response = await c.delete(f"/api/v1/lead-offers/{accepted.id}")
+        assert_problem(response, 409, ErrorCode.INVALID_STATE)
+        response = await c.delete(f"/api/v1/lead-offers/{uuid4()}")
+        assert_problem(response, 404, ErrorCode.NOT_FOUND)
+
+
+async def test_accept_standalone_transfer(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    lead = await h.user()
+    member = await h.user()
+    project = await make_team(h, None, lead=lead, team_status=None)
+    async with h.db() as session:
+        for user, role in ((lead, "lead"), (member, "member")):
+            session.add(
+                models.ProjectMember(
+                    project_id=project.id,
+                    event_id=None,
+                    user_id=user.id,
+                    role=role,
+                    area_id=None,
+                    state="confirmed",
+                    trust="self",
+                    joined_via="invite",
+                    is_team_row=False,
+                    joined_at=h.now,
+                    confirmed_at=h.now,
+                )
+            )
+    pending = await offer(h, project, member, offered_by=lead, expires_in=timedelta(days=7))
+    async with await h.client(member) as c:
+        response = await c.post(f"/api/v1/lead-offers/{pending.id}/accept")
+    assert response.status_code == 200, response.text
+    assert (await stored_project(h, project.id)).lead_user_id == member.id
+    assert (await member_row(h, project, lead)).role == "member"
+    assert (await member_row(h, project, member)).role == "lead"
+    jobs = await h.pending_jobs()
+    assert [job["task_name"] for job in jobs] == ["refresh_recommendations"]
+    assert await count(h, models.Notification, models.Notification.id.is_not(None)) == 0

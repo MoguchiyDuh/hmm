@@ -49,7 +49,9 @@ from hmm_contracts.notifications import (
     JoinRequestReceivedPayload,
     JoinRequestRejectedPayload,
     LeadAssignedPayload,
+    LeadOfferDeclinedPayload,
     LeadOfferPayload,
+    LeadTransferredPayload,
     NotificationPerson,
     ProjectInviteReceivedPayload,
     ProjectJoinRequestReceivedPayload,
@@ -3050,3 +3052,270 @@ async def force_lead(
         dedupe_key=f"forced_lead:{project.id}",
     )
     return entry.member
+
+
+async def locked_lead_offer(
+    session: AsyncSession, offer_id: UUID, actor: models.User
+) -> tuple[models.LeadOffer, models.Project, models.Event | None]:
+    offer = await session.get(models.LeadOffer, offer_id)
+    if offer is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await session.get(models.Project, offer.project_id)
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    event = (
+        await locked_formation_event(session, project.event_id, actor)
+        if project.event_id is not None
+        else None
+    )
+    project = await session.scalar(
+        select(models.Project)
+        .where(models.Project.id == offer.project_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    offer = await session.scalar(
+        select(models.LeadOffer)
+        .where(models.LeadOffer.id == offer_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if offer is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return offer, project, event
+
+
+async def expire_lead_offer(
+    session: AsyncSession,
+    offer: models.LeadOffer,
+    project: models.Project,
+    event: models.Event | None,
+    now: datetime,
+) -> None:
+    offer.status = LeadOfferStatus.EXPIRED.value
+    offer.responded_at = now
+    if offer.source != LeadOfferSource.TRANSFER.value:
+        await advance_succession(
+            session, project, event, now, exclude=offer.user_id, reason="The lead offer expired"
+        )
+    await session.flush()
+    return None
+
+
+async def my_lead_offers(
+    session: AsyncSession, actor: models.User, status: LeadOfferStatus | None
+) -> list[project_schemas.LeadOffer]:
+    statement = select(models.LeadOffer).where(models.LeadOffer.user_id == actor.id)
+    if status is not None:
+        statement = statement.where(models.LeadOffer.status == status.value)
+    statement = statement.order_by(models.LeadOffer.created_at.desc(), models.LeadOffer.id.desc())
+    return await lead_offer_responses(session, list(await session.scalars(statement)), actor)
+
+
+def _lead_offer_project_closed(project: models.Project) -> bool:
+    return project.team_status in CLOSED_TEAM_STATUSES or (
+        project.event_id is None and project.status in TERMINAL_PROJECT_STATUSES
+    )
+
+
+async def _persisted_problem(session: AsyncSession, detail: str) -> ProblemError:
+    await session.flush()
+    return ProblemError(ErrorCode.INVALID_STATE, detail)
+
+
+async def accept_lead_offer(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    offer_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> models.LeadOffer | ProblemError:
+    offer, project, event = await locked_lead_offer(session, offer_id, actor)
+    if offer.user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if _lead_offer_project_closed(project):
+        raise ProblemError(ErrorCode.INVALID_STATE, "This team is closed")
+    if offer.status == LeadOfferStatus.ACCEPTED.value:
+        return offer
+    if offer.status != LeadOfferStatus.PENDING.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This lead offer is no longer pending")
+    if offer.expires_at <= now:
+        await expire_lead_offer(session, offer, project, event, now)
+        return await _persisted_problem(session, "This lead offer has expired")
+    transfer = offer.source == LeadOfferSource.TRANSFER.value
+    if project.lead_user_id is not None and not (
+        transfer and project.lead_user_id == offer.offered_by
+    ):
+        offer.status = LeadOfferStatus.CLOSED.value
+        offer.responded_at = now
+        return await _persisted_problem(session, "This team already has a lead")
+    member = await session.scalar(
+        select(models.ProjectMember).where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.user_id == actor.id,
+            models.ProjectMember.left_at.is_(None),
+        )
+    )
+    if member is None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "You are no longer on this team")
+    previous_lead_id = project.lead_user_id
+    if previous_lead_id is not None:
+        previous = await session.scalar(
+            select(models.ProjectMember).where(
+                models.ProjectMember.project_id == project.id,
+                models.ProjectMember.user_id == previous_lead_id,
+                models.ProjectMember.left_at.is_(None),
+            )
+        )
+        if previous is not None:
+            previous.role = MemberRole.MEMBER.value
+            await session.flush()
+    member.role = MemberRole.LEAD.value
+    member.state = MemberState.CONFIRMED.value
+    member.confirm_by = None
+    member.confirm_kind = None
+    member.confirmed_at = member.confirmed_at or now
+    offer.status = LeadOfferStatus.ACCEPTED.value
+    offer.responded_at = now
+    project.lead_user_id = actor.id
+    project.last_lead_action_at = now
+    project.lead_succession_excluded = []
+    await session.flush()
+    if transfer:
+        await record_audit(
+            session,
+            actor=actor.id,
+            actor_kind=ActorKind.USER,
+            action=AuditAction.LEAD_TRANSFER,
+            entity_type=AuditEntityType.PROJECT,
+            entity_id=project.id,
+            before={"lead_user_id": str(offer.offered_by)},
+            after={"lead_user_id": str(actor.id)},
+            reason=None,
+        )
+    else:
+        await record_audit(
+            session,
+            actor=actor.id,
+            actor_kind=ActorKind.USER,
+            action=AuditAction.LEAD_ASSIGN,
+            entity_type=AuditEntityType.PROJECT,
+            entity_id=project.id,
+            before={"lead_user_id": None},
+            after={"lead_user_id": str(actor.id), "source": offer.source},
+            reason=None,
+        )
+    if event is not None:
+        recipients = await team_member_ids(session, project.id)
+        previous_user = (
+            await session.get(models.User, previous_lead_id)
+            if transfer and previous_lead_id is not None
+            else None
+        )
+        if previous_user is not None:
+            await notify_many(
+                session,
+                recipients,
+                LeadTransferredPayload(
+                    link=f"/projects/{project.id}",
+                    event_id=event.id,
+                    event_title=event.title,
+                    project_id=project.id,
+                    team_name=project.name,
+                    previous_lead=notification_person(previous_user),
+                    lead=notification_person(actor),
+                ),
+                now,
+                dedupe_key=f"lead_transferred:{offer.id}",
+            )
+        else:
+            await notify_many(
+                session,
+                recipients,
+                LeadAssignedPayload(
+                    link=f"/projects/{project.id}",
+                    event_id=event.id,
+                    event_title=event.title,
+                    project_id=project.id,
+                    team_name=project.name,
+                    lead=notification_person(actor),
+                    reason="The member accepted the lead offer",
+                ),
+                now,
+                dedupe_key=f"lead_assigned:{project.id}:{actor.id}",
+            )
+    await defer_job(session, jobs, JobName.REFRESH_RECOMMENDATIONS, project_id=str(project.id))
+    await session.flush()
+    await session.refresh(offer)
+    return offer
+
+
+async def decline_lead_offer(
+    session: AsyncSession, offer_id: UUID, actor: models.User, now: datetime
+) -> models.LeadOffer | ProblemError:
+    offer, project, event = await locked_lead_offer(session, offer_id, actor)
+    if offer.user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if _lead_offer_project_closed(project):
+        raise ProblemError(ErrorCode.INVALID_STATE, "This team is closed")
+    if offer.status == LeadOfferStatus.DECLINED.value:
+        return offer
+    if offer.status != LeadOfferStatus.PENDING.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This lead offer is no longer pending")
+    if offer.expires_at <= now:
+        await expire_lead_offer(session, offer, project, event, now)
+        return await _persisted_problem(session, "This lead offer has expired")
+    offer.status = LeadOfferStatus.DECLINED.value
+    offer.responded_at = now
+    await session.flush()
+    if offer.source == LeadOfferSource.TRANSFER.value:
+        if offer.offered_by is not None and event is not None:
+            await notify(
+                session,
+                offer.offered_by,
+                LeadOfferDeclinedPayload(
+                    link=f"/projects/{project.id}",
+                    event_id=event.id,
+                    event_title=event.title,
+                    project_id=project.id,
+                    team_name=project.name,
+                    lead_offer_id=offer.id,
+                    offered_member=notification_person(actor),
+                    reason="The member declined the lead role",
+                ),
+                now,
+                dedupe_key=f"lead_offer_declined:{offer.id}",
+            )
+    elif project.lead_user_id is None:
+        await advance_succession(
+            session,
+            project,
+            event,
+            now,
+            exclude=offer.user_id,
+            reason="The next candidate in the lead order",
+        )
+    await session.flush()
+    await session.refresh(offer)
+    return offer
+
+
+async def cancel_lead_offer(
+    session: AsyncSession, offer_id: UUID, actor: models.User, now: datetime
+) -> None:
+    offer, project, _ = await locked_lead_offer(session, offer_id, actor)
+    if offer.offered_by != actor.id or project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if offer.source != LeadOfferSource.TRANSFER.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Only a transfer offer can be cancelled")
+    if offer.status == LeadOfferStatus.CANCELLED.value:
+        return None
+    if offer.status != LeadOfferStatus.PENDING.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This lead offer is no longer pending")
+    offer.status = LeadOfferStatus.CANCELLED.value
+    offer.responded_at = now
+    project.last_lead_action_at = now
+    await session.flush()
+    return None
