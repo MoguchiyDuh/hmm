@@ -28,7 +28,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "formation_admin_remove_member",
         "formation_admin_update_team_status",
         "formation_cancel_lead_offer",
-        "formation_claim_lead",
         "formation_clear_ready",
         "formation_close_seats",
         "formation_confirm_placement",

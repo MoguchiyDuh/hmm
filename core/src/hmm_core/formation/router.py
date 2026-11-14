@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from hmm_contracts.common import (
@@ -45,7 +45,12 @@ from hmm_core.formation.schemas import (
 )
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
+from hmm_core.platform.errors import (
+    PROBLEM_RESPONSES,
+    ProblemError,
+    not_implemented,
+    problem_response,
+)
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth
@@ -146,8 +151,23 @@ async def get_my_lead_fit(id: EventId, actor: MemberAuth, session: Session) -> L
 @router.post(
     "/events/{id}/projects", status_code=status.HTTP_201_CREATED, summary="Claim a team lead role"
 )
-async def claim_lead(id: EventId, body: CreateTeamBody, actor: MemberAuth) -> Project:
-    not_implemented()
+async def claim_lead(
+    id: EventId,
+    body: CreateTeamBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Project:
+    project = await service.claim_lead(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    if project is None:
+        return cast(
+            Project,
+            problem_response(request, ErrorCode.LEAD_FIT_PENDING, "Lead fit is being computed"),
+        )
+    return await service.team_view(session, project, actor, clock.now())
 
 
 @router.post("/projects/{id}/ready", status_code=status.HTTP_200_OK, summary="Mark a core ready")

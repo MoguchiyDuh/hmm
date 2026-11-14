@@ -9,6 +9,9 @@ from uuid import UUID
 import procrastinate
 from hmm_contracts.algo import LeadFit as AlgoLeadFit
 from hmm_contracts.common import (
+    ActorKind,
+    AuditAction,
+    AuditEntityType,
     ConfirmKind,
     EnrollmentSource,
     EnrollmentStatus,
@@ -16,11 +19,16 @@ from hmm_contracts.common import (
     EventKind,
     EventStatus,
     FormationPhase,
+    InviteStatus,
     JoinedVia,
+    JoinRequestStatus,
     LeftReason,
     MemberRole,
     MemberState,
     OnboardingStatus,
+    ProjectOrigin,
+    ProjectStatus,
+    ProjectVisibility,
     TeamStatus,
     Trust,
 )
@@ -32,12 +40,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hmm_core import models
 from hmm_core.attendance import service as attendance
 from hmm_core.formation import schemas
+from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams, keyset_page
 from hmm_core.platform.schemas import AreaScoreSummary, EventRef, ProjectRef, UserRef
 from hmm_core.platform.settings import RuntimeSettings, load_settings
 from hmm_core.projects import schemas as project_schemas
+from hmm_core.projects import service as projects
 
 LIVE_ENROLLMENT_STATES: frozenset[EnrollmentStatus] = frozenset(
     {EnrollmentStatus.ACTIVE, EnrollmentStatus.PLACED, EnrollmentStatus.RESERVE}
@@ -47,6 +57,9 @@ ONBOARDED_STATUSES: frozenset[str] = frozenset(
     {OnboardingStatus.COMPLETED.value, OnboardingStatus.REOPENED.value}
 )
 LEAD_FIT_PHASES: frozenset[FormationPhase] = frozenset({FormationPhase.OPEN, FormationPhase.LOCKED})
+TERMINAL_PROJECT_STATUSES = frozenset(
+    {ProjectStatus.ABANDONED, ProjectStatus.DISBANDED, ProjectStatus.CANCELLED}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1141,3 +1154,175 @@ async def list_lead_candidates(
     return sorted(
         candidates, key=lambda candidate: (candidate.tier, -candidate.fit, str(candidate.user.id))
     )
+
+
+async def close_event_pending_items(
+    session: AsyncSession, event_id: UUID, user_id: UUID, now: datetime, *, reason: str
+) -> None:
+    await session.execute(
+        update(models.Invite)
+        .where(
+            models.Invite.event_id == event_id,
+            models.Invite.user_id == user_id,
+            models.Invite.status == InviteStatus.PENDING.value,
+        )
+        .values(status=InviteStatus.CLOSED.value, closed_reason=reason, responded_at=now)
+    )
+    await session.execute(
+        update(models.JoinRequest)
+        .where(
+            models.JoinRequest.event_id == event_id,
+            models.JoinRequest.user_id == user_id,
+            models.JoinRequest.status == JoinRequestStatus.PENDING.value,
+        )
+        .values(status=JoinRequestStatus.CLOSED.value, responded_at=now)
+    )
+    return None
+
+
+async def late_claim_open(
+    session: AsyncSession,
+    event: models.Event,
+    formation: models.EventFormation,
+    user_id: UUID,
+    now: datetime,
+) -> bool:
+    return False
+
+
+async def claim_lead(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    event_id: UUID,
+    body: schemas.CreateTeamBody,
+    actor: models.User,
+    now: datetime,
+) -> models.Project | None:
+    event = await locked_formation_event(session, event_id, actor)
+    if not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    formation = await formation_row(session, event_id)
+    if event.status != EventStatus.PUBLISHED.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Lead claims are closed")
+    settings = await load_settings(session)
+    timing = formation_timing(event, settings, now)
+    phase = FormationPhase(formation.phase)
+    if phase == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    if phase == FormationPhase.OPEN:
+        if now >= timing.reg_deadline:
+            raise ProblemError(
+                ErrorCode.ENROLLMENT_CLOSED, "Lead claims close at the registration deadline"
+            )
+    elif phase == FormationPhase.LOCKED:
+        if not await late_claim_open(session, event, formation, actor.id, now):
+            raise ProblemError(ErrorCode.INVALID_STATE, "Lead claims are closed")
+    else:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Lead claims are closed")
+    if await live_membership(session, event.id, actor.id) is not None:
+        raise ProblemError(ErrorCode.ALREADY_IN_TEAM, "You are already on a team for this event")
+    if dnd_active(actor, now):
+        raise ProblemError(ErrorCode.USER_DND, "Turn off do not disturb to claim a team")
+    led = (
+        await session.scalar(
+            select(func.count())
+            .select_from(models.Project)
+            .where(
+                models.Project.lead_user_id == actor.id,
+                models.Project.status.notin_(
+                    sorted(member.value for member in TERMINAL_PROJECT_STATUSES)
+                ),
+            )
+        )
+        or 0
+    )
+    if led >= settings.projects_led_max:
+        raise ProblemError(
+            ErrorCode.PROJECTS_LED_LIMIT, "You already lead the maximum number of projects"
+        )
+    fit = await stored_lead_fit(session, event.id, actor.id)
+    if fit is None:
+        await defer_job(session, jobs, JobName.COMPUTE_LEAD_FITS_FOR_MEMBER, user_id=str(actor.id))
+        return None
+    if float(fit.fit) < settings.lead_fit_threshold:
+        raise ProblemError(ErrorCode.LEAD_FIT_TOO_LOW, fit.reason)
+    project = models.Project(
+        event_id=event.id,
+        name=body.name,
+        description_md=body.description_md or "",
+        goal="",
+        links=[],
+        visibility=ProjectVisibility.PUBLIC.value,
+        recruiting=None,
+        lead_user_id=actor.id,
+        status=ProjectStatus.IDEA.value,
+        team_status=TeamStatus.FORMING.value,
+        origin=ProjectOrigin.CLAIM.value,
+        ready_at=None,
+        formed_in_run_id=None,
+        last_lead_action_at=now,
+    )
+    session.add(project)
+    await session.flush()
+    session.add(
+        models.ProjectMember(
+            project_id=project.id,
+            event_id=event.id,
+            user_id=actor.id,
+            role=MemberRole.LEAD.value,
+            area_id=None,
+            state=MemberState.CONFIRMED.value,
+            trust=Trust.SELF.value,
+            joined_via=JoinedVia.CLAIM.value,
+            proposal_reason=None,
+            confirm_by=None,
+            confirm_kind=None,
+            is_team_row=True,
+            joined_at=now,
+            confirmed_at=now,
+        )
+    )
+    enrollment = await live_enrollment_row(session, event.id, actor.id, for_update=True)
+    if enrollment is None:
+        enrollment = await latest_terminal_enrollment(session, event.id, actor.id, for_update=True)
+    if enrollment is None:
+        enrollment = models.Enrollment(
+            event_id=event.id,
+            user_id=actor.id,
+            status=EnrollmentStatus.PLACED.value,
+            source=EnrollmentSource.SELF.value,
+            willing_to_lead=False,
+        )
+        session.add(enrollment)
+    enrollment.status = EnrollmentStatus.PLACED.value
+    enrollment.status_at = now
+    enrollment.reserve_rank = None
+    await close_event_pending_items(session, event.id, actor.id, now, reason="claimed_lead")
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.USER,
+        action=AuditAction.LEAD_ASSIGN,
+        entity_type=AuditEntityType.PROJECT,
+        entity_id=project.id,
+        before=None,
+        after={
+            "name": project.name,
+            "lead_user_id": str(actor.id),
+            "origin": ProjectOrigin.CLAIM.value,
+            "team_status": TeamStatus.FORMING.value,
+        },
+        reason=None,
+    )
+    await session.flush()
+    await enqueue_participation_jobs(session, jobs, event.id, reserve=False)
+    return project
+
+
+async def team_view(
+    session: AsyncSession, project: models.Project, actor: models.User, now: datetime
+) -> project_schemas.Project:
+    views = await projects.project_views(session, [project], actor, now)
+    if not isinstance(views[0], project_schemas.Project):
+        raise ProblemError(ErrorCode.INTERNAL_ERROR)
+    return views[0]
