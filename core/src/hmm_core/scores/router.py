@@ -24,7 +24,7 @@ from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth
-from hmm_core.scores import service
+from hmm_core.scores import restrictions, service
 from hmm_core.scores.schemas import (
     ActivityEntry,
     ActivityEntryPage,
@@ -227,17 +227,31 @@ async def resolve_flag(id: FlagId, body: ResolveFlagBody, actor: AdminAuth) -> F
 )
 async def list_restrictions(
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
     user: Annotated[UserId | None, Query()] = None,
     active: Annotated[bool | None, Query()] = None,
 ) -> list[Restriction]:
-    not_implemented()
+    rows = await restrictions.list_restrictions(
+        session, user_id=user, active=active, now=clock.now()
+    )
+    return [restrictions.restriction_view(row, clock.now()) for row in rows]
 
 
 @router.delete(
     "/admin/restrictions/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Lift restriction"
 )
-async def lift_restriction(id: RestrictionId, body: LiftRestrictionBody, actor: AdminAuth) -> None:
-    not_implemented()
+async def lift_restriction(
+    id: RestrictionId,
+    body: LiftRestrictionBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> None:
+    await restrictions.lift_restriction(
+        session, request.app.state.jobs, id, actor.id, body.reason, clock.now()
+    )
 
 
 @router.post(
