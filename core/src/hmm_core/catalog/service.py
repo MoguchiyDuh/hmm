@@ -3,9 +3,9 @@ import json
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
-from enum import Enum
+from enum import Enum, StrEnum
 from hashlib import sha1
 from typing import Any, Self
 from uuid import UUID
@@ -77,6 +77,24 @@ LIVE_ENROLLMENTS = frozenset(
 )
 TEAM_TERMINAL = frozenset({TeamStatus.DISBANDED, TeamStatus.CANCELLED})
 LOCKABLE_SKIP = frozenset({"status", "review_reasons"})
+NOTIFY_FIELDS = frozenset(
+    {
+        "starts_at",
+        "ends_at",
+        "team_size_min",
+        "team_size_max",
+        "format",
+        "registration_deadline",
+    }
+)
+DATE_FIELDS = frozenset({"starts_at", "ends_at", "registration_deadline"})
+TEAM_FIELDS = frozenset({"team_size_min", "team_size_max"})
+NON_TERMINAL_TEAMS = (
+    TeamStatus.FORMING.value,
+    TeamStatus.REVIEW.value,
+    TeamStatus.LOCKED.value,
+    TeamStatus.ACTIVE.value,
+)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -1598,14 +1616,241 @@ async def import_event_item(
         )
     if event is None or source_row is None:
         return await create_imported_event(session, jobs, index, item, digest, now)
+    if item.status == "cancelled":
+        return await cancel_imported_event(
+            session, jobs, index, item, event, source_row, digest, now
+        )
+    return await update_imported_event(session, jobs, index, item, event, source_row, digest, now)
+
+
+def _utc(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.astimezone(UTC)
+    return value
+
+
+async def current_areas(session: AsyncSession, event_id: UUID) -> list[tuple[str, str, int | None]]:
+    rows = await session.execute(
+        select(models.Area.key, models.EventArea.importance, models.EventArea.headcount)
+        .join(models.Area, models.Area.id == models.EventArea.area_id)
+        .where(models.EventArea.event_id == event_id)
+    )
+    return sorted((key, importance, headcount) for key, importance, headcount in rows)
+
+
+async def team_size_conflict_count(session: AsyncSession, event: models.Event) -> int:
+    if event.team_size_min is None and event.team_size_max is None:
+        return 0
+    ids = list(
+        await session.scalars(
+            select(models.Project.id).where(
+                models.Project.event_id == event.id,
+                models.Project.team_status.in_(NON_TERMINAL_TEAMS),
+            )
+        )
+    )
+    if not ids:
+        return 0
+    sizes = {
+        project_id: size
+        for project_id, size in await session.execute(
+            select(models.ProjectMember.project_id, func.count())
+            .where(
+                models.ProjectMember.project_id.in_(ids),
+                models.ProjectMember.left_at.is_(None),
+                models.ProjectMember.is_team_row,
+            )
+            .group_by(models.ProjectMember.project_id)
+        )
+    }
+    conflicts = 0
+    for project_id in ids:
+        size = sizes.get(project_id, 0)
+        if (event.team_size_max is not None and size > event.team_size_max) or (
+            event.team_size_min is not None and size < event.team_size_min
+        ):
+            conflicts += 1
+    return conflicts
+
+
+async def cancel_imported_event(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    index: int,
+    item: EventImport,
+    event: models.Event,
+    source_row: models.EventSource,
+    digest: str,
+    now: datetime,
+) -> EventImportResult:
+    await touch_source(session, source_row, item, digest, now)
+    if event.status == EventStatus.CANCELLED.value:
+        return EventImportResult(
+            index=index,
+            source_id=item.source.source_id,
+            result="unchanged",
+            event_id=event.id,
+            review_reasons=[EventReviewReason(reason) for reason in event.review_reasons],
+            ignored_fields=[],
+        )
+    event = await cancel_event(
+        session,
+        jobs,
+        event.id,
+        reason="Cancelled by the parser",
+        actor=None,
+        actor_kind=ActorKind.SERVICE,
+        now=now,
+    )
+    return EventImportResult(
+        index=index,
+        source_id=item.source.source_id,
+        result="updated",
+        event_id=event.id,
+        review_reasons=[EventReviewReason(reason) for reason in event.review_reasons],
+        ignored_fields=[],
+    )
+
+
+async def update_imported_event(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    index: int,
+    item: EventImport,
+    event: models.Event,
+    source_row: models.EventSource,
+    digest: str,
+    now: datetime,
+) -> EventImportResult:
+    locked = set(
+        await session.scalars(
+            select(models.EventFieldLock.field).where(models.EventFieldLock.event_id == event.id)
+        )
+    )
+    applied: dict[str, Any] = {}
+    ignored: list[str] = []
+    for field, value in import_values(item).items():
+        if _json(_utc(getattr(event, field))) == _json(_utc(value)):
+            continue
+        if field != "confidence" and field in locked:
+            ignored.append(field)
+        else:
+            applied[field] = value
+    mapped, unmapped = await map_import_areas(session, item)
+    current = await current_areas(session, event.id)
+    new_area_rows = sorted((area.key, area.importance.value, area.headcount) for area in mapped)
+    area_change = False
+    if new_area_rows != current:
+        if "areas" in locked:
+            ignored.append("areas")
+        else:
+            area_change = True
+    unmapped_changed = list(event.unmapped_areas) != list(unmapped)
+    old_reasons = list(event.review_reasons)
+    if unmapped:
+        new_reasons = (
+            old_reasons
+            if EventReviewReason.UNMAPPED_AREAS.value in old_reasons
+            else [*old_reasons, EventReviewReason.UNMAPPED_AREAS.value]
+        )
+    else:
+        new_reasons = [
+            reason for reason in old_reasons if reason != EventReviewReason.UNMAPPED_AREAS.value
+        ]
+    if not applied and not area_change and not unmapped_changed:
+        await touch_source(session, source_row, item, digest, now)
+        return EventImportResult(
+            index=index,
+            source_id=item.source.source_id,
+            result="unchanged",
+            event_id=event.id,
+            review_reasons=[EventReviewReason(reason) for reason in event.review_reasons],
+            ignored_fields=ignored,
+        )
+    previous_dates = formation.event_dates(event)
+    before = {field: getattr(event, field) for field in applied}
+    areas_before = current
+    unmapped_before = list(event.unmapped_areas)
+    for field, value in applied.items():
+        setattr(event, field, value.value if isinstance(value, StrEnum) else value)
+    if unmapped_changed:
+        event.unmapped_areas = list(unmapped)
+        event.review_reasons = new_reasons
+    if area_change:
+        rows = await resolve_areas(session, mapped)
+        await session.execute(delete(models.EventArea).where(models.EventArea.event_id == event.id))
+        session.add_all(
+            models.EventArea(
+                event_id=event.id,
+                area_id=area.id,
+                importance=area_input.importance.value,
+                headcount=area_input.headcount,
+            )
+            for area, area_input in rows
+        )
+        await session.flush()
+    diff: dict[str, JsonValue] = {
+        field: {"before": _json(before[field]), "after": _json(getattr(event, field))}
+        for field in applied
+    }
+    if area_change:
+        diff["areas"] = {"before": _json(areas_before), "after": _json(new_area_rows)}
+    if unmapped_changed:
+        diff["unmapped_areas"] = {"before": _json(unmapped_before), "after": _json(unmapped)}
+    session.add(
+        models.EventRevision(
+            event_id=event.id,
+            origin=EventRevisionOrigin.IMPORT.value,
+            actor_id=None,
+            diff=diff,
+            ignored_fields=ignored,
+        )
+    )
+    changed = set(applied) | ({"areas"} if area_change else set())
+    fields = sorted(changed & NOTIFY_FIELDS)
+    if fields:
+        await notify_event_changed(
+            session,
+            event,
+            [
+                NotificationChange(
+                    field=field,
+                    previous=None if before[field] is None else str(_json(before[field])),
+                    current=None
+                    if getattr(event, field) is None
+                    else str(_json(getattr(event, field))),
+                )
+                for field in fields
+            ],
+            now,
+        )
+    if changed & DATE_FIELDS:
+        await formation.dates_changed(session, jobs, event, previous_dates, now)
+    if area_change:
+        await enqueue_lead_fits(session, jobs, event)
+    if changed & TEAM_FIELDS:
+        conflicts = await team_size_conflict_count(session, event)
+        if conflicts:
+            await raise_alert(
+                session,
+                AlertKind.TEAM_SIZE_CONFLICT,
+                now,
+                title=f"Team size conflict: {event.title}",
+                message=f"{conflicts} teams are outside the new team size",
+                link=f"/admin/events/{event.id}",
+                subject_type="event",
+                subject_id=event.id,
+                subject_title=event.title,
+                dedupe_key=f"team_size_conflict:{event.id}",
+            )
     await touch_source(session, source_row, item, digest, now)
     return EventImportResult(
         index=index,
         source_id=item.source.source_id,
-        result="unchanged",
+        result="updated",
         event_id=event.id,
         review_reasons=[EventReviewReason(reason) for reason in event.review_reasons],
-        ignored_fields=[],
+        ignored_fields=ignored,
     )
 
 
