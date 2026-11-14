@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, Request, status
 from hmm_contracts.common import OnboardingStatus, SubjectId, UserId
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -24,7 +24,7 @@ from hmm_core.admin.schemas import (
 from hmm_core.identity import service as identity
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import AdminAuth
 from hmm_core.platform.settings import SettingKey
@@ -168,8 +168,10 @@ async def update_setting(
     status_code=status.HTTP_200_OK,
     summary="Get parser heartbeats, job queues, algo version and failures",
 )
-async def get_system_status(actor: AdminAuth) -> SystemStatus:
-    not_implemented()
+async def get_system_status(
+    request: Request, actor: AdminAuth, session: Session, clock: CurrentClock
+) -> SystemStatus:
+    return await admin.system_status(session, request.app.state.config, clock.now())
 
 
 @router.post(
@@ -178,6 +180,8 @@ async def get_system_status(actor: AdminAuth) -> SystemStatus:
 async def retry_job(
     id: Annotated[int, Path(ge=1)],
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
     body: RetryJobBody | None = None,
 ) -> Job:
-    not_implemented()
+    return await admin.retry_job(session, id, actor.id, clock.now(), body.reason if body else None)

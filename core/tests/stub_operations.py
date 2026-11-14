@@ -1,7 +1,5 @@
 UNIMPLEMENTED_OPERATIONS = set(
     [
-        "admin_get_system_status",
-        "admin_retry_job",
         "attendance_cancel_event",
         "attendance_create_event",
         "attendance_delete_attendance",

@@ -2,7 +2,10 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 from hmm_contracts.common import (
+    ActorKind,
     AlertStatus,
+    AuditAction,
+    AuditEntityType,
     ErrorCode,
     EventOrigin,
     FlagStatus,
@@ -16,6 +19,7 @@ from hmm_contracts.notifications import AlertKind
 from pydantic import JsonValue, ValidationError
 from sqlalchemy import Text, and_, exists, func, or_, select, text, type_coerce
 from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -23,10 +27,21 @@ from hmm_core.admin.schemas import (
     AdminDashboard,
     AuditEntry,
     AuditEntryPage,
+    Job,
+    JobAction,
+    JobStatus,
+    QueueStats,
     Setting,
     SettingAction,
+    StoredParserHeartbeat,
+    SystemStatus,
 )
+from hmm_core.notifications.service import raise_alert, resolve_alerts
+from hmm_core.platform.algo import load_algorithm
+from hmm_core.platform.audit import record_audit
+from hmm_core.platform.config import Config
 from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.jobs import JobName
 from hmm_core.platform.pagination import CursorParams, apply_keyset, encode_cursor, keyset_page
 from hmm_core.platform.settings import (
     RuntimeSettings,
@@ -34,6 +49,17 @@ from hmm_core.platform.settings import (
     load_settings,
     set_setting,
     setting_value_schema,
+)
+
+JOB_SELECT = (
+    "SELECT j.id, j.task_name, j.queue_name, j.status::text AS status, j.attempts, "
+    "min(e.at) AS created_at, max(e.at) AS updated_at "
+    "FROM procrastinate.procrastinate_jobs j "
+    "JOIN procrastinate.procrastinate_events e ON e.job_id = j.id "
+)
+JOB_GROUP_ORDER = (
+    " GROUP BY j.id, j.task_name, j.queue_name, j.status, j.attempts "
+    "ORDER BY max(e.at) DESC, j.id DESC"
 )
 
 
@@ -279,3 +305,139 @@ async def update_setting(
         RuntimeSettings().model_dump(mode="json")[key.value],
         row,
     )
+
+
+async def check_parser_down(
+    session: AsyncSession, now: datetime, settings: RuntimeSettings
+) -> None:
+    last = await session.scalar(select(func.max(models.ParserHeartbeat.finished_at)))
+    if last is None:
+        return
+    if now - last > timedelta(hours=settings.parser_heartbeat_max_age_hours):
+        await raise_alert(
+            session,
+            AlertKind.PARSER_DOWN,
+            now,
+            title="Parser is down",
+            message=f"No parser heartbeat since {last.isoformat()}",
+            link="/admin/system",
+            subject_type="parser",
+            subject_title="Parser",
+            dedupe_key="parser_down",
+        )
+    else:
+        await resolve_alerts(session, "parser_down", now)
+
+
+async def system_status(session: AsyncSession, config: Config, now: datetime) -> SystemStatus:
+    heartbeats = await session.scalars(
+        select(models.ParserHeartbeat)
+        .where(models.ParserHeartbeat.finished_at.is_not(None))
+        .order_by(models.ParserHeartbeat.started_at.desc())
+        .limit(20)
+    )
+    queues = await session.execute(
+        text(
+            "SELECT queue_name, count(*) FILTER (WHERE status = 'todo') AS pending, "
+            "count(*) FILTER (WHERE status = 'doing') AS running, "
+            "count(*) FILTER (WHERE status = 'failed') AS failed "
+            "FROM procrastinate.procrastinate_jobs GROUP BY queue_name ORDER BY queue_name"
+        )
+    )
+    return SystemStatus(
+        parser_heartbeats=[StoredParserHeartbeat.model_validate(row) for row in heartbeats],
+        job_queue_stats=[QueueStats.model_validate(row) for row in queues],
+        algo_version=load_algorithm(config).version,
+        failed_jobs=await job_views(session, failed_only=True),
+    )
+
+
+async def job_contract(session: AsyncSession, row: RowMapping) -> Job:
+    payload = await session.scalar(
+        select(models.AdminAlert.payload)
+        .where(
+            models.AdminAlert.type == AlertKind.JOB_FAILING.value,
+            text("payload->>'job_id' = :job_id"),
+        )
+        .params(job_id=str(row["id"]))
+        .order_by(models.AdminAlert.created_at.desc())
+        .limit(1)
+    )
+    error = payload.get("error") if isinstance(payload, dict) else None
+    status = JobStatus(row["status"])
+    return Job(
+        id=row["id"],
+        task_name=JobName(row["task_name"]),
+        queue_name=row["queue_name"],
+        status=status,
+        attempts=row["attempts"],
+        last_error=error if isinstance(error, str) else None,
+        created_at=row["created_at"],
+        updated_at=row["updated_at"],
+        allowed_actions=[JobAction.RETRY] if status == JobStatus.FAILED else [],
+    )
+
+
+async def job_view(session: AsyncSession, job_id: int) -> Job:
+    row = (
+        (
+            await session.execute(
+                text(JOB_SELECT + "WHERE j.id = :job_id" + JOB_GROUP_ORDER), {"job_id": job_id}
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if row is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if row["task_name"] not in JobName:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Unknown job task")
+    return await job_contract(session, row)
+
+
+async def job_views(session: AsyncSession, failed_only: bool = True) -> list[Job]:
+    where = "WHERE j.status = 'failed'" if failed_only else ""
+    rows = await session.execute(text(JOB_SELECT + where + JOB_GROUP_ORDER + " LIMIT 50"))
+    return [
+        await job_contract(session, row) for row in rows.mappings() if row["task_name"] in JobName
+    ]
+
+
+async def retry_job(
+    session: AsyncSession, job_id: int, actor: UUID, now: datetime, reason: str | None
+) -> Job:
+    row = (
+        await session.execute(
+            text(
+                "SELECT task_name, status::text AS status "
+                "FROM procrastinate.procrastinate_jobs WHERE id = :job_id"
+            ),
+            {"job_id": job_id},
+        )
+    ).one_or_none()
+    if row is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if row.status != "failed":
+        raise ProblemError(ErrorCode.INVALID_STATE, "Only failed jobs can be retried")
+    if row.task_name not in JobName:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Unknown job task")
+    await session.execute(
+        text(
+            "UPDATE procrastinate.procrastinate_jobs SET status = 'todo', attempts = 0, "
+            "scheduled_at = :now, queueing_lock = NULL "
+            "WHERE id = :job_id AND status = 'failed'"
+        ),
+        {"now": now, "job_id": job_id},
+    )
+    await record_audit(
+        session,
+        actor=actor,
+        actor_kind=ActorKind.ADMIN,
+        action=AuditAction.JOB_RETRY,
+        entity_type=AuditEntityType.JOB,
+        entity_id=str(job_id),
+        before={"status": "failed"},
+        after={"status": "todo"},
+        reason=reason,
+    )
+    return await job_view(session, job_id)
