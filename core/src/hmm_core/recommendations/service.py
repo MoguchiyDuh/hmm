@@ -2,9 +2,10 @@ import hashlib
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from uuid import UUID
 
+import procrastinate
 from hmm_contracts.algo import (
     EnrolledMember,
     MemberSnapshot,
@@ -28,7 +29,7 @@ from hmm_contracts.common import (
     TeamStatus,
 )
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -36,12 +37,14 @@ from hmm_core.catalog import service as catalog
 from hmm_core.formation import service as formation
 from hmm_core.identity.service import ONBOARDED, dnd_active
 from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.schemas import UserRef
 from hmm_core.recommendations import schemas
 from hmm_core.scores.snapshot import build_member_snapshots
 
 RECOMMEND_LIMIT_ENROLLED = 100
 RECOMMEND_LIMIT_OTHERS = 100
+REFRESH_INTERVAL = timedelta(minutes=1)
 
 
 @dataclass(frozen=True, slots=True)
@@ -555,3 +558,64 @@ def validated_recommendations(
     enrolled, dropped_enrolled = validated_group(result.enrolled, enrolled_ids)
     others, dropped_others = validated_group(result.others, others_ids)
     return Recommendations(enrolled=enrolled, others=others), dropped_enrolled + dropped_others
+
+
+async def enqueue_project_refresh(
+    session: AsyncSession, jobs: procrastinate.App, project_id: UUID
+) -> None:
+    await defer_job(session, jobs, JobName.REFRESH_RECOMMENDATIONS, project_id=str(project_id))
+
+
+async def enqueue_event_refresh(
+    session: AsyncSession, jobs: procrastinate.App, event_id: UUID
+) -> None:
+    project_ids = await session.scalars(
+        select(models.Project.id)
+        .where(
+            models.Project.event_id == event_id,
+            or_(
+                models.Project.team_status.in_(
+                    sorted(state.value for state in formation.CAPACITY_TEAM_STATES)
+                ),
+                and_(
+                    models.Project.team_status.is_(None),
+                    models.Project.recruiting.is_not(None),
+                    func.jsonb_typeof(models.Project.recruiting) != "null",
+                ),
+            ),
+        )
+        .order_by(models.Project.id)
+    )
+    for project_id in project_ids.all():
+        await enqueue_project_refresh(session, jobs, project_id)
+
+
+async def request_refresh(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> None:
+    project = await session.scalar(
+        select(models.Project)
+        .where(models.Project.id == project_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if actor.id != project.lead_user_id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if not recommendation_refreshable(project):
+        raise ProblemError(ErrorCode.INVALID_STATE, "Quick-pick is not available for this project")
+    if (
+        project.recommendation_refresh_at is not None
+        and now - project.recommendation_refresh_at < REFRESH_INTERVAL
+    ):
+        raise ProblemError(
+            ErrorCode.RATE_LIMITED, "Recommendations can be refreshed once per minute"
+        )
+    project.recommendation_refresh_at = now
+    await session.flush()
+    await enqueue_project_refresh(session, jobs, project.id)

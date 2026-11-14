@@ -1,4 +1,4 @@
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Request, status
 from hmm_contracts.common import HelpRequestId, ProjectId
 
 from hmm_core.platform.clock import CurrentClock
@@ -28,8 +28,10 @@ async def get_project_recommendations(
     status_code=status.HTTP_202_ACCEPTED,
     summary="Refresh recommendations as lead, at most once per minute",
 )
-async def refresh_project_recommendations(id: ProjectId, actor: MemberAuth) -> None:
-    not_implemented()
+async def refresh_project_recommendations(
+    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> None:
+    await service.request_refresh(session, request.app.state.jobs, id, actor, clock.now())
 
 
 @router.get(
