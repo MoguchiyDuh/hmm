@@ -23,6 +23,8 @@ from hmm_contracts.common import (
     InviteStatus,
     JoinedVia,
     JoinRequestStatus,
+    LeadOfferSource,
+    LeadOfferStatus,
     LeftReason,
     MemberRole,
     MemberState,
@@ -36,6 +38,7 @@ from hmm_contracts.common import (
 from hmm_contracts.formation import placement_bounds
 from hmm_contracts.notifications import (
     ActionKey,
+    AlertKind,
     ApiAction,
     FormationRescheduledPayload,
     InviteAcceptedPayload,
@@ -45,6 +48,8 @@ from hmm_contracts.notifications import (
     JoinRequestAcceptedPayload,
     JoinRequestReceivedPayload,
     JoinRequestRejectedPayload,
+    LeadAssignedPayload,
+    LeadOfferPayload,
     NotificationPerson,
     ProjectInviteReceivedPayload,
     ProjectJoinRequestReceivedPayload,
@@ -57,7 +62,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hmm_core import models
 from hmm_core.attendance import service as attendance
 from hmm_core.formation import schemas
-from hmm_core.notifications.service import notify, notify_many
+from hmm_core.notifications.service import notify, notify_many, raise_alert
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
@@ -81,6 +86,10 @@ TERMINAL_PROJECT_STATUSES = frozenset(
 ACCEPT_LABEL = "notifications.actions.accept"
 DECLINE_LABEL = "notifications.actions.decline"
 REJECT_LABEL = "notifications.actions.reject"
+CLOSED_TEAM_STATUSES: frozenset[str] = projects.TERMINAL_TEAM_STATUSES
+FORCEABLE_TEAM_STATUSES: frozenset[str] = frozenset(
+    {TeamStatus.LOCKED.value, TeamStatus.ACTIVE.value}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -2658,3 +2667,386 @@ async def withdraw_user_pending_items(session: AsyncSession, user_id: UUID, now:
         .values(status=JoinRequestStatus.WITHDRAWN.value, responded_at=now)
     )
     return None
+
+
+@dataclass(frozen=True, slots=True)
+class LeadOrderEntry:
+    member: models.ProjectMember
+    user: models.User
+    fit: float
+    tier: int
+    enrolled_at: datetime | None
+
+
+async def lead_order(
+    session: AsyncSession, project: models.Project, now: datetime
+) -> list[LeadOrderEntry]:
+    if project.event_id is None:
+        return []
+    rows = (
+        await session.execute(
+            select(models.ProjectMember, models.User)
+            .join(models.User, models.User.id == models.ProjectMember.user_id)
+            .where(
+                models.ProjectMember.project_id == project.id,
+                models.ProjectMember.left_at.is_(None),
+                models.ProjectMember.is_team_row.is_(True),
+                models.User.banned_at.is_(None),
+            )
+        )
+    ).all()
+    if not rows:
+        return []
+    user_ids = {user.id for _, user in rows}
+    enrollments: dict[UUID, models.Enrollment] = {
+        enrollment.user_id: enrollment
+        for enrollment in await session.scalars(
+            select(models.Enrollment).where(
+                models.Enrollment.event_id == project.event_id,
+                models.Enrollment.user_id.in_(user_ids),
+                models.Enrollment.status.in_(
+                    sorted(member.value for member in LIVE_ENROLLMENT_STATES)
+                ),
+            )
+        )
+    }
+    fits: dict[UUID, models.LeadFit] = {
+        row.user_id: row
+        for row in await session.scalars(
+            select(models.LeadFit).where(
+                models.LeadFit.event_id == project.event_id,
+                models.LeadFit.user_id.in_(user_ids),
+            )
+        )
+    }
+    claimed = {project.lead_user_id} if project.lead_user_id is not None else set()
+    settings = await load_settings(session)
+    entries: list[LeadOrderEntry] = []
+    for member, user in rows:
+        row = fits.get(user.id)
+        fit = float(row.fit) if row is not None else 0.0
+        enrollment = enrollments.get(user.id)
+        entries.append(
+            LeadOrderEntry(
+                member=member,
+                user=user,
+                fit=fit,
+                tier=lead_candidate_tier(
+                    user.id,
+                    fit,
+                    enrollment.willing_to_lead if enrollment else False,
+                    claimed,
+                    settings,
+                ),
+                enrolled_at=enrollment.created_at if enrollment else None,
+            )
+        )
+    return sorted(
+        entries,
+        key=lambda entry: (
+            entry.tier,
+            -entry.fit,
+            entry.enrolled_at is None,
+            entry.enrolled_at or now,
+            str(entry.user.id),
+        ),
+    )
+
+
+async def team_member_ids(session: AsyncSession, project_id: UUID) -> list[UUID]:
+    return list(
+        await session.scalars(
+            select(models.ProjectMember.user_id)
+            .where(
+                models.ProjectMember.project_id == project_id,
+                models.ProjectMember.left_at.is_(None),
+                models.ProjectMember.is_team_row.is_(True),
+            )
+            .order_by(models.ProjectMember.joined_at, models.ProjectMember.id)
+        )
+    )
+
+
+async def lead_offer_expiry(
+    session: AsyncSession, project: models.Project, event: models.Event | None, now: datetime
+) -> datetime:
+    settings = await load_settings(session)
+    if event is None or project.event_id is None:
+        return now + projects.STANDALONE_TRANSFER_TTL
+    formation = await session.get(models.EventFormation, event.id)
+    if project.team_status == TeamStatus.FORMING.value:
+        cap = formation.formation_at if formation is not None else event.starts_at
+    elif project.team_status == TeamStatus.REVIEW.value:
+        cap = (
+            project.review_ends_at
+            or (formation.review_ends_at if formation is not None else None)
+            or event.starts_at
+        )
+    elif project.team_status == TeamStatus.LOCKED.value:
+        cap = event.starts_at
+    elif project.team_status == TeamStatus.ACTIVE.value:
+        cap = event.ends_at
+    else:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This team cannot receive lead offers")
+    return min(now + timedelta(hours=settings.lead_offer_hours), cap)
+
+
+async def close_pending_lead_offers(session: AsyncSession, project_id: UUID, now: datetime) -> None:
+    await session.execute(
+        update(models.LeadOffer)
+        .where(
+            models.LeadOffer.project_id == project_id,
+            models.LeadOffer.status == LeadOfferStatus.PENDING.value,
+            models.LeadOffer.source == LeadOfferSource.TRANSFER.value,
+        )
+        .values(status=LeadOfferStatus.CANCELLED.value, responded_at=now)
+    )
+    await session.execute(
+        update(models.LeadOffer)
+        .where(
+            models.LeadOffer.project_id == project_id,
+            models.LeadOffer.status == LeadOfferStatus.PENDING.value,
+            models.LeadOffer.source != LeadOfferSource.TRANSFER.value,
+        )
+        .values(status=LeadOfferStatus.CLOSED.value, responded_at=now)
+    )
+    return None
+
+
+async def create_lead_offer(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event | None,
+    user_id: UUID,
+    now: datetime,
+    *,
+    source: LeadOfferSource,
+    reason: str,
+    offered_by: UUID | None = None,
+    tier: int | None = None,
+) -> models.LeadOffer:
+    user = await session.get(models.User, user_id)
+    if user is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    member = await session.scalar(
+        select(models.ProjectMember.id)
+        .where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.user_id == user_id,
+            models.ProjectMember.left_at.is_(None),
+        )
+        .limit(1)
+    )
+    if member is None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "The offered member is not on this team")
+    await close_pending_lead_offers(session, project.id, now)
+    expires_at = await lead_offer_expiry(session, project, event, now)
+    offer = models.LeadOffer(
+        project_id=project.id,
+        event_id=project.event_id,
+        user_id=user_id,
+        source=source.value,
+        offered_by=offered_by,
+        tier=tier,
+        reason=reason,
+        status=LeadOfferStatus.PENDING.value,
+        expires_at=expires_at,
+    )
+    session.add(offer)
+    await session.flush()
+    if event is not None:
+        offerer = await session.get(models.User, offered_by) if offered_by is not None else None
+        await notify(
+            session,
+            user_id,
+            LeadOfferPayload(
+                link=f"/projects/{project.id}",
+                event_id=event.id,
+                event_title=event.title,
+                project_id=project.id,
+                team_name=project.name,
+                lead_offer_id=offer.id,
+                source=source,
+                offered_member=notification_person(user),
+                offered_by=notification_person(offerer) if offerer is not None else None,
+                expires_at=expires_at,
+            ),
+            now,
+            dedupe_key=f"lead_offer:{offer.id}",
+        )
+    return offer
+
+
+async def lead_offer_responses(
+    session: AsyncSession, offers: Sequence[models.LeadOffer], actor: models.User
+) -> list[project_schemas.LeadOffer]:
+    if not offers:
+        return []
+    projects_by_id = {
+        project.id: project
+        for project in await session.scalars(
+            select(models.Project).where(
+                models.Project.id.in_({offer.project_id for offer in offers})
+            )
+        )
+    }
+    user_ids = {offer.user_id for offer in offers} | {
+        offer.offered_by for offer in offers if offer.offered_by is not None
+    }
+    users: dict[UUID, models.User] = {
+        user.id: user
+        for user in await session.scalars(select(models.User).where(models.User.id.in_(user_ids)))
+    }
+    views: list[project_schemas.LeadOffer] = []
+    for offer in offers:
+        project = projects_by_id.get(offer.project_id)
+        if project is None:
+            raise ProblemError(ErrorCode.NOT_FOUND)
+        views.append(projects.lead_offer_view(project, offer, users=users, actor=actor))
+    return views
+
+
+async def lead_offer_response(
+    session: AsyncSession, offer: models.LeadOffer, actor: models.User
+) -> project_schemas.LeadOffer:
+    return (await lead_offer_responses(session, [offer], actor))[0]
+
+
+async def start_succession(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event | None,
+    now: datetime,
+    *,
+    exclude: set[UUID],
+    reason: str,
+) -> models.LeadOffer | None:
+    if event is None:
+        await projects.standalone_lead_succession(session, project, now, exclude=set(exclude))
+        return None
+    project.lead_succession_excluded = sorted(set(exclude), key=str)
+    return await _offer_next(session, project, event, now, reason=reason)
+
+
+async def advance_succession(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event | None,
+    now: datetime,
+    *,
+    exclude: UUID,
+    reason: str,
+) -> models.LeadOffer | None:
+    if event is None:
+        await projects.standalone_lead_succession(session, project, now, exclude={exclude})
+        return None
+    project.lead_succession_excluded = sorted({*project.lead_succession_excluded, exclude}, key=str)
+    return await _offer_next(session, project, event, now, reason=reason)
+
+
+async def _offer_next(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event,
+    now: datetime,
+    *,
+    reason: str,
+) -> models.LeadOffer | None:
+    if project.lead_user_id is not None:
+        return None
+    excluded = set(project.lead_succession_excluded)
+    entries = [
+        entry for entry in await lead_order(session, project, now) if entry.user.id not in excluded
+    ]
+    if not entries:
+        return await _exhausted(session, project, event, now)
+    expires_at = await lead_offer_expiry(session, project, event, now)
+    if expires_at <= now:
+        return await _exhausted(session, project, event, now)
+    return await create_lead_offer(
+        session,
+        project,
+        event,
+        entries[0].user.id,
+        now,
+        source=LeadOfferSource.SUCCESSION,
+        reason=reason,
+        tier=entries[0].tier,
+    )
+
+
+async def _exhausted(
+    session: AsyncSession, project: models.Project, event: models.Event | None, now: datetime
+) -> None:
+    if project.team_status in FORCEABLE_TEAM_STATUSES and event is not None:
+        await force_lead(session, project, event, now, reason="No member accepted the lead role")
+    return None
+
+
+async def force_lead(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event | None,
+    now: datetime,
+    *,
+    reason: str,
+) -> models.ProjectMember | None:
+    if event is None or project.lead_user_id is not None:
+        return None
+    if project.team_status not in FORCEABLE_TEAM_STATUSES:
+        return None
+    entry = next(
+        (
+            entry
+            for entry in await lead_order(session, project, now)
+            if entry.member.state == MemberState.CONFIRMED.value
+        ),
+        None,
+    )
+    if entry is None:
+        return None
+    await close_pending_lead_offers(session, project.id, now)
+    project.lead_user_id = entry.user.id
+    project.last_lead_action_at = now
+    project.lead_succession_excluded = []
+    entry.member.role = MemberRole.LEAD.value
+    await session.flush()
+    await record_audit(
+        session,
+        actor=None,
+        actor_kind=ActorKind.SYSTEM,
+        action=AuditAction.LEAD_ASSIGN,
+        entity_type=AuditEntityType.PROJECT,
+        entity_id=project.id,
+        before={"lead_user_id": None},
+        after={"lead_user_id": str(entry.user.id), "forced": True},
+        reason=reason,
+    )
+    await notify_many(
+        session,
+        await team_member_ids(session, project.id),
+        LeadAssignedPayload(
+            link=f"/projects/{project.id}",
+            event_id=event.id,
+            event_title=event.title,
+            project_id=project.id,
+            team_name=project.name,
+            lead=notification_person(entry.user),
+            reason=reason,
+        ),
+        now,
+        dedupe_key=f"lead_assigned:{project.id}:{entry.user.id}",
+    )
+    await raise_alert(
+        session,
+        AlertKind.FORCED_LEAD,
+        now,
+        title=f"Lead role forced: {project.name}",
+        message=f"{entry.user.display_name} was assigned as lead because nobody accepted the offer",
+        link=f"/admin/projects/{project.id}",
+        subject_type="project",
+        subject_id=project.id,
+        subject_title=project.name,
+        dedupe_key=f"forced_lead:{project.id}",
+    )
+    return entry.member

@@ -32,7 +32,7 @@ from sqlalchemy import (
     Uuid,
     text,
 )
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from hmm_core.platform.db import Base, Created, Mutable, enum_check
@@ -88,6 +88,9 @@ class Project(Mutable, Base):
     )
     recommendation_refresh_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    lead_succession_excluded: Mapped[list[UUID]] = mapped_column(
+        ARRAY(Uuid), nullable=False, server_default=text("'{}'")
     )
 
 
