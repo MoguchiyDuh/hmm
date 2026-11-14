@@ -226,8 +226,18 @@ async def list_flags(
     status_code=status.HTTP_200_OK,
     summary="Resolve suspicious activity",
 )
-async def resolve_flag(id: FlagId, body: ResolveFlagBody, actor: AdminAuth) -> Flag:
-    not_implemented()
+async def resolve_flag(
+    id: FlagId,
+    body: ResolveFlagBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Flag:
+    row = await moderation.resolve_flag(
+        session, request.app.state.jobs, id, body, actor.id, clock.now()
+    )
+    return (await moderation.flag_views(session, [row]))[0]
 
 
 @router.get(

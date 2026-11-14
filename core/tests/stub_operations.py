@@ -95,6 +95,5 @@ UNIMPLEMENTED_OPERATIONS = set(
         "results_list_results_to_verify",
         "results_update_result",
         "results_verify_result",
-        "scores_resolve_flag",
     ]
 )
