@@ -1,6 +1,6 @@
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from hmm_contracts.common import (
     AreaKey,
     EventFormat,
@@ -18,6 +18,7 @@ from hmm_contracts.imports import (
 )
 from pydantic import AwareDatetime
 
+from hmm_core.catalog import service as catalog
 from hmm_core.catalog.schemas import (
     CreateEventBody,
     EventDetail,
@@ -27,6 +28,8 @@ from hmm_core.catalog.schemas import (
     MergeEventBody,
     UpdateEventBody,
 )
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
 from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
@@ -60,8 +63,11 @@ async def list_events(
 
 
 @router.get("/events/{id}", status_code=status.HTTP_200_OK, summary="Get event details")
-async def get_event(id: EventId, actor: MemberAuth) -> EventDetail:
-    not_implemented()
+async def get_event(
+    id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> EventDetail:
+    event = await catalog.visible_event(session, id, actor)
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @router.get("/events/{id}/projects", status_code=status.HTTP_200_OK, summary="List event projects")
@@ -70,8 +76,17 @@ async def list_event_projects(id: EventId, actor: MemberAuth) -> list[Project]:
 
 
 @router.post("/admin/events", status_code=status.HTTP_201_CREATED, summary="Create a manual event")
-async def create_event(body: CreateEventBody, actor: AdminAuth) -> EventDetail:
-    not_implemented()
+async def create_event(
+    body: CreateEventBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> EventDetail:
+    event = await catalog.create_manual_event(
+        session, request.app.state.jobs, body, actor, clock.now()
+    )
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @router.get(

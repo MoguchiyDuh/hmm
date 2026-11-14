@@ -7,7 +7,14 @@ import pytest
 from harness import Harness
 from hmm_contracts.algo import EventArea
 from hmm_contracts.common import (
+    ActorKind,
     AreaImportance,
+    AttendanceRole,
+    AttendanceStatus,
+    AuditAction,
+    AuditEntityType,
+    EnrollmentSource,
+    EnrollmentStatus,
     ErrorCode,
     EventFormat,
     EventKind,
@@ -15,13 +22,16 @@ from hmm_contracts.common import (
     EventPhase,
     EventStatus,
     FormationPhase,
+    Trust,
 )
 from hmm_core import models
 from hmm_core.catalog import service as catalog
 from hmm_core.formation import service as formation
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.settings import RuntimeSettings
+from pydantic import JsonValue
 from sqlalchemy import select
+from test_api_skeleton import assert_problem
 
 
 def event_input(h: Harness) -> catalog.EventInput:
@@ -359,3 +369,357 @@ async def test_enqueue_lead_fits(harness: Harness) -> None:
     assert len(jobs) == 1
     assert jobs[0]["status"] == "todo"
     assert jobs[0]["args"] == {"event_id": str(published.id)}
+
+
+def event_body(h: Harness) -> dict[str, JsonValue]:
+    return {
+        "kind": "hackathon",
+        "title": "Py Days 2027!",
+        "starts_at": (h.now + timedelta(days=30)).isoformat(),
+        "ends_at": (h.now + timedelta(days=32)).isoformat(),
+        "timezone": "UTC",
+    }
+
+
+async def test_admin_create_event_detail(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    areas = await h.seed_areas(("backend",))
+    payload = {
+        **event_body(h),
+        "areas": [{"key": "backend", "importance": "primary", "headcount": 2}],
+        "summary": "A Python hackathon",
+        "description_md": "Build together",
+        "organizer": "Python community",
+        "website_url": "https://example.com/event",
+        "registration_url": "https://example.com/register",
+        "format": "hybrid",
+        "location": {"city": "Berlin"},
+        "language": ["en"],
+        "eligibility": "Everyone",
+        "themes": ["Python"],
+        "prize": {"amount": 1000, "currency": "EUR"},
+        "difficulty": 6.25,
+        "difficulty_rationale": "Challenging",
+        "reason": "Community event",
+    }
+    async with await h.client(admin) as client:
+        response = await client.post("/api/v1/admin/events", json=payload)
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["origin"] == "manual"
+    assert body["status"] == "published"
+    assert body["slug"] == "py-days-2027"
+    assert body["created_by"] == str(admin.id)
+    assert body["phase"] == "registration_open"
+    assert body["participation_phase"] == "open"
+    assert body["registration_deadline"] is None
+    assert body["areas"] == [
+        {"key": "backend", "name": areas["backend"].name, "importance": "primary", "headcount": 2}
+    ]
+    assert body["attendance_counts"] == {"going": 0, "attended": 0}
+    assert body["my_attendance"] is None
+    assert body["sources"] == []
+    assert body["members_going"] == []
+    assert body["my_lead_fit"] is None
+    assert body["formation"]["target"] == 5
+    assert body["formation"]["viable"] == 4
+    assert body["formation"]["core_max"] == 3
+    assert body["formation"]["allowed_actions"] == []
+    assert "cancel" in body["allowed_actions"]
+    for field in (
+        "summary",
+        "description_md",
+        "organizer",
+        "website_url",
+        "registration_url",
+        "format",
+        "language",
+        "eligibility",
+        "themes",
+        "difficulty_rationale",
+    ):
+        assert body[field] == payload[field]
+    assert body["location"] == {"country": None, "city": "Berlin", "address": None}
+    assert body["prize"] == {"amount": 1000.0, "currency": "EUR", "description": None}
+    assert body["difficulty"] == 6.3
+    jobs = await h.pending_jobs("compute_lead_fits")
+    assert len(jobs) == 1
+    assert jobs[0]["args"] == {"event_id": body["id"]}
+    async with h.db() as session:
+        audits = (await session.scalars(select(models.AuditLog))).all()
+        assert len(audits) == 1
+        audit = audits[0]
+        assert audit.actor_id == admin.id
+        assert audit.actor_kind == ActorKind.ADMIN
+        assert audit.action == AuditAction.EVENT_CREATE
+        assert audit.entity_type == AuditEntityType.EVENT
+        assert audit.entity_id == body["id"]
+        assert audit.before is None
+        assert audit.after == {
+            "slug": body["slug"],
+            "kind": "hackathon",
+            "title": payload["title"],
+            "starts_at": payload["starts_at"],
+            "ends_at": payload["ends_at"],
+            "formation_enabled": True,
+        }
+        assert audit.reason == payload["reason"]
+
+
+async def test_admin_create_event_errors(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    async with await h.client(admin) as client:
+        created = await client.post("/api/v1/admin/events", json=event_body(h))
+        assert created.status_code == 201, created.text
+        for changes, status, code in (
+            ({"formation_enabled": True, "team_size_max": 1}, 409, ErrorCode.INVALID_STATE),
+            (
+                {"areas": [{"key": "unknown", "importance": "primary"}]},
+                422,
+                ErrorCode.VALIDATION_ERROR,
+            ),
+            ({"slug": created.json()["slug"]}, 422, ErrorCode.VALIDATION_ERROR),
+            ({"ends_at": h.now.isoformat()}, 422, ErrorCode.VALIDATION_ERROR),
+        ):
+            assert_problem(
+                await client.post("/api/v1/admin/events", json={**event_body(h), **changes}),
+                status,
+                code,
+            )
+    assert len(await h.pending_jobs("compute_lead_fits")) == 1
+    async with h.db() as session:
+        assert len((await session.scalars(select(models.Event))).all()) == 1
+        assert len((await session.scalars(select(models.AuditLog))).all()) == 1
+
+
+async def test_create_event_requires_admin(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    async with await h.client(member) as client:
+        assert_problem(
+            await client.post("/api/v1/admin/events", json=event_body(h)),
+            403,
+            ErrorCode.FORBIDDEN,
+        )
+    async with h.anonymous() as client:
+        assert_problem(
+            await client.post("/api/v1/admin/events", json=event_body(h)),
+            401,
+            ErrorCode.UNAUTHENTICATED,
+        )
+
+
+async def test_member_event_detail_actions(harness: Harness) -> None:
+    h = harness
+    creator = await h.admin()
+    member = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=creator.id,
+            now=h.now,
+        )
+    async with await h.client(member) as client:
+        response = await client.get(f"/api/v1/events/{event.id}")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["my_attendance"] is None
+        assert body["allowed_actions"] == ["going", "enroll"]
+        async with h.db() as session:
+            session.add(
+                models.Enrollment(
+                    event_id=event.id,
+                    user_id=member.id,
+                    status=EnrollmentStatus.ACTIVE,
+                    source=EnrollmentSource.SELF,
+                    status_at=h.now,
+                )
+            )
+        response = await client.get(f"/api/v1/events/{event.id}")
+        assert response.status_code == 200, response.text
+        assert response.json()["allowed_actions"] == ["going", "withdraw", "request_join"]
+        assert response.json()["my_lead_fit"] is None
+        async with h.db() as session:
+            session.add(
+                models.LeadFit(
+                    event_id=event.id,
+                    user_id=member.id,
+                    fit=Decimal("0.90"),
+                    reason="Experienced lead",
+                    algo_version="test",
+                    computed_at=h.now,
+                )
+            )
+        response = await client.get(f"/api/v1/events/{event.id}")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["allowed_actions"] == ["going", "withdraw", "claim_lead", "request_join"]
+        assert body["my_lead_fit"]["eligible"] is True
+        assert body["my_lead_fit"]["fit"] == 0.9
+        assert body["formation"]["my_state"]["lead_fit"] == body["my_lead_fit"]
+    h.advance(timedelta(days=30))
+    async with await h.client(member) as client:
+        response = await client.get(f"/api/v1/events/{event.id}")
+        assert response.status_code == 200, response.text
+        assert response.json()["allowed_actions"] == ["going", "attended"]
+
+
+@pytest.mark.parametrize("status", [EventStatus.DRAFT, EventStatus.ARCHIVED])
+async def test_event_detail_hidden_statuses(harness: Harness, status: EventStatus) -> None:
+    h = harness
+    member = await h.user()
+    admin = await h.admin()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=status,
+            created_by=member.id,
+            now=h.now,
+        )
+    async with await h.client(member) as client:
+        assert_problem(await client.get(f"/api/v1/events/{event.id}"), 404, ErrorCode.NOT_FOUND)
+    async with await h.client(admin) as client:
+        response = await client.get(f"/api/v1/events/{event.id}")
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == status
+
+
+async def test_cancelled_event_detail_requires_involvement(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.CANCELLED,
+            created_by=None,
+            now=h.now,
+        )
+    async with await h.client(member) as client:
+        assert_problem(await client.get(f"/api/v1/events/{event.id}"), 404, ErrorCode.NOT_FOUND)
+        async with h.db() as session:
+            session.add(
+                models.EventAttendance(
+                    event_id=event.id,
+                    user_id=member.id,
+                    status=AttendanceStatus.CANCELLED,
+                    role=AttendanceRole.ATTENDEE,
+                    proof_links=[],
+                    trust=Trust.SELF,
+                    status_at=h.now,
+                )
+            )
+        response = await client.get(f"/api/v1/events/{event.id}")
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "cancelled"
+    assert response.json()["allowed_actions"] == []
+    assert response.json()["my_attendance"]["allowed_actions"] == []
+
+
+async def test_event_detail_attendance(harness: Harness) -> None:
+    h = harness
+    first = await h.user()
+    second = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            event_input(h),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+        for index, user in enumerate((first, second)):
+            session.add(
+                models.EventAttendance(
+                    event_id=event.id,
+                    user_id=user.id,
+                    status=AttendanceStatus.GOING,
+                    role=AttendanceRole.ATTENDEE,
+                    proof_links=["https://example.com/proof"],
+                    note="See you there",
+                    trust=Trust.SELF,
+                    status_at=h.now - timedelta(hours=index),
+                )
+            )
+    async with await h.client(first) as client:
+        response = await client.get(f"/api/v1/events/{event.id}")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["attendance_counts"] == {"going": 2, "attended": 0}
+    assert [user["id"] for user in body["members_going"]] == [str(second.id), str(first.id)]
+    assert body["my_attendance"]["allowed_actions"] == ["edit", "remove"]
+    assert body["my_attendance"]["user_id"] == str(first.id)
+    assert body["my_attendance"]["event_id"] == str(event.id)
+    assert body["my_attendance"]["event"]["title"] == event.title
+    assert body["my_attendance"]["user"]["display_name"] == first.display_name
+    assert body["my_attendance"]["status"] == "going"
+    assert body["my_attendance"]["proof_links"] == ["https://example.com/proof"]
+    assert body["my_attendance"]["note"] == "See you there"
+    assert "going" not in body["allowed_actions"]
+
+
+async def test_event_detail_unknown_event(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    async with await h.client(member) as client:
+        assert_problem(await client.get(f"/api/v1/events/{uuid4()}"), 404, ErrorCode.NOT_FOUND)
+
+
+@pytest.mark.parametrize("kind", [EventKind.CONFERENCE, EventKind.HACKATHON])
+async def test_event_detail_formation_block(harness: Harness, kind: EventKind) -> None:
+    h = harness
+    member = await h.user()
+    async with h.db() as session:
+        event = await catalog.create_event(
+            session,
+            replace(event_input(h), kind=kind),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+    async with await h.client(member) as client:
+        response = await client.get(f"/api/v1/events/{event.id}")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    if kind == EventKind.CONFERENCE:
+        assert body["formation"] is None
+        assert body["participation_phase"] is None
+        assert body["my_lead_fit"] is None
+    else:
+        assert body["participation_phase"] == "open"
+        assert body["formation"]["counts"] == {
+            "enrollments": 0,
+            "active": 0,
+            "placed": 0,
+            "reserve": 0,
+            "cores": 0,
+            "core_members": 0,
+            "teams": 0,
+            "volunteers": 0,
+        }
+        assert body["formation"]["projection"] == {
+            "teams": 0,
+            "new_teams": 0,
+            "placed": 0,
+            "reserve": 0,
+            "undersized_cores": 0,
+            "team_sizes": [],
+            "volunteers": 0,
+        }
+        assert body["formation"]["my_state"] == {
+            "enrollment": None,
+            "team": None,
+            "membership": None,
+            "lead_fit": None,
+        }
+        assert body["formation"]["allowed_actions"] == []

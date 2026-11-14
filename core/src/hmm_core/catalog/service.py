@@ -1,7 +1,7 @@
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Self
 from uuid import UUID
@@ -9,7 +9,12 @@ from uuid import UUID
 import procrastinate
 from hmm_contracts.algo import EventArea, EventSnapshot
 from hmm_contracts.common import (
+    ActorKind,
     AreaImportance,
+    AttendanceStatus,
+    AuditAction,
+    AuditEntityType,
+    EnrollmentStatus,
     ErrorCode,
     EventFormat,
     EventKind,
@@ -17,18 +22,30 @@ from hmm_contracts.common import (
     EventPhase,
     EventReviewReason,
     EventStatus,
+    FormationPhase,
+    JoinRequestStatus,
+    TeamStatus,
 )
+from hmm_contracts.imports import Location, Prize
 from pydantic import JsonValue
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
+from hmm_core.attendance.service import attendance_view
 from hmm_core.catalog import schemas
-from hmm_core.formation.service import ensure_formation
+from hmm_core.formation import service as formation
+from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
+from hmm_core.platform.schemas import EventAction, UserRef
+from hmm_core.platform.settings import RuntimeSettings, load_settings
 
 SLUG_MAX = 100
+LIVE_ENROLLMENTS = frozenset(
+    {EnrollmentStatus.ACTIVE, EnrollmentStatus.PLACED, EnrollmentStatus.RESERVE}
+)
+TEAM_TERMINAL = frozenset({TeamStatus.DISBANDED, TeamStatus.CANCELLED})
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -250,7 +267,7 @@ async def create_event(
     )
     await session.flush()
     if formation_enabled and status == EventStatus.PUBLISHED:
-        await ensure_formation(session, event, now)
+        await formation.ensure_formation(session, event, now)
     return event
 
 
@@ -295,3 +312,395 @@ async def event_snapshot(session: AsyncSession, event_id: UUID) -> EventSnapshot
         origin=EventOrigin(event.origin),
         difficulty=float(event.difficulty) if event.difficulty is not None else None,
     )
+
+
+@dataclass(frozen=True, slots=True)
+class EventParticipation:
+    attendance: models.EventAttendance | None
+    enrollment: models.Enrollment | None
+    on_team: bool
+    pending_join_request: bool
+    lead_fit: models.LeadFit | None
+    phase: FormationPhase | None
+    formation_at: datetime | None
+
+
+async def participation_states(
+    session: AsyncSession, events: Sequence[models.Event], actor: models.User, now: datetime
+) -> dict[UUID, EventParticipation]:
+    if not events:
+        return {}
+    ids = [event.id for event in events]
+    attendances = {
+        attendance.event_id: attendance
+        for attendance in await session.scalars(
+            select(models.EventAttendance).where(
+                models.EventAttendance.event_id.in_(ids),
+                models.EventAttendance.user_id == actor.id,
+            )
+        )
+    }
+    enrollments: dict[UUID, models.Enrollment] = {}
+    for enrollment in await session.scalars(
+        select(models.Enrollment)
+        .where(models.Enrollment.event_id.in_(ids), models.Enrollment.user_id == actor.id)
+        .order_by(models.Enrollment.status_at.desc(), models.Enrollment.id.desc())
+    ):
+        current = enrollments.get(enrollment.event_id)
+        if current is None or (
+            enrollment.status in LIVE_ENROLLMENTS and current.status not in LIVE_ENROLLMENTS
+        ):
+            enrollments[enrollment.event_id] = enrollment
+    on_team = set(
+        await session.scalars(
+            select(models.ProjectMember.event_id)
+            .join(models.Project, models.Project.id == models.ProjectMember.project_id)
+            .where(
+                models.ProjectMember.event_id.in_(ids),
+                models.ProjectMember.user_id == actor.id,
+                models.ProjectMember.left_at.is_(None),
+                models.ProjectMember.is_team_row,
+            )
+        )
+    )
+    pending = set(
+        await session.scalars(
+            select(models.JoinRequest.event_id).where(
+                models.JoinRequest.event_id.in_(ids),
+                models.JoinRequest.user_id == actor.id,
+                models.JoinRequest.status == JoinRequestStatus.PENDING,
+            )
+        )
+    )
+    fits = {
+        fit.event_id: fit
+        for fit in await session.scalars(
+            select(models.LeadFit).where(
+                models.LeadFit.event_id.in_(ids), models.LeadFit.user_id == actor.id
+            )
+        )
+    }
+    formations = {
+        event_id: (FormationPhase(phase), formation_at)
+        for event_id, phase, formation_at in await session.execute(
+            select(
+                models.EventFormation.event_id,
+                models.EventFormation.phase,
+                models.EventFormation.formation_at,
+            ).where(models.EventFormation.event_id.in_(ids))
+        )
+    }
+    return {
+        event_id: EventParticipation(
+            attendance=attendances.get(event_id),
+            enrollment=enrollments.get(event_id),
+            on_team=event_id in on_team,
+            pending_join_request=event_id in pending,
+            lead_fit=fits.get(event_id),
+            phase=formations[event_id][0] if event_id in formations else None,
+            formation_at=formations[event_id][1] if event_id in formations else None,
+        )
+        for event_id in ids
+    }
+
+
+def event_actions(
+    event: models.Event,
+    state: EventParticipation,
+    actor: models.User,
+    now: datetime,
+    settings: RuntimeSettings,
+) -> list[EventAction]:
+    published = event.status == EventStatus.PUBLISHED
+    admin = actor.is_admin
+    reg_deadline = event.registration_deadline or event.starts_at
+    formation_open = state.phase == FormationPhase.OPEN
+    attended_window = (
+        event.starts_at <= now <= event.ends_at + timedelta(days=settings.attendance_claim_days)
+    )
+    allowed: set[EventAction] = set()
+    if admin or (event.created_by == actor.id and now < event.starts_at):
+        allowed.add(EventAction.EDIT)
+    if admin or (event.created_by == actor.id and published):
+        allowed.add(EventAction.CANCEL)
+    if (
+        published
+        and now < event.ends_at
+        and (state.attendance is None or state.attendance.status != AttendanceStatus.GOING)
+    ):
+        allowed.add(EventAction.GOING)
+    if (
+        published
+        and attended_window
+        and (state.attendance is None or state.attendance.status != AttendanceStatus.ATTENDED)
+    ):
+        allowed.add(EventAction.ATTENDED)
+    if event.formation_enabled and published and formation_open and not state.on_team:
+        if now < reg_deadline and (
+            state.enrollment is None or state.enrollment.status not in LIVE_ENROLLMENTS
+        ):
+            allowed.add(EventAction.ENROLL)
+        if (
+            now < event.starts_at
+            and state.enrollment is not None
+            and state.enrollment.status in LIVE_ENROLLMENTS
+        ):
+            allowed.add(EventAction.WITHDRAW)
+        if (
+            now < (state.formation_at or reg_deadline)
+            and state.enrollment is not None
+            and state.enrollment.status == EnrollmentStatus.ACTIVE
+            and not state.pending_join_request
+        ):
+            allowed.add(EventAction.REQUEST_JOIN)
+        if (
+            now < reg_deadline
+            and state.lead_fit is not None
+            and float(state.lead_fit.fit) >= settings.lead_fit_threshold
+        ):
+            allowed.add(EventAction.CLAIM_LEAD)
+    return [action for action in EventAction if action in allowed]
+
+
+async def area_details(
+    session: AsyncSession, event_ids: Sequence[UUID]
+) -> dict[UUID, list[schemas.EventAreaDetail]]:
+    details: dict[UUID, list[schemas.EventAreaDetail]] = {event_id: [] for event_id in event_ids}
+    if not event_ids:
+        return details
+    rows = await session.execute(
+        select(
+            models.EventArea.event_id,
+            models.Area.key,
+            models.Area.name,
+            models.EventArea.importance,
+            models.EventArea.headcount,
+        )
+        .join(models.Area, models.Area.id == models.EventArea.area_id)
+        .where(models.EventArea.event_id.in_(event_ids))
+        .order_by(models.Area.sort, models.Area.key)
+    )
+    for event_id, key, name, importance, headcount in rows:
+        details[event_id].append(
+            schemas.EventAreaDetail(
+                key=key, name=name, importance=AreaImportance(importance), headcount=headcount
+            )
+        )
+    return details
+
+
+async def attendance_counts(
+    session: AsyncSession, event_ids: Sequence[UUID]
+) -> dict[UUID, schemas.AttendanceCounts]:
+    counts = {event_id: schemas.AttendanceCounts(going=0, attended=0) for event_id in event_ids}
+    if not event_ids:
+        return counts
+    rows = await session.execute(
+        select(models.EventAttendance.event_id, models.EventAttendance.status, func.count())
+        .where(
+            models.EventAttendance.event_id.in_(event_ids),
+            models.EventAttendance.status.in_([AttendanceStatus.GOING, AttendanceStatus.ATTENDED]),
+        )
+        .group_by(models.EventAttendance.event_id, models.EventAttendance.status)
+    )
+    for event_id, status, count in rows:
+        if status == AttendanceStatus.GOING:
+            counts[event_id] = schemas.AttendanceCounts(
+                going=count, attended=counts[event_id].attended
+            )
+        else:
+            counts[event_id] = schemas.AttendanceCounts(
+                going=counts[event_id].going, attended=count
+            )
+    return counts
+
+
+async def formation_phases(
+    session: AsyncSession, event_ids: Sequence[UUID]
+) -> dict[UUID, FormationPhase]:
+    if not event_ids:
+        return {}
+    return {
+        event_id: FormationPhase(phase)
+        for event_id, phase in await session.execute(
+            select(models.EventFormation.event_id, models.EventFormation.phase).where(
+                models.EventFormation.event_id.in_(event_ids)
+            )
+        )
+    }
+
+
+def event_summary(
+    event: models.Event,
+    *,
+    actor: models.User,
+    now: datetime,
+    settings: RuntimeSettings,
+    areas: list[schemas.EventAreaDetail],
+    counts: schemas.AttendanceCounts,
+    attendance: models.EventAttendance | None,
+    participation_phase: FormationPhase | None,
+    state: EventParticipation,
+) -> schemas.EventSummary:
+    return schemas.EventSummary(
+        id=event.id,
+        slug=event.slug,
+        kind=EventKind(event.kind),
+        formation_enabled=event.formation_enabled,
+        title=event.title,
+        summary=event.summary,
+        organizer=event.organizer,
+        starts_at=event.starts_at,
+        ends_at=event.ends_at,
+        registration_opens_at=event.registration_opens_at,
+        registration_deadline=event.registration_deadline,
+        timezone=event.timezone,
+        format=EventFormat(event.format) if event.format else None,
+        location=Location.model_validate(event.location) if event.location else None,
+        areas=areas,
+        difficulty=float(event.difficulty) if event.difficulty is not None else None,
+        status=EventStatus(event.status),
+        phase=event_phase(event, now),
+        participation_phase=participation_phase,
+        origin=EventOrigin(event.origin),
+        attendance_counts=counts,
+        my_attendance=attendance_view(attendance, event, actor, actor) if attendance else None,
+        allowed_actions=event_actions(event, state, actor, now, settings),
+    )
+
+
+async def event_detail(
+    session: AsyncSession, event: models.Event, actor: models.User, now: datetime
+) -> schemas.EventDetail:
+    settings = await load_settings(session)
+    state = (await participation_states(session, [event], actor, now))[event.id]
+    summary = event_summary(
+        event,
+        actor=actor,
+        now=now,
+        settings=settings,
+        areas=(await area_details(session, [event.id])).get(event.id, []),
+        counts=(await attendance_counts(session, [event.id]))[event.id],
+        attendance=state.attendance,
+        participation_phase=(await formation_phases(session, [event.id])).get(event.id),
+        state=state,
+    )
+    sources = [
+        schemas.EventSource(
+            id=source.id,
+            source_id=source.source_id,
+            urls=list(source.urls),
+            extractor_version=source.extractor_version,
+            first_seen_at=source.first_seen_at,
+            last_seen_at=source.last_seen_at,
+        )
+        for source in await session.scalars(
+            select(models.EventSource)
+            .where(models.EventSource.event_id == event.id)
+            .order_by(models.EventSource.first_seen_at, models.EventSource.id)
+        )
+    ]
+    members_going = [
+        UserRef(id=user.id, display_name=user.display_name, avatar_url=user.avatar_url)
+        for user in await session.scalars(
+            select(models.User)
+            .join(models.EventAttendance, models.EventAttendance.user_id == models.User.id)
+            .where(
+                models.EventAttendance.event_id == event.id,
+                models.EventAttendance.status == AttendanceStatus.GOING,
+            )
+            .order_by(models.EventAttendance.status_at, models.User.id)
+        )
+    ]
+    formation_view = await formation.formation_participation(session, event, actor, now)
+    return schemas.EventDetail(
+        **summary.model_dump(),
+        description_md=event.description_md,
+        website_url=event.website_url,
+        registration_url=event.registration_url,
+        language=list(event.language),
+        eligibility=event.eligibility,
+        themes=list(event.themes),
+        team_size_min=event.team_size_min,
+        team_size_max=event.team_size_max,
+        prize=Prize.model_validate(event.prize) if event.prize else None,
+        difficulty_rationale=event.difficulty_rationale,
+        review_reasons=[EventReviewReason(reason) for reason in event.review_reasons],
+        created_by=event.created_by,
+        confidence=float(event.confidence) if event.confidence is not None else None,
+        unmapped_areas=list(event.unmapped_areas),
+        sources=sources,
+        members_going=members_going,
+        formation=formation_view,
+        my_lead_fit=formation.lead_eligibility(state.lead_fit, settings)
+        if event.formation_enabled
+        else None,
+        created_at=event.created_at,
+        updated_at=event.updated_at,
+    )
+
+
+async def create_manual_event(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    body: schemas.CreateEventBody,
+    actor: models.User,
+    now: datetime,
+) -> models.Event:
+    payload = EventInput.from_create(body)
+    event = await create_event(
+        session,
+        payload,
+        origin=EventOrigin.MANUAL,
+        status=EventStatus.PUBLISHED,
+        created_by=actor.id,
+        now=now,
+    )
+    await enqueue_lead_fits(session, jobs, event)
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN,
+        action=AuditAction.EVENT_CREATE,
+        entity_type=AuditEntityType.EVENT,
+        entity_id=event.id,
+        before=None,
+        after={
+            "slug": event.slug,
+            "kind": event.kind,
+            "title": event.title,
+            "starts_at": event.starts_at.isoformat(),
+            "ends_at": event.ends_at.isoformat(),
+            "formation_enabled": event.formation_enabled,
+        },
+        reason=body.reason,
+    )
+    return event
+
+
+async def visible_event(session: AsyncSession, event_id: UUID, actor: models.User) -> models.Event:
+    event = await load_event(session, event_id)
+    if not actor.is_admin:
+        if event.status in (EventStatus.DRAFT, EventStatus.ARCHIVED):
+            raise ProblemError(ErrorCode.NOT_FOUND)
+        if event.status == EventStatus.CANCELLED:
+            involved = await session.scalar(
+                select(
+                    exists().where(
+                        models.EventAttendance.event_id == event_id,
+                        models.EventAttendance.user_id == actor.id,
+                    )
+                    | exists().where(
+                        models.Enrollment.event_id == event_id,
+                        models.Enrollment.user_id == actor.id,
+                    )
+                    | exists().where(
+                        models.ProjectMember.event_id == event_id,
+                        models.ProjectMember.user_id == actor.id,
+                        models.ProjectMember.left_at.is_(None),
+                    )
+                )
+            )
+            if not involved:
+                raise ProblemError(ErrorCode.NOT_FOUND)
+    return event
