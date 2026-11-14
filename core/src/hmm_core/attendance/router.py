@@ -15,7 +15,7 @@ from hmm_core.attendance.schemas import (
 )
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import MemberAuth
 
@@ -91,8 +91,17 @@ async def create_event(
     status_code=status.HTTP_200_OK,
     summary="Edit event as creator before its start or as admin",
 )
-async def update_event(id: EventId, body: UpdateMemberEventBody, actor: MemberAuth) -> MemberEvent:
-    not_implemented()
+async def update_event(
+    id: EventId,
+    body: UpdateMemberEventBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> MemberEvent:
+    now = clock.now()
+    event = await events.update_member_event(session, request.app.state.jobs, id, body, actor, now)
+    return await events.member_event_view(session, event, actor, now)
 
 
 @router.post(
@@ -100,8 +109,19 @@ async def update_event(id: EventId, body: UpdateMemberEventBody, actor: MemberAu
     status_code=status.HTTP_200_OK,
     summary="Cancel event as creator or admin",
 )
-async def cancel_event(id: EventId, body: CancelMemberEventBody, actor: MemberAuth) -> MemberEvent:
-    not_implemented()
+async def cancel_event(
+    id: EventId,
+    body: CancelMemberEventBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> MemberEvent:
+    now = clock.now()
+    event = await events.cancel_member_event(
+        session, request.app.state.jobs, id, body.reason, actor, now
+    )
+    return await events.member_event_view(session, event, actor, now)
 
 
 @router.get("/me/attendances", status_code=status.HTTP_200_OK, summary="List own attendances")

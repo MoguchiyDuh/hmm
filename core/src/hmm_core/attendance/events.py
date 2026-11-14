@@ -1,5 +1,8 @@
 import re
 from datetime import datetime, timedelta
+from decimal import Decimal
+from enum import Enum
+from typing import Any
 from uuid import UUID
 
 import procrastinate
@@ -16,14 +19,16 @@ from hmm_contracts.common import (
     EventKind,
     EventOrigin,
     EventReviewReason,
+    EventRevisionOrigin,
     EventStatus,
     RestrictionKind,
     Trust,
     ValidationIssue,
 )
 from hmm_contracts.imports import Location
+from hmm_contracts.notifications import NotificationChange
 from pydantic import JsonValue
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -31,6 +36,7 @@ from hmm_core.attendance import schemas
 from hmm_core.attendance.service import attendance_view
 from hmm_core.catalog import service as catalog
 from hmm_core.feed import confirmations, digests, timeline
+from hmm_core.formation import service as formation
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
@@ -426,4 +432,177 @@ async def create_member_event(
         },
         reason=None,
     )
+    return event
+
+
+def json_value(value: Any) -> JsonValue:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, Decimal | UUID | Enum):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): json_value(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [json_value(item) for item in value]
+    return value
+
+
+def change_text(value: Any) -> str | None:
+    if isinstance(value, datetime):
+        return value.isoformat()
+    return str(value) if value is not None else None
+
+
+async def update_member_event(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    event_id: UUID,
+    body: schemas.UpdateMemberEventBody,
+    actor: models.User,
+    now: datetime,
+) -> models.Event:
+    event = await catalog.visible_event(session, event_id, actor)
+    event = await catalog.load_event(session, event_id, for_update=True)
+    if event.origin != EventOrigin.MEMBER.value:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if not actor.is_admin and event.created_by != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if not actor.is_admin and now >= event.starts_at:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Editing closes at the event start")
+    raw = body.model_dump(exclude_unset=True)
+    for field in ("timezone", "kind", "title", "starts_at", "ends_at", "format", "area_keys"):
+        if field in raw and raw[field] is None:
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, f"{field} cannot be null")
+    if "location" in raw:
+        raw["location"] = (
+            (body.location.model_dump(mode="json", exclude_none=True) or None)
+            if body.location is not None
+            else None
+        )
+    if "website_url" in raw:
+        raw["website_url"] = str(body.website_url) if body.website_url is not None else None
+    resolved: list[tuple[models.Area, catalog.EventAreaInput]] = []
+    if body.area_keys is not None:
+        inputs = [
+            catalog.EventAreaInput(key=key, importance=AreaImportance.PRIMARY)
+            for key in body.area_keys
+        ]
+        resolved = await catalog.resolve_areas(session, inputs)
+        raw["area_keys"] = list(body.area_keys)
+    starts = raw.get("starts_at", event.starts_at)
+    ends = raw.get("ends_at", event.ends_at)
+    if ends < starts:
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, "ends_at must not precede starts_at")
+    changed: dict[str, tuple[Any, Any]] = {}
+    for field, after in raw.items():
+        if field == "area_keys":
+            before: Any = list(
+                await session.scalars(
+                    select(models.Area.key)
+                    .join(models.EventArea, models.EventArea.area_id == models.Area.id)
+                    .where(models.EventArea.event_id == event.id)
+                    .order_by(models.Area.sort, models.Area.key)
+                )
+            )
+        else:
+            before = getattr(event, field)
+        if json_value(before) != json_value(after):
+            changed[field] = (before, after)
+    if not changed:
+        await session.flush()
+        return event
+    previous_dates = formation.event_dates(event)
+    for field, (_, after) in changed.items():
+        if field == "area_keys":
+            await session.execute(
+                delete(models.EventArea).where(models.EventArea.event_id == event.id)
+            )
+            session.add_all(
+                models.EventArea(
+                    event_id=event.id,
+                    area_id=area.id,
+                    importance=area_input.importance.value,
+                    headcount=area_input.headcount,
+                )
+                for area, area_input in resolved
+            )
+        elif field in ("kind", "format"):
+            setattr(event, field, after.value)
+        else:
+            setattr(event, field, after)
+    session.add(
+        models.EventRevision(
+            event_id=event.id,
+            origin=EventRevisionOrigin.MEMBER.value,
+            actor_id=actor.id,
+            diff={
+                field: {"before": json_value(before), "after": json_value(after)}
+                for field, (before, after) in changed.items()
+            },
+            ignored_fields=[],
+        )
+    )
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN if actor.is_admin else ActorKind.USER,
+        action=AuditAction.EVENT_EDIT,
+        entity_type=AuditEntityType.EVENT,
+        entity_id=event.id,
+        before={field: json_value(before) for field, (before, _) in changed.items()},
+        after={field: json_value(after) for field, (_, after) in changed.items()},
+        reason=None,
+    )
+    notifiable = sorted({"starts_at", "ends_at", "format"} & changed.keys())
+    if notifiable:
+        changes = [
+            NotificationChange(
+                field=field,
+                previous=change_text(changed[field][0]),
+                current=change_text(changed[field][1]),
+            )
+            for field in notifiable
+        ]
+        await catalog.notify_event_changed(session, event, changes, now)
+    if {"starts_at", "ends_at"} & changed.keys():
+        await formation.dates_changed(session, jobs, event, previous_dates, now)
+    await session.flush()
+    await session.refresh(event)
+    return event
+
+
+async def cancel_member_event(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    event_id: UUID,
+    reason: str,
+    actor: models.User,
+    now: datetime,
+) -> models.Event:
+    event = await catalog.visible_event(session, event_id, actor)
+    if event.origin != EventOrigin.MEMBER.value:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if not actor.is_admin and event.created_by != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    event = await catalog.cancel_event(
+        session,
+        jobs,
+        event_id,
+        reason=reason,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN if actor.is_admin else ActorKind.USER,
+        now=now,
+    )
+    attended = list(
+        await session.scalars(
+            select(models.EventAttendance.user_id).where(
+                models.EventAttendance.event_id == event.id,
+                models.EventAttendance.status == AttendanceStatus.ATTENDED.value,
+            )
+        )
+    )
+    await catalog.notify_event_cancelled(session, event, attended, reason, now)
+    await timeline.hide_feed_subject(session, "event", event.id, now)
     return event
