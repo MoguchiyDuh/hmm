@@ -16,6 +16,19 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 ROOT = Path(__file__).resolve().parents[2]
+TRUNCATE_PUBLIC = """
+DO $$
+DECLARE
+    tables text;
+BEGIN
+    SELECT string_agg(format('%I.%I', schemaname, tablename), ', ') INTO tables
+    FROM pg_tables WHERE schemaname = 'public' AND tablename <> 'alembic_version';
+    IF tables IS NOT NULL THEN
+        EXECUTE 'TRUNCATE ' || tables || ' CASCADE';
+    END IF;
+END
+$$
+"""
 
 
 @pytest.fixture(scope="session")
@@ -28,6 +41,10 @@ def database_url() -> str:
 
 @pytest.fixture(scope="session")
 def migrated_database(database_url: str) -> str:
+    conninfo = (
+        make_url(database_url).set(drivername="postgresql").render_as_string(hide_password=False)
+    )
+    first = True
     for args in (("upgrade", "head"), ("downgrade", "base"), ("upgrade", "head"), ("check",)):
         result = subprocess.run(
             [sys.executable, "-m", "alembic", *args],
@@ -38,12 +55,11 @@ def migrated_database(database_url: str) -> str:
             check=False,
         )
         assert result.returncode == 0, result.stdout + result.stderr
+        if args == ("upgrade", "head") and first:
+            first = False
+            with psycopg.connect(conninfo) as connection:
+                connection.execute(TRUNCATE_PUBLIC)
         if args == ("downgrade", "base"):
-            conninfo = (
-                make_url(database_url)
-                .set(drivername="postgresql")
-                .render_as_string(hide_password=False)
-            )
             with psycopg.connect(conninfo) as connection:
                 assert connection.execute(
                     "SELECT count(*) FROM pg_namespace WHERE nspname = 'procrastinate'"
