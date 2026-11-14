@@ -28,8 +28,9 @@ from hmm_contracts.notifications import (
     SwapRequestReceivedPayload,
     SwapResultPayload,
 )
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, literal, or_, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from hmm_core import models
 from hmm_core.formation import schemas
@@ -1005,3 +1006,179 @@ async def merge_view(
         updated_at=merge.updated_at,
         allowed_actions=actions,
     )
+
+
+async def close_swaps_and_merges(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event,
+    now: datetime,
+    *,
+    reason: str,
+) -> int:
+    swaps = list(
+        await session.scalars(
+            select(models.SwapRequest)
+            .where(
+                models.SwapRequest.status == SwapRequestStatus.PENDING.value,
+                or_(
+                    models.SwapRequest.from_team_id == project.id,
+                    models.SwapRequest.to_team_id == project.id,
+                ),
+            )
+            .order_by(models.SwapRequest.created_at, models.SwapRequest.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    )
+    for swap in swaps:
+        await expire_swap(session, swap, now, reason=reason, status=SwapRequestStatus.CLOSED)
+    merges = list(
+        await session.scalars(
+            select(models.MergeProposal)
+            .where(
+                models.MergeProposal.status == MergeProposalStatus.PENDING.value,
+                or_(
+                    models.MergeProposal.absorbed_team_id == project.id,
+                    models.MergeProposal.target_team_id == project.id,
+                ),
+            )
+            .order_by(models.MergeProposal.created_at, models.MergeProposal.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    )
+    for merge in merges:
+        await expire_merge(session, merge, now, reason=reason, status=MergeProposalStatus.CLOSED)
+    return len(swaps) + len(merges)
+
+
+async def expire_due_swaps_and_merges(
+    session: AsyncSession,
+    event: models.Event,
+    now: datetime,
+    *,
+    limit: int = 200,
+) -> int:
+    if limit <= 0:
+        return 0
+    formation = await formation_row(session, event.id)
+    default = formation.review_ends_at or event.starts_at
+    first = aliased(models.Project)
+    second = aliased(models.Project)
+    deadline = func.least(
+        func.coalesce(first.review_ends_at, default),
+        func.coalesce(second.review_ends_at, default),
+        default,
+    ).label("deadline")
+    unavailable = or_(
+        first.id.is_(None),
+        second.id.is_(None),
+        first.team_status.is_(None),
+        first.team_status != TeamStatus.REVIEW.value,
+        second.team_status.is_(None),
+        second.team_status != TeamStatus.REVIEW.value,
+    )
+    swaps = (
+        select(models.SwapRequest.id, literal(True).label("is_swap"), deadline)
+        .outerjoin(
+            first,
+            (first.id == models.SwapRequest.from_team_id) & (first.event_id == event.id),
+        )
+        .outerjoin(
+            second,
+            (second.id == models.SwapRequest.to_team_id) & (second.event_id == event.id),
+        )
+        .where(
+            models.SwapRequest.event_id == event.id,
+            models.SwapRequest.status == SwapRequestStatus.PENDING.value,
+            or_(unavailable, deadline <= now),
+        )
+    )
+    merges = (
+        select(models.MergeProposal.id, literal(False).label("is_swap"), deadline)
+        .outerjoin(
+            first,
+            (first.id == models.MergeProposal.absorbed_team_id) & (first.event_id == event.id),
+        )
+        .outerjoin(
+            second,
+            (second.id == models.MergeProposal.target_team_id) & (second.event_id == event.id),
+        )
+        .where(
+            models.MergeProposal.event_id == event.id,
+            models.MergeProposal.status == MergeProposalStatus.PENDING.value,
+            or_(unavailable, deadline <= now),
+        )
+    )
+    candidates = union_all(swaps, merges).subquery()
+    rows = await session.execute(
+        select(candidates.c.id, candidates.c.is_swap)
+        .order_by(candidates.c.deadline, candidates.c.id)
+        .limit(limit)
+    )
+    count = 0
+    for row in rows:
+        swap: models.SwapRequest | None = None
+        merge: models.MergeProposal | None = None
+        if row.is_swap:
+            swap = await session.scalar(
+                select(models.SwapRequest)
+                .where(
+                    models.SwapRequest.id == row.id,
+                    models.SwapRequest.status == SwapRequestStatus.PENDING.value,
+                )
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if swap is None:
+                continue
+            project_ids = [swap.from_team_id, swap.to_team_id]
+        else:
+            merge = await session.scalar(
+                select(models.MergeProposal)
+                .where(
+                    models.MergeProposal.id == row.id,
+                    models.MergeProposal.status == MergeProposalStatus.PENDING.value,
+                )
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            if merge is None:
+                continue
+            project_ids = [merge.absorbed_team_id, merge.target_team_id]
+        projects = list(
+            await session.scalars(
+                select(models.Project)
+                .where(
+                    models.Project.id.in_(project_ids),
+                    models.Project.event_id == event.id,
+                )
+                .execution_options(populate_existing=True)
+            )
+        )
+        closed = len(projects) != 2 or any(
+            project.team_status != TeamStatus.REVIEW.value for project in projects
+        )
+        if not closed and now < await negotiation_deadline(session, event, project_ids):
+            continue
+        reason = "The teams are no longer in review" if closed else "The review window ended"
+        if swap is not None:
+            await expire_swap(
+                session,
+                swap,
+                now,
+                reason=reason,
+                status=SwapRequestStatus.CLOSED if closed else SwapRequestStatus.EXPIRED,
+            )
+        elif merge is not None:
+            await expire_merge(
+                session,
+                merge,
+                now,
+                reason=reason,
+                status=MergeProposalStatus.CLOSED if closed else MergeProposalStatus.EXPIRED,
+            )
+        count += 1
+    await session.flush()
+    return count
