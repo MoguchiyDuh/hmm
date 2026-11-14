@@ -3423,6 +3423,7 @@ async def transfer_lead(
         raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
     if project.lead_user_id != actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
+    await note_lead_action(session, project, actor, now)
     if body.user_id == actor.id:
         raise ProblemError(ErrorCode.INVALID_STATE, "You are already the lead")
     target = await session.scalar(
@@ -3747,6 +3748,173 @@ async def leave_team(
     await session.flush()
     await session.refresh(project)
     return project
+
+
+async def team_member_view(
+    session: AsyncSession,
+    project: models.Project,
+    member: models.ProjectMember,
+    actor: models.User,
+) -> project_schemas.ProjectMember:
+    user = await session.get_one(models.User, member.user_id)
+    area_key = (
+        None
+        if member.area_id is None
+        else await session.scalar(select(models.Area.key).where(models.Area.id == member.area_id))
+    )
+    return projects.project_member(
+        project, projects.MemberRow(member=member, user=user, area_key=area_key), actor
+    )
+
+
+async def _own_team_row(
+    session: AsyncSession, project_id: UUID, user_id: UUID
+) -> models.ProjectMember | None:
+    return await session.scalar(
+        select(models.ProjectMember)
+        .where(
+            models.ProjectMember.project_id == project_id,
+            models.ProjectMember.user_id == user_id,
+            models.ProjectMember.left_at.is_(None),
+            models.ProjectMember.is_team_row.is_(True),
+        )
+        .execution_options(populate_existing=True)
+    )
+
+
+async def note_lead_action(
+    session: AsyncSession, project: models.Project, actor: models.User, now: datetime
+) -> models.ProjectMember | None:
+    if project.lead_user_id != actor.id:
+        return None
+    project.last_lead_action_at = now
+    member = await _own_team_row(session, project.id, actor.id)
+    if member is None or member.state != MemberState.PROPOSED.value:
+        await session.flush()
+        return None
+    member.state = MemberState.CONFIRMED.value
+    member.confirmed_at = now
+    member.confirm_by = None
+    member.confirm_kind = None
+    await session.flush()
+    return member
+
+
+async def _placement_target(
+    session: AsyncSession, project_id: UUID, actor: models.User
+) -> tuple[models.Project, models.Event, models.ProjectMember]:
+    project = await session.get(models.Project, project_id)
+    if project is None or project.event_id is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    event = await locked_formation_event(session, project.event_id, actor)
+    if not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    formation = await formation_row(session, event.id)
+    if FormationPhase(formation.phase) == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    project = await session.scalar(
+        select(models.Project)
+        .where(models.Project.id == project_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if project.team_status not in (TeamStatus.REVIEW.value, TeamStatus.LOCKED.value):
+        raise ProblemError(ErrorCode.INVALID_STATE, "Placements cannot be confirmed now")
+    member = await _own_team_row(session, project.id, actor.id)
+    if member is None:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    return project, event, member
+
+
+async def confirm_placement(
+    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
+) -> tuple[models.Project, models.ProjectMember]:
+    project, _, member = await _placement_target(session, project_id, actor)
+    if member.state == MemberState.CONFIRMED.value:
+        return project, member
+    member.state = MemberState.CONFIRMED.value
+    member.confirmed_at = now
+    member.confirm_by = None
+    member.confirm_kind = None
+    await session.flush()
+    return project, member
+
+
+async def decline_placement(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    body: schemas.DeclinePlacementBody,
+    actor: models.User,
+    now: datetime,
+) -> models.Enrollment:
+    project, event, member = await _placement_target(session, project_id, actor)
+    if member.state != MemberState.PROPOSED.value:
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "You have no pending placement; leave the team instead"
+        )
+    member.left_at = now
+    member.left_reason = LeftReason.DECLINED.value
+    row = await live_enrollment_row(session, event.id, actor.id, for_update=True)
+    if row is None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "You have no enrollment in this event")
+    row.status = (
+        EnrollmentStatus.WITHDRAWN.value if body.withdraw else EnrollmentStatus.RESERVE.value
+    )
+    row.status_at = now
+    row.reserve_rank = None
+    if body.withdraw:
+        await attendance.sync_going(session, event.id, actor.id, going=False, now=now)
+    was_lead = project.lead_user_id == actor.id
+    await session.flush()
+    remaining = await team_member_ids(session, project.id)
+    await open_seat(session, project, event, now)
+    if remaining:
+        await notify_many(
+            session,
+            remaining,
+            TeamMemberLeftPayload(
+                link=f"/projects/{project.id}",
+                event_id=event.id,
+                event_title=event.title,
+                project_id=project.id,
+                team_name=project.name,
+                member=notification_person(actor),
+                member_count=len(remaining),
+                reason="The member declined the placement",
+            ),
+            now,
+            dedupe_key=f"team_member_left:{project.id}:{actor.id}",
+        )
+    if was_lead:
+        project.lead_user_id = None
+        project.last_lead_action_at = now
+        await close_pending_lead_offers(session, project.id, now)
+        await record_audit(
+            session,
+            actor=actor.id,
+            actor_kind=ActorKind.USER,
+            action=AuditAction.LEAD_STEP_DOWN,
+            entity_type=AuditEntityType.PROJECT,
+            entity_id=project.id,
+            before={"lead_user_id": str(actor.id)},
+            after={"lead_user_id": None},
+            reason="The claimed lead declined the placement",
+        )
+        await start_succession(
+            session,
+            project,
+            event,
+            now,
+            exclude={actor.id},
+            reason="The claimed lead declined the placement",
+        )
+    await enqueue_participation_jobs(session, jobs, event.id, reserve=not body.withdraw)
+    await session.flush()
+    await session.refresh(row)
+    return row
 
 
 async def expire_lead_offers(session: AsyncSession, event: models.Event, now: datetime) -> int:

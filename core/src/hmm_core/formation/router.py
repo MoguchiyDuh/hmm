@@ -311,8 +311,11 @@ async def decline_invite(
     status_code=status.HTTP_200_OK,
     summary="Confirm placement or presence",
 )
-async def confirm_placement(id: ProjectId, actor: MemberAuth) -> ProjectMember:
-    not_implemented()
+async def confirm_placement(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> ProjectMember:
+    project, member = await service.confirm_placement(session, id, actor, clock.now())
+    return await service.team_member_view(session, project, member, actor)
 
 
 @router.post(
@@ -321,9 +324,17 @@ async def confirm_placement(id: ProjectId, actor: MemberAuth) -> ProjectMember:
     summary="Decline placement or presence",
 )
 async def decline_placement(
-    id: ProjectId, body: DeclinePlacementBody, actor: MemberAuth
+    id: ProjectId,
+    body: DeclinePlacementBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
 ) -> Enrollment:
-    not_implemented()
+    row = await service.decline_placement(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    return (await service.enrollment_views(session, [row], actor, clock.now()))[0]
 
 
 @router.get("/me/lead-offers", status_code=status.HTTP_200_OK, summary="List my lead offers")
