@@ -86,6 +86,9 @@ class Project(Mutable, Base):
     last_progress_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    recommendation_refresh_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class ProjectArea(Mutable, Base):

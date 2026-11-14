@@ -80,7 +80,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "projects_start_project",
         "projects_update_milestone",
         "projects_update_project",
-        "recommendations_get_project_recommendations",
         "recommendations_list_suggested_mentors",
         "recommendations_refresh_project_recommendations",
         "results_create_result",
