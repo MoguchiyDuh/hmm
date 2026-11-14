@@ -2,9 +2,10 @@ import itertools
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 from decimal import Decimal
-from typing import cast
+from typing import Any, cast
 from uuid import UUID, uuid4
 
+import pytest
 from harness import Harness
 from hmm_contracts.algo import (
     AlgoSettings,
@@ -17,19 +18,22 @@ from hmm_contracts.algo import (
 )
 from hmm_contracts.common import (
     AreaImportance,
+    ErrorCode,
     EventKind,
     EventOrigin,
     EventStatus,
     FormationKind,
     FormationPhase,
+    FormationPlanner,
 )
 from hmm_contracts.formation import Bounds
 from hmm_core import models
 from hmm_core.catalog import service as catalog
 from hmm_core.formation import service
+from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.settings import load_settings
 from pydantic import JsonValue
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 _titles = itertools.count(1)
 
@@ -789,3 +793,434 @@ async def test_fallback_full_core_opens_new_team(harness: Harness) -> None:
     new_teams = [team for team in plan.teams if team.project_id is None]
     assert [len(team.members) for team in new_teams] == [5]
     assert service.validate_plan(request, plan, settings) == []
+
+
+async def start_run(
+    h: Harness, event: models.Event, kind: FormationKind = FormationKind.MAIN
+) -> models.FormationRun:
+    async with h.db() as session:
+        formation = await session.get_one(models.EventFormation, event.id)
+        run = models.FormationRun(
+            event_id=event.id,
+            round=formation.rounds + 1,
+            kind=kind.value,
+            status="running",
+            planner="fallback",
+            input={},
+            output=None,
+            validation_errors=[],
+            algo_version="fake-1",
+            applied_at=None,
+        )
+        session.add(run)
+        formation.phase = FormationPhase.FORMING.value
+        await session.flush()
+        await session.refresh(run)
+        return run
+
+
+async def apply(
+    h: Harness, run: models.FormationRun, request: FormationRequest, plan: FormationPlan
+) -> bool:
+    async with h.db() as session:
+        return await service.apply_plan(
+            session, h.jobs, run, request, plan, [], FormationPlanner.FALLBACK, "fake-1", h.now
+        )
+
+
+async def apply_fallback(
+    h: Harness,
+    event: models.Event,
+    kind: FormationKind = FormationKind.MAIN,
+    phase: FormationPhase = FormationPhase.OPEN,
+) -> tuple[models.FormationRun, FormationRequest, FormationPlan]:
+    request = await request_for(h, event, kind, phase)
+    plan, _ = await fallback_for(h, request)
+    run = await start_run(h, event, kind)
+    assert await apply(h, run, request, plan) is True
+    return run, request, plan
+
+
+async def count(h: Harness, model: Any, *conditions: Any) -> int:
+    async with h.db() as session:
+        return await session.scalar(select(func.count()).select_from(model).where(*conditions)) or 0
+
+
+async def todo_jobs(h: Harness, task_name: str) -> list[dict[str, Any]]:
+    return [job for job in await h.pending_jobs(task_name) if job["status"] == "todo"]
+
+
+async def load(h: Harness, model: Any, key: Any) -> Any:
+    async with h.db() as session:
+        return await session.get_one(model, key)
+
+
+async def member_rows(h: Harness, event: models.Event) -> dict[UUID, models.ProjectMember]:
+    async with h.db() as session:
+        return {
+            row.user_id: row
+            for row in await session.scalars(
+                select(models.ProjectMember).where(
+                    models.ProjectMember.event_id == event.id,
+                    models.ProjectMember.left_at.is_(None),
+                )
+            )
+        }
+
+
+async def enrollment_rows(h: Harness, event: models.Event) -> dict[UUID, models.Enrollment]:
+    async with h.db() as session:
+        return {
+            row.user_id: row
+            for row in await session.scalars(
+                select(models.Enrollment).where(models.Enrollment.event_id == event.id)
+            )
+        }
+
+
+async def run_counts(h: Harness, event: models.Event) -> tuple[int, ...]:
+    return (
+        await count(h, models.ProjectMember, models.ProjectMember.event_id == event.id),
+        await count(h, models.LeadOffer, models.LeadOffer.event_id == event.id),
+        await count(h, models.MergeProposal, models.MergeProposal.event_id == event.id),
+        await count(h, models.AuditLog, models.AuditLog.entity_id == str(event.id)),
+        len(await todo_jobs(h, "refresh_recommendations")),
+        len(await todo_jobs(h, "rank_reserve")),
+    )
+
+
+async def test_apply_main_open(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    cores, core_users = [], []
+    for index in range(2):
+        lead, member = await h.user(), await h.user()
+        cores.append(await make_core(h, event, f"Core {index}", lead=lead, members=[member]))
+        core_users.append((lead, member))
+    free = []
+    for index in range(10):
+        user = await h.user()
+        await enroll(h, event, user, created_at=h.now + timedelta(minutes=index))
+        free.append(user)
+    run, _, plan = await apply_fallback(h, event)
+
+    formation = await load(h, models.EventFormation, event.id)
+    assert (formation.phase, formation.rounds, formation.last_run_id) == ("review", 1, run.id)
+    rows = await member_rows(h, event)
+    planned = {member.user_id for team in plan.teams for member in team.members}
+    assert set(rows) == planned
+    existing = {user.id for pair in core_users for user in pair}
+    for user_id in planned:
+        row = rows[user_id]
+        assert row.state == "proposed"
+        assert row.confirm_by == formation.review_ends_at
+        if user_id in existing:
+            assert row.confirm_kind == "reconfirm"
+            assert row.joined_via == "claim"
+        else:
+            assert row.confirm_kind == "placement"
+            assert row.joined_via == "formation"
+    for project, (lead, _) in zip(cores, core_users, strict=True):
+        assert rows[lead.id].role == "lead"
+        stored = await load(h, models.Project, project.id)
+        assert stored.lead_user_id == lead.id
+        assert stored.team_status == "review"
+        assert stored.review_ends_at == formation.review_ends_at
+        assert stored.formed_in_run_id is None
+
+    enrollments = await enrollment_rows(h, event)
+    assert sum(1 for user in free if enrollments[user.id].status == "placed") == 8
+    reserve = sorted(
+        (row for row in enrollments.values() if row.status == "reserve"),
+        key=lambda row: row.reserve_rank or 0,
+    )
+    assert [(row.user_id, row.reserve_rank) for row in reserve] == [
+        (free[8].id, 1),
+        (free[9].id, 2),
+    ]
+
+    stored_run = await load(h, models.FormationRun, run.id)
+    assert (stored_run.status, stored_run.planner, stored_run.applied_at) == (
+        "applied",
+        "fallback",
+        h.now,
+    )
+    assert cast(dict[str, Any], stored_run.output)["summary"]
+    async with h.db() as session:
+        [audit] = list(
+            await session.scalars(
+                select(models.AuditLog).where(models.AuditLog.entity_id == str(event.id))
+            )
+        )
+    assert (audit.action, audit.actor_kind) == ("system_transition", "system")
+    assert audit.before == {"phase": "forming", "rounds": 0}
+    assert len(await todo_jobs(h, "refresh_recommendations")) == 2
+    [rank_job] = await todo_jobs(h, "rank_reserve")
+    assert rank_job["args"] == {"event_id": str(event.id)}
+
+
+async def test_apply_new_teams_and_lead_offers(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=3)
+    for index in range(6):
+        user = await h.user()
+        await enroll(h, event, user, willing=index < 2)
+        await add_fit(h, event, user, 0.9 if index < 2 else 0.2)
+    run, _, plan = await apply_fallback(h, event)
+    async with h.db() as session:
+        teams = list(
+            await session.scalars(
+                select(models.Project)
+                .where(models.Project.event_id == event.id)
+                .order_by(models.Project.name)
+            )
+        )
+        offers = {
+            offer.project_id: offer
+            for offer in await session.scalars(
+                select(models.LeadOffer).where(models.LeadOffer.event_id == event.id)
+            )
+        }
+    assert [team.name for team in teams] == [f"Team {run.round}-1", f"Team {run.round}-2"]
+    rows = await member_rows(h, event)
+    for project, planned in zip(teams, plan.teams, strict=True):
+        assert (project.origin, project.status, project.team_status) == (
+            "formation",
+            "idea",
+            "review",
+        )
+        assert project.lead_user_id is None
+        assert project.formed_in_run_id == run.id
+        for member in planned.members:
+            assert (rows[member.user_id].state, rows[member.user_id].role) == (
+                "proposed",
+                "member",
+            )
+            assert rows[member.user_id].project_id == project.id
+        offer = offers[project.id]
+        assert (offer.source, offer.status, offer.reason) == (
+            "formation",
+            "pending",
+            "Planned lead of the new team",
+        )
+        assert offer.tier is not None
+        assert offer.expires_at > h.now
+        assert offer.user_id == planned.lead_user_id
+
+
+async def test_apply_empty_input_locks(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h)
+    before = await load(h, models.EventFormation, event.id)
+    run, _, plan = await apply_fallback(h, event)
+    assert plan.teams == []
+    formation = await load(h, models.EventFormation, event.id)
+    assert formation.phase == "locked"
+    assert formation.review_ends_at == before.review_ends_at
+    assert (await load(h, models.FormationRun, run.id)).status == "applied"
+    assert await todo_jobs(h, "rank_reserve") == []
+    assert await todo_jobs(h, "refresh_recommendations") == []
+    assert await count(h, models.AuditLog, models.AuditLog.entity_id == str(event.id)) == 1
+
+
+async def test_apply_replay_is_noop(harness: Harness) -> None:
+    h = harness
+    request = await scenario_mixed(h)
+    event = await load(h, models.Event, request.hackathon.id)
+    plan, _ = await fallback_for(h, request)
+    run = await start_run(h, event)
+    assert await apply(h, run, request, plan) is True
+    counts = await run_counts(h, event)
+    applied_at = (await load(h, models.FormationRun, run.id)).applied_at
+    assert counts[1] == 1
+    assert await apply(h, run, request, plan) is False
+    assert await run_counts(h, event) == counts
+    assert (await load(h, models.FormationRun, run.id)).applied_at == applied_at
+
+
+async def test_apply_rollback_leaves_nothing(harness: Harness) -> None:
+    h = harness
+    event, _ = await scenario_two_cores(h, 1)
+    request = await request_for(h, event)
+    plan, _ = await fallback_for(h, request)
+    assert plan.merges
+    run = await start_run(h, event)
+    members = await count(h, models.ProjectMember, models.ProjectMember.event_id == event.id)
+    async with h.sessionmaker() as session:
+        assert await service.apply_plan(
+            session, h.jobs, run, request, plan, [], FormationPlanner.FALLBACK, "fake-1", h.now
+        )
+        await session.rollback()
+    assert (
+        await count(h, models.ProjectMember, models.ProjectMember.event_id == event.id) == members
+    )
+    assert await count(h, models.MergeProposal, models.MergeProposal.event_id == event.id) == 0
+    assert await count(h, models.AuditLog, models.AuditLog.entity_id == str(event.id)) == 0
+    assert await h.pending_jobs() == []
+    assert (await load(h, models.EventFormation, event.id)).phase == "forming"
+    assert (await load(h, models.FormationRun, run.id)).status == "running"
+
+
+async def test_apply_review_rerun_keeps_confirmed(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    event = await make_hackathon(h, team_size_min=3, team_size_max=6)
+    await set_phase(h, event, FormationPhase.REVIEW, rounds=1)
+    confirmed, released = await h.user(), await h.user()
+    project = await make_core(h, event, "Review", members=[confirmed], team_status="review")
+    window = h.now + timedelta(hours=12)
+    async with h.db() as session:
+        await session.execute(
+            update(models.Project)
+            .where(models.Project.id == project.id)
+            .values(review_ends_at=window)
+        )
+        await session.execute(
+            update(models.ProjectMember)
+            .where(models.ProjectMember.user_id == confirmed.id)
+            .values(confirm_kind="placement", confirm_by=h.now + timedelta(hours=1))
+        )
+        session.add(
+            models.ProjectMember(
+                project_id=project.id,
+                event_id=event.id,
+                user_id=released.id,
+                role="member",
+                state="proposed",
+                trust="self",
+                joined_via="formation",
+                confirm_by=window,
+                confirm_kind="placement",
+                is_team_row=True,
+                joined_at=h.now,
+                left_at=h.now,
+                left_reason="removed",
+            )
+        )
+    await enroll(h, event, released)
+    reserve = [await h.user(), await h.user()]
+    for user in reserve:
+        await enroll(h, event, user, status="reserve")
+    before = await member_rows(h, event)
+    await apply_fallback(h, event, phase=FormationPhase.REVIEW)
+
+    rows = await member_rows(h, event)
+    kept = rows[confirmed.id]
+    assert kept.id == before[confirmed.id].id
+    assert (kept.state, kept.confirm_kind, kept.confirm_by) == (
+        "confirmed",
+        "placement",
+        h.now + timedelta(hours=1),
+    )
+    for user in (released, *reserve):
+        row = rows[user.id]
+        assert (row.project_id, row.state, row.confirm_kind, row.confirm_by) == (
+            project.id,
+            "proposed",
+            "placement",
+            window,
+        )
+    assert (await load(h, models.Project, project.id)).review_ends_at == window
+    assert (await load(h, models.EventFormation, event.id)).rounds == 2
+
+
+async def test_apply_late_run(harness: Harness) -> None:
+    h = harness
+    await ensure_areas(h)
+    deadline = h.now + timedelta(days=3)
+    event = await make_hackathon(
+        h, team_size_min=3, team_size_max=6, registration_deadline=deadline
+    )
+    await set_phase(h, event, FormationPhase.LOCKED, rounds=1)
+    lead, member = await h.user(), await h.user()
+    core = await make_core(h, event, "Late", lead=lead, members=[member], origin="late_claim")
+    reserve = []
+    for index in range(6):
+        user = await h.user()
+        enrollment = await enroll(
+            h, event, user, status="reserve", created_at=h.now + timedelta(minutes=index)
+        )
+        async with h.db() as session:
+            await session.execute(
+                update(models.Enrollment)
+                .where(models.Enrollment.id == enrollment.id)
+                .values(reserve_rank=10 - index)
+            )
+        reserve.append(user)
+    before = await load(h, models.EventFormation, event.id)
+    await apply_fallback(h, event, FormationKind.LATE, FormationPhase.LOCKED)
+
+    stored = await load(h, models.Project, core.id)
+    assert stored.team_status == "review"
+    assert stored.review_ends_at == min(h.now + timedelta(hours=24), deadline - timedelta(hours=1))
+    rows = await member_rows(h, event)
+    assert sum(1 for row in rows.values() if row.project_id == core.id) == 6
+    formation = await load(h, models.EventFormation, event.id)
+    assert formation.phase == "locked"
+    assert formation.review_ends_at == before.review_ends_at
+    enrollments = await enrollment_rows(h, event)
+    assert sorted(
+        (row.reserve_rank, row.user_id) for row in enrollments.values() if row.status == "reserve"
+    ) == [(1, reserve[4].id), (2, reserve[5].id)]
+
+
+async def test_apply_stores_merges(harness: Harness) -> None:
+    h = harness
+    event, cores = await scenario_two_cores(h, 0)
+    run, _, plan = await apply_fallback(h, event)
+    assert len(plan.merges) == 1
+    async with h.db() as session:
+        [merge] = list(
+            await session.scalars(
+                select(models.MergeProposal).where(models.MergeProposal.event_id == event.id)
+            )
+        )
+    assert (merge.run_id, merge.proposed_by, merge.status) == (run.id, "system", "pending")
+    assert {merge.absorbed_team_id, merge.target_team_id} == {core.id for core in cores}
+
+    plain, _ = await scenario_two_cores(h, 10)
+    _, _, plain_plan = await apply_fallback(h, plain)
+    assert plain_plan.merges == []
+    assert await count(h, models.MergeProposal, models.MergeProposal.event_id == plain.id) == 0
+
+
+async def test_apply_rejects_invalid_plan(harness: Harness) -> None:
+    h = harness
+    event, _ = await scenario_two_cores(h, 10)
+    request = await request_for(h, event)
+    plan, _ = await fallback_for(h, request)
+    first, second = plan.teams
+    broken = plan.model_copy(
+        update={
+            "teams": [
+                first,
+                second.model_copy(update={"members": [*second.members, first.members[-1]]}),
+            ]
+        }
+    )
+    run = await start_run(h, event)
+    counts = await run_counts(h, event)
+    with pytest.raises(ProblemError) as error:
+        await apply(h, run, request, broken)
+    assert error.value.code == ErrorCode.INVALID_STATE
+    assert "Plan failed validation" in (error.value.detail or "")
+    assert await run_counts(h, event) == counts
+    assert (await load(h, models.FormationRun, run.id)).status == "running"
+
+
+async def test_apply_requires_forming_phase(harness: Harness) -> None:
+    h = harness
+    event, _ = await scenario_two_cores(h, 10)
+    request = await request_for(h, event)
+    plan, _ = await fallback_for(h, request)
+    run = await start_run(h, event)
+    await set_phase(h, event, FormationPhase.REVIEW)
+    counts = await run_counts(h, event)
+    with pytest.raises(ProblemError) as error:
+        await apply(h, run, request, plan)
+    assert error.value.code == ErrorCode.INVALID_STATE
+    assert await run_counts(h, event) == counts
+    assert (await load(h, models.FormationRun, run.id)).status == "running"
