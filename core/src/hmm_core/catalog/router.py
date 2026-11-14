@@ -20,6 +20,8 @@ from hmm_contracts.imports import (
 )
 from pydantic import AwareDatetime
 
+from hmm_core.catalog import parser as catalog_parser
+from hmm_core.catalog import review
 from hmm_core.catalog import service as catalog
 from hmm_core.catalog.schemas import (
     CreateEventBody,
@@ -32,7 +34,7 @@ from hmm_core.catalog.schemas import (
 )
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth, ParserAuth
@@ -116,8 +118,10 @@ async def create_event(
     status_code=status.HTTP_200_OK,
     summary="List events awaiting review",
 )
-async def list_review_queue(actor: AdminAuth) -> list[EventDetail]:
-    not_implemented()
+async def list_review_queue(
+    actor: AdminAuth, session: Session, clock: CurrentClock
+) -> list[EventDetail]:
+    return await review.review_queue(session, actor, clock.now())
 
 
 @router.patch(
@@ -174,25 +178,49 @@ async def list_event_revisions(
     "/admin/events/{id}/publish", status_code=status.HTTP_200_OK, summary="Publish an event"
 )
 async def publish_event(
-    id: EventId, actor: AdminAuth, body: ReasonBody | None = None
+    id: EventId,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+    body: ReasonBody | None = None,
 ) -> EventDetail:
-    not_implemented()
+    event = await review.publish_event(
+        session, request.app.state.jobs, id, actor, body.reason if body else None, clock.now()
+    )
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @router.post(
     "/admin/events/{id}/reject", status_code=status.HTTP_200_OK, summary="Reject an event draft"
 )
 async def reject_event(
-    id: EventId, actor: AdminAuth, body: ReasonBody | None = None
+    id: EventId,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+    body: ReasonBody | None = None,
 ) -> EventDetail:
-    not_implemented()
+    event = await review.reject_event(
+        session, request.app.state.jobs, id, actor, body.reason if body else None, clock.now()
+    )
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @router.post(
     "/admin/events/{id}/merge", status_code=status.HTTP_200_OK, summary="Merge an event draft"
 )
-async def merge_event(id: EventId, body: MergeEventBody, actor: AdminAuth) -> EventDetail:
-    not_implemented()
+async def merge_event(
+    id: EventId,
+    body: MergeEventBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> EventDetail:
+    event = await review.merge_event(session, request.app.state.jobs, id, body, actor, clock.now())
+    return await catalog.event_detail(session, event, actor, clock.now())
 
 
 @router.post("/admin/events/{id}/cancel", status_code=status.HTTP_200_OK, summary="Cancel an event")
@@ -219,8 +247,14 @@ async def cancel_event(
 
 
 @internal.post("/events/import", status_code=status.HTTP_200_OK, summary="Import an event batch")
-async def import_events(body: EventImportBatch, actor: ParserAuth) -> EventImportResponse:
-    not_implemented()
+async def import_events(
+    body: EventImportBatch,
+    actor: ParserAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> EventImportResponse:
+    return await catalog.import_events(session, request.app.state.jobs, body, clock.now())
 
 
 @internal.get(
@@ -229,12 +263,17 @@ async def import_events(body: EventImportBatch, actor: ParserAuth) -> EventImpor
 async def list_tracked_events(
     actor: ParserAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
 ) -> TrackedEventsResponse:
-    not_implemented()
+    return await catalog_parser.tracked_events(session, pagination, clock.now())
 
 
 @internal.post(
     "/parser/heartbeat", status_code=status.HTTP_204_NO_CONTENT, summary="Record a parser heartbeat"
 )
-async def record_parser_heartbeat(body: ParserHeartbeat, actor: ParserAuth) -> Response:
-    not_implemented()
+async def record_parser_heartbeat(
+    body: ParserHeartbeat, actor: ParserAuth, session: Session
+) -> Response:
+    await catalog_parser.record_heartbeat(session, body)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
