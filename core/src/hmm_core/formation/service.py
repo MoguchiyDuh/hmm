@@ -93,9 +93,10 @@ from hmm_core import models
 from hmm_core.attendance import service as attendance
 from hmm_core.formation import schemas
 from hmm_core.notifications.service import notify, notify_many, raise_alert
+from hmm_core.platform.algo import call_algo
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
-from hmm_core.platform.jobs import JobName, defer_job
+from hmm_core.platform.jobs import JobName, Runtime, defer_job
 from hmm_core.platform.pagination import CursorParams, keyset_page
 from hmm_core.platform.schemas import AreaScoreSummary, EventRef, ProjectRef, UserRef
 from hmm_core.platform.settings import RuntimeSettings, load_settings
@@ -124,6 +125,7 @@ REMOVABLE_TEAM_STATUSES: frozenset[str] = frozenset(
 RESULT_TEAM_STATUSES: frozenset[str] = frozenset(
     {TeamStatus.FINISHED.value, TeamStatus.WITHDRAWN.value}
 )
+FORMATION_ALGO_LIMIT = 100
 FORCEABLE_TEAM_STATUSES: frozenset[str] = frozenset(
     {TeamStatus.LOCKED.value, TeamStatus.ACTIVE.value}
 )
@@ -5036,3 +5038,391 @@ async def notify_formation(
                 dedupe_key=f"merge_proposed:{proposal.id}:{lead_id}",
             )
     await session.flush()
+
+
+async def dissolve_core(
+    session: AsyncSession,
+    event: models.Event,
+    project: models.Project,
+    now: datetime,
+    *,
+    reason: str,
+) -> None:
+    rows = list(
+        await session.scalars(
+            select(models.ProjectMember).where(
+                models.ProjectMember.project_id == project.id,
+                models.ProjectMember.left_at.is_(None),
+                models.ProjectMember.is_team_row.is_(True),
+            )
+        )
+    )
+    for row in rows:
+        row.left_at = now
+        row.left_reason = LeftReason.DISBANDED.value
+        enrollment = await live_enrollment_row(session, event.id, row.user_id, for_update=True)
+        if enrollment is not None and enrollment.status == EnrollmentStatus.PLACED.value:
+            enrollment.status = EnrollmentStatus.ACTIVE.value
+            enrollment.status_at = now
+            enrollment.reserve_rank = None
+    project.team_status = TeamStatus.DISBANDED.value
+    project.status = ProjectStatus.DISBANDED.value
+    project.lead_user_id = None
+    project.ready_at = None
+    project.last_lead_action_at = now
+    await close_project_pending_items(session, project.id, now, reason="team_disbanded")
+    await record_audit(
+        session,
+        actor=None,
+        actor_kind=ActorKind.SYSTEM,
+        action=AuditAction.PROJECT_DISBAND,
+        entity_type=AuditEntityType.PROJECT,
+        entity_id=project.id,
+        before={"team_status": TeamStatus.FORMING.value, "members": len(rows)},
+        after={"team_status": TeamStatus.DISBANDED.value, "reason": reason},
+        reason=reason,
+    )
+    await session.flush()
+    return None
+
+
+async def open_formation_run(
+    session: AsyncSession,
+    event_id: UUID,
+    kind: FormationKind,
+    algo_version: str,
+    now: datetime,
+) -> tuple[models.FormationRun, bool]:
+    event = await session.scalar(
+        select(models.Event)
+        .where(models.Event.id == event_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if event is None or not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if event.status != EventStatus.PUBLISHED.value:
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "Formation is available for published hackathons"
+        )
+    formation = await session.get(models.EventFormation, event.id)
+    if formation is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    phase = FormationPhase(formation.phase)
+    if phase == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    allowed = (
+        {FormationPhase.LOCKED}
+        if kind == FormationKind.LATE
+        else {FormationPhase.OPEN, FormationPhase.REVIEW}
+    )
+    if phase not in allowed:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Formation cannot run in this phase")
+    existing = await session.scalar(
+        select(models.FormationRun)
+        .where(
+            models.FormationRun.event_id == event.id,
+            models.FormationRun.kind == kind.value,
+            models.FormationRun.status.in_(
+                [FormationRunStatus.PENDING.value, FormationRunStatus.RUNNING.value]
+            ),
+        )
+        .order_by(models.FormationRun.created_at.desc(), models.FormationRun.id.desc())
+        .limit(1)
+    )
+    if existing is not None:
+        return existing, False
+    run = models.FormationRun(
+        event_id=event.id,
+        round=formation.rounds + 1,
+        kind=kind.value,
+        status=FormationRunStatus.PENDING.value,
+        planner=FormationPlanner.ALGO.value,
+        input={},
+        output=None,
+        validation_errors=[],
+        algo_version=algo_version,
+    )
+    session.add(run)
+    await session.flush()
+    return run, True
+
+
+async def start_formation_run(
+    session: AsyncSession,
+    event_id: UUID,
+    kind: FormationKind,
+    run_id: UUID,
+    algo_version: str,
+    now: datetime,
+) -> tuple[models.FormationRun, FormationRequest] | None:
+    event = await session.scalar(
+        select(models.Event)
+        .where(models.Event.id == event_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    formation = await session.scalar(
+        select(models.EventFormation)
+        .where(models.EventFormation.event_id == event_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if event is None or formation is None:
+        return None
+    run = await session.scalar(
+        select(models.FormationRun)
+        .where(models.FormationRun.id == run_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if run is None or run.event_id != event.id:
+        return None
+    if run.status == FormationRunStatus.APPLIED.value:
+        return None
+    run.round = formation.rounds + 1
+    phase = FormationPhase(formation.phase)
+    allowed = (
+        {FormationPhase.LOCKED, FormationPhase.FORMING}
+        if kind == FormationKind.LATE
+        else {FormationPhase.OPEN, FormationPhase.REVIEW, FormationPhase.FORMING}
+    )
+    if phase not in allowed:
+        run.status = FormationRunStatus.FAILED.value
+        run.validation_errors = [
+            {
+                "attempt": 0,
+                "planner": FormationPlanner.ALGO.value,
+                "plan": None,
+                "errors": [],
+                "error": f"Formation cannot start in phase {phase}",
+            }
+        ]
+        run.planner = FormationPlanner.ALGO.value
+        await session.flush()
+        return None
+    if phase != FormationPhase.FORMING:
+        pre_phase = phase
+    elif kind == FormationKind.LATE:
+        pre_phase = FormationPhase.LOCKED
+    elif formation.rounds > 0:
+        pre_phase = FormationPhase.REVIEW
+    else:
+        pre_phase = FormationPhase.OPEN
+    rerun = kind == FormationKind.MAIN and pre_phase == FormationPhase.REVIEW
+    scoped = await preserved_projects(session, event.id, kind, pre_phase)
+    for project in scoped:
+        await close_project_pending_items(session, project.id, now, reason="formation")
+        await close_pending_lead_offers(session, project.id, now)
+    if rerun:
+        for project in scoped:
+            proposed = await session.scalars(
+                select(models.ProjectMember).where(
+                    models.ProjectMember.project_id == project.id,
+                    models.ProjectMember.left_at.is_(None),
+                    models.ProjectMember.is_team_row.is_(True),
+                    models.ProjectMember.state == MemberState.PROPOSED.value,
+                )
+            )
+            for row in proposed:
+                row.left_at = now
+                row.left_reason = LeftReason.REMOVED.value
+                enrollment = await live_enrollment_row(
+                    session, event.id, row.user_id, for_update=True
+                )
+                if enrollment is not None and enrollment.status == EnrollmentStatus.PLACED.value:
+                    enrollment.status = EnrollmentStatus.ACTIVE.value
+                    enrollment.status_at = now
+                    enrollment.reserve_rank = None
+        await session.flush()
+    for project in scoped:
+        live_ids = set(
+            await session.scalars(
+                select(models.ProjectMember.user_id)
+                .join(models.User, models.User.id == models.ProjectMember.user_id)
+                .where(
+                    models.ProjectMember.project_id == project.id,
+                    models.ProjectMember.left_at.is_(None),
+                    models.ProjectMember.is_team_row.is_(True),
+                    models.User.banned_at.is_(None),
+                )
+            )
+        )
+        if not live_ids:
+            await dissolve_core(
+                session,
+                event,
+                project,
+                now,
+                reason="No members remained after proposals were released",
+            )
+        elif (project.lead_user_id is None or project.lead_user_id not in live_ids) and not rerun:
+            await dissolve_core(
+                session,
+                event,
+                project,
+                now,
+                reason="A core without a lead was dissolved at formation",
+            )
+    request = await build_formation_request(session, event, formation, kind, pre_phase, now)
+    formation.phase = FormationPhase.FORMING.value
+    run.input = request.model_dump(mode="json")
+    run.status = FormationRunStatus.RUNNING.value
+    run.validation_errors = []
+    run.algo_version = algo_version
+    run.round = formation.rounds + 1
+    await session.flush()
+    return run, request
+
+
+@dataclass(frozen=True, slots=True)
+class PlanOutcome:
+    plan: FormationPlan | None
+    planner: FormationPlanner
+    attempts: list[JsonValue]
+    error: str | None
+
+
+def _error_text(error: Exception) -> str:
+    return f"{type(error).__name__}: {error}"
+
+
+def _attempt(
+    attempt: int,
+    planner: FormationPlanner,
+    plan: FormationPlan | None,
+    errors: list[JsonValue],
+    error: str | None,
+) -> JsonValue:
+    return {
+        "attempt": attempt,
+        "planner": planner.value,
+        "plan": plan.model_dump(mode="json") if plan is not None else None,
+        "errors": errors,
+        "error": error,
+    }
+
+
+def failure_outcome(error: Exception) -> PlanOutcome:
+    text = _error_text(error)
+    return PlanOutcome(
+        plan=None,
+        planner=FormationPlanner.ALGO,
+        attempts=[_attempt(1, FormationPlanner.ALGO, None, [], text)],
+        error=text,
+    )
+
+
+def _fallback_outcome(
+    request: FormationRequest, settings: AlgoSettings, attempt: int, attempts: list[JsonValue]
+) -> PlanOutcome:
+    plan = fallback_plan(request, settings)
+    errors = validate_plan(request, plan, settings)
+    attempts.append(_attempt(attempt, FormationPlanner.FALLBACK, plan, errors, None))
+    return PlanOutcome(
+        plan=plan if not errors else None,
+        planner=FormationPlanner.FALLBACK,
+        attempts=attempts,
+        error=None if not errors else "Fallback plan is invalid",
+    )
+
+
+async def plan_formation(runtime: Runtime, request: FormationRequest) -> PlanOutcome:
+    async with runtime.sessionmaker.begin() as session:
+        ctx = await runtime.algo_context(session)
+    settings = ctx.settings
+    attempts: list[JsonValue] = []
+    if len(request.unplaced) > FORMATION_ALGO_LIMIT:
+        return _fallback_outcome(request, settings, 1, attempts)
+    for attempt in (1, 2):
+        plan: FormationPlan | None
+        errors: list[JsonValue]
+        error: str | None = None
+        try:
+            plan = await call_algo("form_teams", runtime.algorithm.form_teams(ctx, request))
+            errors = validate_plan(request, plan, settings)
+        except Exception as failure:
+            plan, errors, error = None, [], _error_text(failure)
+        attempts.append(_attempt(attempt, FormationPlanner.ALGO, plan, errors, error))
+        if plan is not None and error is None and not errors:
+            return PlanOutcome(
+                plan=plan, planner=FormationPlanner.ALGO, attempts=attempts, error=None
+            )
+    return _fallback_outcome(request, settings, 3, attempts)
+
+
+async def fail_formation_run(
+    session: AsyncSession, run_id: UUID, outcome: PlanOutcome, now: datetime
+) -> None:
+    run = await session.scalar(
+        select(models.FormationRun)
+        .where(models.FormationRun.id == run_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if run is None or run.status in {
+        FormationRunStatus.APPLIED.value,
+        FormationRunStatus.FAILED.value,
+    }:
+        return None
+    event = await session.scalar(
+        select(models.Event)
+        .where(models.Event.id == run.event_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    formation = await session.scalar(
+        select(models.EventFormation)
+        .where(models.EventFormation.event_id == run.event_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if event is None or formation is None:
+        return None
+    run.status = FormationRunStatus.FAILED.value
+    run.output = None
+    run.validation_errors = outcome.attempts
+    run.planner = outcome.planner.value
+    run.applied_at = None
+    if FormationKind(run.kind) == FormationKind.LATE:
+        formation.phase = FormationPhase.LOCKED.value
+    elif formation.rounds > 0:
+        formation.phase = FormationPhase.REVIEW.value
+    else:
+        settings = await load_settings(session)
+        formation.phase = FormationPhase.OPEN.value
+        formation.formation_at = now + timedelta(hours=1)
+        formation.review_ends_at = min(
+            formation.formation_at + timedelta(hours=settings.review_hours),
+            formation_timing(event, settings, now).team_deadline,
+        )
+    await session.flush()
+    await record_audit(
+        session,
+        actor=None,
+        actor_kind=ActorKind.SYSTEM,
+        action=AuditAction.SYSTEM_TRANSITION,
+        entity_type=AuditEntityType.FORMATION,
+        entity_id=event.id,
+        before={"run_id": str(run.id), "phase": FormationPhase.FORMING.value},
+        after={
+            "phase": formation.phase,
+            "planner": outcome.planner.value,
+            "error": outcome.error,
+        },
+        reason=None,
+    )
+    await raise_alert(
+        session,
+        AlertKind.FORMATION_FAILED,
+        now,
+        title=f"Formation failed: {event.title}",
+        message=outcome.error or "Formation could not build a valid plan",
+        link=f"/admin/events/{event.id}/formation",
+        subject_type="event",
+        subject_id=event.id,
+        subject_title=event.title,
+        dedupe_key=f"formation_failed:{event.id}:{run.id}",
+    )
+    await session.flush()
+    return None

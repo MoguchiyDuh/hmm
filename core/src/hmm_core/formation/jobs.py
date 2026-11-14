@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from hmm_contracts.common import EventStatus, FormationPhase
+from hmm_contracts.common import EventStatus, FormationKind, FormationPhase
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -8,6 +8,7 @@ from hmm_core.catalog import service as catalog
 from hmm_core.formation import service
 from hmm_core.identity.service import ONBOARDED
 from hmm_core.platform.algo import call_algo
+from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, Runtime, defer_job, job
 from hmm_core.scores.snapshot import build_member_snapshots
 
@@ -73,3 +74,68 @@ async def compute_lead_fits_for_member(runtime: Runtime, user_id: str) -> None:
         for event in await service.lead_fit_events_for_member(session, user.id):
             await _refresh_event(runtime, session, event, {user.id})
     return None
+
+
+@job(JobName.RUN_FORMATION)
+async def run_formation(
+    runtime: Runtime,
+    event_id: str,
+    kind: str = FormationKind.MAIN.value,
+    run_id: str | None = None,
+) -> None:
+    now = runtime.clock.now()
+    run_id_value: UUID | None = UUID(run_id) if run_id is not None else None
+    try:
+        if run_id_value is None:
+            async with runtime.sessionmaker.begin() as session:
+                try:
+                    opened, _ = await service.open_formation_run(
+                        session, UUID(event_id), FormationKind(kind), runtime.algorithm.version, now
+                    )
+                except ProblemError:
+                    return None
+                run_id_value = opened.id
+        async with runtime.sessionmaker.begin() as session:
+            started = await service.start_formation_run(
+                session,
+                UUID(event_id),
+                FormationKind(kind),
+                run_id_value,
+                runtime.algorithm.version,
+                now,
+            )
+            if started is None:
+                return None
+            started_run, request = started
+            run_id_value = started_run.id
+        outcome = await service.plan_formation(runtime, request)
+        async with runtime.sessionmaker.begin() as session:
+            current = await session.get(models.FormationRun, run_id_value)
+            if current is None:
+                return None
+            if outcome.plan is None:
+                await service.fail_formation_run(
+                    session, run_id_value, outcome, runtime.clock.now()
+                )
+                return None
+            await service.apply_plan(
+                session,
+                runtime.jobs,
+                current,
+                request,
+                outcome.plan,
+                outcome.attempts,
+                outcome.planner,
+                runtime.algorithm.version,
+                runtime.clock.now(),
+            )
+        return None
+    except Exception as error:
+        if run_id_value is None:
+            raise
+        async with runtime.sessionmaker.begin() as session:
+            await service.fail_formation_run(
+                session, run_id_value, service.failure_outcome(error), runtime.clock.now()
+            )
+        runtime.log.warning("Formation run %s failed", run_id_value, exc_info=error)
+        return None
