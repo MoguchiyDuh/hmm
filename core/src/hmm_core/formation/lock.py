@@ -30,6 +30,7 @@ from hmm_core.formation.common import (
     FormationTiming,
     enqueue_participation_jobs,
     formation_row,
+    formation_sizes,
     formation_timing,
     live_enrollment_row,
     notification_person,
@@ -40,8 +41,8 @@ from hmm_core.formation.lead_offers import (
     start_succession,
     team_member_ids,
 )
-from hmm_core.formation.leads import close_project_pending_items, formation_sizes
-from hmm_core.formation.members import open_seat
+from hmm_core.formation.leads import close_project_pending_items
+from hmm_core.formation.seats import open_seat
 from hmm_core.formation.swaps import close_swaps_and_merges
 from hmm_core.notifications.service import notify, notify_many, raise_alert, resolve_alerts
 from hmm_core.platform.audit import record_audit

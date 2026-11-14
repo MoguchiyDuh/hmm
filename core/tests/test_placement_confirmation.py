@@ -565,8 +565,8 @@ async def test_decline_presence_in_locked_team(harness: Harness) -> None:
     response = await decline(h, user, team.id)
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "reserve"
-    assert (await stored_project(h, team.id)).seat_open_since is None
-    assert await notified(h, "seat_opened") == []
+    assert (await stored_project(h, team.id)).seat_open_since == h.now
+    assert len(await notified(h, "seat_opened")) == 1
 
 
 async def test_lead_action_confirms(harness: Harness) -> None:

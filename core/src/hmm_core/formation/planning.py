@@ -35,9 +35,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
-from hmm_core.formation.common import LIVE_ENROLLMENT_STATES
+from hmm_core.formation.common import LIVE_ENROLLMENT_STATES, formation_sizes
 from hmm_core.formation.lead_offers import lead_order
-from hmm_core.formation.leads import formation_sizes, lead_candidate_tier
+from hmm_core.formation.leads import lead_candidate_tier
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.settings import load_settings
 from hmm_core.scores.snapshot import build_member_snapshots

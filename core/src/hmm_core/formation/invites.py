@@ -13,8 +13,8 @@ from hmm_contracts.common import (
     JoinedVia,
     MemberRole,
     MemberState,
+    ProjectOrigin,
     ProjectStatus,
-    ProjectVisibility,
     TeamStatus,
     Trust,
 )
@@ -38,62 +38,24 @@ from hmm_core.formation.common import (
     ONBOARDED_STATUSES,
     dnd_active,
     enqueue_participation_jobs,
-    formation_event,
     formation_row,
+    formation_sizes,
     formation_timing,
+    invite_project,
     latest_terminal_enrollment,
     live_enrollment_row,
     locked_formation_event,
     notification_person,
 )
 from hmm_core.formation.enrollments import live_membership, resolve_preferred_area
-from hmm_core.formation.leads import close_event_pending_items, formation_sizes
+from hmm_core.formation.late import late_core_window_end
+from hmm_core.formation.leads import close_event_pending_items
+from hmm_core.formation.seats import open_seat
 from hmm_core.notifications.service import notify, notify_many
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.settings import load_settings
 from hmm_core.projects import schemas as project_schemas
 from hmm_core.projects import service as projects
-
-
-async def invite_project(
-    session: AsyncSession, project_id: UUID, actor: models.User, *, lock: bool
-) -> tuple[models.Project, models.Event | None]:
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
-    event: models.Event | None = None
-    if project.team_status is not None and project.event_id is not None:
-        if lock:
-            event = await locked_formation_event(session, project.event_id, actor)
-        else:
-            event = await formation_event(session, project.event_id, actor)
-    if lock:
-        project = await session.scalar(
-            select(models.Project)
-            .where(models.Project.id == project_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-        if project is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
-    if project.team_status is None:
-        live = await session.scalar(
-            select(models.ProjectMember.id)
-            .where(
-                models.ProjectMember.project_id == project_id,
-                models.ProjectMember.user_id == actor.id,
-                models.ProjectMember.left_at.is_(None),
-            )
-            .limit(1)
-        )
-        if (
-            project.visibility == ProjectVisibility.MEMBERS.value
-            and not actor.is_admin
-            and actor.id != project.lead_user_id
-            and live is None
-        ):
-            raise ProblemError(ErrorCode.NOT_FOUND)
-    return project, event
 
 
 async def invite_context(
@@ -178,7 +140,29 @@ async def late_core_open(
     project: models.Project,
     now: datetime,
 ) -> bool:
-    return False
+    if (
+        FormationPhase(formation.phase) != FormationPhase.LOCKED
+        or project.origin != ProjectOrigin.LATE_CLAIM.value
+        or project.team_status != TeamStatus.FORMING.value
+    ):
+        return False
+    settings = await load_settings(session)
+    timing = formation_timing(event, settings, now)
+    if now >= late_core_window_end(project, settings, timing):
+        return False
+    sizes = formation_sizes(event, formation, settings)
+    count = (
+        await session.scalar(
+            select(func.count())
+            .select_from(models.ProjectMember)
+            .where(
+                models.ProjectMember.project_id == project.id,
+                models.ProjectMember.left_at.is_(None),
+            )
+        )
+        or 0
+    )
+    return count < sizes.core_max
 
 
 async def create_invite(
@@ -263,7 +247,12 @@ async def create_invite(
                     f"Core is full: {live_count} of {sizes.core_max} members"
                     f" with {pending} pending invites",
                 )
-            expires_at = min(now + ttl, formation.formation_at)
+            core_deadline = (
+                late_core_window_end(project, settings, formation_timing(event, settings, now))
+                if phase == FormationPhase.LOCKED
+                else formation.formation_at
+            )
+            expires_at = min(now + ttl, core_deadline)
         elif project.team_status in (TeamStatus.REVIEW.value, TeamStatus.LOCKED.value):
             timing = formation_timing(event, settings, now)
             if now >= timing.reg_deadline:
@@ -567,6 +556,8 @@ async def accept_invite(
         enrollment.reserve_rank = None
     await session.flush()
     if event is not None:
+        if project.team_status == TeamStatus.LOCKED.value:
+            await open_seat(session, project, event, now)
         await close_invitee_items(
             session,
             event,

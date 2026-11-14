@@ -289,7 +289,7 @@ async def test_due_proposal_lapse_and_repeat(harness: Harness) -> None:
     assert audit.before == {"state": "proposed", "confirm_kind": "presence"}
     assert audit.after == {"left_reason": "lapsed", "enrollment_status": "lapsed"}
     assert await todo_jobs(h) == ["refresh_recommendations"]
-    assert (await stored_project(h, team)).seat_open_since is None
+    assert (await stored_project(h, team)).seat_open_since == h.now
     assert await notices(h, "seat_opened") == []
 
     assert await run_lapses(h, event) == 0
@@ -443,8 +443,8 @@ async def test_main_round_locks_and_handoff(harness: Harness) -> None:
     for team in (first, second):
         row = await stored_project(h, team)
         assert (row.team_status, row.status, row.locked_at) == ("locked", "active", h.now)
-        assert row.seat_open_since is None
-    assert await notices(h, "seat_opened") == []
+        assert row.seat_open_since == h.now
+    assert len(await notices(h, "seat_opened")) == 2
     for member in (silent_row, old_lead_row):
         assert (await stored_member(h, member)).left_reason == "lapsed"
     for member in (first_lead_row, first_mate_row, second_a_row, second_b_row):

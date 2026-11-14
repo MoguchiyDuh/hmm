@@ -73,6 +73,8 @@ class EventFormation(Mutable, Base):
     last_run_id: Mapped[UUID | None] = mapped_column(
         Uuid, ForeignKey("formation_runs.id", ondelete="SET NULL"), nullable=True
     )
+    reg_cutoff_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    late_round_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Enrollment(Mutable, Base):

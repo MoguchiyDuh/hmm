@@ -107,6 +107,8 @@ def formation_actions(
         allowed.add(schemas.FormationAction.EDIT)
     if actor.is_admin and phase in (FormationPhase.OPEN, FormationPhase.REVIEW):
         allowed.add(schemas.FormationAction.RUN)
+    if actor.is_admin and phase in (FormationPhase.REVIEW, FormationPhase.LOCKED):
+        allowed.add(schemas.FormationAction.REORDER_RESERVE)
     return [action for action in schemas.FormationAction if action in allowed]
 
 

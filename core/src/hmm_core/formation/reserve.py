@@ -2,6 +2,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
+import procrastinate
 from hmm_contracts.algo import (
     EnrolledMember,
     RankedMember,
@@ -10,22 +11,131 @@ from hmm_contracts.algo import (
     TeamMemberSnapshot,
 )
 from hmm_contracts.common import (
+    ActorKind,
+    AuditAction,
+    AuditEntityType,
     EnrollmentStatus,
+    ErrorCode,
     EventStatus,
     FormationPhase,
     MemberRole,
     MemberState,
 )
+from pydantic import JsonValue
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
-from hmm_core.formation.common import CAPACITY_TEAM_STATES, LIVE_ENROLLMENT_STATES
-from hmm_core.formation.leads import formation_sizes
+from hmm_core.formation import schemas
+from hmm_core.formation.common import (
+    CAPACITY_TEAM_STATES,
+    LIVE_ENROLLMENT_STATES,
+    enqueue_participation_jobs,
+    formation_event,
+    formation_row,
+    formation_sizes,
+    locked_formation_event,
+)
+from hmm_core.formation.enrollments import enrollment_views
+from hmm_core.platform.audit import record_audit
+from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.settings import load_settings
 from hmm_core.scores.snapshot import build_member_snapshots
 
 RESERVE_RANK_REASON = "Ranked by the reserve planner"
+
+
+async def list_reserve(
+    session: AsyncSession, event_id: UUID, actor: models.User, now: datetime
+) -> list[schemas.Enrollment]:
+    event = await formation_event(session, event_id, actor)
+    if not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    rows = list(
+        await session.scalars(
+            select(models.Enrollment)
+            .join(models.User, models.User.id == models.Enrollment.user_id)
+            .where(
+                models.Enrollment.event_id == event.id,
+                models.Enrollment.status == EnrollmentStatus.RESERVE.value,
+                models.User.banned_at.is_(None),
+            )
+            .order_by(
+                models.Enrollment.reserve_rank.asc().nulls_last(),
+                models.Enrollment.created_at,
+                models.Enrollment.id,
+            )
+        )
+    )
+    return await enrollment_views(session, rows, actor, now)
+
+
+async def update_reserve_order(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    event_id: UUID,
+    body: schemas.UpdateReserveOrderBody,
+    actor: models.User,
+    now: datetime,
+) -> list[schemas.Enrollment]:
+    event = await locked_formation_event(session, event_id, actor)
+    if not event.formation_enabled:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    formation = await formation_row(session, event.id)
+    phase = FormationPhase(formation.phase)
+    if phase == FormationPhase.FORMING:
+        raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS, "Formation is running, retry shortly")
+    if phase not in (FormationPhase.REVIEW, FormationPhase.LOCKED):
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "The reserve order can only be changed after formation"
+        )
+    rows = list(
+        await session.scalars(
+            select(models.Enrollment)
+            .where(
+                models.Enrollment.event_id == event.id,
+                models.Enrollment.status == EnrollmentStatus.RESERVE.value,
+            )
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    )
+    requested = list(body.user_ids)
+    if len(set(requested)) != len(requested) or set(requested) != {row.user_id for row in rows}:
+        raise ProblemError(
+            ErrorCode.VALIDATION_ERROR, "user_ids must list every reserve member exactly once"
+        )
+    by_user = {row.user_id: row for row in rows}
+    before: list[JsonValue] = [
+        str(row.user_id)
+        for row in sorted(
+            rows,
+            key=lambda row: (
+                row.reserve_rank is None,
+                row.reserve_rank or 0,
+                row.created_at,
+                str(row.id),
+            ),
+        )
+    ]
+    for index, user_id in enumerate(requested, start=1):
+        by_user[user_id].reserve_rank = index
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.ADMIN,
+        action=AuditAction.RESERVE_REORDER,
+        entity_type=AuditEntityType.FORMATION,
+        entity_id=event.id,
+        before={"user_ids": before},
+        after={"user_ids": [str(user_id) for user_id in requested]},
+        reason=body.reason,
+    )
+    await enqueue_participation_jobs(session, jobs, event.id, reserve=False)
+    await session.flush()
+    for row in rows:
+        await session.refresh(row)
+    return await enrollment_views(session, [by_user[user_id] for user_id in requested], actor, now)
 
 
 def validated_reserve_ranking(

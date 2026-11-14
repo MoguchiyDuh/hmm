@@ -30,13 +30,14 @@ from hmm_core.formation.common import (
     FORMATION_ALGO_LIMIT,
     LIVE_ENROLLMENT_STATES,
     formation_event,
+    formation_sizes,
     formation_timing,
     live_enrollment_row,
     locked_formation_event,
 )
 from hmm_core.formation.enrollments import formation_participation
 from hmm_core.formation.lead_offers import close_pending_lead_offers
-from hmm_core.formation.leads import close_project_pending_items, formation_sizes
+from hmm_core.formation.leads import close_project_pending_items
 from hmm_core.formation.planning import (
     build_formation_request,
     fallback_plan,

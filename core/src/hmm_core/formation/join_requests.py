@@ -34,13 +34,15 @@ from hmm_core.formation.common import (
     REJECT_LABEL,
     enqueue_participation_jobs,
     formation_row,
+    formation_sizes,
+    invite_project,
     live_enrollment_row,
     locked_formation_event,
     notification_person,
 )
 from hmm_core.formation.enrollments import live_membership
-from hmm_core.formation.invites import close_invitee_items, invite_project, late_core_open
-from hmm_core.formation.leads import formation_sizes
+from hmm_core.formation.invites import close_invitee_items, late_core_open
+from hmm_core.formation.seats import open_seat
 from hmm_core.notifications.service import notify, notify_many
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.settings import load_settings
@@ -406,6 +408,8 @@ async def accept_join_request(
         )
         await recommendations.enqueue_project_refresh(session, jobs, project.id)
     if event is not None:
+        if project.team_status == TeamStatus.LOCKED.value:
+            await open_seat(session, project, event, now)
         await close_invitee_items(
             session,
             event,

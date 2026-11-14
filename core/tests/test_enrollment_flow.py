@@ -317,7 +317,11 @@ async def test_actions_by_phase(harness: Harness) -> None:
     assert (await get_formation(h, member, event.id))["allowed_actions"] == []
     await set_phase(h, event, FormationPhase.REVIEW)
     assert (await get_formation(h, member, event.id))["allowed_actions"] == ["enroll"]
-    assert (await get_formation(h, admin, event.id))["allowed_actions"] == ["enroll", "run"]
+    assert (await get_formation(h, admin, event.id))["allowed_actions"] == [
+        "enroll",
+        "run",
+        "reorder_reserve",
+    ]
     await set_phase(h, event, FormationPhase.CLOSED)
     assert (await get_formation(h, member, event.id))["allowed_actions"] == []
 

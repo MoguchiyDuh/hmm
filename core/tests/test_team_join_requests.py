@@ -341,6 +341,12 @@ async def test_late_core_closed(harness: Harness) -> None:
     await h.seed_areas()
     event = await make_hackathon(h)
     team = await seed_team(h, event, await h.user(), origin="late_claim")
+    async with h.db() as session:
+        await session.execute(
+            update(models.Project)
+            .where(models.Project.id == team.id)
+            .values(created_at=h.now - timedelta(hours=13))
+        )
     await set_formation(h, event, phase="locked")
     member = await h.user()
     await enroll(h, event, member, status="reserve")
@@ -545,6 +551,12 @@ async def test_accept_reserve_requester_at_late_core(
     event = await make_hackathon(h)
     lead = await h.user()
     team = await seed_team(h, event, lead, origin="late_claim")
+    async with h.db() as session:
+        await session.execute(
+            update(models.Project)
+            .where(models.Project.id == team.id)
+            .values(created_at=h.now - timedelta(hours=13))
+        )
     await set_formation(h, event, phase="locked")
     requester = await h.user()
     enrollment = await enroll(h, event, requester, status="reserve")

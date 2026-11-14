@@ -1,4 +1,3 @@
-from collections.abc import Sequence
 from datetime import datetime
 from uuid import UUID
 
@@ -10,6 +9,7 @@ from hmm_contracts.common import (
     EnrollmentStatus,
     ErrorCode,
     FormationPhase,
+    JoinedVia,
     LeadOfferSource,
     LeadOfferStatus,
     LeftReason,
@@ -30,10 +30,12 @@ from hmm_core.formation.common import (
     CLOSED_TEAM_STATUSES,
     RESULT_TEAM_STATUSES,
     TERMINAL_PROJECT_STATUSES,
+    _own_team_row,
     enqueue_participation_jobs,
     formation_row,
     live_enrollment_row,
     locked_formation_event,
+    note_lead_action,
     notification_person,
 )
 from hmm_core.formation.enrollments import resolve_preferred_area
@@ -45,6 +47,7 @@ from hmm_core.formation.lead_offers import (
     team_member_ids,
 )
 from hmm_core.formation.leads import close_project_pending_items, stored_lead_fit
+from hmm_core.formation.seats import notify_seat_autofilled, open_seat
 from hmm_core.notifications.service import notify_many, raise_alert
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
@@ -52,12 +55,6 @@ from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.settings import load_settings
 from hmm_core.projects import schemas as project_schemas
 from hmm_core.projects import service as projects
-
-
-async def open_seat(
-    session: AsyncSession, project: models.Project, event: models.Event, now: datetime
-) -> None:
-    return None
 
 
 async def _locked_lead_project(
@@ -445,39 +442,6 @@ async def team_member_view(
     )
 
 
-async def _own_team_row(
-    session: AsyncSession, project_id: UUID, user_id: UUID
-) -> models.ProjectMember | None:
-    return await session.scalar(
-        select(models.ProjectMember)
-        .where(
-            models.ProjectMember.project_id == project_id,
-            models.ProjectMember.user_id == user_id,
-            models.ProjectMember.left_at.is_(None),
-            models.ProjectMember.is_team_row.is_(True),
-        )
-        .execution_options(populate_existing=True)
-    )
-
-
-async def note_lead_action(
-    session: AsyncSession, project: models.Project, actor: models.User, now: datetime
-) -> models.ProjectMember | None:
-    if project.lead_user_id != actor.id:
-        return None
-    project.last_lead_action_at = now
-    member = await _own_team_row(session, project.id, actor.id)
-    if member is None or member.state != MemberState.PROPOSED.value:
-        await session.flush()
-        return None
-    member.state = MemberState.CONFIRMED.value
-    member.confirmed_at = now
-    member.confirm_by = None
-    member.confirm_kind = None
-    await session.flush()
-    return member
-
-
 async def _placement_target(
     session: AsyncSession, project_id: UUID, actor: models.User
 ) -> tuple[models.Project, models.Event, models.ProjectMember]:
@@ -509,7 +473,7 @@ async def _placement_target(
 async def confirm_placement(
     session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
 ) -> tuple[models.Project, models.ProjectMember]:
-    project, _, member = await _placement_target(session, project_id, actor)
+    project, event, member = await _placement_target(session, project_id, actor)
     if member.state == MemberState.CONFIRMED.value:
         return project, member
     member.state = MemberState.CONFIRMED.value
@@ -517,6 +481,8 @@ async def confirm_placement(
     member.confirm_by = None
     member.confirm_kind = None
     await session.flush()
+    if member.joined_via == JoinedVia.RESERVE_OFFER.value:
+        await notify_seat_autofilled(session, project, event, member, now)
     return project, member
 
 
@@ -595,22 +561,6 @@ async def decline_placement(
     await session.flush()
     await session.refresh(row)
     return row
-
-
-async def departed_team_user_ids(
-    session: AsyncSession, project_id: UUID, user_ids: Sequence[UUID]
-) -> set[UUID]:
-    if not user_ids:
-        return set()
-    return set(
-        await session.scalars(
-            select(models.ProjectMember.user_id).where(
-                models.ProjectMember.project_id == project_id,
-                models.ProjectMember.user_id.in_(list(user_ids)),
-                models.ProjectMember.left_at.is_not(None),
-            )
-        )
-    )
 
 
 async def review_remove_member(

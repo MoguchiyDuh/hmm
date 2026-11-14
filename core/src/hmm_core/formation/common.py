@@ -1,6 +1,8 @@
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from math import ceil
 from uuid import UUID
 
 import procrastinate
@@ -9,8 +11,10 @@ from hmm_contracts.common import (
     ErrorCode,
     EventStatus,
     FormationPhase,
+    MemberState,
     OnboardingStatus,
     ProjectStatus,
+    ProjectVisibility,
     TeamStatus,
 )
 from hmm_contracts.notifications import NotificationPerson
@@ -27,6 +31,35 @@ from hmm_core.projects import service as projects
 LIVE_ENROLLMENT_STATES: frozenset[EnrollmentStatus] = frozenset(
     {EnrollmentStatus.ACTIVE, EnrollmentStatus.PLACED, EnrollmentStatus.RESERVE}
 )
+
+
+@dataclass(frozen=True, slots=True)
+class FormationSizes:
+    min_size: int
+    max_size: int
+    target: int
+    viable: int
+    core_max: int
+
+
+def formation_sizes(
+    event: models.Event, formation: models.EventFormation, settings: RuntimeSettings
+) -> FormationSizes:
+    min_size = event.team_size_min or settings.team_size_default_min
+    max_size = event.team_size_max or settings.team_size_default_max
+    if min_size > max_size:
+        max_size = min_size
+    if max_size < 2:
+        max_size = 2
+    target = formation.target_override or max_size
+    target = min(max(target, min_size), max_size)
+    return FormationSizes(
+        min_size=min_size,
+        max_size=max_size,
+        target=target,
+        viable=min(max_size, max(min_size, ceil(target * settings.viable_ratio))),
+        core_max=min(max_size, max(2, ceil(target * settings.core_ratio))),
+    )
 
 
 CAPACITY_TEAM_STATES = frozenset({TeamStatus.FORMING, TeamStatus.REVIEW, TeamStatus.LOCKED})
@@ -73,6 +106,55 @@ FORMATION_ALGO_LIMIT = 100
 FORCEABLE_TEAM_STATUSES: frozenset[str] = frozenset(
     {TeamStatus.LOCKED.value, TeamStatus.ACTIVE.value}
 )
+
+
+async def _own_team_row(
+    session: AsyncSession, project_id: UUID, user_id: UUID
+) -> models.ProjectMember | None:
+    return await session.scalar(
+        select(models.ProjectMember)
+        .where(
+            models.ProjectMember.project_id == project_id,
+            models.ProjectMember.user_id == user_id,
+            models.ProjectMember.left_at.is_(None),
+            models.ProjectMember.is_team_row.is_(True),
+        )
+        .execution_options(populate_existing=True)
+    )
+
+
+async def note_lead_action(
+    session: AsyncSession, project: models.Project, actor: models.User, now: datetime
+) -> models.ProjectMember | None:
+    if project.lead_user_id != actor.id:
+        return None
+    project.last_lead_action_at = now
+    member = await _own_team_row(session, project.id, actor.id)
+    if member is None or member.state != MemberState.PROPOSED.value:
+        await session.flush()
+        return None
+    member.state = MemberState.CONFIRMED.value
+    member.confirmed_at = now
+    member.confirm_by = None
+    member.confirm_kind = None
+    await session.flush()
+    return member
+
+
+async def departed_team_user_ids(
+    session: AsyncSession, project_id: UUID, user_ids: Sequence[UUID]
+) -> set[UUID]:
+    if not user_ids:
+        return set()
+    return set(
+        await session.scalars(
+            select(models.ProjectMember.user_id).where(
+                models.ProjectMember.project_id == project_id,
+                models.ProjectMember.user_id.in_(list(user_ids)),
+                models.ProjectMember.left_at.is_not(None),
+            )
+        )
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,6 +344,47 @@ async def formation_row(session: AsyncSession, event_id: UUID) -> models.EventFo
     if formation is None:
         raise ProblemError(ErrorCode.INVALID_STATE, "Formation is not initialised")
     return formation
+
+
+async def invite_project(
+    session: AsyncSession, project_id: UUID, actor: models.User, *, lock: bool
+) -> tuple[models.Project, models.Event | None]:
+    project = await session.get(models.Project, project_id)
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    event: models.Event | None = None
+    if project.team_status is not None and project.event_id is not None:
+        if lock:
+            event = await locked_formation_event(session, project.event_id, actor)
+        else:
+            event = await formation_event(session, project.event_id, actor)
+    if lock:
+        project = await session.scalar(
+            select(models.Project)
+            .where(models.Project.id == project_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if project is None:
+            raise ProblemError(ErrorCode.NOT_FOUND)
+    if project.team_status is None:
+        live = await session.scalar(
+            select(models.ProjectMember.id)
+            .where(
+                models.ProjectMember.project_id == project_id,
+                models.ProjectMember.user_id == actor.id,
+                models.ProjectMember.left_at.is_(None),
+            )
+            .limit(1)
+        )
+        if (
+            project.visibility == ProjectVisibility.MEMBERS.value
+            and not actor.is_admin
+            and actor.id != project.lead_user_id
+            and live is None
+        ):
+            raise ProblemError(ErrorCode.NOT_FOUND)
+    return project, event
 
 
 async def _enrollment_row(

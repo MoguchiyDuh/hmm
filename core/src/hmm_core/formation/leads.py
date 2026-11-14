@@ -1,8 +1,6 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
-from math import ceil
 from typing import cast
 from uuid import UUID
 
@@ -46,6 +44,7 @@ from hmm_core.formation.common import (
     enqueue_participation_jobs,
     formation_event,
     formation_row,
+    formation_sizes,
     formation_timing,
     latest_terminal_enrollment,
     lead_eligibility,
@@ -53,12 +52,13 @@ from hmm_core.formation.common import (
     locked_formation_event,
 )
 from hmm_core.formation.enrollments import live_membership
+from hmm_core.formation.late import late_claim_eligible
 from hmm_core.notifications.service import notify_many
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.schemas import UserRef
-from hmm_core.platform.settings import RuntimeSettings, load_settings
+from hmm_core.platform.settings import load_settings
 from hmm_core.projects import schemas as project_schemas
 from hmm_core.projects import service as projects
 
@@ -297,7 +297,15 @@ async def late_claim_open(
     user_id: UUID,
     now: datetime,
 ) -> bool:
-    return False
+    if FormationPhase(formation.phase) != FormationPhase.LOCKED:
+        return False
+    if formation.late_round_at is None:
+        return False
+    settings = await load_settings(session)
+    timing = formation_timing(event, settings, now)
+    if now >= timing.reg_deadline - timedelta(hours=settings.review_min_hours):
+        return False
+    return await late_claim_eligible(session, event, user_id)
 
 
 async def claim_lead(
@@ -329,6 +337,11 @@ async def claim_lead(
             raise ProblemError(ErrorCode.INVALID_STATE, "Lead claims are closed")
     else:
         raise ProblemError(ErrorCode.INVALID_STATE, "Lead claims are closed")
+    origin = (
+        ProjectOrigin.LATE_CLAIM.value
+        if phase == FormationPhase.LOCKED
+        else ProjectOrigin.CLAIM.value
+    )
     if await live_membership(session, event.id, actor.id) is not None:
         raise ProblemError(ErrorCode.ALREADY_IN_TEAM, "You are already on a team for this event")
     if dnd_active(actor, now):
@@ -367,7 +380,7 @@ async def claim_lead(
         lead_user_id=actor.id,
         status=ProjectStatus.IDEA.value,
         team_status=TeamStatus.FORMING.value,
-        origin=ProjectOrigin.CLAIM.value,
+        origin=origin,
         ready_at=None,
         formed_in_run_id=None,
         last_lead_action_at=now,
@@ -419,7 +432,7 @@ async def claim_lead(
         after={
             "name": project.name,
             "lead_user_id": str(actor.id),
-            "origin": ProjectOrigin.CLAIM.value,
+            "origin": origin,
             "team_status": TeamStatus.FORMING.value,
         },
         reason=None,
@@ -436,35 +449,6 @@ async def team_view(
     if not isinstance(views[0], project_schemas.Project):
         raise ProblemError(ErrorCode.INTERNAL_ERROR)
     return views[0]
-
-
-@dataclass(frozen=True, slots=True)
-class FormationSizes:
-    min_size: int
-    max_size: int
-    target: int
-    viable: int
-    core_max: int
-
-
-def formation_sizes(
-    event: models.Event, formation: models.EventFormation, settings: RuntimeSettings
-) -> FormationSizes:
-    min_size = event.team_size_min or settings.team_size_default_min
-    max_size = event.team_size_max or settings.team_size_default_max
-    if min_size > max_size:
-        max_size = min_size
-    if max_size < 2:
-        max_size = 2
-    target = formation.target_override or max_size
-    target = min(max(target, min_size), max_size)
-    return FormationSizes(
-        min_size=min_size,
-        max_size=max_size,
-        target=target,
-        viable=min(max_size, max(min_size, ceil(target * settings.viable_ratio))),
-        core_max=min(max_size, max(2, ceil(target * settings.core_ratio))),
-    )
 
 
 async def maybe_early_start(

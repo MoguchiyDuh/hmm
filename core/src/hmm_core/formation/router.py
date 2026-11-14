@@ -129,8 +129,10 @@ async def list_enrollments(
 
 
 @router.get("/events/{id}/reserve", status_code=status.HTTP_200_OK, summary="List ranked reserve")
-async def list_reserve(id: EventId, actor: MemberAuth) -> list[Enrollment]:
-    not_implemented()
+async def list_reserve(
+    id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> list[Enrollment]:
+    return await service.list_reserve(session, id, actor, clock.now())
 
 
 @router.get("/me/enrollments", status_code=status.HTTP_200_OK, summary="List my enrollments")
@@ -201,8 +203,11 @@ async def unclaim_lead(
 @router.post(
     "/projects/{id}/seats/close", status_code=status.HTTP_200_OK, summary="Close open team seats"
 )
-async def close_seats(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def close_seats(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    project = await service.close_seats(session, id, actor, clock.now())
+    return await service.team_view(session, project, actor, clock.now())
 
 
 @router.delete(
@@ -210,8 +215,11 @@ async def close_seats(id: ProjectId, actor: MemberAuth) -> Project:
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Reopen team seats",
 )
-async def reopen_seats(id: ProjectId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def reopen_seats(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Response:
+    await service.reopen_seats(session, id, actor, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -418,9 +426,17 @@ async def step_down(
     summary="Propose a reserve member",
 )
 async def add_reserve_member(
-    id: ProjectId, body: AddMemberBody, actor: MemberAuth
+    id: ProjectId,
+    body: AddMemberBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
 ) -> ProjectMember:
-    not_implemented()
+    project, member = await service.add_reserve_member(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    return await service.team_member_view(session, project, member, actor)
 
 
 @router.patch(
@@ -565,9 +581,16 @@ async def admin_create_team(id: EventId, body: AdminCreateTeamBody, actor: Admin
     summary="Reorder the reserve",
 )
 async def update_reserve_order(
-    id: EventId, body: UpdateReserveOrderBody, actor: AdminAuth
+    id: EventId,
+    body: UpdateReserveOrderBody,
+    actor: AdminAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
 ) -> list[Enrollment]:
-    not_implemented()
+    return await service.update_reserve_order(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
 
 
 @router.post(
