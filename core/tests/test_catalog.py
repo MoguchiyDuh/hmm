@@ -444,7 +444,7 @@ async def test_admin_create_event_detail(harness: Harness) -> None:
     assert body["formation"]["target"] == 5
     assert body["formation"]["viable"] == 4
     assert body["formation"]["core_max"] == 3
-    assert body["formation"]["allowed_actions"] == []
+    assert body["formation"]["allowed_actions"] == ["enroll", "edit", "run"]
     assert "cancel" in body["allowed_actions"]
     for field in (
         "summary",
@@ -741,7 +741,7 @@ async def test_event_detail_formation_block(harness: Harness, kind: EventKind) -
             "membership": None,
             "lead_fit": None,
         }
-        assert body["formation"]["allowed_actions"] == []
+        assert body["formation"]["allowed_actions"] == ["enroll"]
 
 
 @pytest.fixture

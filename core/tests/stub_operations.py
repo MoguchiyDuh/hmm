@@ -45,7 +45,6 @@ UNIMPLEMENTED_OPERATIONS = set(
         "formation_decline_placement",
         "formation_decline_swap",
         "formation_enroll",
-        "formation_get_formation",
         "formation_get_my_lead_fit",
         "formation_list_enrollments",
         "formation_list_formation_runs",

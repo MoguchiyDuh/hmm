@@ -3,6 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from hmm_contracts.common import (
     EnrollmentStatus,
+    ErrorCode,
     EventId,
     InviteId,
     InviteStatus,
@@ -15,6 +16,7 @@ from hmm_contracts.common import (
     UserId,
 )
 
+from hmm_core.formation import service
 from hmm_core.formation.schemas import (
     AddMemberBody,
     AdminAddMemberBody,
@@ -41,7 +43,9 @@ from hmm_core.formation.schemas import (
     UpdateReserveOrderBody,
     UpdateTeamStatusBody,
 )
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth
@@ -54,8 +58,14 @@ internal = APIRouter(tags=["formation"], responses=PROBLEM_RESPONSES)
 @router.get(
     "/events/{id}/formation", status_code=status.HTTP_200_OK, summary="Get participation state"
 )
-async def get_formation(id: EventId, actor: MemberAuth) -> Formation:
-    not_implemented()
+async def get_formation(
+    id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Formation:
+    event = await service.formation_event(session, id, actor)
+    formation = await service.formation_participation(session, event, actor, clock.now())
+    if formation is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return formation
 
 
 @router.post(
