@@ -1,8 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from hmm_contracts.common import (
     EnrollmentStatus,
+    ErrorCode,
     EventId,
     InviteId,
     InviteStatus,
@@ -15,6 +16,7 @@ from hmm_contracts.common import (
     UserId,
 )
 
+from hmm_core.formation import service
 from hmm_core.formation.schemas import (
     AddMemberBody,
     AdminAddMemberBody,
@@ -41,7 +43,9 @@ from hmm_core.formation.schemas import (
     UpdateReserveOrderBody,
     UpdateTeamStatusBody,
 )
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.clock import CurrentClock
+from hmm_core.platform.db import Session
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth
@@ -54,29 +58,56 @@ internal = APIRouter(tags=["formation"], responses=PROBLEM_RESPONSES)
 @router.get(
     "/events/{id}/formation", status_code=status.HTTP_200_OK, summary="Get participation state"
 )
-async def get_formation(id: EventId, actor: MemberAuth) -> Formation:
-    not_implemented()
+async def get_formation(
+    id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Formation:
+    event = await service.formation_event(session, id, actor)
+    formation = await service.formation_participation(session, event, actor, clock.now())
+    if formation is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return formation
 
 
 @router.post(
     "/events/{id}/enroll", status_code=status.HTTP_201_CREATED, summary="Enroll in an event"
 )
-async def enroll(id: EventId, body: CreateEnrollmentBody, actor: MemberAuth) -> Enrollment:
-    not_implemented()
+async def enroll(
+    id: EventId,
+    body: CreateEnrollmentBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+    response: Response,
+) -> Enrollment:
+    enrollment, changed = await service.enroll(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
+    if not changed:
+        response.status_code = status.HTTP_200_OK
+    return (await service.enrollment_views(session, [enrollment], actor, clock.now()))[0]
 
 
 @router.patch("/events/{id}/enroll", status_code=status.HTTP_200_OK, summary="Edit enrollment")
 async def update_enrollment(
-    id: EventId, body: UpdateEnrollmentBody, actor: MemberAuth
+    id: EventId,
+    body: UpdateEnrollmentBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> Enrollment:
-    not_implemented()
+    row = await service.update_enrollment(session, id, body, actor, clock.now())
+    return (await service.enrollment_views(session, [row], actor, clock.now()))[0]
 
 
 @router.delete(
     "/events/{id}/enroll", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw enrollment"
 )
-async def withdraw_enrollment(id: EventId, actor: MemberAuth) -> Response:
-    not_implemented()
+async def withdraw_enrollment(
+    id: EventId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Response:
+    await service.withdraw_enrollment(session, request.app.state.jobs, id, actor, clock.now())
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get(
@@ -86,8 +117,10 @@ async def list_enrollments(
     id: EventId,
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
 ) -> EnrollmentPage:
-    not_implemented()
+    return await service.list_enrollments(session, id, actor, pagination, clock.now())
 
 
 @router.get("/events/{id}/reserve", status_code=status.HTTP_200_OK, summary="List ranked reserve")
@@ -98,9 +131,11 @@ async def list_reserve(id: EventId, actor: MemberAuth) -> list[Enrollment]:
 @router.get("/me/enrollments", status_code=status.HTTP_200_OK, summary="List my enrollments")
 async def list_my_enrollments(
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     status: Annotated[EnrollmentStatus | None, Query()] = None,
 ) -> list[Enrollment]:
-    not_implemented()
+    return await service.list_my_enrollments(session, actor, status, clock.now())
 
 
 @router.get("/events/{id}/lead-fit/me", status_code=status.HTTP_200_OK, summary="Get my lead fit")
