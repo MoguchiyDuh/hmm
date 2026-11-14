@@ -36,10 +36,16 @@ HTTP_ERROR_CODES: dict[int, ErrorCode] = {
 
 
 class ProblemError(Exception):
-    def __init__(self, code: ErrorCode, detail: str | None = None) -> None:
+    def __init__(
+        self,
+        code: ErrorCode,
+        detail: str | None = None,
+        errors: list[ValidationIssue] | None = None,
+    ) -> None:
         super().__init__(code)
         self.code = code
         self.detail = detail
+        self.errors = errors
 
 
 def not_implemented() -> NoReturn:
@@ -64,7 +70,7 @@ def problem_response(
 
 
 async def problem_error_handler(request: Request, exc: ProblemError) -> JSONResponse:
-    return problem_response(request, exc.code, exc.detail)
+    return problem_response(request, exc.code, exc.detail, errors=exc.errors)
 
 
 async def http_error_handler(request: Request, exc: HTTPException) -> JSONResponse:

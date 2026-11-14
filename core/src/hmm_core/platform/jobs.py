@@ -52,6 +52,7 @@ JOB_MODULES: tuple[str, ...] = (
     "hmm_core.platform.maintenance",
     "hmm_core.admin.jobs",
     "hmm_core.catalog.jobs",
+    "hmm_core.onboarding.jobs",
     "hmm_core.profiles.jobs",
     "hmm_core.scores.jobs",
 )

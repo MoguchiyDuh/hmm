@@ -12912,7 +12912,14 @@
             "type": "object"
           },
           "quiz": {
-            "$ref": "#/components/schemas/Quiz"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Quiz"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "status": {
             "$ref": "#/components/schemas/OnboardingStatus"
@@ -12968,6 +12975,17 @@
             "title": "Present",
             "type": "boolean"
           },
+          "text_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Error"
+          },
           "text_status": {
             "anyOf": [
               {
@@ -12981,7 +12999,8 @@
         },
         "required": [
           "present",
-          "text_status"
+          "text_status",
+          "text_error"
         ],
         "title": "OnboardingCv",
         "type": "object"

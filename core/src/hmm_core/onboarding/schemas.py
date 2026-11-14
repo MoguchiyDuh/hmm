@@ -76,11 +76,12 @@ class UpdateAnswersBody(ApiModel):
 class OnboardingCv(ApiModel):
     present: bool
     text_status: CvTextStatus | None
+    text_error: str | None
 
 
 class Onboarding(WithAllowedActions[OnboardingAction]):
     status: OnboardingStatus
-    quiz: Quiz
+    quiz: Quiz | None
     draft_answers: dict[str, OnboardingAnswer]
     cv: OnboardingCv
 
