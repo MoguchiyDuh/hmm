@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
 from hmm_contracts.common import (
     AreaKey,
     HelpOfferId,
@@ -59,15 +59,32 @@ async def replace_mentor_offers(
 async def list_help_requests(
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
     area: Annotated[AreaKey | None, Query()] = None,
     request_status: Annotated[HelpRequestStatus, Query(alias="status")] = HelpRequestStatus.OPEN,
 ) -> HelpRequestPage:
-    not_implemented()
+    return await service.list_help_requests(
+        session,
+        actor,
+        pagination,
+        area_key=area,
+        request_status=request_status,
+        now=clock.now(),
+    )
 
 
 @router.post("/help-requests", status_code=status.HTTP_201_CREATED, summary="Create a help request")
-async def create_help_request(body: CreateHelpRequestBody, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def create_help_request(
+    body: CreateHelpRequestBody,
+    actor: MemberAuth,
+    request: Request,
+    session: Session,
+    clock: CurrentClock,
+) -> HelpRequest:
+    return await service.create_help_request(
+        session, request.app.state.jobs, actor, body, clock.now()
+    )
 
 
 @router.get(
@@ -75,8 +92,10 @@ async def create_help_request(body: CreateHelpRequestBody, actor: MemberAuth) ->
     status_code=status.HTTP_200_OK,
     summary="Get help request respecting direct-request visibility",
 )
-async def get_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def get_help_request(
+    id: HelpRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> HelpRequest:
+    return await service.get_help_request(session, actor, id, clock.now())
 
 
 @router.patch(
@@ -85,9 +104,13 @@ async def get_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
     summary="Edit open help request as learner",
 )
 async def update_help_request(
-    id: HelpRequestId, body: UpdateHelpRequestBody, actor: MemberAuth
+    id: HelpRequestId,
+    body: UpdateHelpRequestBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> HelpRequest:
-    not_implemented()
+    return await service.update_help_request(session, actor, id, body, clock.now())
 
 
 @router.post(
