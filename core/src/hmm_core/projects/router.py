@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, Request, status
 from hmm_contracts.common import (
     AreaKey,
     EventId,
@@ -18,6 +18,7 @@ from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import MemberAuth
+from hmm_core.projects import service
 from hmm_core.projects.schemas import (
     CreateMilestoneBody,
     CreateProjectBody,
@@ -37,6 +38,7 @@ from hmm_core.projects.schemas import (
     UpdateMilestoneBody,
     UpdateProjectBody,
 )
+from hmm_core.recommendations import service as recommendations
 
 router = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
@@ -46,20 +48,38 @@ internal = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
 async def list_projects(
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
     project_status: Annotated[ProjectStatus | None, Query(alias="status")] = None,
     area: Annotated[AreaKey | None, Query()] = None,
     recruiting: Annotated[bool | None, Query()] = None,
     event: Annotated[EventId | None, Query()] = None,
     member_id: Annotated[UserId | None, Query(alias="member")] = None,
 ) -> ProjectListViewPage:
-    not_implemented()
+    return await service.list_projects(
+        session,
+        actor,
+        pagination,
+        status=project_status,
+        area=area,
+        recruiting=recruiting,
+        event_id=event,
+        member_id=member_id,
+        now=clock.now(),
+    )
 
 
 @router.post(
     "/projects", status_code=status.HTTP_201_CREATED, summary="Create a standalone project"
 )
-async def create_project(body: CreateProjectBody, actor: MemberAuth) -> Project:
-    not_implemented()
+async def create_project(
+    body: CreateProjectBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Project:
+    return await service.create_project(session, request.app.state.jobs, body, actor, clock.now())
 
 
 @router.get(
@@ -67,42 +87,61 @@ async def create_project(body: CreateProjectBody, actor: MemberAuth) -> Project:
 )
 async def list_my_projects(
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     project_status: Annotated[ProjectStatus | TeamStatus | None, Query(alias="status")] = None,
 ) -> list[ProjectSummary]:
-    not_implemented()
+    return await service.list_my_projects(session, actor, project_status, clock.now())
 
 
 @router.get(
     "/projects/{id}", status_code=status.HTTP_200_OK, summary="Get project respecting visibility"
 )
-async def get_project(id: ProjectId, actor: MemberAuth) -> ProjectView:
-    not_implemented()
+async def get_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> ProjectView:
+    return await service.get_project(session, id, actor, clock.now())
 
 
 @router.patch("/projects/{id}", status_code=status.HTTP_200_OK, summary="Edit project as lead")
-async def update_project(id: ProjectId, body: UpdateProjectBody, actor: MemberAuth) -> Project:
-    not_implemented()
+async def update_project(
+    id: ProjectId,
+    body: UpdateProjectBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Project:
+    return await service.update_project(
+        session, request.app.state.jobs, id, body, actor, clock.now()
+    )
 
 
 @router.post(
     "/projects/{id}/start", status_code=status.HTTP_200_OK, summary="Start project as lead"
 )
-async def start_project(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def start_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    return await service.start_project(session, id, actor, clock.now())
 
 
 @router.post(
     "/projects/{id}/pause", status_code=status.HTTP_200_OK, summary="Pause project as lead"
 )
-async def pause_project(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def pause_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    return await service.pause_project(session, id, actor, clock.now())
 
 
 @router.post(
     "/projects/{id}/abandon", status_code=status.HTTP_200_OK, summary="Abandon project as lead"
 )
-async def abandon_project(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def abandon_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    return await service.abandon_project(session, id, actor, clock.now())
 
 
 @router.post(
@@ -110,8 +149,10 @@ async def abandon_project(id: ProjectId, actor: MemberAuth) -> Project:
     status_code=status.HTTP_200_OK,
     summary="Continue shipped project as lead",
 )
-async def continue_project(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def continue_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> Project:
+    return await service.continue_project(session, id, actor, clock.now())
 
 
 @router.post(
@@ -123,8 +164,10 @@ async def create_invite(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
+    request: Request,
 ) -> Invite:
     invite = await formation.create_invite(session, id, body, actor, clock.now())
+    await recommendations.enqueue_project_refresh(session, request.app.state.jobs, id)
     return (await formation.invite_views(session, [invite], actor))[0]
 
 
@@ -139,9 +182,11 @@ async def create_join_request(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
+    request: Request,
 ) -> JoinRequest:
-    request = await formation.create_join_request(session, id, body, actor, clock.now())
-    return (await formation.join_request_views(session, [request], actor))[0]
+    join_request = await formation.create_join_request(session, id, body, actor, clock.now())
+    await recommendations.enqueue_project_refresh(session, request.app.state.jobs, id)
+    return (await formation.join_request_views(session, [join_request], actor))[0]
 
 
 @router.delete(
@@ -153,16 +198,23 @@ async def remove_member(
     id: ProjectId,
     user_id: UserId,
     actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
     reason: Annotated[ReasonBody | None, Body()] = None,
 ) -> None:
-    not_implemented()
+    await service.remove_project_member(
+        session, request.app.state.jobs, id, user_id, reason, actor, clock.now()
+    )
 
 
 @router.post(
     "/projects/{id}/leave", status_code=status.HTTP_204_NO_CONTENT, summary="Leave a project"
 )
-async def leave_project(id: ProjectId, actor: MemberAuth) -> None:
-    not_implemented()
+async def leave_project(
+    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> None:
+    await service.leave_project(session, request.app.state.jobs, id, actor, clock.now())
 
 
 @router.post(
@@ -170,8 +222,10 @@ async def leave_project(id: ProjectId, actor: MemberAuth) -> None:
     status_code=status.HTTP_200_OK,
     summary="Claim lead of a paused leaderless project as member",
 )
-async def claim_lead(id: ProjectId, actor: MemberAuth) -> Project:
-    not_implemented()
+async def claim_lead(
+    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Project:
+    return await service.claim_project_lead(session, request.app.state.jobs, id, actor, clock.now())
 
 
 @router.get(

@@ -263,7 +263,10 @@ async def test_create_join_request(harness: Harness) -> None:
         "join_request_accept",
         "join_request_reject",
     ]
-    assert await h.pending_jobs() == []
+    jobs = [job for job in await h.pending_jobs() if job["status"] == "todo"]
+    assert len(jobs) == 1
+    assert jobs[0]["task_name"] == "refresh_recommendations"
+    assert jobs[0]["args"] == {"project_id": str(team.id)}
 
 
 async def test_create_join_request_gates(harness: Harness) -> None:
@@ -686,7 +689,10 @@ async def test_respond_standalone(harness: Harness) -> None:
     assert row.joined_via == "join_request"
     assert row.state == "confirmed"
     assert await count(h, models.Enrollment, models.Enrollment.user_id == requester.id) == 0
-    assert await h.pending_jobs() == []
+    jobs = [job for job in await h.pending_jobs() if job["status"] == "todo"]
+    assert len(jobs) == 1
+    assert jobs[0]["task_name"] == "refresh_recommendations"
+    assert jobs[0]["args"] == {"project_id": str(project.id)}
     assert (await project_row(h, project.id)).last_lead_action_at == h.now
     assert len(await notifications_for(h, requester, "join_request_accepted")) == 1
 

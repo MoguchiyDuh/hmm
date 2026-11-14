@@ -4,27 +4,54 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
+import procrastinate
 from hmm_contracts.common import (
+    ActorKind,
+    AuditAction,
+    AuditEntityType,
+    ConfirmationFactType,
+    ErrorCode,
     InviteStatus,
+    JoinedVia,
     JoinRequestStatus,
     LeadOfferSource,
     LeadOfferStatus,
+    LeftReason,
     MemberRole,
     MemberState,
+    ProjectOrigin,
     ProjectStatus,
     ProjectVisibility,
+    RestrictionKind,
     TeamStatus,
+    Trust,
 )
-from pydantic import HttpUrl
-from sqlalchemy import select
+from hmm_contracts.notifications import (
+    NotificationPerson,
+    ProjectLeadClaimablePayload,
+    ProjectLeadOfferPayload,
+    ProjectMemberLeftPayload,
+    ProjectMemberRemovedPayload,
+    ProjectPausedPayload,
+)
+from pydantic import HttpUrl, JsonValue
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
-from hmm_core.platform.schemas import ProjectRef, UserRef
+from hmm_core.notifications.service import notify, notify_many
+from hmm_core.platform.audit import record_audit
+from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.pagination import CursorParams, keyset_page
+from hmm_core.platform.schemas import ProjectRef, ReasonBody, UserRef
 from hmm_core.platform.settings import RuntimeSettings, load_settings
 from hmm_core.projects import schemas
+from hmm_core.scores.restrictions import require_unrestricted
 
 OPEN_TEAMS = frozenset({TeamStatus.FORMING, TeamStatus.REVIEW})
+POST_RESULT_TEAM_STATUSES: frozenset[str] = frozenset(
+    {TeamStatus.FINISHED.value, TeamStatus.WITHDRAWN.value}
+)
 TERMINAL_TEAM_STATUSES: frozenset[str] = frozenset(
     {
         TeamStatus.FINISHED.value,
@@ -40,6 +67,7 @@ LEAD_CLOSED_TEAM_STATUSES: frozenset[str] = frozenset(
 LEAD_CLOSED_PROJECT_STATUSES: frozenset[str] = frozenset(
     {ProjectStatus.ABANDONED.value, ProjectStatus.DISBANDED.value, ProjectStatus.CANCELLED.value}
 )
+CLOSED_PROJECT_STATUSES = LEAD_CLOSED_PROJECT_STATUSES
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -115,7 +143,7 @@ def member_actions(
         allowed.add(schemas.ProjectMemberAction.REMOVE)
     if actor.is_admin:
         allowed.add(schemas.ProjectMemberAction.MOVE)
-    if is_lead and other_confirmed:
+    if is_lead and other_confirmed and not project_closed(project):
         allowed.add(schemas.ProjectMemberAction.TRANSFER_LEAD)
     if is_lead or actor.is_admin:
         allowed.add(schemas.ProjectMemberAction.EDIT)
@@ -187,6 +215,33 @@ def project_actions(
             allowed |= {schemas.ProjectAction.TRANSFER_LEAD, schemas.ProjectAction.STEP_DOWN}
     if is_member and project.lead_user_id is None and project.status == ProjectStatus.PAUSED:
         allowed.add(schemas.ProjectAction.CLAIM_LEAD)
+    if is_lead and lifecycle_open(project):
+        if project.status in (ProjectStatus.IDEA.value, ProjectStatus.PAUSED.value):
+            allowed.add(schemas.ProjectAction.START)
+        if project.status in (ProjectStatus.IDEA.value, ProjectStatus.ACTIVE.value):
+            allowed.add(schemas.ProjectAction.PAUSE)
+        if project.status in (
+            ProjectStatus.IDEA.value,
+            ProjectStatus.ACTIVE.value,
+            ProjectStatus.PAUSED.value,
+        ):
+            allowed.add(schemas.ProjectAction.ABANDON)
+        if project.status == ProjectStatus.SHIPPED.value:
+            allowed.add(schemas.ProjectAction.CONTINUE)
+        if project.team_status is None:
+            allowed.add(schemas.ProjectAction.INVITE)
+    if (
+        not is_member
+        and project.team_status is None
+        and project.recruiting is not None
+        and project.lead_user_id is not None
+        and project.status
+        in (
+            ProjectStatus.IDEA.value,
+            ProjectStatus.ACTIVE.value,
+        )
+    ):
+        allowed.add(schemas.ProjectAction.REQUEST_JOIN)
     if actor.is_admin:
         allowed |= {
             schemas.ProjectAction.DISBAND,
@@ -379,7 +434,181 @@ def project_detail(
 async def standalone_lead_succession(
     session: AsyncSession, project: models.Project, now: datetime, *, exclude: set[UUID]
 ) -> None:
-    return None
+    from hmm_core.formation import service as formation
+
+    if project.lead_user_id is not None:
+        return None
+    project.lead_succession_excluded = sorted(
+        {*project.lead_succession_excluded, *exclude}, key=str
+    )
+    await formation.close_pending_lead_offers(session, project.id, now)
+    excluded = set(project.lead_succession_excluded)
+    candidates = [
+        candidate
+        for candidate in await standalone_lead_order(session, project)
+        if candidate.user.id not in excluded
+    ]
+    if not candidates:
+        await pause_project_for_lead(session, project, now)
+        return None
+    expires_at = now + timedelta(days=(await load_settings(session)).project_lead_offer_days)
+    offer = models.LeadOffer(
+        project_id=project.id,
+        event_id=None,
+        user_id=candidates[0].user.id,
+        source=LeadOfferSource.SUCCESSION.value,
+        offered_by=None,
+        tier=None,
+        reason="The project needs a lead",
+        status=LeadOfferStatus.PENDING.value,
+        expires_at=expires_at,
+        responded_at=None,
+    )
+    session.add(offer)
+    await session.flush()
+    await session.refresh(project)
+    await notify(
+        session,
+        offer.user_id,
+        project_lead_offer_payload(project, offer, None),
+        now,
+        dedupe_key=f"project_lead_offer:{offer.id}",
+    )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ProjectLeadCandidate:
+    member: models.ProjectMember
+    user: models.User
+    contributions: int
+
+
+async def standalone_lead_order(
+    session: AsyncSession, project: models.Project
+) -> list[ProjectLeadCandidate]:
+    rows = list(
+        await session.execute(
+            select(models.ProjectMember, models.User)
+            .join(models.User, models.User.id == models.ProjectMember.user_id)
+            .where(
+                models.ProjectMember.project_id == project.id,
+                models.ProjectMember.left_at.is_(None),
+                models.ProjectMember.is_team_row.is_(False),
+                models.ProjectMember.state == MemberState.CONFIRMED.value,
+                models.User.banned_at.is_(None),
+            )
+        )
+    )
+    member_ids = [member.id for member, _ in rows]
+    contributions = (
+        {
+            fact_id: count
+            for fact_id, count in await session.execute(
+                select(models.Confirmation.fact_id, func.count())
+                .where(
+                    models.Confirmation.fact_type == ConfirmationFactType.PROJECT_MEMBER.value,
+                    models.Confirmation.fact_id.in_(member_ids),
+                    models.Confirmation.ignored.is_(False),
+                    models.Confirmation.withdrawn_at.is_(None),
+                    models.Confirmation.confirmer_id.is_not(None),
+                )
+                .group_by(models.Confirmation.fact_id)
+            )
+        }
+        if member_ids
+        else {}
+    )
+    return sorted(
+        [
+            ProjectLeadCandidate(
+                member=member, user=user, contributions=contributions.get(member.id, 0)
+            )
+            for member, user in rows
+        ],
+        key=lambda candidate: (
+            -candidate.contributions,
+            candidate.member.joined_at,
+            str(candidate.user.id),
+        ),
+    )
+
+
+async def pause_project_for_lead(
+    session: AsyncSession, project: models.Project, now: datetime
+) -> None:
+    project.status = ProjectStatus.PAUSED.value
+    project.lead_user_id = None
+    project.last_lead_action_at = now
+    await session.flush()
+    await session.refresh(project)
+    member_ids = await project_member_ids(session, project.id)
+    if member_ids:
+        await notify_many(
+            session,
+            member_ids,
+            ProjectLeadClaimablePayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                member_count=len(member_ids),
+                reason="Nobody accepted the lead role",
+            ),
+            now,
+            dedupe_key=f"project_lead_claimable:{project.id}:{int(now.timestamp())}",
+        )
+
+
+def project_lead_offer_payload(
+    project: models.Project, offer: models.LeadOffer, offerer: models.User | None
+) -> ProjectLeadOfferPayload:
+    return ProjectLeadOfferPayload(
+        link=f"/projects/{project.id}",
+        project_id=project.id,
+        project_name=project.name,
+        lead_offer_id=offer.id,
+        source=LeadOfferSource(offer.source),
+        offered_by=NotificationPerson(user_id=offerer.id, display_name=offerer.display_name)
+        if offerer is not None
+        else None,
+        expires_at=offer.expires_at,
+    )
+
+
+async def expire_project_lead_offers(
+    session: AsyncSession, now: datetime, *, limit: int = 50
+) -> int:
+    offers = list(
+        await session.scalars(
+            select(models.LeadOffer)
+            .where(
+                models.LeadOffer.status == LeadOfferStatus.PENDING.value,
+                models.LeadOffer.expires_at <= now,
+                models.LeadOffer.event_id.is_(None),
+            )
+            .order_by(models.LeadOffer.expires_at, models.LeadOffer.id)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
+        )
+    )
+    processed = 0
+    for offer in offers:
+        project = await session.scalar(
+            select(models.Project)
+            .where(models.Project.id == offer.project_id, models.Project.event_id.is_(None))
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if project is None:
+            continue
+        if offer.status != LeadOfferStatus.PENDING.value or offer.expires_at > now:
+            continue
+        offer.status = LeadOfferStatus.EXPIRED.value
+        offer.responded_at = now
+        await session.flush()
+        processed += 1
+        if offer.source != LeadOfferSource.TRANSFER.value and project.lead_user_id is None:
+            await standalone_lead_succession(session, project, now, exclude={offer.user_id})
+    return processed
 
 
 async def project_views(
@@ -537,3 +766,759 @@ async def project_views(
             )
         )
     return views
+
+
+async def remove_user_from_standalone_projects(
+    session: AsyncSession,
+    user_id: UUID,
+    actor: UUID,
+    actor_kind: ActorKind,
+    now: datetime,
+) -> None:
+    from hmm_core.formation import service as formation
+
+    user = await session.get(models.User, user_id)
+    if user is None:
+        return None
+    project_ids = sorted(
+        set(
+            await session.scalars(
+                select(models.Project.id)
+                .join(models.ProjectMember, models.ProjectMember.project_id == models.Project.id)
+                .where(
+                    models.ProjectMember.user_id == user_id,
+                    models.ProjectMember.left_at.is_(None),
+                    models.Project.team_status.is_(None),
+                )
+            )
+        ),
+        key=str,
+    )
+    for project_id in project_ids:
+        project = await session.scalar(
+            select(models.Project)
+            .where(models.Project.id == project_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if project is None:
+            continue
+        member = await session.scalar(
+            select(models.ProjectMember).where(
+                models.ProjectMember.project_id == project_id,
+                models.ProjectMember.user_id == user_id,
+                models.ProjectMember.left_at.is_(None),
+            )
+        )
+        if member is None:
+            continue
+        was_lead = project.lead_user_id == user_id
+        member.left_at = now
+        member.left_reason = LeftReason.BANNED.value
+        if was_lead:
+            project.lead_user_id = None
+            project.last_lead_action_at = now
+        await formation.close_pending_lead_offers(session, project.id, now)
+        if was_lead:
+            await record_audit(
+                session,
+                actor=actor,
+                actor_kind=actor_kind,
+                action=AuditAction.LEAD_STEP_DOWN,
+                entity_type=AuditEntityType.PROJECT,
+                entity_id=project.id,
+                before={"lead_user_id": str(user_id)},
+                after={"lead_user_id": None},
+                reason="banned",
+            )
+        if project.lead_user_id is None:
+            await formation.start_succession(
+                session,
+                project,
+                None,
+                now,
+                exclude={user_id},
+                reason="The banned lead left the project"
+                if was_lead
+                else "The offered member was banned",
+            )
+        await session.flush()
+        await session.refresh(project)
+        remaining = await project_member_ids(session, project.id)
+        if remaining:
+            await notify_many(
+                session,
+                remaining,
+                ProjectMemberLeftPayload(
+                    link=f"/projects/{project.id}",
+                    project_id=project.id,
+                    project_name=project.name,
+                    member=NotificationPerson(user_id=user.id, display_name=user.display_name),
+                    member_count=len(remaining),
+                ),
+                now,
+                dedupe_key=f"project_member_left:{member.id}",
+            )
+
+
+async def remove_project_member(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    user_id: UUID,
+    body: ReasonBody | None,
+    actor: models.User,
+    now: datetime,
+) -> None:
+    from hmm_core.formation import service as formation
+    from hmm_core.recommendations import service as recommendations
+
+    project = await session.get(models.Project, project_id)
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if project.team_status is not None:
+        await formation.review_remove_member(session, jobs, project_id, user_id, actor, now)
+        return
+    project = await _locked_project(session, project_id)
+    if project.status in CLOSED_PROJECT_STATUSES:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if user_id == actor.id:
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "You cannot remove yourself; leave the project instead"
+        )
+    member = await session.scalar(
+        select(models.ProjectMember).where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.user_id == user_id,
+            models.ProjectMember.left_at.is_(None),
+        )
+    )
+    if member is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    previous: dict[str, JsonValue] = {"role": member.role, "state": member.state}
+    member.left_at = now
+    member.left_reason = LeftReason.REMOVED.value
+    project.last_lead_action_at = now
+    await session.flush()
+    await session.refresh(project)
+    removed = await session.get(models.User, user_id)
+    if removed is not None:
+        await notify(
+            session,
+            removed.id,
+            ProjectMemberRemovedPayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                member=NotificationPerson(user_id=removed.id, display_name=removed.display_name),
+                actor=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+                reason=body.reason if body is not None else None,
+            ),
+            now,
+            dedupe_key=f"project_member_removed:{member.id}",
+        )
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.USER,
+        action=AuditAction.MEMBER_REMOVE,
+        entity_type=AuditEntityType.PROJECT_MEMBER,
+        entity_id=member.id,
+        before=previous,
+        after={"left_reason": LeftReason.REMOVED.value},
+        reason=body.reason if body is not None else None,
+    )
+    await recommendations.enqueue_project_refresh(session, jobs, project.id)
+    await session.flush()
+
+
+async def leave_project(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> None:
+    from hmm_core.formation import service as formation
+    from hmm_core.recommendations import service as recommendations
+
+    project = await session.get(models.Project, project_id)
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if project.team_status is not None:
+        await formation.leave_team(session, jobs, project_id, actor, now)
+        return
+    project = await _locked_project(session, project_id)
+    member = await session.scalar(
+        select(models.ProjectMember).where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.user_id == actor.id,
+            models.ProjectMember.left_at.is_(None),
+        )
+    )
+    if member is None:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    was_lead = project.lead_user_id == actor.id
+    member.left_at = now
+    member.left_reason = LeftReason.LEFT.value
+    if was_lead:
+        project.lead_user_id = None
+        project.last_lead_action_at = now
+        await record_audit(
+            session,
+            actor=actor.id,
+            actor_kind=ActorKind.USER,
+            action=AuditAction.LEAD_STEP_DOWN,
+            entity_type=AuditEntityType.PROJECT,
+            entity_id=project.id,
+            before={"lead_user_id": str(actor.id)},
+            after={"lead_user_id": None},
+            reason=None,
+        )
+    await session.flush()
+    await session.refresh(project)
+    remaining = await project_member_ids(session, project.id)
+    await notify_many(
+        session,
+        remaining,
+        ProjectMemberLeftPayload(
+            link=f"/projects/{project.id}",
+            project_id=project.id,
+            project_name=project.name,
+            member=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+            member_count=len(remaining),
+        ),
+        now,
+        dedupe_key=f"project_member_left:{member.id}",
+    )
+    if was_lead:
+        await formation.start_succession(
+            session,
+            project,
+            None,
+            now,
+            exclude={actor.id},
+            reason="The lead left the project",
+        )
+    await recommendations.enqueue_project_refresh(session, jobs, project.id)
+    await session.flush()
+
+
+async def claim_project_lead(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    actor: models.User,
+    now: datetime,
+) -> schemas.Project:
+    from hmm_core.formation import service as formation
+    from hmm_core.identity.service import lock_user
+    from hmm_core.recommendations import service as recommendations
+
+    project = await session.get(models.Project, project_id)
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Claim the lead through the hackathon flow")
+    await lock_user(session, actor.id)
+    project = await _locked_project(session, project_id)
+    if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Claim the lead through the hackathon flow")
+    member = await session.scalar(
+        select(models.ProjectMember).where(
+            models.ProjectMember.project_id == project.id,
+            models.ProjectMember.user_id == actor.id,
+            models.ProjectMember.left_at.is_(None),
+        )
+    )
+    if member is None:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if project.lead_user_id is not None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This project already has a lead")
+    if project.status != ProjectStatus.PAUSED.value:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This project is not paused")
+    if (
+        await led_projects_count(session, actor.id)
+        >= (await load_settings(session)).projects_led_max
+    ):
+        raise ProblemError(
+            ErrorCode.PROJECTS_LED_LIMIT, "You already lead the maximum number of projects"
+        )
+    project.lead_user_id = actor.id
+    project.last_lead_action_at = now
+    project.lead_succession_excluded = []
+    member.role = MemberRole.LEAD.value
+    member.state = MemberState.CONFIRMED.value
+    member.confirmed_at = member.confirmed_at or now
+    member.confirm_by = None
+    member.confirm_kind = None
+    await formation.close_pending_lead_offers(session, project.id, now)
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.USER,
+        action=AuditAction.LEAD_ASSIGN,
+        entity_type=AuditEntityType.PROJECT,
+        entity_id=project.id,
+        before={"lead_user_id": None},
+        after={"lead_user_id": str(actor.id), "source": "claim"},
+        reason=None,
+    )
+    await recommendations.enqueue_project_refresh(session, jobs, project.id)
+    await session.flush()
+    await session.refresh(project)
+    return await project_response(session, project.id, actor, now)
+
+
+def project_closed(project: models.Project) -> bool:
+    return (
+        project.team_status in TERMINAL_TEAM_STATUSES or project.status in CLOSED_PROJECT_STATUSES
+    )
+
+
+def lifecycle_open(project: models.Project) -> bool:
+    return (
+        project.team_status is None or project.team_status in POST_RESULT_TEAM_STATUSES
+    ) and project.status not in CLOSED_PROJECT_STATUSES
+
+
+async def _locked_project(session: AsyncSession, project_id: UUID) -> models.Project:
+    project = await session.scalar(
+        select(models.Project)
+        .where(models.Project.id == project_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return project
+
+
+async def _transition(
+    session: AsyncSession,
+    project_id: UUID,
+    actor: models.User,
+    now: datetime,
+    *,
+    target: ProjectStatus,
+    allowed_from: Sequence[ProjectStatus],
+    message: str,
+    notify_members: bool,
+) -> schemas.Project:
+    project = await _locked_project(session, project_id)
+    if not lifecycle_open(project):
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "This project's lifecycle follows its hackathon team"
+        )
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if project.status not in {status.value for status in allowed_from}:
+        raise ProblemError(ErrorCode.INVALID_STATE, message)
+    project.status = target.value
+    project.last_lead_action_at = now
+    await session.flush()
+    await session.refresh(project)
+    if notify_members:
+        members = [uid for uid in await project_member_ids(session, project.id) if uid != actor.id]
+        await notify_many(
+            session,
+            members,
+            ProjectPausedPayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                status=ProjectStatus.PAUSED,
+                reason="The lead paused the project",
+            ),
+            now,
+            dedupe_key=None,
+        )
+    await _sync_recruiting(session, project, actor.id, now)
+    await session.flush()
+    return await project_response(session, project.id, actor, now)
+
+
+async def start_project(
+    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
+) -> schemas.Project:
+    return await _transition(
+        session,
+        project_id,
+        actor,
+        now,
+        target=ProjectStatus.ACTIVE,
+        allowed_from=(ProjectStatus.IDEA, ProjectStatus.PAUSED),
+        message="This project cannot be started",
+        notify_members=False,
+    )
+
+
+async def pause_project(
+    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
+) -> schemas.Project:
+    return await _transition(
+        session,
+        project_id,
+        actor,
+        now,
+        target=ProjectStatus.PAUSED,
+        allowed_from=(ProjectStatus.IDEA, ProjectStatus.ACTIVE),
+        message="This project cannot be paused",
+        notify_members=True,
+    )
+
+
+async def abandon_project(
+    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
+) -> schemas.Project:
+    return await _transition(
+        session,
+        project_id,
+        actor,
+        now,
+        target=ProjectStatus.ABANDONED,
+        allowed_from=(ProjectStatus.IDEA, ProjectStatus.ACTIVE, ProjectStatus.PAUSED),
+        message="This project cannot be abandoned",
+        notify_members=False,
+    )
+
+
+async def continue_project(
+    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
+) -> schemas.Project:
+    return await _transition(
+        session,
+        project_id,
+        actor,
+        now,
+        target=ProjectStatus.ACTIVE,
+        allowed_from=(ProjectStatus.SHIPPED,),
+        message="This project cannot be continued",
+        notify_members=False,
+    )
+
+
+async def update_project(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    project_id: UUID,
+    body: schemas.UpdateProjectBody,
+    actor: models.User,
+    now: datetime,
+) -> schemas.Project:
+    from hmm_core.feed import service as feed
+    from hmm_core.recommendations import service as recommendations
+
+    project = await _locked_project(session, project_id)
+    if project.status in CLOSED_PROJECT_STATUSES:
+        raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
+    if project.team_status in (TeamStatus.DISBANDED.value, TeamStatus.CANCELLED.value):
+        raise ProblemError(ErrorCode.INVALID_STATE, "This team is closed")
+    if project.lead_user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    changed = False
+    became_members = False
+    for field in ("name", "description_md", "goal"):
+        value = getattr(body, field)
+        if value is not None and value != getattr(project, field):
+            setattr(project, field, value)
+            changed = True
+    if body.links is not None:
+        links: list[JsonValue] = [str(link) for link in body.links]
+        if links != project.links:
+            project.links = links
+            changed = True
+    if body.visibility is not None and body.visibility.value != project.visibility:
+        project.visibility = body.visibility.value
+        became_members = body.visibility == ProjectVisibility.MEMBERS
+        changed = True
+    if body.area_keys is not None:
+        area_ids = await resolve_project_areas(session, body.area_keys)
+        current_ids = list(
+            await session.scalars(
+                select(models.ProjectArea.area_id).where(
+                    models.ProjectArea.project_id == project.id
+                )
+            )
+        )
+        if set(area_ids) != set(current_ids):
+            await session.execute(
+                delete(models.ProjectArea).where(models.ProjectArea.project_id == project.id)
+            )
+            session.add_all(
+                [models.ProjectArea(project_id=project.id, area_id=area_id) for area_id in area_ids]
+            )
+            changed = True
+    if "recruiting" in body.model_fields_set:
+        if project.team_status is not None:
+            raise ProblemError(ErrorCode.INVALID_STATE, "Hackathon teams recruit through formation")
+        new_recruiting: JsonValue = None
+        if body.recruiting is not None:
+            await resolve_project_areas(session, body.recruiting.areas)
+            new_recruiting = {
+                "areas": [str(key) for key in body.recruiting.areas],
+                "note": body.recruiting.note,
+            }
+        if new_recruiting != project.recruiting:
+            project.recruiting = new_recruiting
+            changed = True
+    if not changed:
+        return await project_response(session, project.id, actor, now)
+    project.last_lead_action_at = now
+    await session.flush()
+    await session.refresh(project)
+    if became_members:
+        await feed.hide_feed_subject(session, "project", project.id, now)
+    await _sync_recruiting(session, project, actor.id, now)
+    await recommendations.enqueue_project_refresh(session, jobs, project.id)
+    await session.flush()
+    return await project_response(session, project.id, actor, now)
+
+
+async def resolve_project_areas(session: AsyncSession, keys: Sequence[str]) -> list[UUID]:
+    seen: set[str] = set()
+    for key in keys:
+        if key in seen:
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, f"Duplicate area: {key}")
+        seen.add(key)
+    if not keys:
+        return []
+    found: dict[str, UUID] = {
+        key: area_id
+        for area_id, key in await session.execute(
+            select(models.Area.id, models.Area.key).where(
+                models.Area.key.in_(list(dict.fromkeys(keys))), models.Area.archived_at.is_(None)
+            )
+        )
+    }
+    for key in keys:
+        if key not in found:
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, f"Unknown area: {key}")
+    return [found[key] for key in keys]
+
+
+async def led_projects_count(session: AsyncSession, user_id: UUID) -> int:
+    return (
+        await session.scalar(
+            select(func.count())
+            .select_from(models.Project)
+            .where(
+                models.Project.lead_user_id == user_id,
+                models.Project.status.notin_(sorted(CLOSED_PROJECT_STATUSES)),
+            )
+        )
+        or 0
+    )
+
+
+async def project_member_ids(session: AsyncSession, project_id: UUID) -> list[UUID]:
+    return list(
+        await session.scalars(
+            select(models.ProjectMember.user_id)
+            .where(
+                models.ProjectMember.project_id == project_id,
+                models.ProjectMember.left_at.is_(None),
+            )
+            .order_by(models.ProjectMember.joined_at, models.ProjectMember.id)
+        )
+    )
+
+
+async def _sync_recruiting(
+    session: AsyncSession, project: models.Project, actor_id: UUID, now: datetime
+) -> None:
+    from hmm_core.feed import service as feed
+
+    await feed.record_project_recruiting(session, project, actor_id, now)
+
+
+async def project_response(
+    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
+) -> schemas.Project:
+    project = await session.get(models.Project, project_id)
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    view = (await project_views(session, [project], actor, now))[0]
+    if not isinstance(view, schemas.Project):
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return view
+
+
+async def get_project(
+    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
+) -> schemas.ProjectView:
+    project = await session.get(models.Project, project_id)
+    if project is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return (await project_views(session, [project], actor, now))[0]
+
+
+async def list_projects(
+    session: AsyncSession,
+    actor: models.User,
+    pagination: CursorParams,
+    *,
+    status: ProjectStatus | None,
+    area: str | None,
+    recruiting: bool | None,
+    event_id: UUID | None,
+    member_id: UUID | None,
+    now: datetime,
+) -> schemas.ProjectListViewPage:
+    statement = select(models.Project)
+    if status is not None:
+        statement = statement.where(models.Project.status == status.value)
+    if area is not None:
+        statement = statement.where(
+            models.Project.id.in_(
+                select(models.ProjectArea.project_id)
+                .join(models.Area, models.Area.id == models.ProjectArea.area_id)
+                .where(models.Area.key == area)
+            )
+        )
+    if recruiting is True:
+        statement = statement.where(models.Project.recruiting.is_not(None))
+    elif recruiting is False:
+        statement = statement.where(models.Project.recruiting.is_(None))
+    if event_id is not None:
+        statement = statement.where(models.Project.event_id == event_id)
+    if member_id is not None:
+        statement = statement.where(
+            models.Project.id.in_(
+                select(models.ProjectMember.project_id).where(
+                    models.ProjectMember.user_id == member_id,
+                    models.ProjectMember.left_at.is_(None),
+                )
+            )
+        )
+    page = await keyset_page(
+        session,
+        statement,
+        pagination,
+        sort=[models.Project.created_at],
+        id_column=models.Project.id,
+        serialize=lambda row: row,
+        descending=True,
+    )
+    return schemas.ProjectListViewPage(
+        items=await project_views(session, page.items, actor, now),
+        next_cursor=page.next_cursor,
+    )
+
+
+async def list_my_projects(
+    session: AsyncSession,
+    actor: models.User,
+    status: ProjectStatus | TeamStatus | None,
+    now: datetime,
+) -> list[schemas.ProjectSummary]:
+    statement = (
+        select(models.Project)
+        .join(models.ProjectMember, models.ProjectMember.project_id == models.Project.id)
+        .where(models.ProjectMember.user_id == actor.id, models.ProjectMember.left_at.is_(None))
+    )
+    if status is not None:
+        statement = statement.where(
+            or_(models.Project.status == status.value, models.Project.team_status == status.value)
+        )
+    rows = list(
+        await session.scalars(
+            statement.order_by(models.Project.updated_at.desc(), models.Project.id.desc())
+        )
+    )
+    views = await project_views(session, rows, actor, now)
+    return [
+        schemas.ProjectSummary.model_validate(view)
+        for view in views
+        if isinstance(view, schemas.Project)
+    ]
+
+
+async def create_project(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    body: schemas.CreateProjectBody,
+    actor: models.User,
+    now: datetime,
+) -> schemas.Project:
+    from hmm_core.identity.service import lock_user
+    from hmm_core.recommendations import service as recommendations
+
+    await require_unrestricted(session, actor.id, RestrictionKind.CREATING_PROJECTS, now)
+    if body.event_id is not None and await session.get(models.Event, body.event_id) is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    area_ids = await resolve_project_areas(session, body.area_keys)
+    await lock_user(session, actor.id)
+    if (
+        await led_projects_count(session, actor.id)
+        >= (await load_settings(session)).projects_led_max
+    ):
+        raise ProblemError(
+            ErrorCode.PROJECTS_LED_LIMIT, "You already lead the maximum number of projects"
+        )
+    project = models.Project(
+        event_id=body.event_id,
+        name=body.name,
+        description_md=body.description_md,
+        goal=body.goal,
+        links=[str(link) for link in body.links],
+        visibility=body.visibility.value,
+        recruiting=None,
+        lead_user_id=actor.id,
+        status=ProjectStatus.IDEA.value,
+        team_status=None,
+        origin=ProjectOrigin.STANDALONE.value,
+        ready_at=None,
+        review_ends_at=None,
+        formed_in_run_id=None,
+        locked_at=None,
+        seat_open_since=None,
+        seats_closed_at=None,
+        last_lead_action_at=now,
+        last_progress_at=now,
+    )
+    session.add(project)
+    await session.flush()
+    session.add_all(
+        [models.ProjectArea(project_id=project.id, area_id=area_id) for area_id in area_ids]
+    )
+    session.add(
+        models.ProjectMember(
+            project_id=project.id,
+            event_id=None,
+            user_id=actor.id,
+            role=MemberRole.LEAD.value,
+            area_id=None,
+            state=MemberState.CONFIRMED.value,
+            trust=Trust.SELF.value,
+            joined_via=JoinedVia.CREATE.value,
+            proposal_reason=None,
+            confirm_by=None,
+            confirm_kind=None,
+            is_team_row=False,
+            joined_at=now,
+            confirmed_at=now,
+        )
+    )
+    await record_audit(
+        session,
+        actor=actor.id,
+        actor_kind=ActorKind.USER,
+        action=AuditAction.PROJECT_CREATE,
+        entity_type=AuditEntityType.PROJECT,
+        entity_id=project.id,
+        before=None,
+        after={
+            "name": project.name,
+            "origin": project.origin,
+            "visibility": project.visibility,
+            "lead_user_id": str(actor.id),
+            "event_id": str(project.event_id) if project.event_id is not None else None,
+        },
+        reason=None,
+    )
+    await recommendations.enqueue_project_refresh(session, jobs, project.id)
+    await session.flush()
+    return await project_response(session, project.id, actor, now)

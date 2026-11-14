@@ -270,7 +270,10 @@ async def test_core_invite_created(harness: Harness) -> None:
     assert payload["kind"] == "core"
     assert payload["invite_id"] == str(rows[0].id)
     assert [action["key"] for action in payload["actions"]] == ["invite_accept", "invite_decline"]
-    assert await h.pending_jobs() == []
+    jobs = [job for job in await h.pending_jobs() if job["status"] == "todo"]
+    assert len(jobs) == 1
+    assert jobs[0]["task_name"] == "refresh_recommendations"
+    assert jobs[0]["args"] == {"project_id": str(team.id)}
 
 
 async def test_invite_expiry_caps(harness: Harness) -> None:
@@ -738,7 +741,10 @@ async def test_accept_standalone_invite(harness: Harness) -> None:
     assert row.joined_via == "invite"
     assert row.state == "confirmed"
     assert await count(h, models.Enrollment, models.Enrollment.user_id == member.id) == 0
-    assert await h.pending_jobs() == []
+    jobs = [job for job in await h.pending_jobs() if job["status"] == "todo"]
+    assert len(jobs) == 1
+    assert jobs[0]["task_name"] == "refresh_recommendations"
+    assert jobs[0]["args"] == {"project_id": str(project.id)}
     assert len(await notifications_for(h, lead, "invite_accepted")) == 1
 
     full_lead = await h.user()

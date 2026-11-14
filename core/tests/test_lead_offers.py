@@ -1287,7 +1287,18 @@ async def test_transfer_lead_caps_and_alerts(harness: Harness) -> None:
     assert response.status_code == 201, response.text
     assert response.json()["tier"] is None
     assert datetime.fromisoformat(response.json()["expires_at"]) == h.now + timedelta(days=7)
-    assert await count(h, models.Notification, models.Notification.id.is_not(None)) == notices
+    assert await count(h, models.Notification, models.Notification.id.is_not(None)) == notices + 1
+    async with h.db() as session:
+        [notice] = list(
+            await session.scalars(
+                select(models.Notification).where(
+                    models.Notification.user_id == helper.id,
+                    models.Notification.type == "project_lead_offer",
+                )
+            )
+        )
+        assert isinstance(notice.payload, dict)
+        assert notice.payload["lead_offer_id"] == response.json()["id"]
     assert await count(h, models.AdminAlert, models.AdminAlert.subject_id == standalone.id) == 0
 
 

@@ -230,8 +230,8 @@ async def create_lead_offer(
     )
     session.add(offer)
     await session.flush()
+    offerer = await session.get(models.User, offered_by) if offered_by is not None else None
     if event is not None:
-        offerer = await session.get(models.User, offered_by) if offered_by is not None else None
         await notify(
             session,
             user_id,
@@ -249,6 +249,14 @@ async def create_lead_offer(
             ),
             now,
             dedupe_key=f"lead_offer:{offer.id}",
+        )
+    else:
+        await notify(
+            session,
+            user_id,
+            projects.project_lead_offer_payload(project, offer, offerer),
+            now,
+            dedupe_key=f"project_lead_offer:{offer.id}",
         )
     return offer
 
@@ -520,6 +528,9 @@ async def accept_lead_offer(
     actor: models.User,
     now: datetime,
 ) -> models.LeadOffer | ProblemError:
+    from hmm_core.identity.service import lock_user
+
+    await lock_user(session, actor.id)
     offer, project, event = await locked_lead_offer(session, offer_id, actor)
     if offer.user_id != actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
@@ -548,6 +559,14 @@ async def accept_lead_offer(
     )
     if member is None:
         raise ProblemError(ErrorCode.INVALID_STATE, "You are no longer on this team")
+    if (
+        project.team_status is None or project.team_status in projects.POST_RESULT_TEAM_STATUSES
+    ) and offer.source in (LeadOfferSource.TRANSFER.value, LeadOfferSource.SUCCESSION.value):
+        settings = await load_settings(session)
+        if await projects.led_projects_count(session, actor.id) >= settings.projects_led_max:
+            raise ProblemError(
+                ErrorCode.PROJECTS_LED_LIMIT, "You already lead the maximum number of projects"
+            )
     previous_lead_id = project.lead_user_id
     if previous_lead_id is not None:
         previous = await session.scalar(
