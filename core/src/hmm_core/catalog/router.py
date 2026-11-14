@@ -20,6 +20,7 @@ from hmm_contracts.imports import (
 )
 from pydantic import AwareDatetime
 
+from hmm_core.catalog import parser as catalog_parser
 from hmm_core.catalog import service as catalog
 from hmm_core.catalog.schemas import (
     CreateEventBody,
@@ -235,12 +236,17 @@ async def import_events(
 async def list_tracked_events(
     actor: ParserAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
 ) -> TrackedEventsResponse:
-    not_implemented()
+    return await catalog_parser.tracked_events(session, pagination, clock.now())
 
 
 @internal.post(
     "/parser/heartbeat", status_code=status.HTTP_204_NO_CONTENT, summary="Record a parser heartbeat"
 )
-async def record_parser_heartbeat(body: ParserHeartbeat, actor: ParserAuth) -> Response:
-    not_implemented()
+async def record_parser_heartbeat(
+    body: ParserHeartbeat, actor: ParserAuth, session: Session
+) -> Response:
+    await catalog_parser.record_heartbeat(session, body)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
