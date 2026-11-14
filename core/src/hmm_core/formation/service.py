@@ -22,7 +22,7 @@ from hmm_contracts.common import (
     Trust,
 )
 from hmm_contracts.formation import placement_bounds
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -897,3 +897,36 @@ async def list_my_enrollments(
         statement = statement.where(models.Enrollment.status == status.value)
     statement = statement.order_by(models.Enrollment.status_at.desc(), models.Enrollment.id.desc())
     return await enrollment_views(session, list(await session.scalars(statement)), actor, now)
+
+
+async def withdraw_user_enrollments(
+    session: AsyncSession, user_id: UUID, now: datetime
+) -> list[UUID]:
+    live = sorted(member.value for member in LIVE_ENROLLMENT_STATES)
+    event_ids = list(
+        await session.scalars(
+            select(models.Enrollment.event_id)
+            .where(models.Enrollment.user_id == user_id, models.Enrollment.status.in_(live))
+            .distinct()
+            .order_by(models.Enrollment.event_id)
+        )
+    )
+    if not event_ids:
+        return []
+    for event_id in event_ids:
+        await session.execute(
+            select(models.Event).where(models.Event.id == event_id).with_for_update()
+        )
+    await session.execute(
+        update(models.Enrollment)
+        .where(
+            models.Enrollment.user_id == user_id,
+            models.Enrollment.event_id.in_(event_ids),
+            models.Enrollment.status.in_(live),
+        )
+        .values(status=EnrollmentStatus.WITHDRAWN.value, status_at=now, reserve_rank=None)
+    )
+    for event_id in event_ids:
+        await attendance.sync_going(session, event_id, user_id, going=False, now=now)
+    await session.flush()
+    return event_ids

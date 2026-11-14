@@ -1015,3 +1015,132 @@ async def test_list_enrollments_visibility_and_auth(harness: Harness) -> None:
     async with await h.client(pending) as c:
         assert_problem(await c.get(enrollments_url(draft.id)), 403, ErrorCode.ONBOARDING_REQUIRED)
         assert_problem(await c.get("/api/v1/me/enrollments"), 403, ErrorCode.ONBOARDING_REQUIRED)
+
+
+async def add_attendance(
+    h: Harness,
+    event: models.Event,
+    user: models.User,
+    status: AttendanceStatus = AttendanceStatus.GOING,
+) -> None:
+    async with h.db() as session:
+        session.add(
+            models.EventAttendance(
+                event_id=event.id,
+                user_id=user.id,
+                status=status,
+                role=AttendanceRole.ATTENDEE,
+                proof_links=[],
+                trust=Trust.SELF,
+                status_at=h.now,
+            )
+        )
+
+
+async def user_rows(
+    h: Harness, user: models.User
+) -> tuple[list[tuple[Any, ...]], list[tuple[Any, ...]], int]:
+    async with h.db() as session:
+        enrollments = [
+            (row.event_id, row.status, row.status_at, row.reserve_rank)
+            for row in await session.scalars(
+                select(models.Enrollment)
+                .where(models.Enrollment.user_id == user.id)
+                .order_by(models.Enrollment.event_id)
+            )
+        ]
+        attendances = [
+            (row.event_id, row.status, row.status_at)
+            for row in await session.scalars(
+                select(models.EventAttendance)
+                .where(models.EventAttendance.user_id == user.id)
+                .order_by(models.EventAttendance.event_id)
+            )
+        ]
+        audits = await session.scalar(
+            select(func.count())
+            .select_from(models.AuditLog)
+            .where(
+                models.AuditLog.action == "user_ban",
+                models.AuditLog.entity_id == str(user.id),
+            )
+        )
+    return enrollments, attendances, audits or 0
+
+
+async def test_ban_withdraws_live_enrollments(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    member = await h.user()
+    first = await make_hackathon(h)
+    second = await make_hackathon(h)
+    history = await make_hackathon(h)
+    forming = await make_hackathon(h)
+    await set_phase(h, forming, FormationPhase.FORMING)
+    await enroll(h, first, member)
+    await add_attendance(h, first, member)
+    await enroll(h, second, member, EnrollmentStatus.RESERVE, reserve_rank=2)
+    await add_attendance(h, second, member)
+    await enroll(h, history, member, EnrollmentStatus.WITHDRAWN)
+    await add_attendance(h, history, member, AttendanceStatus.ATTENDED)
+    await enroll(h, forming, member)
+    team = await make_team(h, first, 1)
+    await join_team(h, team, first, member)
+    history_at = h.now
+    rank_jobs = await h.pending_jobs("rank_reserve")
+    h.advance(timedelta(hours=1))
+    async with await h.client(admin) as c:
+        response = await c.post(f"/api/v1/admin/users/{member.id}/ban", json={"reason": "spam"})
+    assert response.status_code == 200, response.text
+    enrollments, attendances, audits = await user_rows(h, member)
+    expected = {
+        first.id: ("withdrawn", h.now, None),
+        second.id: ("withdrawn", h.now, None),
+        forming.id: ("withdrawn", h.now, None),
+        history.id: ("withdrawn", history_at, None),
+    }
+    assert {row[0]: row[1:] for row in enrollments} == expected
+    assert {row[0]: row[1:] for row in attendances} == {
+        first.id: ("cancelled", h.now),
+        second.id: ("cancelled", h.now),
+        history.id: ("attended", history_at),
+    }
+    assert audits == 1
+    async with h.db() as session:
+        banned = await session.get_one(models.User, member.id)
+        assert banned.banned_at == h.now
+        assert banned.ban_reason == "spam"
+        left_at = await session.scalar(
+            select(models.ProjectMember.left_at).where(
+                models.ProjectMember.project_id == team.id,
+                models.ProjectMember.user_id == member.id,
+            )
+        )
+    assert left_at is None
+    assert await h.pending_jobs("rank_reserve") == rank_jobs
+    before = await user_rows(h, member)
+    h.advance(timedelta(hours=1))
+    async with await h.client(admin) as c:
+        response = await c.post(f"/api/v1/admin/users/{member.id}/ban", json={"reason": "again"})
+    assert response.status_code == 200, response.text
+    assert await user_rows(h, member) == before
+
+
+async def test_withdraw_user_enrollments_direct(harness: Harness) -> None:
+    h = harness
+    member = await h.user()
+    idle = await h.user()
+    first = await make_hackathon(h)
+    second = await make_hackathon(h)
+    await enroll(h, first, member)
+    await enroll(h, second, member, EnrollmentStatus.PLACED)
+    async with h.db() as session:
+        assert await formation.withdraw_user_enrollments(session, member.id, h.now) == sorted(
+            [first.id, second.id]
+        )
+    before = await user_rows(h, member)
+    h.advance(timedelta(hours=1))
+    async with h.db() as session:
+        assert await formation.withdraw_user_enrollments(session, member.id, h.now) == []
+        assert await formation.withdraw_user_enrollments(session, idle.id, h.now) == []
+    assert await user_rows(h, member) == before
