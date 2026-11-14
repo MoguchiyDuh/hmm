@@ -106,14 +106,10 @@ UNIMPLEMENTED_OPERATIONS = set(
         "results_list_results_to_verify",
         "results_update_result",
         "results_verify_result",
-        "scores_create_activity",
         "scores_create_xp_adjustment",
-        "scores_delete_activity",
         "scores_lift_restriction",
-        "scores_list_activity",
         "scores_list_flags",
         "scores_list_restrictions",
         "scores_resolve_flag",
-        "scores_update_activity",
     ]
 )

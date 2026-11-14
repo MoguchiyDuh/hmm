@@ -74,28 +74,48 @@ async def get_score_history(
 async def list_activity(
     id: UserId,
     actor: MemberAuth,
+    session: Session,
     pagination: Annotated[CursorParams, Depends()],
 ) -> ActivityEntryPage:
-    not_implemented()
+    return await service.list_activity(session, id, actor, pagination)
 
 
 @router.post("/me/activity", status_code=status.HTTP_201_CREATED, summary="Create solo activity")
-async def create_activity(body: CreateActivityBody, actor: MemberAuth) -> ActivityEntry:
-    not_implemented()
+async def create_activity(
+    body: CreateActivityBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
+) -> ActivityEntry:
+    return await service.create_activity(session, request.app.state.jobs, actor, body, clock.now())
 
 
 @router.patch("/me/activity/{id}", status_code=status.HTTP_200_OK, summary="Edit own solo activity")
 async def update_activity(
-    id: ActivityEntryId, body: UpdateActivityBody, actor: MemberAuth
+    id: ActivityEntryId,
+    body: UpdateActivityBody,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
 ) -> ActivityEntry:
-    not_implemented()
+    return await service.update_activity(
+        session, request.app.state.jobs, actor, id, body, clock.now()
+    )
 
 
 @router.delete(
     "/me/activity/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Delete own solo activity"
 )
-async def delete_activity(id: ActivityEntryId, actor: MemberAuth) -> None:
-    not_implemented()
+async def delete_activity(
+    id: ActivityEntryId,
+    actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
+    request: Request,
+) -> None:
+    await service.delete_activity(session, request.app.state.jobs, actor, id, clock.now())
 
 
 @router.get("/users/{id}/metrics", status_code=status.HTTP_200_OK, summary="Get member metrics")

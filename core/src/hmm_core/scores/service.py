@@ -1,12 +1,14 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
+from typing import cast
 from uuid import UUID
 
 import procrastinate
 from hmm_contracts.algo import ScoreWithReason
 from hmm_contracts.common import (
+    ActivityType,
     ActorKind,
     AreaScoreEventKind,
     AuditAction,
@@ -15,6 +17,7 @@ from hmm_contracts.common import (
     OverrideEvidence,
 )
 from hmm_contracts.notifications import ScoreChange, ScoreChangedPayload
+from pydantic import HttpUrl, JsonValue
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,7 +30,12 @@ from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams, keyset_page
 from hmm_core.platform.settings import load_settings
 from hmm_core.scores import schemas
-from hmm_core.scores.schemas import AreaScoreAction
+from hmm_core.scores.schemas import (
+    ActivityEntryAction,
+    AreaScoreAction,
+    CreateActivityBody,
+    UpdateActivityBody,
+)
 
 CENT = Decimal("0.01")
 
@@ -380,3 +388,165 @@ async def remove_score_override(
     )
     await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(user_id))
     return AreaScoreView(area=area, score=row)
+
+
+ACTIVITY_WINDOW_DAYS = 365
+
+
+def activity_actions(
+    entry: models.ActivityEntry, *, actor: models.User
+) -> list[schemas.ActivityEntryAction]:
+    if actor.id == entry.user_id:
+        return [ActivityEntryAction.EDIT, ActivityEntryAction.DELETE]
+    return []
+
+
+def activity_view(entry: models.ActivityEntry, *, actor: models.User) -> schemas.ActivityEntry:
+    return schemas.ActivityEntry(
+        id=entry.id,
+        user_id=entry.user_id,
+        type=ActivityType(entry.type),
+        title=entry.title,
+        description_md=entry.description_md,
+        links=[HttpUrl(str(link)) for link in cast(list[JsonValue], entry.links)],
+        area_id=entry.area_id,
+        occurred_on=entry.occurred_on,
+        created_at=entry.created_at,
+        updated_at=entry.updated_at,
+        allowed_actions=activity_actions(entry, actor=actor),
+    )
+
+
+def check_occurred_on(value: date, today: date) -> None:
+    if not today - timedelta(days=ACTIVITY_WINDOW_DAYS) <= value <= today:
+        raise ProblemError(
+            ErrorCode.VALIDATION_ERROR, "Activity date must be within the past 365 days"
+        )
+
+
+async def require_area(session: AsyncSession, area_id: UUID) -> models.Area:
+    area = await session.get(models.Area, area_id)
+    if area is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if area.archived_at is not None:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Area is archived")
+    return area
+
+
+async def create_activity(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    actor: models.User,
+    body: CreateActivityBody,
+    now: datetime,
+) -> schemas.ActivityEntry:
+    check_occurred_on(body.occurred_on, now.date())
+    if body.area_id is not None:
+        await require_area(session, body.area_id)
+    entry = models.ActivityEntry(
+        user_id=actor.id,
+        type=body.type.value,
+        title=body.title,
+        description_md=body.description_md,
+        links=[str(link) for link in body.links],
+        area_id=body.area_id,
+        occurred_on=body.occurred_on,
+        deleted_at=None,
+    )
+    session.add(entry)
+    await session.flush()
+    await session.refresh(entry)
+    await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(actor.id))
+    return activity_view(entry, actor=actor)
+
+
+async def lock_activity(session: AsyncSession, entry_id: UUID) -> models.ActivityEntry | None:
+    return await session.scalar(
+        select(models.ActivityEntry)
+        .where(models.ActivityEntry.id == entry_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
+async def update_activity(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    actor: models.User,
+    entry_id: UUID,
+    body: UpdateActivityBody,
+    now: datetime,
+) -> schemas.ActivityEntry:
+    entry = await lock_activity(session, entry_id)
+    if entry is None or entry.deleted_at is not None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if entry.user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    provided = body.model_dump(exclude_unset=True)
+    for field in ("type", "title", "description_md", "links", "occurred_on"):
+        if field in provided and provided[field] is None:
+            raise ProblemError(ErrorCode.VALIDATION_ERROR, "Field cannot be null")
+    changes: dict[str, object] = {}
+    if body.type is not None:
+        changes["type"] = body.type.value
+    if body.title is not None:
+        changes["title"] = body.title
+    if body.description_md is not None:
+        changes["description_md"] = body.description_md
+    if body.links is not None:
+        changes["links"] = [str(link) for link in body.links]
+    if body.occurred_on is not None:
+        check_occurred_on(body.occurred_on, now.date())
+        changes["occurred_on"] = body.occurred_on
+    if "area_id" in provided:
+        if body.area_id is None:
+            changes["area_id"] = None
+        else:
+            await require_area(session, body.area_id)
+            changes["area_id"] = body.area_id
+    changed = {key: value for key, value in changes.items() if getattr(entry, key) != value}
+    if not changed:
+        return activity_view(entry, actor=actor)
+    for key, value in changed.items():
+        setattr(entry, key, value)
+    await session.flush()
+    await session.refresh(entry)
+    await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(actor.id))
+    return activity_view(entry, actor=actor)
+
+
+async def delete_activity(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    actor: models.User,
+    entry_id: UUID,
+    now: datetime,
+) -> None:
+    entry = await lock_activity(session, entry_id)
+    if entry is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if entry.user_id != actor.id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if entry.deleted_at is not None:
+        return
+    entry.deleted_at = now
+    await session.flush()
+    await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(actor.id))
+
+
+async def list_activity(
+    session: AsyncSession, user_id: UUID, actor: models.User, pagination: CursorParams
+) -> schemas.ActivityEntryPage:
+    await require_member(session, user_id)
+    statement = select(models.ActivityEntry).where(
+        models.ActivityEntry.user_id == user_id, models.ActivityEntry.deleted_at.is_(None)
+    )
+    page = await keyset_page(
+        session,
+        statement,
+        pagination,
+        sort=[models.ActivityEntry.occurred_on, models.ActivityEntry.created_at],
+        id_column=models.ActivityEntry.id,
+        serialize=lambda row: activity_view(row, actor=actor),
+    )
+    return schemas.ActivityEntryPage(items=page.items, next_cursor=page.next_cursor)
