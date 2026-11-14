@@ -151,8 +151,19 @@ async def update_host_review(
     reviewee_id: UserId,
     body: UpdateHostReviewBody,
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
 ) -> Review:
-    not_implemented()
+    review = await reviews.submit_host_review(
+        session,
+        actor_id=actor.id,
+        event_id=id,
+        reviewee_id=reviewee_id,
+        rating=body.rating,
+        comment=body.comment,
+        now=clock.now(),
+    )
+    return reviews.build_review(review, actor, [])
 
 
 @router.get(
@@ -164,9 +175,25 @@ async def list_user_reviews(
     id: UserId,
     pagination: Annotated[CursorParams, Depends()],
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     context: Annotated[ReviewContext | None, Query()] = None,
 ) -> UserReviews:
-    not_implemented()
+    page = await reviews.user_reviews(session, target_id=id, context=context, params=pagination)
+    return UserReviews(
+        items=[
+            reviews.build_review(
+                review,
+                None
+                if review.context in {ReviewContext.HOST.value, ReviewContext.SPEAKER.value}
+                else page.users.get(review.reviewer_id),
+                [] if review.reviewer_id == actor.id else [ReviewAction.REPORT],
+            )
+            for review in page.items
+        ],
+        next_cursor=page.next_cursor,
+        reputation=page.reputation,
+    )
 
 
 @router.post(

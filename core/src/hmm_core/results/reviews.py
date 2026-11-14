@@ -3,15 +3,28 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from hmm_contracts.common import ErrorCode, MentorshipKind, ReviewContext, ReviewSubjectType
+from hmm_contracts.algo import ReviewIn
+from hmm_contracts.common import (
+    AttendanceRole,
+    AttendanceStatus,
+    ErrorCode,
+    FlagStatus,
+    FlagSubjectType,
+    MentorshipKind,
+    ReviewContext,
+    ReviewSubjectType,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
+from hmm_core.identity.service import ONBOARDED
 from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.pagination import CursorParams, apply_keyset, encode_cursor
 from hmm_core.platform.schemas import UserRef
-from hmm_core.results.schemas import Review, ReviewAction
+from hmm_core.results.schemas import Review, ReviewAction, ReviewRatingSummary
 from hmm_core.results.windows import subject_details, window_participants
+from hmm_core.scores.reputation import reputation_summary
 
 
 def user_ref(user: models.User) -> UserRef:
@@ -185,3 +198,186 @@ async def pending_windows(
             )
         )
     return pending
+
+
+async def submit_host_review(
+    session: AsyncSession,
+    *,
+    actor_id: UUID,
+    event_id: UUID,
+    reviewee_id: UUID,
+    rating: int,
+    comment: str,
+    now: datetime,
+) -> models.Review:
+    event = await session.get(models.Event, event_id)
+    if event is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if now < event.starts_at:
+        raise ProblemError(ErrorCode.INVALID_STATE, "Host reviews open when the event starts")
+    reviewer_attendance = await session.scalar(
+        select(models.EventAttendance).where(
+            models.EventAttendance.event_id == event_id,
+            models.EventAttendance.user_id == actor_id,
+        )
+    )
+    if reviewer_attendance is None or reviewer_attendance.status != AttendanceStatus.ATTENDED:
+        raise ProblemError(ErrorCode.FORBIDDEN, "Only attendees who attended can rate")
+    target_attendance = await session.scalar(
+        select(models.EventAttendance).where(
+            models.EventAttendance.event_id == event_id,
+            models.EventAttendance.user_id == reviewee_id,
+        )
+    )
+    if (
+        target_attendance is None
+        or target_attendance.role not in {AttendanceRole.HOST, AttendanceRole.SPEAKER}
+        or target_attendance.status == AttendanceStatus.CANCELLED
+    ):
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if reviewee_id == actor_id:
+        raise ProblemError(ErrorCode.FORBIDDEN, "You cannot review yourself")
+    context = (
+        ReviewContext.HOST
+        if target_attendance.role == AttendanceRole.HOST
+        else ReviewContext.SPEAKER
+    )
+    text = comment.strip()
+    if not text:
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, "Comment must not be empty")
+    existing = await session.scalar(
+        select(models.Review)
+        .where(
+            models.Review.subject_type == ReviewSubjectType.EVENT,
+            models.Review.subject_id == event_id,
+            models.Review.window_id.is_(None),
+            models.Review.reviewer_id == actor_id,
+            models.Review.reviewee_id == reviewee_id,
+        )
+        .with_for_update()
+    )
+    if existing is not None:
+        existing.rating = rating
+        existing.comment = text
+        review = existing
+    else:
+        review = models.Review(
+            window_id=None,
+            subject_type=ReviewSubjectType.EVENT,
+            subject_id=event_id,
+            reviewer_id=actor_id,
+            reviewee_id=reviewee_id,
+            context=context,
+            rating=rating,
+            comment=text,
+            revealed_at=now,
+        )
+        session.add(review)
+    await session.flush()
+    if existing is not None:
+        await session.refresh(review, ["updated_at"])
+    return review
+
+
+@dataclass(frozen=True)
+class UserReviewPage:
+    items: list[models.Review]
+    users: dict[UUID, models.User]
+    next_cursor: str | None
+    reputation: list[ReviewRatingSummary]
+
+
+async def user_reviews(
+    session: AsyncSession,
+    *,
+    target_id: UUID,
+    context: ReviewContext | None,
+    params: CursorParams,
+) -> UserReviewPage:
+    target = await session.get(models.User, target_id)
+    if target is None or target.onboarding_status not in ONBOARDED:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    statement = select(models.Review).where(
+        models.Review.reviewee_id == target_id,
+        models.Review.revealed_at.is_not(None),
+        models.Review.removed_at.is_(None),
+    )
+    if context == ReviewContext.HOST:
+        statement = statement.where(
+            models.Review.context.in_([ReviewContext.HOST.value, ReviewContext.SPEAKER.value])
+        )
+    elif context is not None:
+        statement = statement.where(models.Review.context == context)
+    statement = apply_keyset(
+        statement,
+        params,
+        sort=[models.Review.created_at],
+        id_column=models.Review.id,
+        descending=True,
+    )
+    rows = list(await session.scalars(statement))
+    items = rows[: params.limit]
+    next_cursor = (
+        encode_cursor([items[-1].created_at, items[-1].id]) if len(rows) > params.limit else None
+    )
+    users = {
+        user.id: user
+        for user in await session.scalars(
+            select(models.User).where(models.User.id.in_({review.reviewer_id for review in items}))
+        )
+    }
+    summaries = await reputation_summary(session, target_id)
+    return UserReviewPage(
+        items=items,
+        users=users,
+        next_cursor=next_cursor,
+        reputation=[
+            ReviewRatingSummary(context=key, average=summary.avg, count=summary.count)
+            for key, summary in summaries.items()
+            if summary.count > 0
+        ],
+    )
+
+
+async def load_reviews_received(
+    session: AsyncSession, user_ids: Sequence[UUID]
+) -> dict[UUID, list[ReviewIn]]:
+    if not user_ids:
+        return {}
+    flags = {
+        subject_id: FlagStatus(status)
+        for subject_id, status in await session.execute(
+            select(models.Flag.subject_id, models.Flag.status).where(
+                models.Flag.subject_type == FlagSubjectType.REVIEW,
+                models.Flag.status == FlagStatus.TO_CHECK,
+            )
+        )
+    }
+    reviews = await session.scalars(
+        select(models.Review)
+        .where(
+            models.Review.reviewee_id.in_(user_ids),
+            models.Review.revealed_at.is_not(None),
+            models.Review.removed_at.is_(None),
+        )
+        .order_by(models.Review.created_at)
+    )
+    received: dict[UUID, list[ReviewIn]] = {user_id: [] for user_id in user_ids}
+    for review in reviews:
+        received[review.reviewee_id].append(
+            ReviewIn(
+                id=review.id,
+                reviewer_id=review.reviewer_id,
+                reviewee_id=review.reviewee_id,
+                context=ReviewContext(review.context),
+                rating=review.rating,
+                subject_type=ReviewSubjectType(review.subject_type),
+                subject_id=review.subject_id,
+                comment=review.comment,
+                created_at=review.created_at,
+                revealed_at=review.revealed_at,
+                removed_at=review.removed_at,
+                flag_status=flags.get(review.id),
+            )
+        )
+    return received
