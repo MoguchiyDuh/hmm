@@ -3517,8 +3517,26 @@
             "title": "Filename",
             "type": "string"
           },
+          "text_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Error"
+          },
           "text_status": {
-            "$ref": "#/components/schemas/CvTextStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CvTextStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "url": {
             "format": "uri",
@@ -3532,7 +3550,8 @@
           "allowed_actions",
           "filename",
           "url",
-          "text_status"
+          "text_status",
+          "text_error"
         ],
         "title": "Cv",
         "type": "object"
@@ -31074,9 +31093,8 @@
                 "additionalProperties": false,
                 "properties": {
                   "file": {
-                    "description": "PDF, UTF-8 Markdown (.md), or UTF-8 Typst (.typ); maximum 5 MB",
+                    "description": "PDF, UTF-8 Markdown (.md), or UTF-8 Typst (.typ)",
                     "format": "binary",
-                    "maxLength": 5000000,
                     "title": "File",
                     "type": "string"
                   }

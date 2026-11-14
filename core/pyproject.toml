@@ -12,6 +12,9 @@ dependencies = [
     "alembic>=1.17",
     "procrastinate==3.11.0",
     "httpx>=0.28",
+    "pypdf>=6.0",
+    "python-multipart>=0.0.20",
+    "aioboto3>=15",
 ]
 
 [project.scripts]

@@ -1,17 +1,20 @@
+from collections.abc import AsyncIterator
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Query, Request, status
-from hmm_contracts.common import AreaKey, UserId
+from hmm_contracts.common import AreaKey, ErrorCode, UserId
+from starlette.datastructures import UploadFile
 
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.security import MemberAuth, UserAuth
 from hmm_core.profiles import service
 from hmm_core.profiles.schemas import (
     Availability,
     Cv,
+    CvAction,
     CvUpload,
     NotificationSettings,
     UpdateAvailabilityBody,
@@ -24,6 +27,11 @@ from hmm_core.profiles.schemas import (
 
 router = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
+
+
+async def read_chunks(upload: UploadFile) -> AsyncIterator[bytes]:
+    while chunk := await upload.read(service.CHUNK_SIZE):
+        yield chunk
 
 
 @router.get("/users", status_code=status.HTTP_200_OK, summary="Member directory")
@@ -84,8 +92,10 @@ async def update_availability(
 @router.post(
     "/me/github/refresh", status_code=status.HTTP_202_ACCEPTED, summary="Enqueue GitHub sync"
 )
-async def refresh_github(actor: MemberAuth) -> None:
-    not_implemented()
+async def refresh_github(
+    actor: MemberAuth, request: Request, session: Session, clock: CurrentClock
+) -> None:
+    await service.refresh_github(session, request.app.state.jobs, user_id=actor.id, now=clock.now())
 
 
 @router.put(
@@ -99,18 +109,55 @@ async def refresh_github(actor: MemberAuth) -> None:
         }
     },
 )
-async def upload_cv(request: Request, actor: UserAuth) -> CvUpload:
-    not_implemented()
+async def upload_cv(
+    request: Request, actor: UserAuth, session: Session, clock: CurrentClock
+) -> CvUpload:
+    form = await request.form()
+    upload = form.get("file")
+    if not isinstance(upload, UploadFile):
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, "Expected a file field named 'file'")
+    row = await service.upload_cv(
+        session,
+        request.app.state.jobs,
+        service.require_storage(request.app.state.storage),
+        user_id=actor.id,
+        filename=upload.filename,
+        chunks=read_chunks(upload),
+        now=clock.now(),
+    )
+    return CvUpload(
+        filename=row.filename,
+        text_status=row.text_status,
+        allowed_actions=[CvAction.REPLACE, CvAction.DELETE],
+    )
 
 
 @router.delete("/me/cv", status_code=status.HTTP_204_NO_CONTENT, summary="Remove CV")
-async def delete_cv(actor: UserAuth) -> None:
-    not_implemented()
+async def delete_cv(
+    actor: UserAuth, request: Request, session: Session, clock: CurrentClock
+) -> None:
+    await service.delete_cv(
+        session,
+        request.app.state.jobs,
+        service.require_storage(request.app.state.storage),
+        user_id=actor.id,
+        now=clock.now(),
+    )
 
 
 @router.get("/users/{id}/cv", status_code=status.HTTP_200_OK, summary="Get short-lived CV download")
-async def get_cv(id: UserId, actor: MemberAuth) -> Cv:
-    not_implemented()
+async def get_cv(id: UserId, actor: MemberAuth, request: Request, session: Session) -> Cv:
+    row, url = await service.cv_download(
+        session, service.require_storage(request.app.state.storage), actor=actor, user_id=id
+    )
+    privileged = actor.id == id or actor.is_admin
+    return Cv(
+        filename=row.filename,
+        url=url,
+        text_status=row.text_status if privileged else None,
+        text_error=row.text_error if privileged else None,
+        allowed_actions=[CvAction.REPLACE, CvAction.DELETE] if actor.id == id else [],
+    )
 
 
 @router.get(
