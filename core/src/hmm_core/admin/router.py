@@ -80,11 +80,15 @@ async def get_dashboard(actor: AdminAuth, session: Session, clock: CurrentClock)
 async def list_users(
     pagination: Annotated[CursorParams, Depends()],
     actor: AdminAuth,
+    session: Session,
     q: Annotated[str | None, Query()] = None,
     banned: Annotated[bool | None, Query()] = None,
     is_admin: Annotated[bool | None, Query(alias="admin")] = None,
 ) -> AdminUserPage:
-    not_implemented()
+    users, next_cursor = await admin.list_users(session, pagination, q, banned, is_admin)
+    return AdminUserPage(
+        items=[await admin_user(session, user) for user in users], next_cursor=next_cursor
+    )
 
 
 @router.patch(
@@ -131,11 +135,12 @@ async def unban_user(
 async def list_audit_entries(
     pagination: Annotated[CursorParams, Depends()],
     actor: AdminAuth,
+    session: Session,
     actor_id: Annotated[UserId | None, Query(alias="actor")] = None,
     entity_type: Annotated[str | None, Query()] = None,
     entity_id: Annotated[SubjectId | None, Query()] = None,
 ) -> AuditEntryPage:
-    not_implemented()
+    return await admin.list_audit_entries(session, pagination, actor_id, entity_type, entity_id)
 
 
 @router.get(
@@ -143,8 +148,8 @@ async def list_audit_entries(
     status_code=status.HTTP_200_OK,
     summary="List runtime settings with defaults and descriptions",
 )
-async def list_settings(actor: AdminAuth) -> list[Setting]:
-    not_implemented()
+async def list_settings(actor: AdminAuth, session: Session) -> list[Setting]:
+    return await admin.list_settings(session)
 
 
 @router.put(
@@ -152,8 +157,10 @@ async def list_settings(actor: AdminAuth) -> list[Setting]:
     status_code=status.HTTP_200_OK,
     summary="Update runtime setting validated against its key schema",
 )
-async def update_setting(key: SettingKey, body: UpdateSettingBody, actor: AdminAuth) -> Setting:
-    not_implemented()
+async def update_setting(
+    key: SettingKey, body: UpdateSettingBody, actor: AdminAuth, session: Session
+) -> Setting:
+    return await admin.update_setting(session, key, body.value, actor.id, body.reason)
 
 
 @router.get(

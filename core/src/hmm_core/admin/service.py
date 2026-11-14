@@ -1,7 +1,9 @@
 from datetime import datetime, timedelta
+from uuid import UUID
 
 from hmm_contracts.common import (
     AlertStatus,
+    ErrorCode,
     EventOrigin,
     FlagStatus,
     FormationPhase,
@@ -11,13 +13,28 @@ from hmm_contracts.common import (
     PlaceStatus,
 )
 from hmm_contracts.notifications import AlertKind
-from sqlalchemy import Text, and_, exists, func, select, text, type_coerce
+from pydantic import JsonValue, ValidationError
+from sqlalchemy import Text, and_, exists, func, or_, select, text, type_coerce
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
-from hmm_core.admin.schemas import AdminDashboard
-from hmm_core.platform.settings import load_settings
+from hmm_core.admin.schemas import (
+    AdminDashboard,
+    AuditEntry,
+    AuditEntryPage,
+    Setting,
+    SettingAction,
+)
+from hmm_core.platform.errors import ProblemError
+from hmm_core.platform.pagination import CursorParams, apply_keyset, encode_cursor, keyset_page
+from hmm_core.platform.settings import (
+    RuntimeSettings,
+    SettingKey,
+    load_settings,
+    set_setting,
+    setting_value_schema,
+)
 
 
 async def dashboard(session: AsyncSession, now: datetime) -> AdminDashboard:
@@ -148,4 +165,117 @@ async def dashboard(session: AsyncSession, now: datetime) -> AdminDashboard:
         open_help_requests_without_offers=open_help_requests_without_offers or 0,
         parser_last_heartbeat=parser_last_heartbeat,
         job_failures_24h=job_failures_24h or 0,
+    )
+
+
+async def list_users(
+    session: AsyncSession,
+    pagination: CursorParams,
+    q: str | None = None,
+    banned: bool | None = None,
+    is_admin: bool | None = None,
+) -> tuple[list[models.User], str | None]:
+    statement = select(models.User)
+    if q:
+        statement = statement.where(
+            or_(models.User.display_name.ilike(f"%{q}%"), models.User.github_login.ilike(f"%{q}%"))
+        )
+    if banned is True:
+        statement = statement.where(models.User.banned_at.is_not(None))
+    elif banned is False:
+        statement = statement.where(models.User.banned_at.is_(None))
+    if is_admin is not None:
+        statement = statement.where(models.User.is_admin.is_(is_admin))
+    rows = list(
+        await session.scalars(
+            apply_keyset(
+                statement,
+                pagination,
+                sort=[models.User.created_at],
+                id_column=models.User.id,
+            )
+        )
+    )
+    items = rows[: pagination.limit]
+    next_cursor = (
+        encode_cursor([items[-1].created_at, items[-1].id])
+        if len(rows) > pagination.limit
+        else None
+    )
+    return items, next_cursor
+
+
+async def list_audit_entries(
+    session: AsyncSession,
+    pagination: CursorParams,
+    actor_id: UUID | None = None,
+    entity_type: str | None = None,
+    entity_id: UUID | None = None,
+) -> AuditEntryPage:
+    statement = select(models.AuditLog)
+    if actor_id is not None:
+        statement = statement.where(models.AuditLog.actor_id == actor_id)
+    if entity_type is not None:
+        statement = statement.where(models.AuditLog.entity_type == entity_type)
+    if entity_id is not None:
+        statement = statement.where(models.AuditLog.entity_id == str(entity_id))
+    page = await keyset_page(
+        session,
+        statement,
+        pagination,
+        sort=[models.AuditLog.created_at],
+        id_column=models.AuditLog.id,
+        serialize=AuditEntry.model_validate,
+    )
+    return AuditEntryPage(items=page.items, next_cursor=page.next_cursor)
+
+
+def setting_contract(
+    key: SettingKey, value: JsonValue, default: JsonValue, row: models.Setting | None
+) -> Setting:
+    return Setting(
+        key=key,
+        value=value,
+        default=default,
+        description=RuntimeSettings.model_fields[key.value].description or "",
+        value_schema=setting_value_schema(key),
+        updated_by=row.updated_by if row else None,
+        updated_at=row.updated_at if row else None,
+        allowed_actions=[SettingAction.EDIT],
+    )
+
+
+async def list_settings(session: AsyncSession) -> list[Setting]:
+    defaults = RuntimeSettings().model_dump(mode="json")
+    values = (await load_settings(session)).model_dump(mode="json")
+    rows = {row.key: row for row in await session.scalars(select(models.Setting))}
+    return [
+        setting_contract(key, values[key.value], defaults[key.value], rows.get(key.value))
+        for key in SettingKey
+    ]
+
+
+async def update_setting(
+    session: AsyncSession,
+    key: SettingKey,
+    value: JsonValue,
+    actor: UUID,
+    reason: str | None = None,
+) -> Setting:
+    try:
+        updated = await set_setting(session, key, value, actor, reason)
+    except ValidationError as error:
+        raise ProblemError(ErrorCode.VALIDATION_ERROR, str(error)) from error
+    row = (
+        await session.execute(
+            select(models.Setting)
+            .where(models.Setting.key == key.value)
+            .execution_options(populate_existing=True)
+        )
+    ).scalar_one()
+    return setting_contract(
+        key,
+        updated.model_dump(mode="json")[key.value],
+        RuntimeSettings().model_dump(mode="json")[key.value],
+        row,
     )
