@@ -29,7 +29,7 @@ from hmm_contracts.common import (
     TeamStatus,
 )
 from pydantic import ValidationError
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -580,7 +580,6 @@ async def enqueue_event_refresh(
                 and_(
                     models.Project.team_status.is_(None),
                     models.Project.recruiting.is_not(None),
-                    func.jsonb_typeof(models.Project.recruiting) != "null",
                 ),
             ),
         )
