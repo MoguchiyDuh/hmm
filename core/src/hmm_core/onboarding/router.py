@@ -20,7 +20,7 @@ from hmm_core.onboarding.schemas import (
 )
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, UserAuth
@@ -153,10 +153,11 @@ async def reopen_onboarding(
 @router.get("/admin/member-reviews", status_code=status.HTTP_200_OK, summary="List member reviews")
 async def list_member_reviews(
     actor: AdminAuth,
+    session: Session,
     pagination: Annotated[CursorParams, Depends()],
     status: Annotated[MemberReviewStatus | None, Query()] = None,
 ) -> MemberReviewPage:
-    not_implemented()
+    return await service.member_reviews_page(session, pagination, status)
 
 
 @router.get(
@@ -164,8 +165,10 @@ async def list_member_reviews(
     status_code=status.HTTP_200_OK,
     summary="Get full member review bundle",
 )
-async def get_member_review(user_id: UserId, actor: AdminAuth) -> MemberReviewDetail:
-    not_implemented()
+async def get_member_review(
+    user_id: UserId, actor: AdminAuth, session: Session, request: Request
+) -> MemberReviewDetail:
+    return await service.member_review_detail(session, request.app.state.storage, user_id, actor)
 
 
 @router.post(
@@ -176,9 +179,18 @@ async def get_member_review(user_id: UserId, actor: AdminAuth) -> MemberReviewDe
 async def complete_member_review(
     user_id: UserId,
     actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
     body: CompleteMemberReviewBody | None = None,
 ) -> MemberReview:
-    not_implemented()
+    return await service.complete_member_review(
+        session,
+        actor,
+        user_id,
+        body.note if body is not None else None,
+        body.reason if body is not None else None,
+        clock.now(),
+    )
 
 
 @router.patch(
@@ -187,6 +199,6 @@ async def complete_member_review(
     summary="Update private admin note",
 )
 async def update_member_review(
-    user_id: UserId, body: UpdateMemberReviewBody, actor: AdminAuth
+    user_id: UserId, body: UpdateMemberReviewBody, actor: AdminAuth, session: Session
 ) -> MemberReview:
-    not_implemented()
+    return await service.update_member_review(session, actor, user_id, body.note, body.reason)
