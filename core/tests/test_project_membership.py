@@ -3,7 +3,6 @@ import itertools
 from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any
-from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -11,7 +10,6 @@ from harness import Harness
 from hmm_contracts.common import AreaImportance, ErrorCode, EventKind, EventOrigin, EventStatus
 from hmm_core import models
 from hmm_core.catalog import service as catalog
-from hmm_core.projects import service as projects
 from sqlalchemy import func, select, update
 from test_api_skeleton import assert_problem
 
@@ -265,18 +263,9 @@ async def test_leave_project_as_lead(harness: Harness) -> None:
                 expires_at=h.now + timedelta(days=7),
             )
         )
-    with patch.object(
-        projects,
-        "standalone_lead_succession",
-        new=AsyncMock(wraps=projects.standalone_lead_succession),
-    ) as succession:
-        async with await h.client(a) as client:
-            response = await client.post(f"/api/v1/projects/{project.id}/leave")
-        assert response.status_code == 204, response.text
-        succession.assert_awaited_once()
-        assert succession.call_args.args[1].id == project.id
-        assert succession.call_args.args[2] == h.now
-        assert succession.call_args.kwargs == {"exclude": {a.id}}
+    async with await h.client(a) as client:
+        response = await client.post(f"/api/v1/projects/{project.id}/leave")
+    assert response.status_code == 204, response.text
     assert (await member_row(h, project.id, a.id)).left_reason == "left"
     async with h.db() as session:
         row = await session.get_one(models.Project, project.id)
@@ -285,9 +274,18 @@ async def test_leave_project_as_lead(harness: Harness) -> None:
         assert audit.action == "lead_step_down"
         assert audit.actor_id == a.id
         assert audit.actor_kind == "user"
-        [notice] = list(await session.scalars(select(models.Notification)))
-        assert notice.user_id == b.id
-        assert notice.type == "project_member_left"
+        notices = list(await session.scalars(select(models.Notification)))
+        assert len(notices) == 2
+        assert {notice.user_id for notice in notices} == {b.id}
+        assert {notice.type for notice in notices} == {"project_member_left", "project_lead_offer"}
+        offers = list(await session.scalars(select(models.LeadOffer)))
+        [transfer] = [offer for offer in offers if offer.source == "transfer"]
+        assert transfer.status == "cancelled"
+        [succession] = [offer for offer in offers if offer.source == "succession"]
+        assert succession.status == "pending"
+        assert succession.user_id == b.id
+        assert succession.expires_at == h.now + timedelta(days=3)
+        assert succession.offered_by is None
     assert len(await refresh_jobs(h)) == 1
 
 
