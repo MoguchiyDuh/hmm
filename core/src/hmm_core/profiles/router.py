@@ -74,8 +74,11 @@ async def update_profile(
 
 
 @router.put("/me/availability", status_code=status.HTTP_200_OK, summary="Set do-not-disturb")
-async def update_availability(body: UpdateAvailabilityBody, actor: MemberAuth) -> Availability:
-    not_implemented()
+async def update_availability(
+    body: UpdateAvailabilityBody, actor: MemberAuth, session: Session
+) -> Availability:
+    user = await service.set_availability(session, actor, body.dnd_until)
+    return service.availability_view(user)
 
 
 @router.post(
@@ -113,10 +116,8 @@ async def get_cv(id: UserId, actor: MemberAuth) -> Cv:
 @router.get(
     "/me/notification-settings", status_code=status.HTTP_200_OK, summary="Get notification settings"
 )
-async def get_notification_settings(
-    actor: UserAuth,
-) -> NotificationSettings:
-    not_implemented()
+async def get_notification_settings(actor: UserAuth, session: Session) -> NotificationSettings:
+    return await service.notification_settings(session, actor.id)
 
 
 @router.put(
@@ -125,6 +126,6 @@ async def get_notification_settings(
     summary="Update notification settings",
 )
 async def update_notification_settings(
-    body: UpdateNotificationSettingsBody, actor: UserAuth
+    body: UpdateNotificationSettingsBody, actor: UserAuth, session: Session
 ) -> NotificationSettings:
-    not_implemented()
+    return await service.update_notification_settings(session, actor.id, body)

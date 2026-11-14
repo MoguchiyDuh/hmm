@@ -17,18 +17,29 @@ from hmm_contracts.common import (
     ReviewContext,
     ReviewSubjectType,
 )
+from hmm_contracts.notifications import NotificationType
 from sqlalchemy import Numeric, Text, and_, exists, func, not_, or_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
 from hmm_core.identity.service import ONBOARDED, dnd_active, dnd_until, lock_user
+from hmm_core.notifications.service import channel_settings
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import Column, CursorParams, apply_keyset, encode_cursor
 from hmm_core.platform.schemas import AreaScoreSummary
 from hmm_core.profiles import schemas
 from hmm_core.profiles.github import github_summary
-from hmm_core.profiles.schemas import UpdateProfileBody
+from hmm_core.profiles.schemas import (
+    Availability,
+    AvailabilityAction,
+    NotificationSetting,
+    NotificationSettings,
+    NotificationSettingsAction,
+    UpdateNotificationSettingsBody,
+    UpdateProfileBody,
+)
 from hmm_core.scores.reputation import reputation_summaries
 
 
@@ -330,3 +341,59 @@ async def update_profile(
     await session.refresh(target)
     await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(target.id))
     return target
+
+
+def availability_view(user: models.User) -> Availability:
+    return Availability(dnd_until=dnd_until(user), allowed_actions=[AvailabilityAction.EDIT])
+
+
+async def set_availability(
+    session: AsyncSession, actor: models.User, value: datetime | Literal["indefinite"] | None
+) -> models.User:
+    user = await lock_user(session, actor.id)
+    if value is None:
+        if not user.dnd_indefinite and user.dnd_until is None:
+            return user
+        user.dnd_indefinite = False
+        user.dnd_until = None
+    elif value == "indefinite":
+        if user.dnd_indefinite:
+            return user
+        user.dnd_indefinite = True
+        user.dnd_until = None
+    else:
+        if not user.dnd_indefinite and user.dnd_until == value:
+            return user
+        user.dnd_indefinite = False
+        user.dnd_until = value
+    return user
+
+
+async def notification_settings(session: AsyncSession, user_id: UUID) -> NotificationSettings:
+    current = await channel_settings(session, user_id)
+    return NotificationSettings(
+        items=[
+            NotificationSetting(type=type, web=current[type][0], telegram=current[type][1])
+            for type in NotificationType
+        ],
+        allowed_actions=[NotificationSettingsAction.EDIT],
+    )
+
+
+async def update_notification_settings(
+    session: AsyncSession, user_id: UUID, body: UpdateNotificationSettingsBody
+) -> NotificationSettings:
+    for item in body.items:
+        telegram = False if item.type == NotificationType.TELEGRAM_LINK_BROKEN else item.telegram
+        await session.execute(
+            insert(models.NotificationSetting)
+            .values(user_id=user_id, type=item.type.value, web=item.web, telegram=telegram)
+            .on_conflict_do_update(
+                index_elements=[
+                    models.NotificationSetting.user_id,
+                    models.NotificationSetting.type,
+                ],
+                set_={"web": item.web, "telegram": telegram},
+            )
+        )
+    return await notification_settings(session, user_id)
