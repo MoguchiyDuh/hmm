@@ -505,3 +505,196 @@ async def test_project_lead_full_cycle(harness: Harness) -> None:
     assert response.json()["lead_user_id"] == str(b.id)
     async with h.db() as session:
         assert (await session.get_one(models.Project, project.id)).lead_succession_excluded == []
+
+
+async def test_ban_standalone_lead(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    admin = await h.admin()
+    a, b, c = await h.user(), await h.user(), await h.user()
+    project = await seed_project(h, a, members=[b, c], status="active")
+    a_row = await member_row(h, project, a)
+    b_row = await member_row(h, project, b)
+    b_confirmation = await confirm(h, project, b_row, c)
+    a_confirmation = await confirm(h, project, a_row, b)
+    async with h.db() as session:
+        member_count = await session.scalar(select(func.count()).select_from(models.ProjectMember))
+        confirmation_count = await session.scalar(
+            select(func.count()).select_from(models.Confirmation)
+        )
+    async with await h.client(admin) as client:
+        response = await client.post(f"/api/v1/admin/users/{a.id}/ban", json={"reason": "fraud"})
+    assert response.status_code == 200, response.text
+    assert response.json()["banned_at"] is not None
+    removed = await member_row(h, project, a)
+    assert removed.id == a_row.id
+    assert removed.left_at == h.now
+    assert removed.left_reason == "banned"
+    assert removed.state == a_row.state
+    assert removed.confirmed_at == a_row.confirmed_at
+    [offer] = await pending_offers(h, project)
+    assert offer.user_id == b.id
+    assert offer.source == "succession"
+    assert offer.expires_at == h.now + timedelta(days=3)
+    async with h.db() as session:
+        row = await session.get_one(models.Project, project.id)
+        assert row.lead_user_id is None
+        assert (
+            await session.scalar(select(func.count()).select_from(models.ProjectMember))
+            == member_count
+        )
+        assert (
+            await session.scalar(select(func.count()).select_from(models.Confirmation))
+            == confirmation_count
+        )
+        for original in (a_confirmation, b_confirmation):
+            confirmation = await session.get_one(models.Confirmation, original.id)
+            assert confirmation.fact_id == original.fact_id
+            assert confirmation.ignored == original.ignored
+            assert confirmation.withdrawn_at == original.withdrawn_at
+        notices = list(await session.scalars(select(models.Notification)))
+        offered = [notice for notice in notices if notice.type == "project_lead_offer"]
+        assert len(offered) == 1
+        assert offered[0].user_id == b.id
+        left = [notice for notice in notices if notice.type == "project_member_left"]
+        assert len(left) == 2
+        assert {notice.user_id for notice in left} == {b.id, c.id}
+        assert all(notice.user_id != a.id for notice in notices)
+        for notice in left:
+            assert isinstance(notice.payload, dict)
+            assert notice.payload["member"] == {
+                "user_id": str(a.id),
+                "display_name": a.display_name,
+            }
+            assert notice.payload["member_count"] == 2
+        [audit] = list(
+            await session.scalars(
+                select(models.AuditLog).where(models.AuditLog.action == "lead_step_down")
+            )
+        )
+        assert audit.actor_id == admin.id
+        assert audit.actor_kind == "admin"
+        assert audit.entity_id == str(project.id)
+        assert audit.reason == "banned"
+    assert not [job for job in await h.pending_jobs() if job["status"] == "todo"]
+
+
+async def test_ban_standalone_member(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    admin = await h.admin()
+    a, b, c = await h.user(), await h.user(), await h.user()
+    project = await seed_project(h, a, members=[b, c])
+    confirmation = await confirm(h, project, await member_row(h, project, b), c)
+    async with await h.client(admin) as client:
+        response = await client.post(f"/api/v1/admin/users/{b.id}/ban", json={"reason": "fraud"})
+    assert response.status_code == 200, response.text
+    removed = await member_row(h, project, b)
+    assert removed.left_reason == "banned"
+    assert removed.left_at == h.now
+    assert await pending_offers(h, project) == []
+    async with h.db() as session:
+        assert (await session.get_one(models.Project, project.id)).lead_user_id == a.id
+        assert (
+            await session.scalar(
+                select(func.count())
+                .select_from(models.AuditLog)
+                .where(models.AuditLog.action == "lead_step_down")
+            )
+            == 0
+        )
+        row = await session.get_one(models.Confirmation, confirmation.id)
+        assert row.ignored is False
+        assert row.withdrawn_at is None
+        assert await session.scalar(select(func.count()).select_from(models.Confirmation)) == 1
+        notices = list(await session.scalars(select(models.Notification)))
+        assert len(notices) == 2
+        assert {notice.user_id for notice in notices} == {a.id, c.id}
+        assert {notice.type for notice in notices} == {"project_member_left"}
+    assert not [job for job in await h.pending_jobs() if job["status"] == "todo"]
+
+
+async def test_ban_sole_standalone_lead(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    admin = await h.admin()
+    a = await h.user()
+    project = await seed_project(h, a)
+    async with await h.client(admin) as client:
+        response = await client.post(f"/api/v1/admin/users/{a.id}/ban", json={"reason": "fraud"})
+    assert response.status_code == 200, response.text
+    assert await pending_offers(h, project) == []
+    async with h.db() as session:
+        row = await session.get_one(models.Project, project.id)
+        assert row.lead_user_id is None
+        assert row.status == "paused"
+        assert await session.scalar(select(func.count()).select_from(models.Notification)) == 0
+
+
+async def test_ban_standalone_succession_candidate(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    admin = await h.admin()
+    a, b = await h.user(), await h.user()
+    project = await seed_project(h, a, members=[b], status="active")
+    await clear_lead(h, project)
+    old = await seed_offer(h, project, a, expires_at=h.now + timedelta(days=2))
+    async with await h.client(admin) as client:
+        response = await client.post(f"/api/v1/admin/users/{a.id}/ban", json={"reason": "fraud"})
+    assert response.status_code == 200, response.text
+    [offer] = await pending_offers(h, project)
+    assert offer.user_id == b.id
+    assert offer.source == "succession"
+    async with h.db() as session:
+        previous = await session.get_one(models.LeadOffer, old.id)
+        assert previous.status == "closed"
+        assert previous.responded_at == h.now
+        assert (await session.get_one(models.Project, project.id)).status == "active"
+        notices = list(
+            await session.scalars(
+                select(models.Notification).where(models.Notification.type == "project_lead_offer")
+            )
+        )
+        assert len(notices) == 1
+        assert notices[0].user_id == b.id
+
+
+async def test_ban_keeps_active_team_membership(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    admin = await h.admin()
+    a, b, c = await h.user(), await h.user(), await h.user()
+    active_event = await make_hackathon(h)
+    async with h.db() as session:
+        forming_event = await catalog.create_event(
+            session,
+            catalog.EventInput(
+                kind=EventKind.HACKATHON,
+                title="Other Hack",
+                starts_at=h.now + timedelta(days=35),
+                ends_at=h.now + timedelta(days=37),
+                timezone="UTC",
+                areas=[catalog.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY)],
+            ),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+    active = await seed_project(h, a, members=[b], event_id=active_event.id, team_status="active")
+    forming = await seed_project(
+        h, c, members=[b], event_id=forming_event.id, team_status="forming"
+    )
+    async with h.db() as session:
+        await session.execute(
+            update(models.ProjectMember)
+            .where(models.ProjectMember.project_id.in_([active.id, forming.id]))
+            .values(is_team_row=True)
+        )
+    async with await h.client(admin) as client:
+        response = await client.post(f"/api/v1/admin/users/{b.id}/ban", json={"reason": "fraud"})
+    assert response.status_code == 200, response.text
+    assert (await member_row(h, active, b)).left_at is None
+    assert (await member_row(h, forming, b)).left_reason == "banned"
+    async with h.db() as session:
+        assert (await session.get_one(models.Project, active.id)).lead_user_id == a.id
