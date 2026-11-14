@@ -118,8 +118,10 @@ async def update_help_request(
     status_code=status.HTTP_200_OK,
     summary="Cancel help request as learner",
 )
-async def cancel_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def cancel_help_request(
+    id: HelpRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> HelpRequest:
+    return await service.cancel_help_request(session, actor, id, clock.now())
 
 
 @router.post(
@@ -129,8 +131,12 @@ async def cancel_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpReque
     description="Only the target mentor may decline a direct request in the open state. "
     "Notify the learner, who may immediately open it to everyone without the three-day wait.",
 )
-async def decline_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def decline_help_request(
+    id: HelpRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> HelpRequest:
+    return await service.decline_help_request(
+        session, request.app.state.jobs, actor, id, clock.now()
+    )
 
 
 @router.post(
@@ -138,8 +144,10 @@ async def decline_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequ
     status_code=status.HTTP_200_OK,
     summary="Open direct help request to everyone as learner",
 )
-async def open_help_request(id: HelpRequestId, actor: MemberAuth) -> HelpRequest:
-    not_implemented()
+async def open_help_request(
+    id: HelpRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> HelpRequest:
+    return await service.open_help_request(session, request.app.state.jobs, actor, id, clock.now())
 
 
 @router.post(

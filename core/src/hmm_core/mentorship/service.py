@@ -13,6 +13,7 @@ from hmm_contracts.notifications import (
     ActionKey,
     ApiAction,
     HelpOfferClosedPayload,
+    HelpRequestDeclinedPayload,
     HelpRequestDirectPayload,
     HelpRequestExpiredPayload,
     LinkAction,
@@ -403,3 +404,109 @@ async def expire_help_requests(session: AsyncSession, now: datetime, *, limit: i
     for row in rows:
         await expire_request(session, row, now)
     return len(rows)
+
+
+async def lock_visible_request(
+    session: AsyncSession, actor: models.User, request_id: UUID
+) -> models.HelpRequest:
+    request = await session.scalar(
+        select(models.HelpRequest).where(models.HelpRequest.id == request_id).with_for_update()
+    )
+    if request is None or not request_visible(request, actor.id):
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return request
+
+
+async def open_to_everyone(
+    session: AsyncSession, jobs: procrastinate.App, request: models.HelpRequest, now: datetime
+) -> None:
+    request.status = HelpRequestStatus.OPEN.value
+    await session.flush()
+    await record_help_request(session, request, request.learner_id, now)
+    await defer_job(session, jobs, JobName.MATCH_MENTORS, request_id=str(request.id))
+    await session.flush()
+    await session.refresh(request)
+
+
+async def cancel_help_request(
+    session: AsyncSession, actor: models.User, request_id: UUID, now: datetime
+) -> schemas.HelpRequest:
+    request = await lock_visible_request(session, actor, request_id)
+    if actor.id != request.learner_id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if request.status == HelpRequestStatus.CANCELLED.value:
+        return await views.help_request_view(session, request, actor, now)
+    if request.status not in LIVE_STATUSES:
+        raise ProblemError(ErrorCode.INVALID_STATE)
+    request.status = HelpRequestStatus.CANCELLED.value
+    await close_pending_offers(session, request, "The learner cancelled the help request.", now)
+    await hide_feed_subject(session, "help_request", request.id, now)
+    await session.flush()
+    await session.refresh(request)
+    return await views.help_request_view(session, request, actor, now)
+
+
+async def decline_help_request(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    actor: models.User,
+    request_id: UUID,
+    now: datetime,
+) -> schemas.HelpRequest:
+    request = await lock_visible_request(session, actor, request_id)
+    if actor.id != request.target_mentor_id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if request.status != HelpRequestStatus.DIRECT.value:
+        raise ProblemError(ErrorCode.INVALID_STATE)
+    await open_to_everyone(session, jobs, request, now)
+    learner = await session.get(models.User, request.learner_id)
+    area = await session.get(models.Area, request.area_id)
+    assert learner is not None and area is not None
+    await notify(
+        session,
+        request.learner_id,
+        HelpRequestDeclinedPayload(
+            help_request_id=request.id,
+            learner=views.notification_person(learner),
+            area_key=area.key,
+            area_name=area.name,
+            topic=request.topic,
+            goal=request.goal,
+            format=HelpRequestFormat(request.format),
+            expires_at=request.expires_at,
+            link="/mentorship",
+            actions=(
+                ApiAction(
+                    kind="api",
+                    key=ActionKey.HELP_REQUEST_OPEN,
+                    entity_id=request.id,
+                    label_key="notifications.actions.help_request_open",
+                ),
+            ),
+        ),
+        now,
+        dedupe_key=f"help_request_declined:{request.id}",
+    )
+    return await views.help_request_view(session, request, actor, now)
+
+
+async def open_help_request(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    actor: models.User,
+    request_id: UUID,
+    now: datetime,
+) -> schemas.HelpRequest:
+    request = await lock_visible_request(session, actor, request_id)
+    if actor.id != request.learner_id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if request.status == HelpRequestStatus.OPEN.value:
+        return await views.help_request_view(session, request, actor, now)
+    if request.status != HelpRequestStatus.DIRECT.value:
+        raise ProblemError(ErrorCode.INVALID_STATE)
+    if now < request.created_at + views.DIRECT_OPEN_AFTER:
+        raise ProblemError(
+            ErrorCode.INVALID_STATE, "A direct request can be opened three days after creation"
+        )
+    await open_to_everyone(session, jobs, request, now)
+    return await views.help_request_view(session, request, actor, now)
