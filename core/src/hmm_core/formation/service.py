@@ -3693,3 +3693,48 @@ async def leave_team(
     await session.flush()
     await session.refresh(project)
     return project
+
+
+async def expire_lead_offers(session: AsyncSession, event: models.Event, now: datetime) -> int:
+    await session.execute(
+        select(models.Event.id).where(models.Event.id == event.id).with_for_update()
+    )
+    due = (
+        await session.execute(
+            select(models.LeadOffer.id, models.LeadOffer.project_id)
+            .where(
+                models.LeadOffer.event_id == event.id,
+                models.LeadOffer.status == LeadOfferStatus.PENDING.value,
+                models.LeadOffer.expires_at <= now,
+            )
+            .order_by(models.LeadOffer.created_at, models.LeadOffer.id)
+        )
+    ).all()
+    if not due:
+        return 0
+    locked = {
+        project.id: project
+        for project in await session.scalars(
+            select(models.Project)
+            .where(models.Project.id.in_({project_id for _, project_id in due}))
+            .order_by(models.Project.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+    }
+    expired = 0
+    for offer_id, _ in due:
+        offer = await session.get(
+            models.LeadOffer, offer_id, with_for_update=True, populate_existing=True
+        )
+        if offer is None or offer.status != LeadOfferStatus.PENDING.value:
+            continue
+        project = locked[offer.project_id]
+        if projects.lead_changes_closed(project):
+            offer.status = LeadOfferStatus.EXPIRED.value
+            offer.responded_at = now
+        else:
+            await expire_lead_offer(session, offer, project, event, now)
+        expired += 1
+    await session.flush()
+    return expired

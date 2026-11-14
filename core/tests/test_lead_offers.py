@@ -1715,3 +1715,255 @@ async def test_concurrent_transfers(harness: Harness) -> None:
     assert len(await pending_offers(h, team)) == 1
     assert len(await notified(h, "lead_offer")) == 1
     assert (await stored_project(h, team.id)).lead_user_id == lead.id
+
+
+async def sweep(h: Harness, event: models.Event) -> int:
+    async with h.db() as session:
+        loaded = await session.get_one(models.Event, event.id)
+        return await formation.expire_lead_offers(session, loaded, h.now)
+
+
+async def forced_alerts(h: Harness, project: models.Project) -> list[models.AdminAlert]:
+    async with h.db() as session:
+        return list(
+            await session.scalars(
+                select(models.AdminAlert).where(
+                    models.AdminAlert.type == "forced_lead",
+                    models.AdminAlert.subject_id == project.id,
+                )
+            )
+        )
+
+
+async def succession_team(
+    h: Harness, team_status: str, *, excluded: tuple[str, ...]
+) -> tuple[models.Event, models.Project, dict[str, models.User]]:
+    event = await make_hackathon(h)
+    users = {name: await h.user() for name in ("a", "b", "c")}
+    team = await make_team(
+        h,
+        event,
+        team_status=team_status,
+        lead_succession_excluded=[users[name].id for name in excluded],
+    )
+    for name, fit in (("a", 0.2), ("b", 0.8), ("c", 0.5)):
+        await add_member(h, event, team, users[name], fit=fit)
+    return event, team, users
+
+
+async def test_expire_lead_offers_scoping(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    first_event = await make_hackathon(h)
+    second_event = await make_hackathon(h)
+    first_team, first_lead = await lead_team(h, first_event)
+    second_team, second_lead = await lead_team(h, second_event)
+    first_member = await h.user()
+    second_member = await h.user()
+    await add_member(h, first_event, first_team, first_member)
+    await add_member(h, second_event, second_team, second_member)
+    due = -timedelta(minutes=1)
+    first = await offer(h, first_team, first_member, offered_by=first_lead, expires_in=due)
+    second = await offer(h, second_team, second_member, offered_by=second_lead, expires_in=due)
+
+    assert await sweep(h, first_event) == 1
+    expired = await stored_offer(h, first.id)
+    assert (expired.status, expired.responded_at) == ("expired", h.now)
+    assert (await stored_offer(h, second.id)).status == "pending"
+    updated_at = expired.updated_at
+    assert await sweep(h, first_event) == 0
+    assert (await stored_offer(h, first.id)).updated_at == updated_at
+
+
+async def test_expire_lead_offers_advances_succession(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event, team, users = await succession_team(h, TeamStatus.LOCKED.value, excluded=("a",))
+    due = await offer(h, team, users["b"], source="succession", expires_in=-timedelta(minutes=1))
+
+    assert await sweep(h, event) == 1
+    assert (await stored_offer(h, due.id)).status == "expired"
+    project = await stored_project(h, team.id)
+    assert sorted(str(value) for value in project.lead_succession_excluded) == sorted(
+        [str(users["a"].id), str(users["b"].id)]
+    )
+    [following] = await pending_offers(h, team)
+    assert (following.user_id, following.source) == (users["c"].id, "succession")
+    assert following.expires_at == h.now + timedelta(hours=12)
+    assert await forced_alerts(h, team) == []
+
+
+async def test_expire_lead_offers_forces_locked_team(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event, team, users = await succession_team(h, TeamStatus.LOCKED.value, excluded=("a", "b"))
+    due = await offer(h, team, users["c"], source="succession", expires_in=-timedelta(minutes=1))
+
+    assert await sweep(h, event) == 1
+    assert (await stored_offer(h, due.id)).status == "expired"
+    project = await stored_project(h, team.id)
+    assert project.lead_user_id == users["b"].id
+    assert project.lead_succession_excluded == []
+    assert sorted(n.user_id for n in await notified(h, "lead_assigned")) == sorted(
+        user.id for user in users.values()
+    )
+    assert [(a.status, a.severity) for a in await forced_alerts(h, team)] == [("open", "info")]
+    assert await pending_offers(h, team) == []
+
+
+async def test_expire_lead_offers_keeps_review_team_leaderless(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event, team, users = await succession_team(h, TeamStatus.REVIEW.value, excluded=("a", "b"))
+    due = await offer(h, team, users["c"], source="succession", expires_in=-timedelta(minutes=1))
+
+    assert await sweep(h, event) == 1
+    assert (await stored_offer(h, due.id)).status == "expired"
+    assert (await stored_project(h, team.id)).lead_user_id is None
+    assert await pending_offers(h, team) == []
+    assert await forced_alerts(h, team) == []
+    assert await notified(h, "lead_assigned") == []
+
+
+async def test_expire_transfer_offer_changes_nothing(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    team, lead = await lead_team(h, event)
+    member = await h.user()
+    await add_member(h, event, team, member)
+    due = await offer(h, team, member, offered_by=lead, expires_in=-timedelta(minutes=1))
+
+    assert await sweep(h, event) == 1
+    assert (await stored_offer(h, due.id)).status == "expired"
+    project = await stored_project(h, team.id)
+    assert project.lead_user_id == lead.id
+    assert project.lead_succession_excluded == []
+    assert (await member_row(h, team, lead)).role == "lead"
+    assert await pending_offers(h, team) == []
+    assert await count(h, models.Notification, models.Notification.id.is_not(None)) == 0
+    assert await audits(h, team) == []
+
+
+async def test_expire_lead_offers_skips_not_due(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h)
+    team, lead = await lead_team(h, event)
+    member = await h.user()
+    await add_member(h, event, team, member)
+    later = await offer(h, team, member, offered_by=lead, expires_in=timedelta(minutes=1))
+    assert await sweep(h, event) == 0
+    assert (await stored_offer(h, later.id)).status == "pending"
+
+    accepted_team, accepted_lead = await lead_team(h, event)
+    accepted_member = await h.user()
+    await add_member(h, event, accepted_team, accepted_member)
+    accepted = await offer(
+        h,
+        accepted_team,
+        accepted_member,
+        offered_by=accepted_lead,
+        expires_in=-timedelta(minutes=1),
+    )
+    async with h.db() as session:
+        await session.execute(
+            update(models.LeadOffer)
+            .where(models.LeadOffer.id == accepted.id)
+            .values(status="accepted", responded_at=h.now)
+        )
+    assert await sweep(h, event) == 0
+    assert (await stored_offer(h, accepted.id)).status == "accepted"
+    assert (await stored_project(h, accepted_team.id)).lead_user_id == accepted_lead.id
+
+
+async def test_expire_lead_offer_of_departed_candidate(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event, team, users = await succession_team(h, TeamStatus.FORMING.value, excluded=())
+    due = await offer(h, team, users["b"], source="succession", expires_in=-timedelta(minutes=1))
+    async with h.db() as session:
+        await session.execute(
+            update(models.ProjectMember)
+            .where(
+                models.ProjectMember.project_id == team.id,
+                models.ProjectMember.user_id == users["b"].id,
+            )
+            .values(left_at=h.now, left_reason="left")
+        )
+
+    assert await sweep(h, event) == 1
+    assert (await stored_offer(h, due.id)).status == "expired"
+    [following] = await pending_offers(h, team)
+    assert following.user_id == users["c"].id
+
+
+async def test_expire_lead_offer_on_closed_team(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event, team, users = await succession_team(h, TeamStatus.DISBANDED.value, excluded=())
+    due = await offer(h, team, users["b"], source="succession", expires_in=-timedelta(minutes=1))
+
+    assert await sweep(h, event) == 1
+    assert (await stored_offer(h, due.id)).status == "expired"
+    assert await pending_offers(h, team) == []
+    assert (await stored_project(h, team.id)).lead_succession_excluded == []
+
+
+async def test_expire_lead_offers_waits_for_presence(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event = await make_hackathon(h, starts_in=timedelta(hours=24))
+    first = await h.user()
+    second = await h.user()
+    team = await make_team(
+        h, event, team_status=TeamStatus.LOCKED.value, lead_succession_excluded=[second.id]
+    )
+    await add_member(h, event, team, first, state="proposed", fit=0.9)
+    await add_member(h, event, team, second, state="proposed", fit=0.4)
+    async with h.db() as session:
+        await session.execute(
+            update(models.ProjectMember)
+            .where(models.ProjectMember.project_id == team.id)
+            .values(confirm_kind="presence", confirm_by=h.now + timedelta(hours=12))
+        )
+    due = await offer(h, team, first, source="succession", expires_in=-timedelta(minutes=1))
+
+    assert await sweep(h, event) == 1
+    assert (await stored_offer(h, due.id)).status == "expired"
+    assert (await stored_project(h, team.id)).lead_user_id is None
+    assert await forced_alerts(h, team) == []
+
+    async with h.db() as session:
+        await session.execute(
+            update(models.ProjectMember)
+            .where(models.ProjectMember.user_id == second.id)
+            .values(state="confirmed", confirmed_at=h.now, confirm_kind=None, confirm_by=None)
+        )
+    async with h.db() as session:
+        project = await session.get_one(models.Project, team.id)
+        loaded = await session.get_one(models.Event, event.id)
+        forced = await formation.force_lead(
+            session, project, loaded, h.now, reason="Presence check deadline passed"
+        )
+        assert forced is not None and forced.user_id == second.id
+    assert (await stored_project(h, team.id)).lead_user_id == second.id
+    assert len(await forced_alerts(h, team)) == 1
+
+
+async def test_expire_lead_offers_repeat_is_noop(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    event, team, users = await succession_team(h, TeamStatus.LOCKED.value, excluded=("a", "b"))
+    await offer(h, team, users["c"], source="succession", expires_in=-timedelta(minutes=1))
+
+    assert await sweep(h, event) == 1
+    counts = (
+        await row_counts(h),
+        await count(h, models.LeadOffer, models.LeadOffer.project_id == team.id),
+    )
+    assert await sweep(h, event) == 0
+    assert (
+        await row_counts(h),
+        await count(h, models.LeadOffer, models.LeadOffer.project_id == team.id),
+    ) == counts
