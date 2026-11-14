@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
 from hmm_core.mentorship import views
-from hmm_core.mentorship.service import CLOSE_PROPOSAL_WINDOW, finalize_close
+from hmm_core.mentorship.mentorships import CLOSE_PROPOSAL_WINDOW, finalize_close
 from hmm_core.notifications.service import notify
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError

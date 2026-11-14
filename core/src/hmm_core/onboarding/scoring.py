@@ -13,7 +13,7 @@ from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
-from hmm_core.onboarding.service import definition
+from hmm_core.onboarding.quizzes import definition
 from hmm_core.profiles.github import github_summary
 from hmm_core.profiles.service import RegistrationInputs, inputs_settled
 
