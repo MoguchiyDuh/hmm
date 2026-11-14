@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Body, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, Request, status
 from hmm_contracts.common import (
     AreaKey,
     EventId,
@@ -18,6 +18,7 @@ from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import MemberAuth
+from hmm_core.projects import service
 from hmm_core.projects.schemas import (
     CreateMilestoneBody,
     CreateProjectBody,
@@ -46,20 +47,38 @@ internal = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
 async def list_projects(
     actor: MemberAuth,
     pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
     project_status: Annotated[ProjectStatus | None, Query(alias="status")] = None,
     area: Annotated[AreaKey | None, Query()] = None,
     recruiting: Annotated[bool | None, Query()] = None,
     event: Annotated[EventId | None, Query()] = None,
     member_id: Annotated[UserId | None, Query(alias="member")] = None,
 ) -> ProjectListViewPage:
-    not_implemented()
+    return await service.list_projects(
+        session,
+        actor,
+        pagination,
+        status=project_status,
+        area=area,
+        recruiting=recruiting,
+        event_id=event,
+        member_id=member_id,
+        now=clock.now(),
+    )
 
 
 @router.post(
     "/projects", status_code=status.HTTP_201_CREATED, summary="Create a standalone project"
 )
-async def create_project(body: CreateProjectBody, actor: MemberAuth) -> Project:
-    not_implemented()
+async def create_project(
+    body: CreateProjectBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Project:
+    return await service.create_project(session, request.app.state.jobs, body, actor, clock.now())
 
 
 @router.get(
@@ -67,16 +86,20 @@ async def create_project(body: CreateProjectBody, actor: MemberAuth) -> Project:
 )
 async def list_my_projects(
     actor: MemberAuth,
+    session: Session,
+    clock: CurrentClock,
     project_status: Annotated[ProjectStatus | TeamStatus | None, Query(alias="status")] = None,
 ) -> list[ProjectSummary]:
-    not_implemented()
+    return await service.list_my_projects(session, actor, project_status, clock.now())
 
 
 @router.get(
     "/projects/{id}", status_code=status.HTTP_200_OK, summary="Get project respecting visibility"
 )
-async def get_project(id: ProjectId, actor: MemberAuth) -> ProjectView:
-    not_implemented()
+async def get_project(
+    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> ProjectView:
+    return await service.get_project(session, id, actor, clock.now())
 
 
 @router.patch("/projects/{id}", status_code=status.HTTP_200_OK, summary="Edit project as lead")
