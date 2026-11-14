@@ -3,7 +3,7 @@ from hmm_contracts.common import HelpRequestId, ProjectId
 
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES, not_implemented
+from hmm_core.platform.errors import PROBLEM_RESPONSES
 from hmm_core.platform.security import MemberAuth
 from hmm_core.recommendations import service
 from hmm_core.recommendations.schemas import ProjectRecommendations, Recommendation
@@ -39,5 +39,7 @@ async def refresh_project_recommendations(
     status_code=status.HTTP_200_OK,
     summary="List suggested mentors as learner",
 )
-async def list_suggested_mentors(id: HelpRequestId, actor: MemberAuth) -> list[Recommendation]:
-    not_implemented()
+async def list_suggested_mentors(
+    id: HelpRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> list[Recommendation]:
+    return await service.list_suggested_mentors(session, actor, id, clock.now())

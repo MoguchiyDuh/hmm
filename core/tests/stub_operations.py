@@ -57,6 +57,5 @@ UNIMPLEMENTED_OPERATIONS = set(
         "projects_start_project",
         "projects_update_milestone",
         "projects_update_project",
-        "recommendations_list_suggested_mentors",
     ]
 )

@@ -19,6 +19,7 @@ from hmm_contracts.algo import Recruiting as AlgoRecruiting
 from hmm_contracts.common import (
     EnrollmentStatus,
     ErrorCode,
+    HelpRequestStatus,
     InviteStatus,
     JoinRequestStatus,
     MemberRole,
@@ -29,7 +30,7 @@ from hmm_contracts.common import (
     TeamStatus,
 )
 from pydantic import ValidationError
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm_core import models
@@ -618,3 +619,127 @@ async def request_refresh(
     project.recommendation_refresh_at = now
     await session.flush()
     await enqueue_project_refresh(session, jobs, project.id)
+
+
+async def replace_recommendation_set(
+    session: AsyncSession,
+    *,
+    subject_type: RecommendationSubjectType,
+    subject_id: UUID,
+    input_hash: str,
+    algo_version: str,
+    enrolled: Sequence[Rec] | None,
+    others: Sequence[Rec] | None,
+    now: datetime,
+) -> models.RecommendationSet:
+    return await _store_recommendation_set(
+        session,
+        models.RecommendationSet(
+            subject_type=subject_type.value,
+            subject_id=subject_id,
+            input_hash=input_hash,
+            status=RecommendationStatus.READY.value,
+            error=None,
+            enrolled=None
+            if enrolled is None
+            else [rec.model_dump(mode="json") for rec in enrolled],
+            others=None if others is None else [rec.model_dump(mode="json") for rec in others],
+            algo_version=algo_version,
+            completed_at=now,
+        ),
+    )
+
+
+async def mark_recommendation_set_failed(
+    session: AsyncSession,
+    *,
+    subject_type: RecommendationSubjectType,
+    subject_id: UUID,
+    input_hash: str,
+    algo_version: str,
+    error: str,
+) -> models.RecommendationSet:
+    return await _store_recommendation_set(
+        session,
+        models.RecommendationSet(
+            subject_type=subject_type.value,
+            subject_id=subject_id,
+            input_hash=input_hash,
+            status=RecommendationStatus.FAILED.value,
+            error=error,
+            enrolled=None,
+            others=None,
+            algo_version=algo_version,
+            completed_at=None,
+        ),
+    )
+
+
+async def _store_recommendation_set(
+    session: AsyncSession, row: models.RecommendationSet
+) -> models.RecommendationSet:
+    await session.execute(
+        delete(models.RecommendationSet).where(
+            models.RecommendationSet.subject_type == row.subject_type,
+            models.RecommendationSet.subject_id == row.subject_id,
+        )
+    )
+    session.add(row)
+    await session.flush()
+    await session.refresh(row)
+    return row
+
+
+async def latest_recommendation_set(
+    session: AsyncSession, subject_type: RecommendationSubjectType, subject_id: UUID
+) -> models.RecommendationSet | None:
+    return await session.scalar(
+        select(models.RecommendationSet)
+        .where(
+            models.RecommendationSet.subject_type == subject_type.value,
+            models.RecommendationSet.subject_id == subject_id,
+        )
+        .order_by(models.RecommendationSet.created_at.desc(), models.RecommendationSet.id.desc())
+        .limit(1)
+    )
+
+
+async def list_suggested_mentors(
+    session: AsyncSession, actor: models.User, request_id: UUID, now: datetime
+) -> list[schemas.Recommendation]:
+    request = await session.get(models.HelpRequest, request_id)
+    if request is None or not (
+        request.status == HelpRequestStatus.OPEN.value
+        or actor.id in {request.learner_id, request.target_mentor_id}
+    ):
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    if actor.id != request.learner_id:
+        raise ProblemError(ErrorCode.FORBIDDEN)
+    if request.status not in (HelpRequestStatus.OPEN.value, HelpRequestStatus.DIRECT.value):
+        return []
+    row = await latest_recommendation_set(
+        session, RecommendationSubjectType.HELP_REQUEST, request_id
+    )
+    if row is None or row.status != RecommendationStatus.READY.value or row.others is None:
+        return []
+    recs = stored_recs(row.others)
+    if not recs:
+        return []
+    users = {
+        user.id: user
+        for user in await session.scalars(
+            select(models.User).where(models.User.id.in_([rec.user_id for rec in recs]))
+        )
+    }
+    return [
+        schemas.Recommendation.model_validate(
+            {
+                **rec.model_dump(),
+                "profile": UserRef(
+                    id=user.id, display_name=user.display_name, avatar_url=user.avatar_url
+                ),
+            }
+        )
+        for rec in recs
+        if (user := users.get(rec.user_id)) is not None and eligible_user(user, now)
+    ]
