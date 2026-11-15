@@ -14,10 +14,9 @@ from hmm.identity import service as identity
 from hmm.identity.github import GithubUser
 from hmm.models import GithubSnapshot, User
 from hmm.platform.jobs import REGISTRY, JobName
+from hmm.profiles import github as profiles_github
 from hmm.profiles import jobs as profile_jobs
-from hmm.profiles import service as profiles
-from hmm.profiles.github import github_summary
-from hmm.profiles.github_api import GithubError
+from hmm.profiles.github import GithubError, github_summary
 
 REFRESH_URL = "/api/v1/me/github/refresh"
 
@@ -335,7 +334,7 @@ async def test_sync_all(harness: Harness) -> None:
     first = await harness.user()
     second = await harness.user()
     banned = await harness.user(banned_at=harness.now)
-    assert await profiles.sync_all_github(harness.runtime) == 2
+    assert await profiles_github.sync_all_github(harness.runtime) == 2
     query = text(
         "SELECT args, scheduled_at, now() AS db_now FROM procrastinate.procrastinate_jobs "
         "WHERE task_name = 'github_sync' ORDER BY scheduled_at"
@@ -348,7 +347,7 @@ async def test_sync_all(harness: Harness) -> None:
     assert abs((latest - earliest) - timedelta(hours=1)) < timedelta(seconds=5)
     assert abs(earliest - rows[0]["db_now"]) < timedelta(minutes=1)
     assert latest - earliest <= timedelta(hours=2)
-    assert await profiles.sync_all_github(harness.runtime) == 2
+    assert await profiles_github.sync_all_github(harness.runtime) == 2
     assert len(await harness.pending_jobs("github_sync")) == 2
 
 

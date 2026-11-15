@@ -6,8 +6,8 @@ from sqlalchemy import update
 from hmm.common import CvTextStatus, GithubSnapshotStatus
 from hmm.models import CvFile, GithubSnapshot, User
 from hmm.platform.jobs import REGISTRY, JobName
+from hmm.profiles import cv as profiles_cv
 from hmm.profiles import jobs as profile_jobs
-from hmm.profiles import service as profiles
 from hmm.profiles.service import RegistrationInputs, inputs_settled, registration_inputs
 
 CV_URL = "/api/v1/me/cv"
@@ -144,7 +144,7 @@ async def test_extract_ignores_stale_work(harness: Harness) -> None:
     assert row.text == "B text"
     async with harness.db() as session:
         assert (
-            await profiles.write_cv_text(
+            await profiles_cv.write_cv_text(
                 session,
                 harness.jobs,
                 user_id=user.id,
@@ -161,7 +161,7 @@ async def test_extract_ignores_stale_work(harness: Harness) -> None:
         assert stored is not None
         await session.delete(stored)
     gets = list(store.gets)
-    await profiles.extract_cv(harness.runtime, user.id)
+    await profiles_cv.extract_cv(harness.runtime, user.id)
     assert store.gets == gets
 
 

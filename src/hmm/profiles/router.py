@@ -12,7 +12,7 @@ from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.security import MemberAuth, UserAuth
 from hmm.platform.storage import Storage
-from hmm.profiles import service
+from hmm.profiles import cv, github, service
 from hmm.profiles.schemas import (
     Availability,
     Cv,
@@ -31,7 +31,7 @@ router = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
 
 
 async def read_chunks(upload: UploadFile) -> AsyncIterator[bytes]:
-    while chunk := await upload.read(service.CHUNK_SIZE):
+    while chunk := await upload.read(cv.CHUNK_SIZE):
         yield chunk
 
 
@@ -96,7 +96,7 @@ async def update_availability(
 async def refresh_github(
     actor: MemberAuth, jobs: Jobs, session: Session, clock: CurrentClock
 ) -> None:
-    await service.refresh_github(session, jobs, user_id=actor.id, now=clock.now())
+    await github.refresh_github(session, jobs, user_id=actor.id, now=clock.now())
 
 
 @router.put(
@@ -122,10 +122,10 @@ async def upload_cv(
     upload = form.get("file")
     if not isinstance(upload, UploadFile):
         raise ProblemError(ErrorCode.VALIDATION_ERROR, "Expected a file field named 'file'")
-    row = await service.upload_cv(
+    row = await cv.upload_cv(
         session,
         jobs,
-        service.require_storage(storage),
+        cv.require_storage(storage),
         user_id=actor.id,
         filename=upload.filename,
         chunks=read_chunks(upload),
@@ -142,12 +142,12 @@ async def upload_cv(
 async def delete_cv(
     actor: UserAuth, jobs: Jobs, storage: Storage, session: Session, clock: CurrentClock
 ) -> None:
-    await service.delete_cv(session, jobs, service.require_storage(storage), user_id=actor.id)
+    await cv.delete_cv(session, jobs, cv.require_storage(storage), user_id=actor.id)
 
 
 @router.get("/users/{id}/cv", status_code=status.HTTP_200_OK, summary="Get short-lived CV download")
 async def get_cv(id: UserId, actor: MemberAuth, storage: Storage, session: Session) -> Cv:
-    row, url = await service.cv_download(session, service.require_storage(storage), user_id=id)
+    row, url = await cv.cv_download(session, cv.require_storage(storage), user_id=id)
     privileged = actor.id == id or actor.is_admin
     return Cv(
         filename=row.filename,

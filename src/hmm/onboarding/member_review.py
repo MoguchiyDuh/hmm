@@ -25,7 +25,7 @@ from hmm.platform.errors import ProblemError
 from hmm.platform.pagination import CursorParams, keyset_page
 from hmm.platform.schemas import notification_person, user_ref
 from hmm.platform.storage import ObjectStore
-from hmm.profiles import service as profiles
+from hmm.profiles import cv as profiles_cv
 from hmm.profiles.github import github_summary
 from hmm.scores import service as scores_service
 
@@ -96,8 +96,8 @@ async def member_review_detail(
     submissions = await user_onboarding_history(session, user_id)
     cv: schemas.ReviewCv | None = None
     if await session.get(models.CvFile, user_id) is not None:
-        row, url = await profiles.cv_download(
-            session, profiles.require_storage(store), user_id=user_id
+        row, url = await profiles_cv.cv_download(
+            session, profiles_cv.require_storage(store), user_id=user_id
         )
         cv = schemas.ReviewCv(
             filename=row.filename,
