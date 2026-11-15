@@ -655,13 +655,13 @@ def admin_alert(p: AdminAlertPayload) -> str:
 @template(NotificationType.ADMIN_DIGEST)
 def admin_digest(p: AdminDigestPayload) -> str:
     counts = [
-        (p.pending_member_reviews, "member reviews waiting"),
-        (p.overdue_to_check_items, "overdue to-check items"),
-        (p.member_event_duplicates, "member event duplicates"),
-        (p.results_to_verify, "results to verify"),
-        *((count, f"open {humanize(kind)} alerts") for kind, count in p.open_alerts.items()),
+        (p.pending_member_reviews, "member review", " waiting"),
+        (p.overdue_to_check_items, "overdue to-check item", ""),
+        (p.member_event_duplicates, "member event duplicate", ""),
+        (p.results_to_verify, "result", " to verify"),
+        *((count, f"open {humanize(kind)} alert", "") for kind, count in p.open_alerts.items()),
     ]
-    items = [f"• {count} {esc(label)}" for count, label in counts if count]
+    items = [f"• {esc(plural(count, noun))}{suffix}" for count, noun, suffix in counts if count]
     return lines(
         f"🗂 Admin digest, {day(p.period_starts_at)} to {day(p.period_ends_at)}",
         *(items or ["Nothing waiting."]),

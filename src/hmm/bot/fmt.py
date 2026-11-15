@@ -92,8 +92,6 @@ def zone(timezone: str | None) -> tzinfo:
 
 def ago(seconds: float) -> str:
     seconds = abs(seconds)
-    if seconds < MINUTE:
-        return "under a minute"
     if seconds < HOUR:
         return plural(round(seconds / MINUTE), "minute")
     if seconds < 2 * DAY:
@@ -106,6 +104,8 @@ def relative(moment: datetime) -> str | None:
     if view is None or view.now is None:
         return None
     seconds = (moment - view.now).total_seconds()
+    if abs(seconds) < MINUTE:
+        return "just now"
     return f"in {ago(seconds)}" if seconds >= 0 else f"{ago(seconds)} ago"
 
 
