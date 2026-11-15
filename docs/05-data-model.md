@@ -14,7 +14,7 @@ users
   about_md text not null default ''        -- max 5000 chars
   contacts jsonb not null default '{}'     -- {telegram, email, site, ...} free-form, max 10 keys
   timezone text                            -- IANA
-  locale text not null default 'en'        -- en|ru, web UI only
+  locale text not null default 'en'        -- en|ru, web UI and bot
   is_admin bool not null default false
   banned_at timestamptz, ban_reason text
   onboarding_status text not null          -- not_started|in_progress|completed|reopened

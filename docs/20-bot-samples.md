@@ -61,7 +61,7 @@ Tap everyone you actually met there.
 
 ```html
 📅 <a href="https://hmm.example/events/019a7b32-0000-7000-8000-000000000002"><b>Northern Lights Hackathon 2026</b></a> changed:
-• starts at: Thu 26 Nov 11:00 EET → Fri 27 Nov 11:00 EET
+• starts: Thu 26 Nov 11:00 EET → Fri 27 Nov 11:00 EET
 Now Fri 27 Nov to Sun 29 Nov (in 7 days).
 ```
 
@@ -195,7 +195,7 @@ The invite for <b>Alex Morgan</b> to <a href="https://hmm.example/projects/019a7
 
 ```html
 🏁 <a href="https://hmm.example/mentorships/019a7b32-0000-7000-8000-000000000011"><b>Reliable Python services</b></a> with <b>Alex Morgan</b> and <b>Noor Kim</b> is closed.
-Outcome: <b>reached</b>
+Outcome: <b>Goal reached</b>
 Reviews are open until Fri 27 Nov 10:00 UTC (in 7 days).
 ```
 

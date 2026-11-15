@@ -90,6 +90,6 @@ Every admin action, every forced or system state transition, and every role-like
 
 ## 3.7 Language
 
-- Everything is English: code, API, enums, logs, bot, notification templates, algo reasons.
-- The web UI ships English and Russian; each user picks one in settings (`users.locale`, default `en`).
-- Server-generated text (notification payload strings, algo reasons, parser data) stays English.
+- Everything is English: code, API, enums, logs, algo reasons.
+- The web UI and the Telegram bot ship English and Russian. Each user has one language (`users.locale`, default `en`), switchable in web settings or with `/language` in the bot; both read the same column.
+- Server-generated text (notification payload strings, algo reasons, parser data) stays English, also inside Russian bot messages.
