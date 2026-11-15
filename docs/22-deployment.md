@@ -9,9 +9,10 @@ The repo ships everything needed to run hmm in production on any Linux server wi
 | `postgres` | `postgres:18` | database `hmm` (app data and job queue) |
 | `minio` | `MINIO_IMAGE` | private bucket `S3_BUCKET`; any S3-compatible store works |
 | `minio-init` | `MINIO_IMAGE` | one-shot: creates the bucket and keeps it private |
-| `migrate` | `hmm-app` | one-shot `alembic upgrade head`; `api` and `worker` start after it succeeds |
+| `migrate` | `hmm-app` | one-shot `alembic upgrade head`; `api`, `worker` and `bot` start after it succeeds |
 | `api` | `hmm-app` | `uvicorn hmm.main:app`, port 8000, healthy when `/readyz` passes |
 | `worker` | `hmm-app` | `hmm-worker` (§17) |
+| `bot` | `hmm-app` | `hmm-bot` (§20), single instance; in the development stack behind the `bot` profile |
 | `web` | `hmm-web` | Caddy: TLS, static SPA, `/api/*` → `api:8000`; the only service with published ports |
 | `backup` | `hmm-backup` | scheduled dumps of the database and the bucket to an external S3-compatible target |
 
@@ -19,7 +20,7 @@ Files:
 
 | File | Purpose |
 |---|---|
-| `deploy/compose.yaml` | development stack: postgres, minio, minio-init, migrate, api, worker, with the same health checks as production |
+| `deploy/compose.yaml` | development stack: postgres, minio, minio-init, migrate, api, worker, bot (`--profile bot`), with the same health checks as production |
 | `deploy/compose.prod.yaml` | production stack, runs published images |
 | `deploy/python.Dockerfile` | the `hmm` application image, non-root |
 | `deploy/web.Dockerfile` | builds `web/` and packages it with Caddy and `deploy/Caddyfile` |
@@ -36,16 +37,17 @@ Application:
 
 | Variable | Used by | Meaning |
 |---|---|---|
-| `PUBLIC_URL` | api, worker | Public HTTPS origin, no trailing slash. Cookies, `Origin` checks, error `type` URLs and OAuth callbacks derive from it. |
-| `DATABASE_URL` | api, worker, migrate | Core database URL |
+| `PUBLIC_URL` | api, worker, bot | Public HTTPS origin, no trailing slash. Cookies, `Origin` checks, error `type` URLs and OAuth callbacks derive from it. |
+| `DATABASE_URL` | api, worker, bot, migrate | Core database URL |
 | `S3_ENDPOINT` `S3_ACCESS_KEY` `S3_SECRET_KEY` `S3_BUCKET` | api, worker, minio, backup | Object storage for CV files |
 | `GITHUB_CLIENT_ID` `GITHUB_CLIENT_SECRET` | api | GitHub OAuth app; callback `PUBLIC_URL/api/v1/auth/github/callback` |
 | `GITHUB_TOKEN` | worker | GitHub API token for profile sync |
 | `SESSION_SECRET` | api | Signs the OAuth state cookie |
 | `ADMIN_GITHUB_LOGINS` | api | Comma-separated bootstrap admins (§6.3) |
 | `TELEGRAM_BOT_USERNAME` | api | Bot username for Telegram deep links (§6.5) |
+| `BOT_TOKEN` | bot | Telegram Bot API token |
 | `LLM_BASE_URL` `LLM_API_KEY` `LLM_MODEL` | worker | OpenAI-compatible chat endpoint |
-| `LOG_LEVEL` | api, worker | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` or `CRITICAL` |
+| `LOG_LEVEL` | api, worker, bot | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` or `CRITICAL` |
 
 Production stack:
 
@@ -65,14 +67,14 @@ Production stack:
 | `BACKUP_TIMEZONE` | `UTC` | Timezone of the schedule |
 | `BACKUP_RETENTION_DAYS` | `30` | Snapshots older than this are deleted |
 | `LOG_MAX_SIZE` `LOG_MAX_FILES` | `10m` `3` | Container log rotation |
-| `<SERVICE>_MEMORY` `<SERVICE>_CPUS` | see `deploy/.env.prod.example` | Limits for `POSTGRES`, `MINIO`, `INIT`, `MIGRATE`, `API`, `WORKER`, `WEB`, `BACKUP` |
+| `<SERVICE>_MEMORY` `<SERVICE>_CPUS` | see `deploy/.env.prod.example` | Limits for `POSTGRES`, `MINIO`, `INIT`, `MIGRATE`, `API`, `WORKER`, `BOT`, `WEB`, `BACKUP` |
 
 ## 22.3 First deployment
 
 1. Server: Docker Engine with the Compose plugin, SSH access for a deployment user in the `docker` group, a deployment directory (`DEPLOY_PATH`).
 2. DNS: `DOMAIN` points at the server. Firewall allows TCP 80 and 443, UDP 443 and SSH.
 3. Create the backup bucket and credentials (upload, list, download, delete) at any S3-compatible provider.
-4. Create the GitHub OAuth app with the callback URL from §22.2 and the Telegram bot.
+4. Create the GitHub OAuth app with the callback URL from §22.2, and the Telegram bot with @BotFather (`BOT_TOKEN`, `TELEGRAM_BOT_USERNAME`).
 5. Copy the stack and the environment template:
    ```sh
    scp deploy/compose.prod.yaml "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/compose.prod.yaml"
@@ -88,7 +90,7 @@ Production stack:
 
 ## 22.4 Upgrades and rollback
 
-- Upgrade: tag, run `deploy/release.sh`, then copy `compose.prod.yaml` if it changed and run the stack with the new tag. Migrations run before `api` and `worker` start.
+- Upgrade: tag, run `deploy/release.sh`, then copy `compose.prod.yaml` if it changed and run the stack with the new tag. Migrations run before `api`, `worker` and `bot` start.
 - Manual run of a published release:
   ```sh
   export IMAGE_TAG=v1.2.3

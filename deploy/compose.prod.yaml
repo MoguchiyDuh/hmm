@@ -128,6 +128,19 @@ services:
     mem_limit: ${WORKER_MEMORY:-512m}
     cpus: ${WORKER_CPUS:-1.0}
 
+  bot:
+    <<: *service
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-app:${IMAGE_TAG:-latest}
+    command: hmm-bot
+    environment:
+      <<: *core-environment
+      BOT_TOKEN: ${BOT_TOKEN:?set BOT_TOKEN}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: ${BOT_MEMORY:-256m}
+    cpus: ${BOT_CPUS:-0.5}
+
   web:
     <<: *service
     image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-web:${IMAGE_TAG:-latest}

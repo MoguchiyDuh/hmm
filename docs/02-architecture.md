@@ -12,6 +12,8 @@
        └──► GitHub OAuth
  worker ─┬─► postgres, minio, GitHub API
          └─► hmm.algo (in-process) ─► OpenAI-compatible LLM API
+ bot ────┬─► postgres
+         └─► Telegram Bot API (long polling)
 ```
 
 The Telegram bot (§20) and the event parser (§19) run in-process against the domain modules, never over HTTP.
@@ -20,7 +22,7 @@ The Telegram bot (§20) and the event parser (§19) run in-process against the d
 
 ```text
 hmm/
-├── pyproject.toml     # one uv project: package `hmm`, script `hmm-worker`
+├── pyproject.toml     # one uv project: package `hmm`, scripts `hmm-worker`, `hmm-bot`
 ├── alembic.ini
 ├── src/hmm/           # API, worker, algorithm interface, migrations (§2.5)
 ├── tests/             # pytest suite, factories, canonical JSON fixtures
@@ -45,7 +47,8 @@ hmm/
 
 - `api`: `uvicorn hmm.main:app`, stateless, horizontally scalable.
 - `worker`: `hmm-worker`, runs the jobs in §17, including every algo call.
-- `migrate`: one-shot `alembic upgrade head` before `api` and `worker` start.
+- `bot`: `hmm-bot`, Telegram long polling and notification delivery (§20). One instance.
+- `migrate`: one-shot `alembic upgrade head` before `api`, `worker` and `bot` start.
 
 HTTP handlers never call algo, the LLM or the GitHub API. They enqueue jobs and return. The only outbound call from a handler is the OAuth code exchange and profile fetch in the GitHub sign-in callback (§6).
 
@@ -56,6 +59,7 @@ src/hmm/
 ├── app.py             # create_app(): routers, lifespan, health probes
 ├── main.py            # ASGI entry point: hmm.main:app
 ├── worker.py          # worker entry point (hmm-worker), job failure alerts
+├── bot/               # Telegram bot (hmm-bot), §20
 ├── common.py          # ids, enums, ErrorCode, Problem, Contract base model
 ├── models.py          # re-exports every ORM model: `from hmm import models`
 ├── ticks.py           # periodic sweeps (event_tick, community_tick)

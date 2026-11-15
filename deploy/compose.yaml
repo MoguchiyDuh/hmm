@@ -82,6 +82,15 @@ services:
       minio-init:
         condition: service_completed_successfully
 
+  bot:
+    image: hmm
+    command: hmm-bot
+    profiles: [bot]
+    env_file: .env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   postgres:
   minio:
