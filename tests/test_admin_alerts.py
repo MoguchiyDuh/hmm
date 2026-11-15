@@ -4,7 +4,6 @@ from uuid import uuid4
 import pytest
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, text
-from sqlalchemy.ext.asyncio import AsyncEngine
 
 from hmm import models
 from hmm.common import (
@@ -24,6 +23,7 @@ from hmm.notifications.payloads import (
 from hmm.notifications.service import alert_contract, raise_alert
 from hmm.platform.db import create_sessionmaker
 from hmm.platform.jobs import RETRY_POLICY, create_jobs_app
+from hmm.worker import WORKER_MIDDLEWARE
 
 
 @pytest.mark.parametrize("kind", list(AlertKind))
@@ -208,9 +208,20 @@ async def test_admin_alerts_require_web_admin(harness: Harness) -> None:
 
 
 async def test_job_failure_alert_validates_deduplicates_and_recovers(
-    engine: AsyncEngine, migrated_database: str
+    harness: Harness, migrated_database: str
 ) -> None:
+    engine = harness.engine
+    admin = await harness.user(admin=True)
     app = create_jobs_app(migrated_database)
+
+    async def run_worker() -> None:
+        await app.run_worker_async(
+            wait=False,
+            install_signal_handlers=False,
+            additional_context={"runtime": harness.runtime},
+            worker_middleware=WORKER_MIDDLEWARE,
+        )
+
     failing = True
 
     @app.task(name="admin_alert_test_task", retry=RETRY_POLICY)
@@ -224,7 +235,7 @@ async def test_job_failure_alert_validates_deduplicates_and_recovers(
             await connection.execute(
                 text("UPDATE procrastinate.procrastinate_jobs SET attempts = 5")
             )
-        await app.run_worker_async(wait=False, install_signal_handlers=False)
+        await run_worker()
         async with create_sessionmaker(engine).begin() as session:
             alert = (await session.scalars(select(models.AdminAlert))).one()
             contract = alert_contract(alert)
@@ -257,7 +268,7 @@ async def test_job_failure_alert_validates_deduplicates_and_recovers(
             other_id = other.id
         failing = False
         await task.defer_async()
-        await app.run_worker_async(wait=False, install_signal_handlers=False)
+        await run_worker()
     async with create_sessionmaker(engine)() as session:
         recovered = await session.get(models.AdminAlert, alert_id)
         assert recovered is not None
@@ -270,3 +281,9 @@ async def test_job_failure_alert_validates_deduplicates_and_recovers(
         assert other is not None
         assert other.status == AlertStatus.OPEN
         assert await session.scalar(select(func.count()).select_from(models.AuditLog)) == 0
+        notified = await session.scalars(
+            select(models.Notification.payload["alert"]["id"].astext).where(
+                models.Notification.user_id == admin.id
+            )
+        )
+        assert str(alert_id) in set(notified)

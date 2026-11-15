@@ -11,20 +11,17 @@ import procrastinate
 from fastapi import Depends, Request
 from procrastinate.exceptions import AlreadyEnqueued
 from procrastinate.job_context import JobContext
-from procrastinate.middleware import AsyncCallNext
-from procrastinate.worker import Worker
 from psycopg import AsyncConnection
 from pydantic import JsonValue
 from sqlalchemy.engine import make_url
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from hmm.algo.models import AlgoContext, Algorithm
 from hmm.platform import settings
-from hmm.platform.algo import DatabaseAlgoCache, load_algorithm
-from hmm.platform.clock import Clock, SystemClock
+from hmm.platform.algo import DatabaseAlgoCache
+from hmm.platform.clock import Clock
 from hmm.platform.config import Config
-from hmm.platform.db import create_engine, create_sessionmaker
-from hmm.platform.storage import ObjectStore, create_storage
+from hmm.platform.storage import ObjectStore
 
 
 class JobName(StrEnum):
@@ -169,51 +166,6 @@ def register_jobs(app: procrastinate.App) -> procrastinate.App:
     return app
 
 
-async def failure_alert(call_next: AsyncCallNext, context: JobContext, worker: Worker) -> Any:
-    try:
-        result = await call_next()
-    except Exception as error:
-        strategy = context.task.retry_strategy
-        if (
-            strategy is None
-            or strategy.get_retry_decision(exception=error, job=context.job) is None
-        ):
-            await context.app.connector.execute_query_async(
-                query="""
-                INSERT INTO public.admin_alerts
-                    (type, severity, subject_type, payload, dedupe_key, status)
-                VALUES (
-                    'job_failing', 'critical', 'job',
-                    jsonb_build_object(
-                        'title', 'Job ' || %(task_name)s || ' failed',
-                        'message', %(error)s::text,
-                        'link', '/admin/system',
-                        'subject_title', %(task_name)s,
-                        'task_name', %(task_name)s,
-                        'job_id', %(job_id)s,
-                        'error', %(error)s::text),
-                    'job_failing:' || %(task_name)s || ':' ||
-                        to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD-HH24'),
-                    'open'
-                )
-                ON CONFLICT (dedupe_key) WHERE status = 'open' DO NOTHING
-                """,
-                task_name=context.job.task_name,
-                job_id=context.job.id,
-                error=str(error),
-            )
-        raise
-    await context.app.connector.execute_query_async(
-        query="""
-        UPDATE public.admin_alerts SET status = 'resolved', resolved_at = now()
-        WHERE type = 'job_failing' AND status = 'open'
-            AND payload->>'task_name' = %(task_name)s
-        """,
-        task_name=context.job.task_name,
-    )
-    return result
-
-
 def create_jobs_app(database_url: str) -> procrastinate.App:
     conninfo = (
         make_url(database_url).set(drivername="postgresql").render_as_string(hide_password=False)
@@ -223,7 +175,6 @@ def create_jobs_app(database_url: str) -> procrastinate.App:
             conninfo=conninfo,
             kwargs={"options": "-c search_path=procrastinate,public"},
         ),
-        worker_defaults={"worker_middleware": [failure_alert]},
     )
 
 
@@ -272,48 +223,3 @@ def get_jobs(request: Request) -> procrastinate.App:
 
 
 Jobs = Annotated[procrastinate.App, Depends(get_jobs)]
-
-
-def build_runtime(
-    config: Config,
-    engine: AsyncEngine,
-    jobs: procrastinate.App,
-    algorithm: Algorithm,
-    *,
-    http: httpx.AsyncClient,
-) -> Runtime:
-    return Runtime(
-        config=config,
-        sessionmaker=create_sessionmaker(engine),
-        jobs=jobs,
-        algorithm=algorithm,
-        clock=SystemClock(),
-        log=logging.getLogger("hmm.jobs"),
-        http=http,
-        storage=create_storage(config),
-    )
-
-
-async def run() -> None:
-    config = Config.from_env()
-    if not config.database_url:
-        raise RuntimeError("DATABASE_URL is required to run the worker")
-    algorithm = load_algorithm(config)
-    app = register_jobs(create_jobs_app(config.database_url))
-    engine = create_engine(config.database_url)
-    try:
-        async with httpx.AsyncClient(timeout=30) as http:
-            runtime = build_runtime(config, engine, app, algorithm, http=http)
-            async with app.open_async():
-                await app.run_worker_async(concurrency=4, additional_context={"runtime": runtime})
-    finally:
-        await engine.dispose()
-
-
-def main() -> None:
-    logging.basicConfig(level=logging.INFO)
-    asyncio.run(run())
-
-
-if __name__ == "__main__":
-    main()

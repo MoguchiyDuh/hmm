@@ -21,10 +21,10 @@ class Config(Contract):
     session_secret: str | None = None
     telegram_bot_username: str | None = None
     admin_github_logins: frozenset[str] = frozenset()
-    algorithm: str | None = None
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str | None = None
+    log_level: str = "INFO"
 
     def llm(self) -> LLMConfig | None:
         if not (self.llm_base_url and self.llm_api_key and self.llm_model):
@@ -38,6 +38,14 @@ class Config(Contract):
     def validate_public_url(cls, value: str) -> str:
         AnyHttpUrl(value)
         return value.rstrip("/")
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, value: str) -> str:
+        level = value.upper()
+        if level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
+            raise ValueError(f"Unknown log level {value!r}")
+        return level
 
     @field_validator("admin_github_logins")
     @classmethod
@@ -59,8 +67,8 @@ class Config(Contract):
             session_secret=env.get("SESSION_SECRET") or None,
             telegram_bot_username=env.get("TELEGRAM_BOT_USERNAME") or None,
             admin_github_logins=frozenset(env.get("ADMIN_GITHUB_LOGINS", "").split(",")),
-            algorithm=env.get("ALGORITHM") or None,
             llm_base_url=env.get("LLM_BASE_URL") or None,
             llm_api_key=env.get("LLM_API_KEY") or None,
             llm_model=env.get("LLM_MODEL") or None,
+            log_level=env.get("LOG_LEVEL") or "INFO",
         )

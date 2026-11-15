@@ -321,30 +321,6 @@ async def test_worker_runs_test_task(engine: AsyncEngine, migrated_database: str
         )
 
 
-async def test_worker_exhaustion_dedupes_alert(engine: AsyncEngine, migrated_database: str) -> None:
-    app = create_jobs_app(migrated_database)
-
-    @app.task(name="test_failure", retry=RETRY_POLICY)
-    async def failure() -> None:
-        raise RuntimeError("Test failure")
-
-    async with app.open_async():
-        await failure.defer_async()
-        await failure.defer_async()
-        async with engine.begin() as connection:
-            await connection.execute(
-                text("UPDATE procrastinate.procrastinate_jobs SET attempts = 5")
-            )
-        await app.run_worker_async(wait=False, install_signal_handlers=False)
-    async with create_sessionmaker(engine)() as session:
-        alerts = list(await session.scalars(select(AdminAlert)))
-        assert len(alerts) == 1
-        assert alerts[0].type == "job_failing"
-        assert alerts[0].severity == "critical"
-        assert isinstance(alerts[0].payload, dict)
-        assert alerts[0].payload["task_name"] == "test_failure"
-
-
 async def test_worker_retry_before_exhaustion(engine: AsyncEngine, migrated_database: str) -> None:
     app = create_jobs_app(migrated_database)
 

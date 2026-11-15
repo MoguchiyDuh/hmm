@@ -21,6 +21,7 @@ from hmm.admin.schemas import (
     StoredParserHeartbeat,
     SystemStatus,
 )
+from hmm.algo import get_algorithm
 from hmm.common import (
     ActorKind,
     AlertStatus,
@@ -37,9 +38,7 @@ from hmm.common import (
 )
 from hmm.notifications.payloads import AlertKind
 from hmm.notifications.service import raise_alert, resolve_alerts
-from hmm.platform.algo import load_algorithm
 from hmm.platform.audit import record_audit
-from hmm.platform.config import Config
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName
 from hmm.platform.pagination import (
@@ -318,7 +317,7 @@ async def check_parser_down(
         await resolve_alerts(session, "parser_down", now)
 
 
-async def system_status(session: AsyncSession, config: Config) -> SystemStatus:
+async def system_status(session: AsyncSession) -> SystemStatus:
     heartbeats = await session.scalars(
         select(models.ParserHeartbeat)
         .where(models.ParserHeartbeat.finished_at.is_not(None))
@@ -336,7 +335,7 @@ async def system_status(session: AsyncSession, config: Config) -> SystemStatus:
     return SystemStatus(
         parser_heartbeats=[StoredParserHeartbeat.model_validate(row) for row in heartbeats],
         job_queue_stats=[QueueStats.model_validate(row) for row in queues],
-        algo_version=load_algorithm(config).version,
+        algo_version=get_algorithm().version,
         failed_jobs=await job_views(session, failed_only=True),
     )
 

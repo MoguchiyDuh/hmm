@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, Request, status
+from fastapi import APIRouter, Depends, Path, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
@@ -186,10 +186,8 @@ async def update_setting(
     status_code=status.HTTP_200_OK,
     summary="Get parser heartbeats, job queues, algo version and failures",
 )
-async def get_system_status(
-    request: Request, actor: AdminAuth, session: Session, clock: CurrentClock
-) -> SystemStatus:
-    return await admin.system_status(session, request.app.state.config)
+async def get_system_status(actor: AdminAuth, session: Session) -> SystemStatus:
+    return await admin.system_status(session)
 
 
 @router.post(

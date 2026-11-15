@@ -55,11 +55,12 @@ HTTP handlers never call algo, the LLM or the GitHub API. They enqueue jobs and 
 src/hmm/
 ├── app.py             # create_app(): routers, lifespan, health probes
 ├── main.py            # ASGI entry point: hmm.main:app
+├── worker.py          # worker entry point (hmm-worker), job failure alerts
 ├── common.py          # ids, enums, ErrorCode, Problem, Contract base model
 ├── models.py          # re-exports every ORM model: `from hmm import models`
 ├── ticks.py           # periodic sweeps (event_tick, community_tick)
 ├── export_openapi.py  # prints the OpenAPI document
-├── algo/              # Algorithm protocol and I/O models, pack(), FakeAlgorithm
+├── algo/              # Algorithm protocol and I/O models, pack(), get_algorithm() (stub: FakeAlgorithm)
 ├── migrations/        # alembic, single baseline revision
 ├── platform/          # shared infrastructure, no business rules
 │   ├── config.py      # environment config (§22.2)
@@ -68,8 +69,9 @@ src/hmm/
 │   ├── errors.py      # ProblemError → RFC 9457 responses
 │   ├── pagination.py  # cursor pagination
 │   ├── jobs.py        # procrastinate app, JobName, JOBS registry, defer_job, Runtime
+│   ├── logs.py        # JSON logging, request ids
 │   ├── settings.py    # runtime settings (§24) and their storage
-│   ├── algo.py        # algorithm loading, cache, call_algo
+│   ├── algo.py        # algorithm cache, call_algo timeouts
 │   ├── storage.py     # object storage
 │   ├── maintenance.py # cleanup job
 │   ├── audit.py       # record_audit

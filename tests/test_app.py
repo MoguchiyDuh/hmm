@@ -1,3 +1,5 @@
+import json
+import logging
 import re
 from collections.abc import AsyncIterator, Iterator
 from typing import Annotated
@@ -7,12 +9,14 @@ import pytest
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.routing import APIRoute
 from harness import assert_problem
+from pydantic import ValidationError
 
 from hmm.app import create_app
 from hmm.common import ErrorCode
 from hmm.platform.config import Config
 from hmm.platform.db import get_session
 from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError
+from hmm.platform.logs import JsonFormatter
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody as Reason
 from hmm.platform.security import admin, user
@@ -66,6 +70,39 @@ async def test_health_probes() -> None:
             assert response.status_code == (200 if path == "/healthz" else 503)
             assert response.json() == {"status": "ok" if path == "/healthz" else "unavailable"}
             assert path not in app.openapi()["paths"]
+
+
+@pytest.mark.asyncio
+async def test_request_id_is_echoed_and_logged() -> None:
+    app = create_app()
+    seen: list[str] = []
+
+    @app.get("/probe")
+    async def probe() -> dict[str, str]:
+        record = logging.LogRecord("hmm", logging.INFO, __file__, 1, "probe", None, None)
+        seen.append(json.loads(JsonFormatter().format(record))["request_id"])
+        return {}
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        given = await client.get("/probe", headers={"X-Request-Id": "abc-123"})
+        invalid = await client.get("/probe", headers={"X-Request-Id": "bad id\n"})
+        generated = await client.get("/healthz")
+    assert given.headers["x-request-id"] == "abc-123"
+    assert re.fullmatch(r"[0-9a-f]{32}", invalid.headers["x-request-id"])
+    assert re.fullmatch(r"[0-9a-f]{32}", generated.headers["x-request-id"])
+    assert seen == ["abc-123", invalid.headers["x-request-id"]]
+    assert "request_id" not in json.loads(
+        JsonFormatter().format(logging.LogRecord("hmm", logging.INFO, __file__, 1, "x", None, None))
+    )
+
+
+def test_log_level_config() -> None:
+    assert Config.from_env({"LOG_LEVEL": "debug"}).log_level == "DEBUG"
+    assert Config.from_env({}).log_level == "INFO"
+    with pytest.raises(ValidationError):
+        Config.from_env({"LOG_LEVEL": "loud"})
 
 
 @pytest.mark.asyncio

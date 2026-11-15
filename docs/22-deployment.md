@@ -44,9 +44,8 @@ Application:
 | `SESSION_SECRET` | api | Signs the OAuth state cookie |
 | `ADMIN_GITHUB_LOGINS` | api | Comma-separated bootstrap admins (§6.3) |
 | `TELEGRAM_BOT_USERNAME` | api | Bot username for Telegram deep links (§6.5) |
-| `ALGORITHM` | worker | `fake` selects `hmm.algo.fake.FakeAlgorithm` for local development only; unset in production (§18.4) |
 | `LLM_BASE_URL` `LLM_API_KEY` `LLM_MODEL` | worker | OpenAI-compatible chat endpoint |
-| `LOG_LEVEL` | all | Log level, default `INFO` |
+| `LOG_LEVEL` | api, worker | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` or `CRITICAL` |
 
 Production stack:
 
@@ -117,6 +116,6 @@ Production stack:
 
 ## 22.6 Observability
 
-- Structured JSON logs with `request_id` (from `X-Request-Id` or generated) propagated to jobs; rotated by Docker.
+- JSON logs on stderr, one object per line, rotated by Docker. API lines carry `request_id` (from a valid `X-Request-Id` or generated, echoed in the response); worker lines carry `job_id` and `task`.
 - `GET /healthz` (process up), `GET /readyz` (DB reachable, migrations at head).
 - Job failures and parser heartbeats surface in the admin System page.

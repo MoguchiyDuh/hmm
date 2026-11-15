@@ -1,16 +1,13 @@
 import asyncio
-import importlib
 from collections.abc import Awaitable
 from datetime import timedelta
-from typing import Literal, cast
+from typing import Literal
 
 from sqlalchemy import delete, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from hmm.algo.models import Algorithm
 from hmm.platform.clock import Clock
-from hmm.platform.config import Config
 from hmm.platform.models import AlgoCache
 
 type AlgoMethod = Literal[
@@ -32,10 +29,6 @@ ALGO_TIMEOUTS: dict[AlgoMethod, float] = {
 }
 
 CACHE_FOREVER = timedelta(days=36500)
-
-
-class AlgoUnavailableError(RuntimeError):
-    pass
 
 
 class DatabaseAlgoCache:
@@ -71,21 +64,6 @@ class DatabaseAlgoCache:
             await session.execute(
                 delete(AlgoCache).where(AlgoCache.namespace == namespace, AlgoCache.key == key)
             )
-
-
-def load_algorithm(config: Config) -> Algorithm:
-    if config.algorithm == "fake":
-        from hmm.algo.fake import FakeAlgorithm
-
-        return FakeAlgorithm()
-    if config.algorithm is not None:
-        raise AlgoUnavailableError(f"Unknown ALGORITHM {config.algorithm!r}")
-    factory = getattr(importlib.import_module("hmm.algo"), "get_algorithm", None)
-    if factory is None:
-        raise AlgoUnavailableError(
-            "hmm.algo.get_algorithm is not available; set ALGORITHM=fake for local development"
-        )
-    return cast(Algorithm, factory())
 
 
 async def call_algo[T](method: AlgoMethod, awaitable: Awaitable[T]) -> T:

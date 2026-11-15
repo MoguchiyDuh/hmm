@@ -25,6 +25,7 @@ from hmm.platform.config import Config
 from hmm.platform.db import create_engine, create_sessionmaker, migration_head
 from hmm.platform.errors import register_exception_handlers
 from hmm.platform.jobs import create_jobs_app, register_jobs
+from hmm.platform.logs import RequestIdMiddleware
 from hmm.platform.openapi import build_openapi, operation_id
 from hmm.platform.storage import create_storage
 from hmm.profiles import router as profiles
@@ -86,6 +87,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     app.state.storage = None
     app.state.clock = SystemClock()
     register_exception_handlers(app)
+    app.add_middleware(RequestIdMiddleware)
     app.add_api_route("/healthz", healthz, methods=["GET"], include_in_schema=False)
     app.add_api_route("/readyz", readyz, methods=["GET"], include_in_schema=False)
     for domain in (

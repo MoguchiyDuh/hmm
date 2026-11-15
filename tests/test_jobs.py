@@ -19,10 +19,8 @@ from hmm.models import (
 from hmm.platform.algo import (
     ALGO_TIMEOUTS,
     CACHE_FOREVER,
-    AlgoUnavailableError,
     DatabaseAlgoCache,
     call_algo,
-    load_algorithm,
 )
 from hmm.platform.config import Config
 from hmm.platform.jobs import (
@@ -153,15 +151,6 @@ async def test_call_algo_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
         await call_algo("recommend", asyncio.sleep(1))
 
 
-def test_load_algorithm() -> None:
-    assert isinstance(
-        load_algorithm(Config(public_url="http://test", algorithm="fake")), FakeAlgorithm
-    )
-    for algorithm in (None, "other"):
-        with pytest.raises(AlgoUnavailableError):
-            load_algorithm(Config(public_url="http://test", algorithm=algorithm))
-
-
 def test_config_llm() -> None:
     config = Config(public_url="http://test", llm_base_url="u", llm_api_key="k", llm_model="m")
     llm = config.llm()
@@ -172,10 +161,7 @@ def test_config_llm() -> None:
     assert Config(public_url="http://test").llm() is None
     for field in ("llm_base_url", "llm_api_key", "llm_model"):
         assert config.model_copy(update={field: None}).llm() is None
-    from_env = Config.from_env(
-        {"ALGORITHM": "fake", "LLM_BASE_URL": "u", "LLM_API_KEY": "k", "LLM_MODEL": "m"}
-    )
-    assert from_env.algorithm == "fake"
+    from_env = Config.from_env({"LLM_BASE_URL": "u", "LLM_API_KEY": "k", "LLM_MODEL": "m"})
     assert from_env.llm_base_url == "u"
     assert from_env.llm_api_key == "k"
     assert from_env.llm_model == "m"

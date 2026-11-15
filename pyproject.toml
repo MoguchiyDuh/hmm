@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.scripts]
-hmm-worker = "hmm.platform.jobs:main"
+hmm-worker = "hmm.worker:main"
 
 [dependency-groups]
 dev = [

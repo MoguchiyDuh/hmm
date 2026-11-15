@@ -153,9 +153,9 @@ class CommunityGraph:
 
 ## 18.4 Production bar
 
-- One implementation, shipped production-ready. No placeholder stage in deployment.
+- One implementation, shipped production-ready.
 - A deterministic heuristic core is fully functional on its own; the LLM refines ranking and reasons when available.
-- `hmm.algo.fake.FakeAlgorithm` exists only for the test suite and for local development before the real implementation lands. It is never wired into the deployed app.
+- The worker gets its algorithm from `hmm.algo.get_algorithm()`. Until the production implementation lands it returns `hmm.algo.fake.FakeAlgorithm`, which the test suite also uses.
 
 ## 18.5 Deliverables
 

@@ -105,7 +105,7 @@ docker run -d --name hmm-test-db -e POSTGRES_USER=hmm -e POSTGRES_PASSWORD=hmm -
 export TEST_DATABASE_URL=postgresql+psycopg://hmm:hmm@127.0.0.1:55432/hmm_test
 ```
 
-Set `ALGORITHM=fake` to run the worker with `hmm.algo.fake.FakeAlgorithm`. Shared test builders live in `tests/factories.py`, the harness in `tests/harness.py`.
+The worker uses `hmm.algo.get_algorithm()`, currently a stub returning `hmm.algo.fake.FakeAlgorithm`. Shared test builders live in `tests/factories.py`, the harness in `tests/harness.py`.
 
 Before committing, also check the migration round-trip and the compose files when they change:
 

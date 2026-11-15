@@ -23,6 +23,7 @@ from hmm.platform.config import Config
 from hmm.platform.db import create_sessionmaker
 from hmm.platform.jobs import Runtime
 from hmm.platform.storage import ObjectStore
+from hmm.worker import WORKER_MIDDLEWARE
 
 PUBLIC_URL = "https://hmm.test"
 NOW = datetime(2026, 11, 13, 9, 0, tzinfo=UTC)
@@ -186,6 +187,7 @@ class Harness:
             wait=False,
             install_signal_handlers=False,
             additional_context={"runtime": self.runtime},
+            worker_middleware=WORKER_MIDDLEWARE,
         )
 
     async def pending_jobs(self, task_name: str | None = None) -> list[dict[str, Any]]:
@@ -211,7 +213,6 @@ def harness_config(database_url: str) -> Config:
         github_token="test-token",
         session_secret="session-secret",
         telegram_bot_username="hmm_test_bot",
-        algorithm="fake",
     )
 
 
