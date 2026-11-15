@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import AwareDatetime, Field, HttpUrl
 
-from hmm.common import Locale, OnboardingStatus, UserId
+from hmm.common import Locale, OnboardingStatus
 from hmm.platform.schemas import ApiModel, UserRef, WithAllowedActions
 
 
@@ -38,19 +38,3 @@ class TelegramLinkCode(ApiModel):
     code: str = Field(pattern=r"^[A-Z2-7]{8}$")
     deep_link: HttpUrl
     expires_at: AwareDatetime
-
-
-class TelegramLinkRequest(ApiModel):
-    code: str = Field(min_length=1)
-    telegram_user_id: int
-    chat_id: int
-    username: str | None
-
-
-class TelegramLinkResult(ApiModel):
-    user_id: UserId
-    display_name: str
-
-
-class TelegramUnlinkRequest(ApiModel):
-    telegram_user_id: int

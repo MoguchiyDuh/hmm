@@ -38,28 +38,6 @@ def _winner_candidate(row: models.EventSourcePerson) -> schemas.WinnerCandidate:
     )
 
 
-async def winner_candidates(
-    session: AsyncSession, event_id: UUID, user_ids: list[UUID]
-) -> list[schemas.WinnerCandidate]:
-    if not user_ids:
-        return []
-    rows = await session.scalars(
-        select(models.EventSourcePerson)
-        .where(
-            models.EventSourcePerson.event_id == event_id,
-            models.EventSourcePerson.role == SourcePersonRole.WINNER.value,
-            models.EventSourcePerson.matched_user_id.in_(user_ids),
-        )
-        .order_by(
-            models.EventSourcePerson.place.is_(None),
-            models.EventSourcePerson.place,
-            models.EventSourcePerson.display_name,
-            models.EventSourcePerson.id,
-        )
-    )
-    return [_winner_candidate(row) for row in rows]
-
-
 async def result_verify_page(
     session: AsyncSession,
     params: CursorParams,

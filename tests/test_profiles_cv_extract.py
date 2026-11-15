@@ -5,9 +5,9 @@ from sqlalchemy import update
 
 from hmm.common import CvTextStatus, GithubSnapshotStatus
 from hmm.models import CvFile, GithubSnapshot, User
+from hmm.onboarding.scoring import settled
 from hmm.profiles import cv as profiles_cv
 from hmm.profiles import jobs as profile_jobs
-from hmm.profiles.service import RegistrationInputs, inputs_settled, registration_inputs
 
 CV_URL = "/api/v1/me/cv"
 
@@ -176,16 +176,16 @@ async def test_extract_storage_outage(harness: Harness) -> None:
     assert await recompute_jobs(harness) == []
 
 
-async def test_registration_inputs(harness: Harness) -> None:
+async def test_registration_inputs_settle(harness: Harness) -> None:
     user = await harness.user()
 
-    async def inputs() -> RegistrationInputs:
+    async def inputs() -> bool:
         async with harness.db() as session:
-            return await registration_inputs(session, user.id)
+            return settled(
+                await session.get(GithubSnapshot, user.id), await session.get(CvFile, user.id)
+            )
 
-    fresh = await inputs()
-    assert (fresh.github, fresh.cv) == (None, None)
-    assert inputs_settled(fresh) is False
+    assert await inputs() is False
     async with harness.db() as session:
         session.add(
             GithubSnapshot(
@@ -195,10 +195,7 @@ async def test_registration_inputs(harness: Harness) -> None:
                 error="boom",
             )
         )
-    github_only = await inputs()
-    assert github_only.github == GithubSnapshotStatus.ERROR
-    assert github_only.cv is None
-    assert inputs_settled(github_only) is True
+    assert await inputs() is True
     async with harness.db() as session:
         session.add(
             CvFile(
@@ -213,12 +210,10 @@ async def test_registration_inputs(harness: Harness) -> None:
                 text_error=None,
             )
         )
-    assert inputs_settled(await inputs()) is False
+    assert await inputs() is False
     for status in (CvTextStatus.FAILED, CvTextStatus.OK):
         async with harness.db() as session:
             await session.execute(
                 update(CvFile).where(CvFile.user_id == user.id).values(text_status=status)
             )
-        current = await inputs()
-        assert current.cv == status
-        assert inputs_settled(current) is True
+        assert await inputs() is True

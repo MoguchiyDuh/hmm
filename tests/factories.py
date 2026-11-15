@@ -223,22 +223,6 @@ async def set_phase(h: Harness, event: models.Event, phase: str) -> None:
         await session.flush()
 
 
-async def set_dates(
-    h: Harness,
-    event: models.Event,
-    *,
-    starts_at: datetime | None = None,
-    registration_deadline: datetime | None = None,
-) -> None:
-    async with h.db() as session:
-        row = await session.get_one(models.Event, event.id)
-        if starts_at is not None:
-            row.starts_at = starts_at
-        if registration_deadline is not None:
-            row.registration_deadline = registration_deadline
-        await session.flush()
-
-
 async def maybe_enrollment(
     h: Harness, event: models.Event, user: models.User
 ) -> models.Enrollment | None:

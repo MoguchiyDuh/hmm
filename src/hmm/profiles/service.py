@@ -13,8 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hmm import models
 from hmm.algo.models import MentorOffer, ReviewIn
 from hmm.common import (
-    Contract,
-    CvTextStatus,
     ErrorCode,
     FlagStatus,
     FlagSubjectType,
@@ -383,29 +381,3 @@ async def update_notification_settings(
             )
         )
     return await notification_settings(session, user_id)
-
-
-class RegistrationInputs(Contract):
-    github: GithubSnapshotStatus | None
-    cv: CvTextStatus | None
-
-
-async def registration_inputs(session: AsyncSession, user_id: UUID) -> RegistrationInputs:
-    github = await session.scalar(
-        select(models.GithubSnapshot.status).where(models.GithubSnapshot.user_id == user_id)
-    )
-    cv = await session.scalar(
-        select(models.CvFile.text_status).where(models.CvFile.user_id == user_id)
-    )
-    return RegistrationInputs(
-        github=GithubSnapshotStatus(github) if github is not None else None,
-        cv=CvTextStatus(cv) if cv is not None else None,
-    )
-
-
-def inputs_settled(inputs: RegistrationInputs) -> bool:
-    return inputs.github is not None and inputs.cv in (
-        None,
-        CvTextStatus.OK,
-        CvTextStatus.FAILED,
-    )

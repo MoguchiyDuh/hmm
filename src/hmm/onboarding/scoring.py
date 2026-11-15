@@ -12,10 +12,9 @@ from hmm.algo.models import (
     OnboardingRequest,
     QuizDef,
 )
-from hmm.common import CvTextStatus, GithubSnapshotStatus, QuizStatus
+from hmm.common import CvTextStatus, QuizStatus
 from hmm.onboarding.quizzes import definition
 from hmm.profiles.github import github_summary
-from hmm.profiles.service import RegistrationInputs, inputs_settled
 
 WAIT_LIMIT = timedelta(minutes=10)
 POLL_SECONDS = 15.0
@@ -23,11 +22,8 @@ ANSWERS: TypeAdapter[dict[str, OnboardingAnswer]] = TypeAdapter(dict[str, Onboar
 
 
 def settled(github: models.GithubSnapshot | None, cv: models.CvFile | None) -> bool:
-    return inputs_settled(
-        RegistrationInputs(
-            github=GithubSnapshotStatus(github.status) if github else None,
-            cv=CvTextStatus(cv.text_status) if cv else None,
-        )
+    return github is not None and (
+        cv is None or cv.text_status in (CvTextStatus.OK, CvTextStatus.FAILED)
     )
 
 
