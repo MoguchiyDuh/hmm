@@ -1,0 +1,292 @@
+{
+ "api_id": "evt-o9DNH6twxVs8voS",
+ "description_mirror": {
+  "type": "doc",
+  "content": [
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "AiSalon",
+      "type": "text",
+      "marks": [
+       {
+        "type": "link",
+        "attrs": {
+         "href": "https://aisalon.ai/?utm_source=luma"
+        }
+       }
+      ]
+     },
+     {
+      "text": " je globalna zajednica koja okuplja AI osnivače i developere, investitore i partnere radi povezivanja i saradnje.",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "Sledi nam posebno, sedmo izdanje #AiSalonBelgrade, koje organizujemo u saradnji sa kompanijom ",
+      "type": "text"
+     },
+     {
+      "text": "Wonderful",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     },
+     {
+      "text": ", u okviru serije ",
+      "type": "text"
+     },
+     {
+      "text": "Wonderful Evenings",
+      "type": "text",
+      "marks": [
+       {
+        "type": "italic"
+       }
+      ]
+     },
+     {
+      "text": ".",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 1
+    },
+    "content": [
+     {
+      "text": "O kompaniji Wonderful",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "Wonderful pomaže velikim kompanijama da postanu AI-native, uz AI operativni sistem namenjen celoj organizaciji. Njihovi forward-deployed engineering timovi razvijaju rešenja zajedno sa klijentima na različitim tržištima. Osnovan 2025. godine, Wonderful ima skoro 1.000 zaposlenih i sarađuje sa više od 100 klijenata na preko 35 tržišta. Kompanija je nedavno prikupila 550 miliona dolara u Series C rundi, uz procenu vrednosti od 5 milijardi dolara, i zapošljava u Beogradu.",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "Događaj je namenjen AI i softverskim inženjerima, stručnjacima za podatke i svima koje zanima kako se AI rešenja grade i primenjuju u stvarnom okruženju. Dođite da upoznate Wonderful tim, razmenite ideje sa lokalnom AI zajednicom i isprobate AI agenta uživo.",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "heading",
+    "attrs": {
+     "level": 1
+    },
+    "content": [
+     {
+      "type": "hard_break"
+     },
+     {
+      "text": "Agenda",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "18.00 — Dolazak i upoznavanje",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     },
+     {
+      "type": "hard_break"
+     },
+     {
+      "text": "Dođite, poslužite se pićem i upoznajte članove zajednice.",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "18.10 — Uvodno obraćanje kompanije Wonderful",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     },
+     {
+      "type": "hard_break"
+     },
+     {
+      "text": "Miloš Drača, Head of GTM za Jadranski region, Mađarsku i Baltik.",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "18.20 — Kratko predavanje o AI agentima",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     },
+     {
+      "type": "hard_break"
+     },
+     {
+      "text": "Govornik iz AI Salon zajednice: Stefan Stojmirović",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "18.40 — What broke, and how we fixed it",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     },
+     {
+      "type": "hard_break"
+     },
+     {
+      "text": "Wonderful FDE (forward-deployed engineer) predstaviće stvarnu implementaciju AI rešenja u velikoj kompaniji: njenu arhitekturu, izazove koji su se pojavili u produkciji i rešenja koja su pomogla.",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "19.00 — Break our AI agent (if you can)",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     },
+     {
+      "type": "hard_break"
+     },
+     {
+      "text": "Pozovite jednog od Wonderfulovih glasovnih AI agenata i pokušajte da ga zbunite, prekidate ili iznenadite neočekivanim pitanjima. Najbolji pokušaj na tabeli rezultata osvaja nagradu.",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "19.30 — Umrežavanje",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     },
+     {
+      "type": "hard_break"
+     },
+     {
+      "text": "Razgovarajte sa Wonderful inženjerima i drugim gostima uz hranu i piće. Otvorene pozicije biće dostupne putem QR koda.",
+      "type": "text"
+     }
+    ]
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "20.00 — Završetak",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "type": "paragraph"
+   },
+   {
+    "type": "paragraph",
+    "content": [
+     {
+      "text": "Jezik događaja:",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     },
+     {
+      "text": " srpski",
+      "type": "text"
+     },
+     {
+      "type": "hard_break"
+     },
+     {
+      "text": "Lokacija:",
+      "type": "text",
+      "marks": [
+       {
+        "type": "bold"
+       }
+      ]
+     },
+     {
+      "text": " ICT Hub, Kralja Milana 10, Beograd",
+      "type": "text"
+     }
+    ]
+   }
+  ]
+ },
+ "locale": "sr"
+}

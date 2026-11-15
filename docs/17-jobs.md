@@ -25,3 +25,4 @@
 | `admin_digest` | Weekly, Monday 09:00 UTC | singleton | Member reviews pending longer than `member_review_reminder_days`, to-check items older than 7 days, member-event duplicates, results to verify, open alerts summary |
 | `archive_old_events` | Nightly | singleton | §11.3 |
 | `cleanup` | Nightly | singleton | Expired sessions, link codes, old deliveries, `algo_cache` expiry |
+| `parser_run` | Every 30 min | singleton | Run due parser sources (§19.5), import in batches of 50 (§11.2), record source state and a heartbeat. Timeout 1800 s |

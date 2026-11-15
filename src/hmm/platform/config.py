@@ -25,6 +25,7 @@ class Config(Contract):
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str | None = None
+    parser_sources: str | None = None
     log_level: str = "INFO"
 
     def llm(self) -> LLMConfig | None:
@@ -72,5 +73,6 @@ class Config(Contract):
             llm_base_url=env.get("LLM_BASE_URL") or None,
             llm_api_key=env.get("LLM_API_KEY") or None,
             llm_model=env.get("LLM_MODEL") or None,
+            parser_sources=env.get("PARSER_SOURCES") or None,
             log_level=env.get("LOG_LEVEL") or "INFO",
         )

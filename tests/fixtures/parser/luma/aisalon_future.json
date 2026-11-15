@@ -1,0 +1,302 @@
+{
+ "entries": [
+  {
+   "api_id": "calev-B0mx3vOH3owoQxX",
+   "event": {
+    "api_id": "evt-o9DNH6twxVs8voS",
+    "calendar_api_id": "cal-xfRCBuSHDpIoEmp",
+    "end_at": "2026-11-26T19:00:00.000Z",
+    "event_type": "independent",
+    "hide_rsvp": false,
+    "location_type": "offline",
+    "name": "AI Salon Belgrade powered by Wonderful",
+    "one_to_one": true,
+    "recurrence_id": null,
+    "show_guest_list": false,
+    "start_at": "2026-11-26T17:00:00.000Z",
+    "timezone": "Europe/Belgrade",
+    "url": "AI-Salon-Belgrade-November-2026",
+    "user_api_id": "usr-2xtx17Xth0oTi1A",
+    "visibility": "public",
+    "virtual_info": {
+     "has_access": false
+    },
+    "geo_address_info": {
+     "city": "Belgrade",
+     "type": "google",
+     "region": null,
+     "address": "Belgrade",
+     "country": "Serbia",
+     "place_id": "ChIJvT-116N6WkcR5H4X8lxkuB0",
+     "localized": {
+      "sr": {
+       "city": "Београд",
+       "region": null,
+       "address": "Београд",
+       "country": "Србија",
+       "city_state": "Београд, Србија",
+       "sublocality": null,
+       "full_address": "Београд, Србија",
+       "region_short": null,
+       "short_address": "Београд"
+      }
+     },
+     "city_state": "Belgrade, Serbia",
+     "description": "Belgrado, Serbia",
+     "sublocality": null,
+     "country_code": "RS",
+     "full_address": "Belgrade, Serbia",
+     "region_short": null,
+     "short_address": "Belgrade",
+     "place_coordinate": {
+      "latitude": 44.8125449,
+      "longitude": 20.46123
+     },
+     "apple_maps_place_id": null,
+     "mode": "shown"
+    },
+    "geo_address_visibility": "public",
+    "coordinate": {
+     "longitude": 20.46123,
+     "latitude": 44.8125449
+    },
+    "waitlist_enabled": false,
+    "waitlist_status": "disabled"
+   },
+   "calendar": {
+    "api_id": "cal-xfRCBuSHDpIoEmp",
+    "name": "AI Salon (www.AiSalon.ai)",
+    "slug": "aisalon"
+   },
+   "start_at": "2026-11-26T17:00:00.000Z",
+   "hosts": [
+    {
+     "api_id": "usr-2xtx17Xth0oTi1A",
+     "name": "Anton Reshetov",
+     "username": null
+    },
+    {
+     "api_id": "usr-QamkV1Gqm0HF4do",
+     "name": "Jeffrey D Abbott",
+     "username": "jeffreydabbott"
+    },
+    {
+     "api_id": "usr-Pj3BAoleb4AK9Vb",
+     "name": "Filip",
+     "username": null
+    }
+   ],
+   "guest_count": 0,
+   "ticket_count": 0,
+   "ticket_info": {
+    "price": null,
+    "is_free": true,
+    "max_price": null,
+    "is_sold_out": false,
+    "spots_remaining": null,
+    "is_near_capacity": false,
+    "require_approval": true
+   },
+   "registration_availability": "open",
+   "waitlist_active": false,
+   "featured_city": null,
+   "calendar_api_id": "cal-xfRCBuSHDpIoEmp",
+   "is_manager": true,
+   "platform": "luma",
+   "status": "approved",
+   "submitted_by_user_api_id": "usr-2xtx17Xth0oTi1A",
+   "tags": []
+  },
+  {
+   "api_id": "calev-ix9UoQtHox8lHSq",
+   "event": {
+    "api_id": "evt-PfRRywuDoW5SoRu",
+    "calendar_api_id": "cal-xfRCBuSHDpIoEmp",
+    "end_at": "2026-11-26T20:00:00.000Z",
+    "event_type": "independent",
+    "hide_rsvp": false,
+    "location_type": "offline",
+    "name": "20° AI Salon Torino",
+    "one_to_one": true,
+    "recurrence_id": null,
+    "show_guest_list": true,
+    "start_at": "2026-11-26T17:20:00.000Z",
+    "timezone": "Europe/Rome",
+    "url": "AI-Salon-November-Turin-2026",
+    "user_api_id": "usr-2xtx17Xth0oTi1A",
+    "visibility": "public",
+    "virtual_info": {
+     "has_access": false
+    },
+    "geo_address_info": {
+     "city": "Turin",
+     "type": "google",
+     "region": "Piedmont",
+     "address": "Turin",
+     "country": "Italy",
+     "place_id": "ChIJJb4YZBJtiEcRv3ec1gP4A4k",
+     "localized": {
+      "it": {
+       "city": "Torino",
+       "region": "Piemonte",
+       "address": "Torino",
+       "country": "Italia",
+       "city_state": "Torino, Italia",
+       "sublocality": null,
+       "full_address": "Torino TO, Italia",
+       "region_short": "Piemonte",
+       "short_address": "Torino"
+      }
+     },
+     "city_state": "Turin, Italy",
+     "description": "Turín, Italia",
+     "sublocality": null,
+     "country_code": "IT",
+     "full_address": "Turin, Metropolitan City of Turin, Italy",
+     "region_short": "Piedmont",
+     "short_address": "Turin",
+     "place_coordinate": {
+      "latitude": 45.070312,
+      "longitude": 7.686856499999999
+     },
+     "apple_maps_place_id": null,
+     "mode": "shown"
+    },
+    "geo_address_visibility": "public",
+    "coordinate": {
+     "longitude": 7.686856499999999,
+     "latitude": 45.070312
+    },
+    "waitlist_enabled": true,
+    "waitlist_status": "active"
+   },
+   "calendar": {
+    "api_id": "cal-xfRCBuSHDpIoEmp",
+    "name": "AI Salon (www.AiSalon.ai)",
+    "slug": "aisalon"
+   },
+   "start_at": "2026-11-26T17:20:00.000Z",
+   "hosts": [
+    {
+     "api_id": "usr-2xtx17Xth0oTi1A",
+     "name": "Anton Reshetov",
+     "username": null
+    },
+    {
+     "api_id": "usr-QamkV1Gqm0HF4do",
+     "name": "Jeffrey D Abbott",
+     "username": "jeffreydabbott"
+    },
+    {
+     "api_id": "usr-u5rD8XsldFxiNgy",
+     "name": "Loris Sigot",
+     "username": "loris_sigot"
+    }
+   ],
+   "guest_count": 129,
+   "ticket_count": 129,
+   "ticket_info": {
+    "price": null,
+    "is_free": true,
+    "max_price": null,
+    "is_sold_out": false,
+    "spots_remaining": 4,
+    "is_near_capacity": true,
+    "require_approval": true
+   },
+   "registration_availability": "open",
+   "waitlist_active": false,
+   "featured_city": null,
+   "calendar_api_id": "cal-xfRCBuSHDpIoEmp",
+   "is_manager": true,
+   "platform": "luma",
+   "status": "approved",
+   "submitted_by_user_api_id": "usr-2xtx17Xth0oTi1A",
+   "tags": []
+  },
+  {
+   "api_id": "calev-jAZJ4ja7hqpCjLl",
+   "event": {
+    "api_id": "evt-PuEdhQi3wHNWmoj",
+    "calendar_api_id": "cal-xfRCBuSHDpIoEmp",
+    "end_at": "2026-11-30T20:00:00.000Z",
+    "event_type": "independent",
+    "hide_rsvp": false,
+    "location_type": "offline",
+    "name": "AI Salon Rome",
+    "one_to_one": true,
+    "recurrence_id": null,
+    "show_guest_list": false,
+    "start_at": "2026-11-30T17:00:00.000Z",
+    "timezone": "Europe/Rome",
+    "url": "AI-Salon-Rome-November-2026",
+    "user_api_id": "usr-2xtx17Xth0oTi1A",
+    "visibility": "public",
+    "virtual_info": {
+     "has_access": false
+    },
+    "geo_address_info": {
+     "mode": "obfuscated",
+     "city": "Rome",
+     "city_state": "Rome, Italy",
+     "sublocality": null,
+     "country": "Italy",
+     "country_code": "IT",
+     "region": "Lazio",
+     "region_short": "Lazio"
+    },
+    "geo_address_visibility": "guests-only",
+    "coordinate": {
+     "latitude": 41.894973731872206,
+     "longitude": 12.484202657390355
+    },
+    "waitlist_enabled": false,
+    "waitlist_status": "disabled"
+   },
+   "calendar": {
+    "api_id": "cal-xfRCBuSHDpIoEmp",
+    "name": "AI Salon (www.AiSalon.ai)",
+    "slug": "aisalon"
+   },
+   "start_at": "2026-11-30T17:00:00.000Z",
+   "hosts": [
+    {
+     "api_id": "usr-2xtx17Xth0oTi1A",
+     "name": "Anton Reshetov",
+     "username": null
+    },
+    {
+     "api_id": "usr-wwSBsL9KBOYsFlb",
+     "name": "Roberto Magnifico",
+     "username": "RMagnifico"
+    },
+    {
+     "api_id": "usr-QamkV1Gqm0HF4do",
+     "name": "Jeffrey D Abbott",
+     "username": "jeffreydabbott"
+    }
+   ],
+   "guest_count": 0,
+   "ticket_count": 0,
+   "ticket_info": {
+    "price": null,
+    "is_free": true,
+    "max_price": null,
+    "is_sold_out": false,
+    "spots_remaining": null,
+    "is_near_capacity": false,
+    "require_approval": true
+   },
+   "registration_availability": "open",
+   "waitlist_active": false,
+   "featured_city": null,
+   "calendar_api_id": "cal-xfRCBuSHDpIoEmp",
+   "is_manager": true,
+   "platform": "luma",
+   "status": "approved",
+   "submitted_by_user_api_id": "usr-2xtx17Xth0oTi1A",
+   "tags": []
+  }
+ ],
+ "has_more": false
+}

@@ -1,0 +1,230 @@
+[
+ {
+  "organizers": [
+   {
+    "id": 127017,
+    "name": "Cyber Hacktics"
+   }
+  ],
+  "ctftime_url": "https://ctftime.org/event/3279/",
+  "ctf_id": 487,
+  "weight": 35.39,
+  "duration": {
+   "hours": 10,
+   "days": 1
+  },
+  "live_feed": "https://ctftime.org/live/3279/",
+  "logo": "https://ctftime.org//media/events/logo_deadface_ctf_2026.png",
+  "id": 3279,
+  "title": "DEADFACE CTF 2026",
+  "start": "2026-10-17T14:00:00+00:00",
+  "participants": 276,
+  "location": "",
+  "finish": "2026-10-19T00:00:00+00:00",
+  "description": "DEADFACE CTF features jeopardy-style challenges and is hosted by Cyber Hacktics and veterans of the United States Air Force in support of National Cyber Security Awareness Month.",
+  "format": "Jeopardy",
+  "is_votable_now": false,
+  "prizes": "1st Place - $300\r\n2nd Place - $200\r\n3rd Place - $100",
+  "format_id": 1,
+  "onsite": false,
+  "restrictions": "Open",
+  "url": "https://ctf.deadface.io/",
+  "public_votable": true
+ },
+ {
+  "organizers": [
+   {
+    "id": 210132,
+    "name": "Drovosec"
+   },
+   {
+    "id": 283057,
+    "name": "SAS CREW"
+   }
+  ],
+  "ctftime_url": "https://ctftime.org/event/3409/",
+  "ctf_id": 1081,
+  "weight": 49.5,
+  "duration": {
+   "hours": 11,
+   "days": 0
+  },
+  "live_feed": "",
+  "logo": "https://ctftime.org//media/events/SAS26_temp_1.png",
+  "id": 3409,
+  "title": "SAS CTF 2026 Finals",
+  "start": "2026-10-20T03:00:00+00:00",
+  "participants": 0,
+  "location": "Indonesia, Bali",
+  "finish": "2026-10-20T14:00:00+00:00",
+  "description": "SAS CTF is an international competition for cybersecurity experts, held as a part of the Security Analyst Summit conference. The competition consists of an online Jeopardy qualification stage and on-site Attack-Defense finals.\r\n\r\nWe are inviting Top 8 teams that completed the SAS CTF qualification round and 5 regional winners of Kaspersky{CTF} 2026 (https://lp.kaspersky.com/ctf/) to compete for a share of the $18.000 prize pot at SAS 2026 in Bali, Indonesia on October 19-22.",
+  "format": "Attack-Defense",
+  "is_votable_now": false,
+  "prizes": "- 1st place: $10000\r\n- 2nd place: $5000\r\n- 3rd place: $3000",
+  "format_id": 2,
+  "onsite": true,
+  "restrictions": "Prequalified",
+  "url": "https://ctf.thesascon.com/",
+  "public_votable": true
+ },
+ {
+  "organizers": [
+   {
+    "id": 83421,
+    "name": "Srdnlen"
+   }
+  ],
+  "ctftime_url": "https://ctftime.org/event/3444/",
+  "ctf_id": 840,
+  "weight": 25.0,
+  "duration": {
+   "hours": 8,
+   "days": 0
+  },
+  "live_feed": "",
+  "logo": "https://ctftime.org//media/events/e04b66f1d17c437f935e29d0fbe7beed_2.png",
+  "id": 3444,
+  "title": "Srdnlen CTF 2026 Finals (Sardinia Cyber Camp)",
+  "start": "2026-10-29T09:00:00+00:00",
+  "participants": 0,
+  "location": "Italy, Cagliari",
+  "finish": "2026-10-29T17:00:00+00:00",
+  "description": "The Sardinia Cyber Camp 2026 will bring the top 10 teams from the qualification round to compete live in Sardinia.\r\n\r\nAlongside the onsite CTF, the event will also host a cybersecurity fair and conference.",
+  "format": "Jeopardy",
+  "is_votable_now": false,
+  "prizes": "TBD",
+  "format_id": 1,
+  "onsite": true,
+  "restrictions": "Prequalified",
+  "url": "https://ctf.srdnlen.it/",
+  "public_votable": true
+ },
+ {
+  "organizers": [
+   {
+    "id": 200580,
+    "name": "EyesOpen_Security"
+   }
+  ],
+  "ctftime_url": "https://ctftime.org/event/3419/",
+  "ctf_id": 847,
+  "weight": 0.0,
+  "duration": {
+   "hours": 0,
+   "days": 2
+  },
+  "live_feed": "",
+  "logo": "https://ctftime.org//media/events/Template_Speaker_-_2026_4.png",
+  "id": 3419,
+  "title": "EyesOpenCTF 7th edition",
+  "start": "2026-11-20T10:00:00+00:00",
+  "participants": 49,
+  "location": "",
+  "finish": "2026-11-22T10:00:00+00:00",
+  "description": "EyesOpenCTF 2026 is a FREE CTF competition organized as part of the 7th edition of EOCON.\r\n\r\nThis year, the competition goes far beyond a traditional CTF.\r\nYou are not simply joining to solve isolated challenges. You are entering The Convergence, a live 48-hour cyber adventure in which reality itself is beginning to fracture.\r\nAcross more than 40 challenges and 8 disciplines, teams will investigate corrupted systems, recover hidden Reality Fragments, unlock classified dossiers, expose compromised actors, and gradually reconstruct the truth behind a phenomenon threatening the entire world.\r\n\r\nEvery flag matters.\r\nEach solved challenge can reveal new intelligence, unlock characters and locations, alter the mission briefing, and move the story forward in real time. The competition platform becomes a living investigation that evolves with the progress of the Operators.\r\n\r\nExpect  : \r\n- web exploitation, \r\n- digital forensics, \r\n- reverse engineering, \r\n- binary exploitation, \r\n- cryptography, \r\n- OSINT, \r\n- AI security, and more—woven into a single coherent mission unlike any previous EyesOpenCTF.\r\n\r\nBuilt for teams from around the world and open to different experience levels, EyesOpenCTF is both a proving ground and an immersive narrative experience where competitors can learn, compete, get noticed, and join a fast-growing international cybersecurity community.\r\n\r\nAs part of EOCON, the competition also connects participants with experts, researchers, recruiters, entrepreneurs, and emerging talent from Africa and beyond. It is a place where technical ability meets storytelling, where discoveries change the mission, and where tomorrow’s collaborations, careers, and opportunities begin.\r\n\r\nForm your team. Enter the Protocol. Recover the Fragments.\r\n\r\nRegister: https://eyesopensecurity.com/ctf-briefing.html\r\n\r\nDirect Form: https://eyesopensecurity.com/?modal=ctf\r\n\r\nSPONSORS :\r\n- CyberDefenders (https://cyberdefenders.org)\r\n- JetBrains (https://jetbrains.com)\r\n- Netticket (https://netticket.net)\r\n- ExamBoot (https://examboot.net)",
+  "format": "Jeopardy",
+  "is_votable_now": false,
+  "prizes": "1st: 300 USD + 1 year ExamBoot subscription. (500 USD dedicated for the 1st Cameroonian local on the scoreboard) \r\n3-month BlueYard Pro subscription, 1 Free annual personal subscriptions to a chosen JetBrains IDE.\r\n\r\n2nd: 1 year ExamBoot subscription. 2-month BlueYard Pro subscription. 1 Free annual personal subscriptions to a chosen JetBrains IDE.\r\n\r\n3rd: 6 month ExamBoot subscription. 1 Free annual personal subscriptions to a chosen JetBrains IDE.\r\n\r\n",
+  "format_id": 1,
+  "onsite": false,
+  "restrictions": "Open",
+  "url": "https://eyesopensecurity.com/ctf-briefing.html",
+  "public_votable": true
+ },
+ {
+  "organizers": [
+   {
+    "id": 417627,
+    "name": "L3m0n CTF"
+   }
+  ],
+  "ctftime_url": "https://ctftime.org/event/3485/",
+  "ctf_id": 1468,
+  "weight": 0.0,
+  "duration": {
+   "hours": 12,
+   "days": 0
+  },
+  "live_feed": "https://ctftime.org/live/3485/",
+  "logo": "https://ctftime.org//media/events/logo_4.jpeg",
+  "id": 3485,
+  "title": "L3m0n CTF 2026 (Quals)",
+  "start": "2026-11-28T04:30:00+00:00",
+  "participants": 32,
+  "location": "",
+  "finish": "2026-11-28T16:30:00+00:00",
+  "description": "L3m0n CTF is the annual flagship capture-the-flag competition of Amrita Vishwa Vidyapeetham, Coimbatore, hosted by TIFAC-CORE in Cyber Security. This is a team-based event: teams of 1 to 4 players. The online prelims is Jeopardy-style and run for 12 hours (10:00 to 22:00 IST, 04:30 to 16:30 UTC, on 28 November 2026). The top teams are invited to on-campus finals in Coimbatore. Challenges span web, pwn, reverse engineering, cryptography, forensics, OSINT and miscellaneous, with extra tracks in AI and LLM security, Web3 and hardware, IoT and RF. This edition is a broadcast themed on the cartoons we grew up with. Open to all, with a beginner category that teaches the basics. Registration opens soon on l3m0nctf.xyz.",
+  "format": "Jeopardy",
+  "is_votable_now": false,
+  "prizes": "To be announced",
+  "format_id": 1,
+  "onsite": false,
+  "restrictions": "Open",
+  "url": "https://l3m0nctf.xyz/",
+  "public_votable": true
+ },
+ {
+  "organizers": [
+   {
+    "id": 425775,
+    "name": "siberiansecurityleague"
+   }
+  ],
+  "ctftime_url": "https://ctftime.org/event/3489/",
+  "ctf_id": 1525,
+  "weight": 0,
+  "duration": {
+   "hours": 12,
+   "days": 0
+  },
+  "live_feed": "https://ctftime.org/live/3489/",
+  "logo": "https://ctftime.org//media/events/photo_2024-09-18_12-55-46_4.jpg",
+  "id": 3489,
+  "title": "CyberNSK2027-Qualifier",
+  "start": "2026-11-28T09:00:00+00:00",
+  "participants": 11,
+  "location": "Russia",
+  "finish": "2026-11-28T21:00:00+00:00",
+  "description": "CyberNSK 2027 is one of the largest cybersecurity competitions in Siberia, organized by Siberian Security League in collaboration with Novosibirsk State Technical University (NSTU NETI), Department of Information Security.\r\n\r\nThe online qualification round is a 12-hour Jeopardy-style CTF. Teams of up to 5 participants (school and university students) compete by solving practical security challenges and submitting flags.\r\n\r\n✦ Start — November 28 at 12:00 PM (MSK)✦\r\n✦ End — November 29 at 00:00 PM (MSK)✦\r\n\r\nTeams that have passed the qualifying stage and reside in CIS countries or China are invited to the in-person final.\r\n\r\nThe competition uses a dynamic scoring system: the fewer teams solve a task, the more points it is worth.\r\n\r\nCategories include:\r\n\r\nWeb\r\n\r\nCrypto\r\n\r\nReverse Engineering\r\n\r\nPwn\r\n\r\nForensics\r\n\r\nAI\r\n\r\nHardware\r\n\r\nand others",
+  "format": "Jeopardy",
+  "is_votable_now": false,
+  "prizes": "Top teams from the qualifiers will be invited to the on-site Attack-Defense finals in April 2027 in Novosibirsk:\r\n\r\nApril 17, 2027 — School finals\r\n\r\nApril 25, 2027 — University finals\r\n\r\nCyberNSK focuses on real-world security skills, modern attack techniques, and practical defensive thinking.\r\n\r\nSponsor's&Partner's:\r\nEltex.ru\r\nKaspersky\r\nRtcloud.ru\r\nT-Bank Education\r\nAstra\r\nCFT + Shift (Center of Financial Technologies)\r\nUserGate\r\nБастион\r\nArenaData\r\nЭшелон\r\nАЙТИБАСТИОН\r\nIdeco",
+  "format_id": 1,
+  "onsite": false,
+  "restrictions": "Academic",
+  "url": "https://quals.sslctf.ru/",
+  "public_votable": false
+ },
+ {
+  "organizers": [
+   {
+    "id": 190074,
+    "name": "OteriHack"
+   }
+  ],
+  "ctftime_url": "https://ctftime.org/event/3505/",
+  "ctf_id": 1740,
+  "weight": 0,
+  "duration": {
+   "hours": 8,
+   "days": 0
+  },
+  "live_feed": "",
+  "logo": "",
+  "id": 3505,
+  "title": "OTERIA Cyber Cup #4",
+  "start": "2026-12-12T09:00:00+00:00",
+  "participants": 0,
+  "location": "France, Gennevilliers",
+  "finish": "2026-12-12T17:00:00+00:00",
+  "description": "# OTERIA Cyber ​​Cup #4\r\n\r\nRejoignez-nous le 12 décembre 2026 pour la quatrième édition de l'OTERIA Cyber ​​Cup, une compétition de type « Capture The Flag » (CTF) destinée aux étudiants, organisée par l'OTERIA Cyber ​​School à Gennevilliers, en France.\r\n\r\nDétails de l'événement\r\n- Date : 12 décembre 2026\r\n- Lieu : OTERIA Cyber ​​School, 1 Rue du 19 Mars 1962, 92230 Gennevilliers, France\r\n- Format : CTF de type « Jeopardy » (à confirmer)\r\n- Durée : 6 heures\r\n- Participation : Gratuite\r\n- Éligibilité : Étudiants, du lycée jusqu'au niveau Master (Bac à Bac+5)\r\n- Taille des équipes : 4 étudiants par équipe\r\n- Défis : 5 catégories d'épreuves et 25 « flags » (drapeaux) à trouver\r\n\r\nLa compétition est ouverte aussi bien aux débutants qu'aux joueurs expérimentés ; les défis sont conçus pour s'adapter à différents niveaux de compétence.\r\n\r\nRécompenses\r\n- 1re place : 500 € et des goodies\r\n- 2e place : 300 € et des goodies\r\n- 3e place : 150 € et des goodies\r\n\r\nLes membres des 10 meilleures équipes pourront également bénéficier d'un accès direct à un entretien d'admission chez OTERIA, sans avoir à passer le test technique (sous réserve des règles officielles de la compétition).\r\n\r\nInscription : https://www.oteria-cyber-cup.fr/inscription\r\n\r\nSite officiel : https://www.oteria-cyber-cup.fr/\r\n\r\nOrganisé par l'OTERIA Cyber ​​School.",
+  "format": "Jeopardy",
+  "is_votable_now": false,
+  "prizes": "1st place: 500€ + goodies\r\n\r\n2nd place: 300€ + goodies\r\n\r\n3rd place: 150€ + goodies\r\n\r\nTop 10 teams: Direct admission interview eligibility at OTERIA, without a technical test.",
+  "format_id": 1,
+  "onsite": true,
+  "restrictions": "Academic",
+  "url": "https://www.oteria-cyber-cup.fr/",
+  "public_votable": false
+ }
+]

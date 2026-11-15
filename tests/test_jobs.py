@@ -101,6 +101,7 @@ def test_schedules(migrated_database: str) -> None:
         "admin_digest": "0 9 * * 1",
         "archive_old_events": "30 1 * * *",
         "cleanup": "0 1 * * *",
+        "parser_run": "*/30 * * * *",
     }
     app = register_jobs(create_jobs_app(migrated_database))
     assert {name for name in app.tasks if "procrastinate" not in name} == {

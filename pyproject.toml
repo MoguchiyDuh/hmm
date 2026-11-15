@@ -20,6 +20,7 @@ dependencies = [
 [project.scripts]
 hmm-worker = "hmm.worker:main"
 hmm-bot = "hmm.bot.main:main"
+hmm-parser = "hmm.parser.cli:main"
 
 [dependency-groups]
 dev = [
@@ -52,3 +53,4 @@ asyncio_default_fixture_loop_scope = "function"
 "src/hmm/migrations/versions/*" = ["E501"]
 "src/hmm/models.py" = ["F401"]
 "src/hmm/bot/*_ru.py" = ["RUF001"]
+"src/hmm/parser/normalize.py" = ["RUF001"]

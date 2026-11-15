@@ -1,6 +1,6 @@
 # 19. Parser: sources and adapters
 
-Survey of 2026-11-15. Report only: nothing here is implemented yet. Access methods, volumes and counts were tested on the survey date and will drift. Tier 1 sources and Kaggle were probed live; their observed behavior, field mappings and config sketches are in [19-parser-sources/](19-parser-sources/), one file per source.
+Survey of 2026-11-15. The first adapter batch is implemented (§19.6): `hackathonhub`, `hackathonist`, `ctftime`, `luma`, `jsonld_pages`. Access methods, volumes and counts were tested on the survey date and will drift. Tier 1 sources and Kaggle were probed live; their observed behavior, field mappings and config sketches are in [19-parser-sources/](19-parser-sources/), one file per source.
 
 ## Access policy
 
@@ -10,7 +10,7 @@ Every working access method is allowed: official APIs with account tokens, undoc
 
 Sources are hot-swappable: adding or removing a place never touches the pipeline (§19.4).
 
-- **Adapter.** One module per adapter under `hmm/parser/sources/`, registered by name. It implements a small protocol: `discover` (refs to fetch), `fetch` (page or API payload) and `extract` (payload → `EventImport` list). An adapter that returns nothing from `extract` falls back to the generic extractor: schema.org Event JSON-LD first, then the LLM.
+- **Adapter.** One module per adapter under `hmm/parser/sources/`, registered by name. It implements `discover` (yields candidates, fetching listings or API pages) and `extract` (candidate → `EventImport` list, fetching detail pages when needed), and validates its own options. Fetching goes through the shared SSRF-safe, rate-limited fetcher. The schema.org Event JSON-LD extractor is shared (`hmm/parser/jsonld.py`); an LLM fallback is planned.
 - **Instance.** A configured use of an adapter in `src/hmm/parser/sources.toml`. One adapter can back many instances (several Luma calendar lists, several Telegram channel lists). Secrets stay in the environment (§22); the TOML names the variable. A missing secret disables the instance with a log line, not a failed run.
 - **Pipeline.** Classify, extract, normalize, dedupe, import and heartbeat are generic and never name a source. One worker job walks the instances that are due; a failing instance never stops the others (§19.4.7).
 - **Identity.** The instance `id` is the `source_id` prefix (`luma-rs:evt-…`, `tg-rs:@nstechtalks/987`). It is stable: renaming it creates a new source.

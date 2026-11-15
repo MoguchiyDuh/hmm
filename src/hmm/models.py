@@ -38,6 +38,7 @@ from hmm.onboarding.models import (
     Quiz,
     QuizSectionDef,
 )
+from hmm.parser.models import ParserSourceState
 from hmm.platform.db import Base
 from hmm.platform.models import AlgoCache, AuditLog, Setting
 from hmm.profiles.models import CvFile, GithubSnapshot

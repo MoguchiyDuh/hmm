@@ -40,6 +40,7 @@ class JobName(StrEnum):
     ADMIN_DIGEST = "admin_digest"
     ARCHIVE_OLD_EVENTS = "archive_old_events"
     CLEANUP = "cleanup"
+    PARSER_RUN = "parser_run"
 
 
 RETRY_POLICY = procrastinate.RetryStrategy(max_attempts=5, exponential_wait=5)
@@ -55,6 +56,7 @@ JOB_MODULES: tuple[str, ...] = (
     "hmm.recommendations.jobs",
     "hmm.mentorship.jobs",
     "hmm.ticks",
+    "hmm.parser.jobs",
 )
 
 
@@ -94,6 +96,7 @@ JOBS: dict[JobName, JobSpec] = {
     JobName.ADMIN_DIGEST: singleton(JobName.ADMIN_DIGEST, "0 9 * * 1"),
     JobName.ARCHIVE_OLD_EVENTS: singleton(JobName.ARCHIVE_OLD_EVENTS, "30 1 * * *"),
     JobName.CLEANUP: singleton(JobName.CLEANUP, "0 1 * * *"),
+    JobName.PARSER_RUN: singleton(JobName.PARSER_RUN, "*/30 * * * *", timeout=1800),
 }
 
 

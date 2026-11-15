@@ -1,0 +1,91 @@
+[[source]]
+id = "hackathonhub"
+adapter = "hackathonhub"
+interval = "12h"
+rate = "30/min"
+priority = 60
+countries = ["RS", "RO", "HU", "BG", "HR", "BA", "SI", "MK", "ME", "AL", "GR"]
+
+[[source]]
+id = "hackathonist"
+adapter = "hackathonist"
+interval = "24h"
+rate = "10/min"
+priority = 40
+
+[[source]]
+id = "ctftime"
+adapter = "ctftime"
+interval = "12h"
+rate = "1/10s"
+window_days = 120
+
+[[source]]
+id = "luma-rs"
+adapter = "luma"
+interval = "6h"
+rate = "20/min"
+priority = 70
+countries = ["RS"]
+include_online = false
+calendars = [
+    "cal-WcgY6wHZ5tA68xg",
+    "cal-46L4tD8g5AzO0l9",
+    "cal-xfRCBuSHDpIoEmp",
+    "cal-y3HeOwgA9JHbih6",
+]
+
+[[source]]
+id = "gdg-rs"
+adapter = "jsonld_pages"
+interval = "12h"
+rate = "1/2s"
+priority = 80
+confidence = 0.85
+countries = ["RS"]
+kind = "meetup"
+follow = 'https://gdg\.community\.dev/events/details/[a-z0-9-]+/'
+listings = [
+    "https://gdg.community.dev/gdg-belgrade/",
+    "https://gdg.community.dev/gdg-on-campus-university-of-belgrade-belgrade-serbia/",
+]
+
+[[source]]
+id = "dev-events"
+adapter = "jsonld_pages"
+interval = "24h"
+rate = "20/min"
+priority = 30
+kind = "conference"
+include_online = false
+id_pattern = '-([a-z0-9]{8})$'
+listings = [
+    "https://dev.events/EU/RS",
+    "https://dev.events/EU/HR",
+    "https://dev.events/EU/BA",
+    "https://dev.events/EU/ME",
+    "https://dev.events/EU/MK",
+    "https://dev.events/EU/HU",
+    "https://dev.events/EU/RO",
+    "https://dev.events/EU/BG",
+    "https://dev.events/EU/SI",
+    { url = "https://dev.events/meetups/EU/RS", kind = "meetup" },
+]
+
+[[source]]
+id = "bbicc"
+adapter = "jsonld_pages"
+interval = "24h"
+rate = "10/min"
+priority = 80
+confidence = 0.85
+countries = ["RS"]
+kind = "contest"
+guess_kind = false
+follow = 'https://bbicc\.fon\.bg\.ac\.rs/bbicc-\d{4}/(?=<)'
+listings = ["https://bbicc.fon.bg.ac.rs/wp-sitemap-posts-page-1.xml"]
+
+[source.defaults]
+team_size_min = 4
+team_size_max = 4
+eligibility = "Teams of four undergraduate students plus a faculty advisor, by invitation"

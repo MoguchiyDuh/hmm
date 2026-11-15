@@ -65,3 +65,63 @@ Missing facts → `None`, never invented. `people` only lists identities publish
 - `tests/fixtures/imports/*.json`: ≥ 30 real-world extracted examples across kinds, incl. edge cases (no dates, cancelled, multi-source duplicate, unknown area, winner list with GitHub logins).
 - A dry-run mode writing imports to stdout/JSONL without importing.
 - Quality report: precision on a hand-labeled sample of ≥ 50 pages (event vs not), field accuracy for dates/format/team size.
+
+## 19.6 Implementation
+
+Package `hmm.parser`. Sources are configured in `src/hmm/parser/sources.toml` (override with `PARSER_SOURCES`, §22.2); adapters live in `hmm/parser/sources/` and register themselves by name. Design and per-source notes: [19-parser-sources.md](19-parser-sources.md).
+
+**Run.** `parser_run` (every 30 min, singleton, §17.2) loads the TOML, skips disabled instances and instances with a missing `secret_env` variable, and picks the due ones: never run, or `now - last_started_at ≥ interval` (5 min slack for cron jitter). Due instances run concurrently, each within its `budget`; a failing instance only adds to the run's errors. Items pass the relevance filter, are deduped, then imported in batches of 50. Per-instance state (`parser_source_states`: last start, finish, success, error, counts) and one heartbeat (§11.2) are written every run, including runs with nothing due.
+
+**Relevance.** An item is kept when `ends_at ≥ now - lookback_days`, and either its country is in `countries` (Europe when empty) or it is online/hybrid and `include_online` is set.
+
+**Dedupe.** Items from different instances with the same normalized title (§11.2), the same country and starts within 1 day are merged: the item from the instance with the higher `priority` (then higher `confidence`) leads, missing fields are filled from the follower, and the follower is dropped. No `match_hint` is sent.
+
+**Areas.** Known area keys only (`list_areas`; the dry run uses the seed keys), from a keyword map over tags and titles. First match is `primary`, the rest `nice`.
+
+**Dry run.** `hmm-parser [--config PATH] [--source ID]… [--list] [-v]` prints `EventImport` JSONL to stdout and per-source stats to stderr, and touches no database. Exit code 1 when a source reported errors.
+
+**Shared instance keys:**
+
+| key | default | meaning |
+|---|---|---|
+| `id` | required | `source_id` prefix, `^[a-z][a-z0-9-]{0,31}$` |
+| `adapter` | required | adapter name |
+| `enabled` | `true` | |
+| `interval` | `12h` | minimum time between runs (`s`, `m`, `h`, `d`) |
+| `rate` | 1 request/s | per-host spacing, `N/min`, `N/10s`, `N/h` |
+| `timeout` | `30` | seconds per request |
+| `max_bytes` | 8 MiB | response size cap |
+| `budget` | `10m` | wall-clock limit for the instance |
+| `priority` | `50` | dedupe leader order |
+| `confidence` | adapter default | overrides the adapter's confidence |
+| `countries` | Europe | ISO 3166-1 alpha-2 codes kept |
+| `include_online` | `true` | keep online/hybrid events from anywhere |
+| `lookback_days` | `30` | drop events that ended earlier |
+| `secret_env` | `[]` | env vars that must be set, else the instance is skipped |
+| `defaults` | `{}` | `EventImport` fields filled when the adapter leaves them empty |
+
+Any other key is an adapter option; unknown options fail the load.
+
+**Adapters (first batch):**
+
+| adapter | options | confidence | notes |
+|---|---|---|---|
+| `hackathonhub` | `site`, `api_url`, `key_env` (`HACKATHONHUB_ANON_KEY`), `view`, `page_size`, `max_pages` | hackathon 0.85, game jam 0.8, competition/challenge 0.6 | Supabase URL and anon key are read from the site's JS bundle unless set. `source_id` is the row UUID. Midnight starts and 00:00/23:59 ends become local whole days |
+| `hackathonist` | `base`, `files` (`["README.md"]`), `country` (`RS`) | 0.8 | Markdown tables; id = href hash + start date; dates are whole local days |
+| `ctftime` | `api`, `window_days` (120), `limit` (200) | 0.85 | Country parsed from onsite `location` text; team size from description prose |
+| `luma` | `calendars` (required), `api`, `site`, `page_limit`, `max_pages`, `details`, `kind` | 0.85 | `future` and `past` items; `past` paging stops at the lookback cutoff. `event/get` per in-scope event for the ProseMirror description and locale |
+| `jsonld_pages` | `listings` (URL or `{url, kind}`), `follow`, `id_pattern`, `kind`, `guess_kind`, `max_follow` | 0.8 | Without `follow`, Event JSON-LD is read from the listing itself; with `follow`, regex matches in the listing are fetched as detail pages. `id_pattern` group 1 is the local id (else the last URL path segment); non-matching URLs are skipped. Date-only or midnight-to-midnight events become local whole days |
+
+**Instances:**
+
+| id | adapter | interval | rate | scope |
+|---|---|---|---|---|
+| `hackathonhub` | `hackathonhub` | 12h | 30/min | Balkans + GR, online |
+| `hackathonist` | `hackathonist` | 24h | 10/min | RS |
+| `ctftime` | `ctftime` | 12h | 1/10s | Europe, online |
+| `luma-rs` | `luma` | 6h | 20/min | RS, offline only; Garaža, NS Tech Talks, AI Salon, Claude AI Builders calendars |
+| `gdg-rs` | `jsonld_pages` | 12h | 1/2s | RS; GDG Belgrade and GDG on Campus Belgrade chapters |
+| `dev-events` | `jsonld_pages` | 24h | 20/min | Europe, offline; Serbia and neighbouring country pages, Serbian meetups |
+| `bbicc` | `jsonld_pages` | 24h | 10/min | RS; team of 4 defaults |
+
+Not yet implemented: LLM classification and extraction, difficulty, the tracked-event revisit loop (§19.4.3), cancellations by disappearance, and the second and third adapter batches.
