@@ -9,14 +9,16 @@ from hmm.common import (
     ActorKind,
     AuditAction,
     AuditEntityType,
+    LeftReason,
     MemberRole,
     MemberState,
     ProjectStatus,
 )
-from hmm.notifications.payloads import LeadAssignedPayload
-from hmm.notifications.service import notify
+from hmm.notifications.payloads import LeadAssignedPayload, ProjectMemberLeftPayload
+from hmm.notifications.service import notify, notify_many
 from hmm.platform.audit import record_audit
 from hmm.platform.schemas import notification_person
+from hmm.projects.common import project_member_ids
 
 
 async def assign_project_lead(
@@ -96,3 +98,50 @@ async def standalone_lead_succession(
         project.status = ProjectStatus.PAUSED.value
         await session.flush()
         await session.refresh(project)
+
+
+async def depart_member(
+    session: AsyncSession,
+    project: models.Project,
+    member: models.ProjectMember,
+    user: models.User,
+    reason: LeftReason,
+    now: datetime,
+    *,
+    actor: UUID,
+    actor_kind: ActorKind,
+) -> None:
+    was_lead = project.lead_user_id == member.user_id
+    member.left_at = now
+    member.left_reason = reason.value
+    if was_lead:
+        project.lead_user_id = None
+        await record_audit(
+            session,
+            actor=actor,
+            actor_kind=actor_kind,
+            action=AuditAction.LEAD_STEP_DOWN,
+            entity_type=AuditEntityType.PROJECT,
+            entity_id=project.id,
+            before={"lead_user_id": str(member.user_id)},
+            after={"lead_user_id": None},
+            reason="banned" if reason == LeftReason.BANNED else None,
+        )
+    if project.lead_user_id is None:
+        await standalone_lead_succession(session, project, now, exclude={member.user_id})
+    await session.flush()
+    await session.refresh(project)
+    remaining = await project_member_ids(session, project.id)
+    await notify_many(
+        session,
+        remaining,
+        ProjectMemberLeftPayload(
+            link=f"/projects/{project.id}",
+            project_id=project.id,
+            project_name=project.name,
+            member=notification_person(user),
+            member_count=len(remaining),
+        ),
+        now,
+        dedupe_key=f"project_member_left:{member.id}",
+    )

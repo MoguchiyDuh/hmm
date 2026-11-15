@@ -5,14 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.common import ActorKind, AuditAction, AuditEntityType, LeftReason
-from hmm.notifications.payloads import ProjectMemberLeftPayload
-from hmm.notifications.service import notify_many
-from hmm.platform.audit import record_audit
+from hmm.common import ActorKind, LeftReason
 from hmm.platform.db import locked
-from hmm.platform.schemas import notification_person
 from hmm.projects import succession
-from hmm.projects.common import project_member_ids
 
 
 async def remove_user_from_standalone_projects(
@@ -53,44 +48,13 @@ async def remove_user_from_standalone_projects(
         )
         if member is None:
             continue
-        was_lead = project.lead_user_id == user_id
-        member.left_at = now
-        member.left_reason = LeftReason.BANNED.value
-        if was_lead:
-            project.lead_user_id = None
-        if was_lead:
-            await record_audit(
-                session,
-                actor=actor,
-                actor_kind=actor_kind,
-                action=AuditAction.LEAD_STEP_DOWN,
-                entity_type=AuditEntityType.PROJECT,
-                entity_id=project.id,
-                before={"lead_user_id": str(user_id)},
-                after={"lead_user_id": None},
-                reason="banned",
-            )
-        if project.lead_user_id is None:
-            await succession.standalone_lead_succession(
-                session,
-                project,
-                now,
-                exclude={user_id},
-            )
-        await session.flush()
-        await session.refresh(project)
-        remaining = await project_member_ids(session, project.id)
-        if remaining:
-            await notify_many(
-                session,
-                remaining,
-                ProjectMemberLeftPayload(
-                    link=f"/projects/{project.id}",
-                    project_id=project.id,
-                    project_name=project.name,
-                    member=notification_person(user),
-                    member_count=len(remaining),
-                ),
-                now,
-                dedupe_key=f"project_member_left:{member.id}",
-            )
+        await succession.depart_member(
+            session,
+            project,
+            member,
+            user,
+            LeftReason.BANNED,
+            now,
+            actor=actor,
+            actor_kind=actor_kind,
+        )

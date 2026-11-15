@@ -21,7 +21,6 @@ from hmm.formation.schemas import DeclinePlacementBody
 from hmm.identity import service as identity_service
 from hmm.notifications.payloads import (
     ProjectMemberJoinedPayload,
-    ProjectMemberLeftPayload,
     ProjectMemberRemovedPayload,
 )
 from hmm.notifications.service import notify, notify_many
@@ -134,45 +133,16 @@ async def leave_project(
     )
     if member is None:
         raise ProblemError(ErrorCode.FORBIDDEN)
-    was_lead = project.lead_user_id == actor.id
-    member.left_at = now
-    member.left_reason = LeftReason.LEFT.value
-    if was_lead:
-        project.lead_user_id = None
-        await record_audit(
-            session,
-            actor=actor.id,
-            actor_kind=ActorKind.USER,
-            action=AuditAction.LEAD_STEP_DOWN,
-            entity_type=AuditEntityType.PROJECT,
-            entity_id=project.id,
-            before={"lead_user_id": str(actor.id)},
-            after={"lead_user_id": None},
-            reason=None,
-        )
-    await session.flush()
-    await session.refresh(project)
-    remaining = await project_member_ids(session, project.id)
-    await notify_many(
+    await succession.depart_member(
         session,
-        remaining,
-        ProjectMemberLeftPayload(
-            link=f"/projects/{project.id}",
-            project_id=project.id,
-            project_name=project.name,
-            member=notification_person(actor),
-            member_count=len(remaining),
-        ),
+        project,
+        member,
+        actor,
+        LeftReason.LEFT,
         now,
-        dedupe_key=f"project_member_left:{member.id}",
+        actor=actor.id,
+        actor_kind=ActorKind.USER,
     )
-    if was_lead:
-        await succession.standalone_lead_succession(
-            session,
-            project,
-            now,
-            exclude={actor.id},
-        )
     await recommendations.enqueue_project_refresh(session, jobs, project.id)
     await session.flush()
 
