@@ -49,7 +49,7 @@ Covers GitHub sign-in, sessions, admin bootstrap, bans, Telegram linking and ser
 - One Telegram account ↔ one user:
   - linking a Telegram account that is linked to another user → 409 `telegram_already_linked` (that user unlinks first);
   - a user who links a new Telegram account replaces their own previous link.
-- A link marked broken (`broken_at`, §15.2) still authenticates bot requests. Any successful link or bot request as that user clears `broken_at`.
+- The bot resolves its actor with `identity.service.telegram_actor`: an unknown account → `unauthenticated`, a banned user → `banned`, and member commands need a completed onboarding (`onboarding_required`). A link marked broken (`broken_at`, §15.2) still authenticates; any successful link or bot request as that user clears `broken_at`.
 - Unlink from the web (`DELETE /api/v1/me/telegram`) or from the bot (`/unlink`, or the bot learns the user blocked it). Unlinking an unknown Telegram account returns 204 with no effect.
 
 ## 6.6 Endpoints

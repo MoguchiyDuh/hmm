@@ -37,13 +37,13 @@ Config: `BOT_TOKEN`, `DATABASE_URL`, `PUBLIC_URL` (for web links).
 | `/settings` | – | link to web notification settings |
 | `/help` | – | command list |
 
-Each command runs the domain functions behind the listed endpoint as the linked user, with the same permission checks (§3.2). Errors are rendered from the `ProblemError` code.
+Each command resolves the linked user with `identity.service.telegram_actor` (§6.5) and runs the domain functions behind the listed endpoint, with the same permission checks (§3.2). Errors are rendered from the `ProblemError` code.
 
 ## 20.5 Notification delivery
 
 - One delivery loop: `lease_deliveries`, render, send, `acknowledge` (§15.2).
 - Rendering: per-type English templates, HTML parse mode with escaping. Unknown type → generic text + web link (forward compatible).
-- Inline buttons from payload `actions`: one-tap `kind: "api"` calls resolved via shared `ACTION_ROUTES`, or `kind: "link"` web links for forms and navigation. `callback_data`: `a:<key>:<entity_id>` (≤ 64 bytes). On press: fill `{id}` with `entity_id`, run the route's domain function with its fixed body as the user, edit the message with the outcome, and answer the callback.
+- Inline buttons from payload `actions`: one-tap `kind: "api"` calls resolved via shared `ACTION_ROUTES`, or `kind: "link"` web links for forms and navigation. `callback_data`: `a:<key>:<entity_id>` (≤ 64 bytes). On press: `notifications.actions.run_action(key, entity_id)` runs the route's domain function with its fixed body as the user; edit the message with the outcome, and answer the callback.
 - Idempotency: keep an in-memory LRU of delivered `notification_id`s. An expired lease is redelivered; duplicates within the LRU are acked as `sent` without resending.
 - Throttle: ≤ 25 msgs/s global, ≤ 1 msg/s per chat; handle `RetryAfter`.
 - `Forbidden: bot was blocked` / `chat not found` → ack `permanent_failure`.

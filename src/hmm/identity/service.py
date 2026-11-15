@@ -156,6 +156,35 @@ async def link_telegram(
     return actor
 
 
+def require_member(actor: models.User) -> models.User:
+    if actor.onboarding_status not in ONBOARDED:
+        raise ProblemError(ErrorCode.ONBOARDING_REQUIRED)
+    return actor
+
+
+async def telegram_actor(
+    session: AsyncSession, telegram_user_id: int, now: datetime, *, member: bool = True
+) -> models.User:
+    link = await session.scalar(
+        select(models.TelegramLink)
+        .where(models.TelegramLink.telegram_user_id == telegram_user_id)
+        .with_for_update()
+    )
+    if link is None:
+        raise ProblemError(ErrorCode.UNAUTHENTICATED)
+    actor = await session.get(models.User, link.user_id)
+    if actor is None:
+        raise ProblemError(ErrorCode.UNAUTHENTICATED)
+    if actor.banned_at is not None:
+        raise ProblemError(ErrorCode.BANNED)
+    if member:
+        require_member(actor)
+    link.broken_at = None
+    actor.last_seen_at = now
+    await session.flush()
+    return actor
+
+
 async def unlink_user_telegram(session: AsyncSession, user_id: UUID) -> None:
     await lock_user(session, user_id)
     await session.execute(delete(models.TelegramLink).where(models.TelegramLink.user_id == user_id))

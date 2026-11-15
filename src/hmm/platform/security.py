@@ -7,7 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.common import ErrorCode
-from hmm.identity.service import ONBOARDED, SESSION_COOKIE, resolve_session, set_session_cookie
+from hmm.identity.service import (
+    SESSION_COOKIE,
+    require_member,
+    resolve_session,
+    set_session_cookie,
+)
 from hmm.platform.clock import CurrentClock
 from hmm.platform.config import Config
 from hmm.platform.db import Session
@@ -43,9 +48,7 @@ async def user(
 
 
 async def member(actor: Annotated[models.User, Depends(user)]) -> models.User:
-    if actor.onboarding_status not in ONBOARDED:
-        raise ProblemError(ErrorCode.ONBOARDING_REQUIRED)
-    return actor
+    return require_member(actor)
 
 
 async def admin(actor: Annotated[models.User, Depends(user)]) -> models.User:
