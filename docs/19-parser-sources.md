@@ -1,6 +1,6 @@
 # 19. Parser: sources and adapters
 
-Survey of 2026-11-15. Report only: nothing here is implemented yet. Access methods, volumes and counts were tested on the survey date and will drift.
+Survey of 2026-11-15. Report only: nothing here is implemented yet. Access methods, volumes and counts were tested on the survey date and will drift. Tier 1 sources and Kaggle were probed live; their observed behavior, field mappings and config sketches are in [19-parser-sources/](19-parser-sources/), one file per source.
 
 ## Adapter design
 
@@ -15,31 +15,31 @@ Sources are hot-swappable: adding or removing a place never touches the pipeline
 
 | adapter | input | covers |
 |---|---|---|
-| `jsonld_sitemap` | sitemap URL, URL pattern | hackathonhub.eu, HackathonRadar, Sessionize |
-| `jsonld_pages` | listing or detail URLs, link pattern | Hackalendar, dev.events, TAIKAI, GDG |
-| `pages` | seed URLs, optional `render = true` | CASSINI, BBICC, ICPC, local conferences (LLM extraction) |
+| `jsonld_sitemap` | sitemap URL, URL pattern | HackathonRadar, Sessionize |
+| `jsonld_pages` | listing or detail URLs, link pattern, paging | dev.events, TAIKAI, GDG, BBICC |
+| `pages` | seed URLs, optional `render = true` | CASSINI, local conferences (CSS fields or LLM extraction) |
 | `luma` | calendar IDs, country filter | Belgrade and Novi Sad communities |
 | `telegram` | channel names | `t.me/s/<channel>` previews |
 | `feed` | RSS/Atom or WP REST URL | Startit.rs, This Week in Rust |
 
-Source-specific adapters exist only where the payload has its own shape: `mlh`, `devpost`, `ctftime`, `kaggle`, `dorahacks`, `confs_tech`, `devopsdays`, `hackathonist`, `itch_jams`.
+Source-specific adapters exist only where the payload has its own shape: `hackathonhub`, `hackalendar`, `mlh`, `devpost`, `ctftime`, `icpc`, `kaggle`, `dorahacks`, `confs_tech`, `devopsdays`, `hackathonist`, `itch_jams`.
 
 ```toml
 [[source]]
 id = "hackathonhub"
-adapter = "jsonld_sitemap"
+adapter = "hackathonhub"
 interval = "12h"
 rate = "30/min"
-sitemap = "https://hackathonhub.eu/sitemap-events.xml"
+countries = ["RS", "RO", "HU", "BG", "HR", "BA", "SI", "MK", "ME", "AL", "GR"]
 
 [[source]]
 id = "luma-rs"
 adapter = "luma"
 interval = "6h"
 rate = "20/min"
-calendars = ["cal-…", "cal-…"]
+calendars = ["cal-WcgY6wHZ5tA68xg", "cal-46L4tD8g5AzO0l9", "cal-xfRCBuSHDpIoEmp"]
 countries = ["RS"]
-include_online = true
+include_online = false
 
 [[source]]
 id = "tg-rs"
@@ -60,21 +60,20 @@ High relevance, structured or cheap to extract.
 
 | source | kinds | access | adapter | volume | notes |
 |---|---|---|---|---|---|
-| [hackathonhub.eu](https://hackathonhub.eu/sitemap-events.xml) | hackathon | sitemap (1,231 URLs) → Event JSON-LD per page | `jsonld_sitemap` | RS 8, RO 23, HU 8, BG 7, HR/BA/SI 2 each | European backbone. robots allows all. Its Serbia theme page is near-empty, so discover through the sitemap. |
-| [Hackathonist](https://raw.githubusercontent.com/zsevic/hackathonist/gh-pages/README.md) | hackathon | Markdown table on the `gh-pages` branch | `hackathonist` | 15 Serbian hackathons in 2026 | Hand-curated, MIT, updated 2026-11-13. Its organiser links (hakaton.fonis.rs, hack.garaza.org, ethbelgrade.rs) seed `pages`. |
-| [MLH](https://mlh.io/events) | hackathon | `<script data-page="app">` JSON (`upcomingEvents`, `pastEvents`) | `mlh` | 2–4 EMEA a month | ISO dates, `formatType`, `region`, venue country. No prize or team size. `api.mlh.com` needs auth. |
-| [Hackalendar](https://hackalendar.com) | hackathon | slugs on the homepage → `/e/{slug}` JSON-LD | `jsonld_pages` | ~20 curated, in-person Europe | robots allows bots by name. |
-| [Devpost](https://devpost.com/api/hackathons?status%5B%5D=open&page=1) | hackathon | `/api/hackathons?status[]=open&page=N`; winners via `/software/search?query=` | `devpost` | 45 open, 36 online, ~0 EU in-person | The only source with winner lists: `winner`, `members` (Devpost usernames), and project pages that link GitHub repos. Dates are free text without a timezone. ToS forbids automated access. |
-| [CTFtime](https://ctftime.org/api/) | contest | `/api/v1/events/?start=&finish=&limit=`; `/api/v1/results/{year}/` | `ctftime` | ~19 a month, ~5 onsite | `onsite`, `format`, `restrictions`, `prizes`, `participants`. No team size. Crawl-delay 10. API terms allow analysis use. |
-| [CASSINI](https://cassini.eu/hackathons) | hackathon | Drupal HTML, one page per country per edition | `pages` | 2 editions a year × 10 countries (RO, BG, PL, UA…) | No JSON-LD. Also listed on TAIKAI; prefer this as authoritative. |
-| [ICPC regionals](https://icpc.global/regionals/finder/SEERC-) | contest | finder is a JS app; [SEERC site](https://seerc.euc.icpc.global/home-2026/about) is WordPress | `pages`, `render = true` | SEERC 12–13 Dec 2026; also CERC | Serbian teams compete in SEERC. Teams of 3 plus a coach. Results on icpc.global. |
-| [BBICC](https://bbicc.fon.bg.ac.rs/) | contest | WordPress HTML | `pages` | 1 a year (7–13 Mar 2027) | Belgrade student case competition, undergraduate teams. |
-| [dev.events](https://dev.events/EU/RS) | conference, meetup | `/EU/RS`, `/EU` JSON-LD; `rss.xml` | `jsonld_pages` | RS 5, EU 518, online 144 | Best Serbian hit rate for conferences (DevFest Belgrade, GITEX AI Serbia). `/meetups/EU/RS` is mostly online noise. |
-| [confs.tech](https://github.com/tech-conferences/conference-data) | conference | `conferences/<year>/<topic>.json`, 32 files | `confs_tech` | 567 in 2026, 193 online, RS 1 | MIT. `cfpUrl`, `cfpEndDate`, `online`. No timezone. |
-| [Luma](https://luma.com) | meetup, workshop | `api.lu.ma/calendar/get-items?calendar_api_id=…&period=future` | `luma` | AI Salon Belgrade 17 upcoming, DSI 5 | UTC times plus IANA `timezone`, `geo_address_info.country_code`, cursor paging. No Belgrade discover page, so calendar IDs are curated. The endpoint is undocumented; the official API needs Luma Plus and covers only your own calendar. |
-| [GDG Belgrade](https://gdg.community.dev/gdg-belgrade/) | conference, hackathon | detail pages carry Event JSON-LD; the listing loads through robots-disallowed `/api/` | `jsonld_pages` | ~5 a year (DevFest conference and hackathon) | Discover detail URLs via dev.events and seed URLs. Crawl-delay 2. Novi Sad chapter likewise. |
-| [@nstechtalks](https://t.me/s/nstechtalks) | meetup | Telegram web preview | `telegram` | 12 posts, May–Nov 2026 | Russian. Also on Luma; dedupe. |
-
+| [hackathonhub.eu](https://hackathonhub.eu/events) | hackathon | site's public Supabase view `events_public` (anon key from the JS bundle), `/events/<slug>.md`; sitemap as fallback | `hackathonhub` | 1,795 published, 444 upcoming, 421 Europe, RS 9 (1 upcoming) | Undocumented API: country filter, `updated_at` for incremental sync. Sitemap `lastmod` is a build stamp and misses 572 live events. No Serbia page exists (unknown routes return a 200 SPA shell). [notes](19-parser-sources/hackathonhub.md) |
+| [Hackathonist](https://raw.githubusercontent.com/zsevic/hackathonist/gh-pages/README.md) | hackathon | Markdown tables on `gh-pages`: `README.md` (current year), `2017.md`…`2025.md` | `hackathonist` | 219 rows; 15 in 2026 | No ids, times, country or deadlines; 8 date shapes. Change feed `commits/gh-pages.atom`. Organiser domains seed `pages`. [notes](19-parser-sources/hackathonist.md) |
+| [MLH](https://www.mlh.com/seasons/2027/events) | hackathon | Inertia JSON in `<script data-page="app">`; paging needs `X-Inertia` + version headers | `mlh` | season 2027: 48 upcoming (6 EMEA), 85 past; RS 0 | `mlh.io` redirects to `www.mlh.com`. No JSON-LD. Date-only events carry a `01:11:11Z` placeholder. No team size, deadline or organizer. [notes](19-parser-sources/mlh.md) |
+| [Hackalendar](https://hackalendar.com) | hackathon | public MCP endpoint `/api/mcp`; `/sitemap.xml` → `/e/{slug}` JSON-LD | `hackalendar` | 86 (20 upcoming, 66 past); RS 0 | MCP payload has timezone, country, prize, registration URL, cancelled flag. Conditional GET works. 13 of 20 upcoming are in France. [notes](19-parser-sources/hackalendar.md) |
+| [Devpost](https://devpost.com/api/hackathons?status%5B%5D=open&page=1) | hackathon | `/api/hackathons?status[]=open` (40 per page); subdomain JSON-LD; winners `ItemList` on project galleries | `devpost` | 77 open (55 online, 22 in-person, 0 in Europe) | Only source with winners and members: project JSON-LD authors, GitHub repo links, GitHub avatar ids resolvable to logins. API dates are free text; subdomain JSON-LD has ISO dates with offsets. ToS forbids automated access. [notes](19-parser-sources/devpost.md) |
+| [CTFtime](https://ctftime.org/api/) | contest | `/api/v1/events/?start=&finish=&limit=`; `/api/v1/results/{year}/` | `ctftime` | ~6.5 a month; of 710 in 2025–2027, 140 onsite, ~39 in Europe, RS 0 | Team size only in description prose. Results are team placings; no member identities. Crawl-delay 10. [notes](19-parser-sources/ctftime.md) |
+| [CASSINI](https://www.cassini.eu/hackathons) | hackathon | server-rendered Drupal, 13 pages, stable field CSS classes; `rss.xml` | `pages` | 2 editions a year × 10 countries; RS 0 | No render or LLM needed. Country pages are reused per edition and carry dates without year or time. Registration deadline only in news posts or on TAIKAI. Winners on `portfolio`. [notes](19-parser-sources/cassini.md) |
+| [ICPC regionals](https://icpc.global/regionals/finder/SEERC-) | contest | public JSON `icpc.global/api/contest/public/*`; SEERC WordPress REST | `icpc` | SEERC 11–13 Dec 2026 (reg to 20 Nov), CERC 8–10 Jan 2027 | No render needed. Contest code year is the ICPC season. Published times are local despite `timezone: "UTC"`. Teams of 3 plus a coach. [notes](19-parser-sources/icpc.md) |
+| [BBICC](https://bbicc.fon.bg.ac.rs/) | contest | WordPress REST (12 pages, `modified_after`); `/bbicc-2027/` has Event JSON-LD | `jsonld_pages` | 1 a year (7–13 Mar 2027) | Teams of four undergraduates plus an advisor; by invitation, so no registration link, deadline or prize. [notes](19-parser-sources/bbicc.md) |
+| [dev.events](https://dev.events/EU/RS) | conference, meetup | `/EU?page=N` (30 per page), `/EU/RS`; `EducationEvent` JSON-LD | `jsonld_pages` | EU 518, RS 3 (+2 pinned online promotions) | Date-only. Regional RSS feeds do not exist; `rss.xml` is the 100 newest global listings. `/hackathons/EU/RS` ignores the country. [notes](19-parser-sources/dev-events.md) |
+| [confs.tech](https://github.com/tech-conferences/conference-data) | conference | `conferences/<year>/<topic>.json`; change feed `commits/main.atom` | `confs_tech` | 2026: 412 unique (576 rows), 2027: 84; RS 1 each | MIT. Same event repeats across topic files. `online` + city = hybrid. No time or timezone. [notes](19-parser-sources/confs-tech.md) |
+| [Luma](https://luma.com) | meetup, workshop | `api.lu.ma/calendar/get-items?calendar_api_id=…&period=future\|past`; `event/get?event_api_id=` | `luma` | Serbian calendars: Garaža (22 past), NS Tech Talks (2 past); 1 upcoming RS event | UTC plus IANA timezone. AI Salon Belgrade lives on the global `aisalon` calendar (filter by country); Claude AI Builders uses a host's personal calendar. Undocumented endpoint. [notes](19-parser-sources/luma.md) |
+| [GDG Belgrade](https://gdg.community.dev/gdg-belgrade/) | conference, hackathon | chapter page `__NEXT_DATA__` (all upcoming); detail pages Event JSON-LD + `eventData` | `jsonld_pages` | RS: 3 upcoming across 2 chapters (Belgrade, University of Belgrade) | No `/api/`, render or dev.events needed. ETag works. Past events capped at 4 per chapter page. No Novi Sad chapter. Crawl-delay 2. [notes](19-parser-sources/gdg.md) |
+| [@nstechtalks](https://t.me/s/nstechtalks) | meetup | Telegram web preview, `?before=<id>` paging | `telegram` | 40 live posts since 2025-10-31, ≈ 10 events | Russian. One event spans 4–5 posts; dates in prose without year, so LLM extraction anchored on post time. No ETag. [notes](19-parser-sources/telegram.md) |
 ## Tier 2
 
 Useful but noisy, low volume, or costly to reach.
@@ -94,7 +93,7 @@ Useful but noisy, low volume, or costly to reach.
 | [dev.bg](https://dev.bg/events/) | meetup, conference | monthly calendar HTML | `pages` | 24 in Nov 2026 | Bulgaria. |
 | [This Week in Rust](https://this-week-in-rust.org/rss.xml) | meetup | weekly RSS, "Upcoming Events" section | `feed` | ~50 a month incl. virtual | One feed item holds many events; extraction splits the list. |
 | [DevOpsDays](https://github.com/devopsdays/devopsdays-web/tree/main/data/events) | conference | `data/events/<year>/<city>/main.yml` | `devopsdays` | 54 in 2026 | Apache-2.0, dates with UTC offsets. No Serbian edition. |
-| [@xecut_bg](https://t.me/s/xecut_bg), [@SERBIAGAMEDEVEVENTS](https://t.me/s/SERBIAGAMEDEVEVENTS) | meetup, workshop | Telegram web preview | `telegram` | 19 and 20 posts | Russian and English. |
+| [@xecut_bg](https://t.me/s/xecut_bg), [@SERBIAGAMEDEVEVENTS](https://t.me/s/SERBIAGAMEDEVEVENTS) | meetup, workshop | Telegram web preview | `telegram` | 59 posts (Apr–Nov 2026); 60 posts ≈ 55 events | Belgrade hackerspace, Russian; gamedev, English, silent since 2026-09-24. [notes](19-parser-sources/telegram.md) |
 
 ## People and results
 
@@ -102,17 +101,18 @@ Useful but noisy, low volume, or costly to reach.
 
 | source | what is published |
 |---|---|
-| Devpost | winning projects, member usernames, GitHub repo links on project pages |
-| CTFtime | per-event team placings, team names |
-| ICPC | team lists and results per contest |
+| Devpost | winners `ItemList` on the project gallery; project JSON-LD authors (Devpost usernames); GitHub repo links when present; member avatars carry GitHub user ids that `api.github.com/user/<id>` resolves to a login |
+| CTFtime | per-event team placings and team names; no member identities |
+| ICPC | top 3 schools and team counts only; team names on the SEERC site's per-edition `teams` page; no people |
 | Kaggle | leaderboard view returns the top 20 (`teamId`, `teamName`, score, submission date), no members; full public CSV via leaderboard download (untested) |
-| CASSINI, BBICC | finalists and winners in news posts |
+| CASSINI | winner blocks per edition on `portfolio` (country via flag URL); European top 3 only in a prose post |
+| BBICC | one winning person per edition as a testimonial on `/history/`; organiser names and e-mails on the contact page |
 
 A GitHub login comes only from a GitHub URL the source links to that person or team, never from a matching username.
 
 ## Overlaps
 
-Dedupe pairs to expect (§19.4.2): CASSINI ↔ TAIKAI; Junction, UniHack, HackEPS ↔ MLH ↔ Hackalendar; DevFest Belgrade ↔ GDG ↔ dev.events; NS Tech Talks ↔ Luma ↔ Telegram; Heapcon ↔ confs.tech ↔ own site; hackathonhub.eu ↔ HackathonRadar ↔ Hackathonist.
+Dedupe pairs to expect (§19.4.2): CASSINI ↔ TAIKAI; Junction, UniHack, HackEPS ↔ MLH ↔ Hackalendar; DevFest Belgrade ↔ GDG ↔ dev.events; Garaža ↔ Luma ↔ Hackathonist; SEERC ↔ ICPC API ↔ SEERC site; NS Tech Talks ↔ Luma ↔ Telegram; Heapcon ↔ confs.tech ↔ own site; hackathonhub.eu ↔ HackathonRadar ↔ Hackathonist.
 
 ## Dropped
 
@@ -134,9 +134,10 @@ Dedupe pairs to expect (§19.4.2): CASSINI ↔ TAIKAI; Junction, UniHack, HackEP
 
 ## Unverified
 
-- hackathonhub.eu: 8 Serbian events in the sitemap against a near-empty Serbia page.
-- GDG: whether dev.events and seed URLs find every chapter event without the listing API.
-- Luma: stability of the undocumented `get-items` endpoint; per-calendar iCal not found.
+- hackathonhub.eu `events_public`: an undocumented API keyed by the site's public anon key; may change without notice.
+- Luma: stability of the undocumented `get-items` endpoint; per-calendar iCal not found. Other Serbian calendars may exist; only those listed were found.
+- Devpost: `winners_announced` can be set while the gallery has no winner markup.
+- ICPC: CERC's WordPress moves domain each year; only the current edition is reachable.
 - Sessionize per-event speaker JSON (`api/v2/<id>/view/All`) untested.
 - Global Game Jam 2027 Serbian sites (40 sites registered so far); ITkonekt 2026 dates; Sinergija agenda fields; EU Code Week data endpoint.
-- `render = true` sources (ICPC finder, Sinergija, Global Game Jam) need a headless browser in the worker image.
+- `render = true` sources (Sinergija, Global Game Jam) need a headless browser in the worker image. No Tier 1 source needs one.
