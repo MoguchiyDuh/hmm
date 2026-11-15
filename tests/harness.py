@@ -228,5 +228,6 @@ async def open_harness(engine: AsyncEngine, database_url: str) -> AsyncGenerator
     app.state.clock = clock
     async with app.router.lifespan_context(app):
         jobs: procrastinate.App = app.state.jobs
+        jobs.periodic_registry.periodic_tasks.clear()
         async with jobs.open_async():
             yield Harness(app, engine, clock)
