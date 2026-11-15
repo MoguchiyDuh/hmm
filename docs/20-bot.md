@@ -6,22 +6,22 @@ Notification delivery with inline actions (incl. Help, Confirm, Check in), accou
 
 ## 20.2 Stack and runtime
 
-Python 3.13, aiogram 3, long polling, httpx client to core. Stateless apart from an in-memory FSM. If persistence is ever needed, use aiogram's storage on a local volume; never core's DB.
+aiogram 3, long polling. Lives in the `hmm` package and runs as its own process from the same image (entry point `hmm-bot`), calling domain modules in-process with its own database sessions. Stateless apart from an in-memory FSM.
 
-Config: `BOT_TOKEN`, `CORE_URL`, `BOT_SERVICE_TOKEN`, `PUBLIC_URL` (for web links).
+Config: `BOT_TOKEN`, `DATABASE_URL`, `PUBLIC_URL` (for web links).
 
 ## 20.3 Account linking
 
-- `/start <code>` → `POST /internal/telegram/link` → "Linked to <display_name>". Errors:
+- `/start <code>` → `identity.service.link_telegram` → "Linked to <display_name>". Errors:
   - `code_invalid` / `code_expired` → tell the user to generate a new code on the web;
   - `telegram_already_linked` → this Telegram account belongs to another user, who must unlink it first.
 - `/start` without a code, or any command from an unlinked user → a message linking to `PUBLIC_URL/settings#telegram`.
-- `/unlink` → `POST /internal/telegram/unlink`.
+- `/unlink` → `identity.service.unlink_telegram_account`.
 - Private chats only; ignore groups.
 
 ## 20.4 Commands
 
-| Command | Calls | Output |
+| Command | Same as | Output |
 |---|---|---|
 | `/events` | `GET /api/v1/events?phase=registration_open&limit=10` | list with inline buttons: Details, Going / Enroll |
 | `/event <id>` | `GET /api/v1/events/{id}` | card with participation phase, live projection and formation date + buttons from `allowed_actions` (Enroll / Withdraw / Party) + web link |
@@ -37,19 +37,19 @@ Config: `BOT_TOKEN`, `CORE_URL`, `BOT_SERVICE_TOKEN`, `PUBLIC_URL` (for web link
 | `/settings` | – | link to web notification settings |
 | `/help` | – | command list |
 
-All user-acting calls use the bot token and `X-Telegram-User-Id` (§3.2). Errors are rendered from the problem `code`.
+Each command runs the domain functions behind the listed endpoint as the linked user, with the same permission checks (§3.2). Errors are rendered from the `ProblemError` code.
 
 ## 20.5 Notification delivery
 
-- One worker loop: long-poll `/internal/notifications/pending`, render, send, ack (§15.2).
+- One delivery loop: `lease_deliveries`, render, send, `acknowledge` (§15.2).
 - Rendering: per-type English templates, HTML parse mode with escaping. Unknown type → generic text + web link (forward compatible).
-- Inline buttons from payload `actions`: one-tap `kind: "api"` calls resolved via shared `ACTION_ROUTES`, or `kind: "link"` web links for forms and navigation. `callback_data`: `a:<key>:<entity_id>` (≤ 64 bytes). On press: fill `{id}` with `entity_id`, call the route with its fixed body as the user, edit the message with the outcome, and answer the callback.
-- Idempotency: keep an in-memory LRU of delivered `notification_id`s. Core may redeliver after lease expiry; duplicates within the LRU are acked as `sent` without resending.
+- Inline buttons from payload `actions`: one-tap `kind: "api"` calls resolved via shared `ACTION_ROUTES`, or `kind: "link"` web links for forms and navigation. `callback_data`: `a:<key>:<entity_id>` (≤ 64 bytes). On press: fill `{id}` with `entity_id`, run the route's domain function with its fixed body as the user, edit the message with the outcome, and answer the callback.
+- Idempotency: keep an in-memory LRU of delivered `notification_id`s. An expired lease is redelivered; duplicates within the LRU are acked as `sent` without resending.
 - Throttle: ≤ 25 msgs/s global, ≤ 1 msg/s per chat; handle `RetryAfter`.
 - `Forbidden: bot was blocked` / `chat not found` → ack `permanent_failure`.
 
 ## 20.6 Deliverables
 
-- `bot` container + README.
+- `hmm-bot` entry point and a `bot` service in the compose files.
 - A template for every notification type in §15.1, with screenshots or text samples.
-- Runs against a fake core (`contracts/fixtures/notifications/*.json` + a tiny stub server) for development.
+- Template tests over `tests/fixtures/notifications/*.json`.

@@ -2,9 +2,9 @@
 
 ## 18.1 Scope
 
-The algo group owns **behavior**: formulas, heuristics, team packing, LLM use, abuse detection. Core owns data loading, persistence, scheduling and hard-constraint validation. Package `hmm_algo` in `algo/`, imported by core's worker only.
+The algorithm owns **behavior**: formulas, heuristics, team packing, LLM use, abuse detection. The rest of the app owns data loading, persistence, scheduling and hard-constraint validation. The implementation lives under `hmm.algo`, imports only `hmm.common`, and is called by the worker only.
 
-## 18.2 Interface (`contracts/algo.py`)
+## 18.2 Interface (`hmm.algo.models`)
 
 ```python
 class Algorithm(Protocol):
@@ -32,7 +32,7 @@ class AlgoContext:
     log: Logger
 ```
 
-Key I/O models (full definitions in `contracts/algo.py`; abbreviated here):
+Key I/O models (full definitions in `hmm.algo.models`; abbreviated here):
 
 ```python
 class OnboardingRequest:
@@ -126,7 +126,7 @@ class CommunityGraph:
 7. **Overrides respected.** Everything except `compute_member` uses `effective` scores. `compute_member` outputs `calculated` only. Reviewed scores (`scores_reviewed_at`, override evidence) may be weighted as more reliable.
 8. **Explanations.** Every score, recommendation and planned team has a human-readable reason. A member must understand why they were placed where they were.
 9. **Onboarding scoring.** Combines quiz answers (using `area_hints`), CV text and GitHub evidence. Returns discrepancy hints when sources disagree.
-10. **Quick-pick goals.** Cover hackathon areas not yet covered by the team (importance `primary` > `required` > `nice`), respect headcounts, prefer recent activity and reserve members, and mix in beginners (low XP / few hackathons) when the team already has a strong member in that area. The exact mix is the group's call; it must be explainable through tags and reasons.
+10. **Quick-pick goals.** Cover hackathon areas not yet covered by the team (importance `primary` > `required` > `nice`), respect headcounts, prefer recent activity and reserve members, and mix in beginners (low XP / few hackathons) when the team already has a strong member in that area. The exact mix is an implementation choice; it must be explainable through tags and reasons.
 11. **Formation goals.** The plan must satisfy every hard constraint in §12.5: every unit appears once and whole, every team size is in [`min`, `max`], and it places at least as many people as `pack()`. Within that:
     - every team covers the hackathon's primary areas, then required ones, then nice ones;
     - strong members are spread across teams instead of stacked in one;
@@ -155,11 +155,11 @@ class CommunityGraph:
 
 - One implementation, shipped production-ready. No placeholder stage in deployment.
 - A deterministic heuristic core is fully functional on its own; the LLM refines ranking and reasons when available.
-- `hmm_algo.testing.FakeAlgorithm` exists only for core's test suite and for core development before the real package lands. It is never wired into the deployed app.
+- `hmm.algo.fake.FakeAlgorithm` exists only for the test suite and for local development before the real implementation lands. It is never wired into the deployed app.
 
 ## 18.5 Deliverables
 
-- `hmm_algo` package, production-ready, plus `hmm_algo.testing.FakeAlgorithm` (its `form_teams` returns `pack()`'s new teams).
-- Offline evaluation harness over `contracts/fixtures/members/*.json`, `events/*.json`, `formation/*.json`, `mentorship/*.json` and `community/*.json` (incl. planted rings), printing rankings, plans, awards, flags and reasons.
-- `algo/README.md` describing formulas and team composition strategy, so admins can understand outcomes.
-- Contract tests from `contracts/` pass: `pack()` examples and property test, ID subsets, determinism, no-LLM mode, plan validity against §12.5.
+- A production `Algorithm` implementation under `hmm.algo`, plus `hmm.algo.fake.FakeAlgorithm` (its `form_teams` returns `pack()`'s new teams).
+- Offline evaluation harness over `tests/fixtures/members/*.json`, `events/*.json`, `formation/*.json`, `mentorship/*.json` and `community/*.json` (incl. planted rings), printing rankings, plans, awards, flags and reasons.
+- A section in this document describing formulas and team composition strategy, so admins can understand outcomes.
+- `tests/test_algo_conformance.py` passes: `pack()` examples and property test, ID subsets, determinism, no-LLM mode, plan validity against §12.5.

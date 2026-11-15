@@ -1,36 +1,40 @@
 # 23. Delivery plan
 
-Full scope, one release. Work runs in five phases; inside a phase every group works in parallel against fakes (§2.5, CONTRIBUTING.md) until the real dependency lands. A phase is done when its checkpoint passes on the dev stack. Each phase is a GitHub milestone; each issue names its spec sections, dependencies and done-when.
+Full scope, one release, five phases. Work runs against fakes (`hmm.algo.fake.FakeAlgorithm`, the fixtures in `tests/fixtures/`) until the real piece lands. A phase is done when its checkpoint (§23.3) passes on the dev stack.
 
-## 23.1 Phase 1: Foundation
+## 23.1 Phases
 
-- `contracts/`: common types, `algo.py`, `formation.py` (`pack()` + §12.3 example and property tests), `imports.py`, `notifications.py`, fixtures (members, events, formation inputs, mentorship cases, community graphs with planted rings, imports, notifications, visibility cases).
-- core: schema baseline, settings, audit, job worker, stub `openapi.json` covering every endpoint (unimplemented handlers return 501), GitHub sign-in, sessions, bans, Telegram linking, service tokens.
-- Fakes: `hmm_algo.testing.FakeAlgorithm` with conformance tests, `hmm-bot-stub-core`, MSW mocks.
-- Every group has its skeleton running in the dev stack (or `pnpm dev` for web); CI green; production stack and release workflow in place (§22).
-- After this phase, `contracts/` changes only through a contract-change issue (CONTRIBUTING.md).
-
-## 23.2 Phases 2–5
-
-| Phase | core | algo | parser | bot | frontend |
-|---|---|---|---|---|---|
-| 1. Foundation | schema, settings, audit, jobs, stub OpenAPI, sign-in, sessions, bans, Telegram linking, service tokens | `FakeAlgorithm`, conformance tests | source survey, fetch + classify dry-run | aiogram skeleton, stub core | app shell, routing, generated client, MSW, i18n (en/ru) |
-| 2. Registration and catalog | job registry + algorithm wiring, areas, quiz builder + onboarding, profiles, GitHub sync, CV, scores, member review, solo log, catalog + import + review queue, queue and parties, enrollments, invites | `score_onboarding` + evaluation harness, `compute_member`, `recommend` | extraction + normalization, area mapping, push to core, revisit loop, heartbeat, dedup | linking, notification loop, templates, inline actions, `/events`, `/enroll`, `/invites` | auth flow, onboarding wizard (incl. CV step), settings, profile, directory, catalog, event page, participation panel (open phase, party lobby) |
-| 3. Hackathon lifecycle | `run_formation` + `pack()` fallback, placement accept/decline, refills, lead rule, `event_tick`, results (participants, member fallback, auto-close, place verification), reviews, deliveries, admin alerts, admin endpoints | `form_teams`, points over all facts (§18.3), LLM reasons, caching | difficulty, all event kinds, people lists | `/team`, placement accepts, throttling, error texts | formation panel (forming, formed, accept), results + reviews, notifications, admin panel |
-| 4. Community | attendance, member events, standalone projects, mentorship, confirmations + trust, feed, to-check + penalties + restrictions | `match_mentors`, `scan_community`, abuse flags, project quick-pick | revisit ended events for results | `/ask`, `/requests`, `/mentorships`, `/confirm`, new templates | home feed, attendance panel, projects, mentorship, profile history + reputation, admin to-check queue |
-| 5. Release | property, concurrency and timer tests; bug fixes only | performance + eval report; `algo/README.md` release notes | quality report, full run against real sources | full run on the dev stack | end-to-end pass, mobile layout |
-
-Phase 5 ends with the acceptance scenario (§23.4) passing and a `v*` release tag deployed with the release workflow (§22.3).
+1. **Foundation.**
+   - Server: schema baseline, settings, audit, job worker, GitHub sign-in, sessions, bans, Telegram linking.
+   - Algorithm: `Algorithm` protocol and I/O models, `pack()` with the §12.3 example and property tests, `FakeAlgorithm` with conformance tests.
+   - Fixtures: members, events, formation inputs, mentorship cases, community graphs with planted rings, imports, notifications, visibility cases.
+   - Parser: source survey, fetch + classify dry-run. Bot: aiogram skeleton. Web: app shell, routing, generated client, i18n (en/ru).
+   - CI green; production stack and release workflow in place (§22).
+2. **Registration and catalog.**
+   - Server: job registry and algorithm wiring, areas, quiz builder and onboarding, profiles, GitHub sync, CV, scores, member review, solo log, catalog with import and review queue, queue and parties, enrollments, invites.
+   - Algorithm: `score_onboarding` with an evaluation harness, `compute_member`, `recommend`.
+   - Parser: extraction and normalization, area mapping, import, revisit loop, heartbeat, dedup.
+   - Bot: linking, delivery loop, templates, inline actions, `/events`, `/enroll`, `/invites`.
+   - Web: auth flow, onboarding wizard (incl. CV step), settings, profile, directory, catalog, event page, participation panel.
+3. **Hackathon lifecycle.**
+   - Server: `run_formation` with the `pack()` fallback, placement accept and decline, refills, lead rule, `event_tick`, results (participants, member fallback, auto-close, place verification), reviews, deliveries, admin alerts and endpoints.
+   - Algorithm: `form_teams`, points over all facts (§18.3), LLM reasons, caching.
+   - Parser: difficulty, all event kinds, people lists. Bot: `/team`, placement accepts, throttling, error texts.
+   - Web: formation panel, results and reviews, notifications, admin panel.
+4. **Community.**
+   - Server: attendance, member events, standalone projects, mentorship, confirmations and trust, feed, to-check queue, penalties and restrictions.
+   - Algorithm: `match_mentors`, `scan_community`, abuse flags, project quick-pick.
+   - Parser: revisit ended events for results. Bot: `/ask`, `/requests`, `/mentorships`, `/confirm`, new templates.
+   - Web: home feed, attendance panel, projects, mentorship, profile history and reputation, admin to-check queue.
+5. **Release.** Property, concurrency and timer tests; algorithm performance and evaluation report; parser quality report and a full run against real sources; bot and web end-to-end pass on the dev stack. Ends with the acceptance scenario (§23.4) passing and a `v*` release tag deployed with the release workflow (§22.3).
 
 ## 23.3 Checkpoints
 
-1. **Foundation:** contracts frozen; stub OpenAPI published; `docker compose up` brings up every service healthy; CI green; the bot links an account through core.
+1. **Foundation:** `docker compose up` brings up every service healthy; CI green; the bot links an account.
 2. **Registration and catalog:** frontend signs in via real GitHub; full registration (quiz + CV) → scores on profile; admin completes a member review with an override; parser imports real events; members enroll and create a party.
 3. **Hackathon lifecycle:** queue and parties → formation → accepts → refills until `reg_deadline` → results, reviews, XP; placement accepted from Telegram; admin handles every alert type.
 4. **Community:** a project ships with confirmed contributions; a mentorship runs from request to reviews; attendance gets confirmed; a planted ring lands in the to-check queue and gets punished.
 5. **Release:** the scenario below passes on the dev stack with real GitHub OAuth and real parser sources; the release is tagged and deployed (§22).
-
-A checkpoint at risk is raised in the group's issue with `status:blocked`, and people move from groups that are ahead.
 
 ## 23.4 End-to-end acceptance scenario
 

@@ -35,4 +35,3 @@ Not areas: full-stack (= backend + frontend scores), and domain expertise (event
 | PATCH | `/api/v1/admin/areas/{id}` | admin | `{name, description, sort}` |
 | POST | `/api/v1/admin/areas/{id}/archive` | admin | – |
 | POST | `/api/v1/admin/areas/{id}/unarchive` | admin | – |
-| GET | `/internal/areas` | parser | Area list |

@@ -2,7 +2,7 @@
 
 ## 21.1 Stack rules
 
-- React + Vite + TS strict, TanStack Router (file routes) + TanStack Query, `openapi-typescript` types + `openapi-fetch` client generated from core's `openapi.json` (CI check that the generated client is up to date).
+- React + Vite + TS strict, TanStack Router (file routes) + TanStack Query, `openapi-typescript` types + `openapi-fetch` client generated from `uv run python -m hmm.export_openapi`.
 - Tailwind + shadcn/ui. Zod for forms. MSW mocks generated from OpenAPI examples for development before core endpoints exist.
 - Build to static assets, served by whatever proxy the deployment uses. No SSR.
 - Auth: cookie only. On 401 redirect to `/login`. While `onboarding_status` is `not_started` or `in_progress`, redirect to `/onboarding`.
@@ -61,5 +61,5 @@
 ## 21.3 Deliverables
 
 - `web/` with CI: typecheck, lint, build, generated-client freshness, i18n key completeness.
-- Visibility evaluator passes `contracts/fixtures/visibility_cases.json`.
+- Visibility evaluator passes `tests/fixtures/visibility/*.json`.
 - MSW mock mode (`pnpm dev:mock`) to demo every page without core.

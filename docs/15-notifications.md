@@ -5,7 +5,7 @@
 - Created only by core, in the same transaction as the cause. `dedupe_key` prevents duplicates from retried jobs.
 - If the user has Telegram linked and the type's Telegram toggle is on, a `notification_deliveries` row (`channel = telegram`, `status = pending`) is created too.
 - Web: inbox and unread count. The frontend polls `GET /api/v1/notifications/unread-count` every 30 s and on focus.
-- Payload: typed per `type` in `contracts/notifications.py`. Each payload includes entity IDs and denormalized display strings, so clients render without extra calls.
+- Payload: typed per `type` in `hmm.notifications.payloads`. Each payload includes entity IDs and denormalized display strings, so clients render without extra calls.
 - Buttons: `actions: [{kind: "api", key, entity_id, label_key} | {kind: "link", label_key, url}]`. `api` actions are one-tap calls resolved through the shared `ACTION_ROUTES`; `link` actions open the web for forms and navigation. Telegram callbacks use `a:<key>:<entity_id>` (≤ 64 bytes).
 
 | type | recipient | actions |
@@ -57,8 +57,8 @@ Defaults: every type is on for web and Telegram, except that `score_changed`, `t
 
 ## 15.2 Telegram delivery (bot pulls)
 
-- `GET /internal/notifications/pending?channel=telegram&limit=50&wait=25`, long poll: returns up to `limit` deliveries with `next_attempt_at ≤ now` and leases them for 60 s. Items: `{delivery_id, notification_id, telegram_chat_id, type, payload, created_at}`.
-- `POST /internal/notifications/ack {results: [{delivery_id, status, external_id?, error?}]}`:
+- `notifications.service.lease_deliveries(now, limit)`: returns up to `limit` Telegram deliveries with `next_attempt_at ≤ now` and leases them for 60 s. Items: `{delivery_id, notification_id, telegram_chat_id, type, payload, created_at}`.
+- `notifications.service.acknowledge(now, [{delivery_id, status, external_id?, error?}])`:
 
 | `status` | Effect |
 |---|---|
@@ -100,7 +100,5 @@ The new-member review queue (§9.5), member-event duplicates (§26.3) and result
 | GET | `/api/v1/notifications/unread-count` | user | → `{count}` |
 | POST | `/api/v1/notifications/{id}/read` | user | 204 |
 | POST | `/api/v1/notifications/read-all` | user | 204 |
-| GET | `/internal/notifications/pending` | bot | §15.2 |
-| POST | `/internal/notifications/ack` | bot | §15.2 |
 | GET | `/api/v1/admin/alerts?status=&type=&cursor=` | admin | Alerts |
 | POST | `/api/v1/admin/alerts/{id}/resolve` | admin | `{note}` |

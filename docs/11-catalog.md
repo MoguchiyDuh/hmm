@@ -13,7 +13,7 @@
 - Admins can toggle `formation_enabled` per event while the event has no enrollments.
 - Every event supports attendance (§26).
 
-## 11.2 Import (`POST /internal/events/import`)
+## 11.2 Import (`catalog.imports.import_events`)
 
 A batch has ≤ 50 items, each an `EventImport` (§19.3). Each item runs in its own transaction:
 
@@ -37,7 +37,7 @@ A batch has ≤ 50 items, each an `EventImport` (§19.3). Each item runs in its 
    - notify (`event_cancelled`); admin alert `event_cancelled_with_teams` if any teams existed.
 9. Team size changed and an existing team is now above the new max or below the new min → admin alert `team_size_conflict`. Nobody is removed automatically.
 
-Response:
+Result:
 
 ```json
 { "results": [
@@ -46,8 +46,8 @@ Response:
 ```
 
 Parser support:
-- `GET /internal/events/tracked?cursor=` → `source_id`s, URLs and `ends_at` of non-archived events that haven't ended, plus events that ended within the last 30 days (for attendee and winner lists). The parser revisits these.
-- `POST /internal/parser/heartbeat {run_id, started_at, finished_at, stats: {sources_checked, candidates, imported, errors}, errors: [...]}`. No heartbeat for `parser_heartbeat_max_age_hours` (26) → admin alert `parser_down`.
+- `catalog.parser.tracked_events(cursor)` → `source_id`s, URLs and `ends_at` of non-archived events that haven't ended, plus events that ended within the last 30 days (for attendee and winner lists). The parser revisits these.
+- `catalog.parser.record_heartbeat({run_id, started_at, finished_at, stats: {sources_checked, candidates, imported, errors}, errors: [...]})`. No heartbeat for `parser_heartbeat_max_age_hours` (26) → admin alert `parser_down`.
 
 ## 11.3 Admin edits
 
@@ -84,10 +84,6 @@ Parser support:
 | POST | `/api/v1/admin/events/{id}/reject` | admin | → `archived` |
 | POST | `/api/v1/admin/events/{id}/merge` | admin | `{into}` |
 | POST | `/api/v1/admin/events/{id}/cancel` | admin | `{reason}` |
-| POST | `/internal/events/import` | parser | §11.2 |
-| GET | `/internal/events/tracked` | parser | §11.2 |
-| POST | `/internal/parser/heartbeat` | parser | §11.2 |
-| GET | `/internal/areas` | parser | §8.3 |
 
 ## 11.6 Done when
 

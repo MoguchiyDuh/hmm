@@ -2,7 +2,7 @@
 
 ## 3.1 HTTP
 
-- Public API: `/api/v1/...`. Service API: `/api/v1/internal/...`, written `/internal/...` in these docs.
+- API: `/api/v1/...`. There is no service API: the bot and the parser call domain modules in-process.
 - JSON only, `snake_case` fields.
 - IDs: UUIDv7 strings.
 - Time: RFC 3339 UTC (`2026-11-12T10:00:00Z`). Clients display times in the viewer's timezone (`users.timezone` if set, else the browser's); the bot uses `users.timezone`, else UTC. Events also carry an IANA `timezone`.
@@ -16,7 +16,7 @@
     "detail": "Team has reached max size 5", "code": "team_full", "errors": [] }
   ```
   - `type` is always `{PUBLIC_URL}/errors/{code}`.
-  - `code` is a stable machine string; frontend and bot switch on it. The full list is `hmm_contracts.common.ErrorCode`; a new code is a contract change.
+  - `code` is a stable machine string; frontend and bot switch on it. The full list is `hmm.common.ErrorCode`.
   - Validation errors use 422 with `errors: [{loc, msg}]`.
 - Status codes:
 
@@ -38,20 +38,17 @@
 
 - Text limits unless a section says otherwise: names ≤ 100, titles ≤ 200, notes and reasons ≤ 1000 (trimmed, non-empty), markdown ≤ 5000, event descriptions ≤ 20000, ≤ 10 links.
 - Every mutable resource response includes `allowed_actions: string[]` computed for the current actor (e.g. `["invite","close_seats","leave"]`). Frontend and bot render buttons from it and never re-implement permission rules.
-- OpenAPI is the source of truth for the frontend. Core commits `core/openapi.json` and CI checks it is current; `web` regenerates its client from it.
+- OpenAPI is the source of truth for the frontend. It is generated on demand (`uv run python -m hmm.export_openapi > openapi.json`) and not committed.
 
 ## 3.2 Authentication
 
 | Caller | Mechanism |
 |---|---|
 | Browser | `hmm_session` cookie: `HttpOnly; Secure; SameSite=Lax; Path=/`. Opaque random token; only its SHA-256 is stored. Unsafe methods (anything but GET, HEAD, OPTIONS) require `Origin` = `PUBLIC_URL`, otherwise 403 `origin_mismatch`. |
-| Bot acting as a user | `Authorization: Bearer <BOT_SERVICE_TOKEN>` + `X-Telegram-User-Id: <id>`. Core resolves the linked user. Same permission checks as the user. |
-| Bot service calls | `Authorization: Bearer <BOT_SERVICE_TOKEN>` on `/internal/telegram/*` and `/internal/notifications/*` only. |
-| Parser | `Authorization: Bearer <PARSER_SERVICE_TOKEN>` on `/internal/events/*`, `/internal/areas` and `/internal/parser/*` only. |
+| Bot | In-process. Acts as the user linked to the Telegram account, through the same domain functions and permission checks as the web. |
+| Parser | In-process. Calls the catalog import functions directly (§11.2). |
 
-- A request carrying both a session cookie and bot credentials → 400 `bad_request`.
-- Tokens are compared in constant time. Service tokens are scoped: the bot token is rejected on parser routes and vice versa.
-- Admin endpoints require a web session; the bot cannot call them.
+- Admin actions require a web session; the bot cannot perform them.
 
 ## 3.3 Authorization
 
@@ -63,7 +60,6 @@
 | user | Signed in (web session or linked Telegram), onboarding not required. |
 | member | User whose `onboarding_status` is `completed` or `reopened`. Otherwise 403 `onboarding_required`. |
 | admin | Web session of a user with `is_admin`. Onboarding is not required. |
-| bot / parser | Service token (§3.2). |
 | Resource roles | A member acting on a resource they hold a role in: **lead** (of that project or team), **team member** / **project member** (on its roster), **party owner** / **party member**, **invitee**, **requester**, **learner**, **mentor**, **creator**, **offer author**, **confirmer**. Otherwise 403 `forbidden` or 404 if not visible. |
 
 Rules:
@@ -71,7 +67,7 @@ Rules:
 - **No global lead role.** Leadership is per project (`projects.lead_user_id`); a hackathon team is a project. "Lead of P" grants lead actions on P only. Mentors and learners act only on their own mentorships.
 - **Onboarding gate:** a user who isn't a member can only call `user` endpoints: `/auth/*`, `/me`, `/me/profile`, `/me/cv`, `/me/telegram*`, `/me/notification-settings`, `/onboarding/*` and `/notifications/*`.
 - **Restrictions** (§10.4) are checked per action. A restricted action → 403 `restricted`, except `confirming`, whose confirmations are stored and ignored.
-- **Banned users:** all sessions are deleted, so web requests get 401 `unauthenticated` and sign-in redirects to `/login?error=banned`. Bot requests for a banned user get 403 `banned`.
+- **Banned users:** all sessions are deleted, so web requests get 401 `unauthenticated` and sign-in redirects to `/login?error=banned`. Bot actions for a banned user fail with `banned`.
 
 ## 3.4 Consistency and concurrency
 

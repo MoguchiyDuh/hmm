@@ -44,7 +44,7 @@ After the result, the lead can **continue** the team as a regular project (`acti
 
 ## 27.3 Members
 
-- **Invite** (lead → any onboarded, non-DND, non-banned member): the invitee must accept. Reuses `invites` with `kind = team` and `project_id` set; expires after `invite_ttl_days` (7).
+- **Invite** (lead → any onboarded, non-DND, non-banned member): the invitee must accept. Reuses `invites` with `kind = team` and `project_id` set; expires after `invite_ttl_days` (7), capped at the hackathon's `reg_deadline` for teams. Inviting someone who already has a pending invite to the same project or party returns that invite unchanged. Accepting a standalone invite ignores the invitee's DND.
 - **Join request** (member → project with `recruiting` set): the lead accepts or rejects. Reuses `join_requests`; standalone projects only.
 - **Recruiting:** `recruiting {areas: [area_key], note}` or null. While set, the project appears in the feed (`project_recruiting`) and the lead gets quick-pick (`recommend` with the project as context, §14).
 - **Leave:** any member, anytime. A leaving lead triggers succession (§27.6).

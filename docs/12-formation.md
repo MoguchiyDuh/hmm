@@ -30,7 +30,7 @@ publish ─► OPEN ─────────────────► FORMI
 - `accept_by` of a placement = `min(placed_at + accept_hours (24), starts_at)`.
 - Admins can "form now" while `open`.
 
-## 12.3 Packing (`hmm_contracts.formation.pack`)
+## 12.3 Packing (`hmm.algo.pack.pack`)
 
 A pure function. Core uses it for the live projection, as the fallback planner, and for every refill after formation. Algo plans must place at least as many people as it does.
 

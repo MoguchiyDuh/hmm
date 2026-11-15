@@ -70,7 +70,7 @@ Validation on save and publish (`/validate` returns every issue):
 | A required question can never become visible | warning |
 | Some non-archived area has no option with `area_hints` for it | warning |
 
-Core implements the evaluator once in Python, and the frontend implements the same evaluator in TypeScript for live branching. Both must pass the shared test vectors in `contracts/fixtures/visibility_cases.json`.
+Core implements the evaluator once in Python, and the frontend implements the same evaluator in TypeScript for live branching. Both must agree on the cases in `tests/test_onboarding_evaluator.py`.
 
 ## 9.4 Submission
 

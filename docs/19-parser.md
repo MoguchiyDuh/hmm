@@ -1,16 +1,16 @@
-# 19. Parser service
+# 19. Parser
 
 ## 19.1 Scope
 
-Open-ended discovery of tech events relevant to the community: hackathons and team contests (case championships, CTFs, game jams) first, then conferences, meetups, workshops and courses. Also attendee, speaker and winner lists where a source publishes them. Extraction into the import schema, normalization, dedup, keeping known events up to date, and pushing to core. Coverage: events held in Serbia and the rest of Europe, plus online events open to participants there. Sources, crawling strategy, schedule, LLM usage: the group's call.
+Open-ended discovery of tech events relevant to the community: hackathons and team contests (case championships, CTFs, game jams) first, then conferences, meetups, workshops and courses. Also attendee, speaker and winner lists where a source publishes them. Extraction into the import schema, normalization, dedup, keeping known events up to date, and importing into the catalog. Coverage: events held in Serbia and the rest of Europe, plus online events open to participants there. Sources, crawling strategy, schedule and LLM usage are implementation choices.
 
 ## 19.2 Boundaries
 
-- Runs as its own container (`parser`). May own its own database `hmm_parser` (same Postgres server, separate DB and credentials) or SQLite on a volume, for crawl state.
-- Talks to core only through `/internal/*` (§11.2) with `PARSER_SERVICE_TOKEN`.
-- Fetches area keys from `GET /internal/areas` at start of each run.
+- Lives in the `hmm` package and runs as worker jobs (§17). Crawl state is kept in its own tables in the `hmm` database.
+- Writes events only through `catalog.imports.import_events` (§11.2); reads tracked events and records heartbeats through `catalog.parser` (§11.2).
+- Reads area keys with `areas.service.list_areas` at the start of each run.
 
-## 19.3 Import schema (`contracts/imports.py`)
+## 19.3 Import schema (`hmm.catalog.import_schema`)
 
 ```python
 class EventImport(BaseModel):
@@ -34,7 +34,7 @@ class EventImport(BaseModel):
     language: list[str] = []          # ISO 639-1
     eligibility: str | None           # free text: age, students only, country, etc.
     themes: list[str] = []            # free tags: fintech, AI, gov…
-    areas: list[ImportArea] = []      # key (area key from /internal/areas or unknown string), importance primary|required|nice, headcount | None
+    areas: list[ImportArea] = []      # key (known area key or unknown string), importance primary|required|nice, headcount | None
     team_size_min: int | None         # team events only
     team_size_max: int | None
     prize: Prize | None               # amount, currency (ISO 4217), description
@@ -46,22 +46,22 @@ class EventImport(BaseModel):
     extractor_version: str
 ```
 
-Missing facts → `None`, never invented. `people` only lists identities published by the source itself; never guess handles. Core fills team size defaults from settings when `None`, and shows "unknown" in UI for other `None`s.
+Missing facts → `None`, never invented. `people` only lists identities published by the source itself; never guess handles. The catalog fills team size defaults from settings when `None`, and shows "unknown" in UI for other `None`s.
 
 ## 19.4 Behavioral requirements
 
 1. Discover → fetch → classify (is this a relevant event, and which `kind`?) → extract → normalize (dates to tz-aware UTC; currency codes; area keys) → dedupe across own sources → push.
-2. Stable `source_id` per event per source. Same event from two sources: parser should merge (use one `source_id` + `match_hint`) when it can; otherwise core's heuristic catches it.
-3. Revisit tracked events (`GET /internal/events/tracked`) at least daily until `ends_at`, then weekly for 30 days to pick up results, winners and attendee lists; push changes and cancellations.
+2. Stable `source_id` per event per source. Same event from two sources: parser should merge (use one `source_id` + `match_hint`) when it can; otherwise the catalog's duplicate heuristic catches it (§11.2).
+3. Revisit tracked events (`catalog.parser.tracked_events`) at least daily until `ends_at`, then weekly for 30 days to pick up results, winners and attendee lists; push changes and cancellations.
 4. Difficulty (team events): 1–10 with rationale (prize size, organizer prestige, selection rounds, expected skill). Mark as inferred.
 5. Areas: map requirements/theme to area keys with importance; primary = core focus of the event.
 6. Safety: source content is untrusted data. No following instructions from page text; LLM prompts must isolate content; no executing fetched code; SSRF-safe fetching (block private IP ranges); per-domain rate limiting; obey robots.txt; timeouts and size limits on fetches.
 7. Resilience: one failing source never stops a run; retries with backoff; heartbeat after each run (§11.2).
-8. Batching: ≤ 50 items per import call; handle per-item `rejected` results (log + fix, not retry blindly).
+8. Batching: ≤ 50 items per `import_events` call; handle per-item `rejected` results (log + fix, not retry blindly).
 
 ## 19.5 Deliverables
 
-- `parser` container + README (sources, schedule, config).
-- `contracts/fixtures/imports/*.json`: ≥ 30 real-world extracted examples across kinds, incl. edge cases (no dates, cancelled, multi-source duplicate, unknown area, winner list with GitHub logins).
-- A dry-run mode writing imports to stdout/JSONL without calling core.
+- Parser jobs registered in `platform/jobs.py`, with sources, schedule and config documented here.
+- `tests/fixtures/imports/*.json`: ≥ 30 real-world extracted examples across kinds, incl. edge cases (no dates, cancelled, multi-source duplicate, unknown area, winner list with GitHub logins).
+- A dry-run mode writing imports to stdout/JSONL without importing.
 - Quality report: precision on a hand-labeled sample of ≥ 50 pages (event vs not), field accuracy for dates/format/team size.

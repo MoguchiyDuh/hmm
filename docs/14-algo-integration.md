@@ -18,7 +18,7 @@ One `recommendation_sets` row per computation. `input_hash` covers the roster, c
 
 ## 14.2 Formation
 
-`run_formation` (§12.5) calls `form_teams`. Core validates the plan (§12.5) and falls back to `hmm_contracts.formation.pack()` on failure. Both plans are stored in `formation_runs` for inspection. Refills after formation use `pack()` only (§12.6).
+`run_formation` (§12.5) calls `form_teams`. Core validates the plan (§12.5) and falls back to `hmm.algo.pack.pack()` on failure. Both plans are stored in `formation_runs` for inspection. Refills after formation use `pack()` only (§12.6).
 
 ## 14.3 Mentor matching
 

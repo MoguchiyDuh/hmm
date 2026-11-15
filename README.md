@@ -15,7 +15,7 @@ and keeps the team going after the event with projects, mentors and a profile th
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-[Features](#features) · [Architecture](#architecture) · [Quick start](#quick-start) · [Development](#development) · [Deployment](#deployment) · [Docs](docs/README.md) · [Contributing](CONTRIBUTING.md)
+[Features](#features) · [Architecture](#architecture) · [Quick start](#quick-start) · [Development](#development) · [Deployment](#deployment) · [Docs](docs/README.md)
 
 </div>
 
@@ -39,12 +39,9 @@ and keeps the team going after the event with projects, mentors and a profile th
 ```mermaid
 flowchart LR
     user([Member / admin]) -->|HTTPS| caddy
-    tg([Telegram]) <--> bot
 
     subgraph stack [Docker Compose]
-        caddy[web<br/>Caddy + React SPA] -->|/api| api[api<br/>FastAPI]
-        bot[bot<br/>aiogram] -->|/internal| api
-        parser[parser<br/>event discovery] -->|/internal| api
+        caddy[web<br/>Caddy + SPA] -->|/api| api[api<br/>FastAPI]
         api --> pg[(PostgreSQL 18)]
         worker[worker<br/>jobs + algo] --> pg
         api --> minio[(MinIO<br/>CV files)]
@@ -54,67 +51,56 @@ flowchart LR
     end
 
     worker -->|chat completions| llm([OpenAI-compatible LLM])
-    parser --> sources([Event sources])
     backup -.->|snapshots| s3([External S3])
 ```
 
 - **api** is stateless and only enqueues work; **worker** runs every background job, including all algorithm calls.
-- **bot** and **parser** never touch the database: they call core over HTTP with service tokens.
+- The Telegram bot and the event parser run in-process against the domain modules; there is no internal HTTP API.
 - **web** is the only public service: Caddy terminates TLS, serves the SPA and proxies `/api`.
 
-| Part | Directory | Stack |
+| Part | Location | Stack |
 |---|---|---|
-| Contracts | [`contracts/`](contracts) | Pydantic v2 models shared by every Python package, canonical JSON fixtures |
-| Core | [`core/`](core) | FastAPI, SQLAlchemy 2 async + psycopg 3, Alembic, procrastinate, PostgreSQL 18, MinIO |
-| Algorithm | [`algo/`](algo) | Pure Python, called in-process by the worker; any OpenAI-compatible chat endpoint |
-| Parser | [`parser/`](parser) | Standalone Python service that pushes events to core |
-| Bot | [`bot/`](bot) | aiogram 3, long polling |
-| Web | [`web/`](web) | React, TypeScript, Vite, TanStack Router + Query, Tailwind + shadcn/ui |
+| App | [`src/hmm/`](src/hmm) | FastAPI, SQLAlchemy 2 async + psycopg 3, Alembic, procrastinate, PostgreSQL 18, MinIO |
+| Algorithm | [`src/hmm/algo/`](src/hmm/algo) | Pure Python interface and fakes, called in-process by the worker |
+| Tests | [`tests/`](tests) | pytest + xdist against PostgreSQL, canonical JSON fixtures |
+| Web | [`web/`](web) | SPA |
 | Deploy | [`deploy/`](deploy) | Dockerfiles, Compose (dev + production), Caddy, S3 backups, GitHub Actions → GHCR |
 
 ## Quick start
 
-You need [uv](https://docs.astral.sh/uv/getting-started/installation/), [Docker](https://docs.docker.com/engine/install/) with Compose, and for the frontend Node 24 + [pnpm](https://pnpm.io/installation).
+You need [uv](https://docs.astral.sh/uv/getting-started/installation/) and [Docker](https://docs.docker.com/engine/install/) with Compose.
 
 ```sh
 git clone https://github.com/MoguchiyDuh/hmm.git
 cd hmm
-uv sync --all-packages
+uv sync
 cp deploy/.env.example deploy/.env
 docker compose -f deploy/compose.yaml up -d --build
 curl http://localhost:8000/healthz
 ```
 
-Then start the frontend:
-
-```sh
-cd web
-pnpm install
-pnpm dev
-```
-
 | What | Where |
 |---|---|
-| Web app (dev server) | http://localhost:5173 |
 | API | http://localhost:8000/api/v1 |
 | OpenAPI docs | http://localhost:8000/docs |
 | MinIO console | http://localhost:9001 |
 | PostgreSQL | `localhost:5432`, user `hmm` |
 
-GitHub sign-in needs an [OAuth app](https://github.com/settings/developers) with the callback `http://localhost:8000/api/v1/auth/github/callback`; put its id and secret into `deploy/.env`. Bot and parser start with `docker compose -f deploy/compose.yaml --profile full up -d`.
+GitHub sign-in needs an [OAuth app](https://github.com/settings/developers) with the callback `http://localhost:8000/api/v1/auth/github/callback`; put its id and secret into `deploy/.env`.
 
 ## Development
 
 ```sh
 uv run ruff format && uv run ruff check     # format and lint
 uv run ty check                              # type check
-uv run pytest -q                             # all Python tests
+uv run pytest -q                             # full suite, parallel
+uv run pytest -q -n0 tests/test_x.py -k name # one test, no workers
 uv run alembic upgrade head                  # apply migrations
 uv run alembic revision --autogenerate -m "add x"
-uv run python -m hmm_core.export_openapi    # regenerate core/openapi.json
+uv run python -m hmm.export_openapi > openapi.json
 ```
 
-Database tests need `TEST_DATABASE_URL` pointing at an empty PostgreSQL 18 database, for example:
+Database tests need `TEST_DATABASE_URL` pointing at a PostgreSQL 18 server. The suite migrates a template database only when migration files change and clones it per worker:
 
 ```sh
 docker run -d --name hmm-test-db -e POSTGRES_USER=hmm -e POSTGRES_PASSWORD=hmm -e POSTGRES_DB=hmm_test \
@@ -122,26 +108,17 @@ docker run -d --name hmm-test-db -e POSTGRES_USER=hmm -e POSTGRES_PASSWORD=hmm -
 export TEST_DATABASE_URL=postgresql+psycopg://hmm:hmm@127.0.0.1:55432/hmm_test
 ```
 
-Work against fakes until the real piece exists:
+Set `ALGORITHM=fake` to run the worker with `hmm.algo.fake.FakeAlgorithm`. Shared test builders live in `tests/factories.py`, the harness in `tests/harness.py`.
 
-| You build | Fake to use |
-|---|---|
-| core jobs | `hmm_algo.testing.FakeAlgorithm` |
-| bot | `uv run hmm-bot-stub-core` + `contracts/fixtures/notifications` |
-| web | MSW mocks from the OpenAPI examples (`pnpm dev:mock`) |
-
-CI runs the same checks on every pull request: `python` (lint, types, migrations, OpenAPI, tests), `web` (typecheck, build) and `compose` (stack config).
+CI runs lint, types, the migration round-trip and the suite on every push, plus the web build and a compose config check. Commits follow `type(scope): subject`; schema changes ship with a migration.
 
 ### Repository layout
 
 ```text
 hmm/
-├── contracts/   shared models: algo interface, imports, notifications, fixtures
-├── core/        API, worker, database schema and migrations
-├── algo/        scoring, matching, team formation
-├── parser/      event discovery and import
-├── bot/         Telegram bot
-├── web/         single-page app, including the admin panel
+├── src/hmm/     API, worker, algorithm interface, migrations (docs §2.5)
+├── tests/       suite, factories, harness, JSON fixtures
+├── web/         single-page app
 ├── deploy/      Dockerfiles, compose files, Caddyfile, backups, env templates
 └── docs/        the specification, start at docs/README.md
 ```
@@ -160,19 +137,13 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The [release workflow](.github/workflows/release.yml) builds multi-arch images, pushes them to GHCR and rolls the stack out over SSH. Migrations run before the API starts; Caddy obtains TLS certificates automatically; the `backup` service snapshots both databases and the file bucket to external S3 on a schedule.
+The [release workflow](.github/workflows/release.yml) builds multi-arch images, pushes them to GHCR and rolls the stack out over SSH. Migrations run before the API starts; Caddy obtains TLS certificates automatically; the `backup` service snapshots the database and the file bucket to external S3 on a schedule.
 
 Full guide, every environment variable, upgrades, rollback and restore: [docs §22](docs/22-deployment.md).
 
 ## Documentation
 
-The [specification](docs/README.md) is the contract between the five groups (core, algo, parser, bot, frontend). Every section has numbered subsections, an endpoints table and a "Done when" list. The delivery plan is in [§23](docs/23-delivery-plan.md).
-
-## Contributing
-
-1. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the spec sections for your group.
-2. Pick an [issue](https://github.com/MoguchiyDuh/hmm/issues) from the current [milestone](https://github.com/MoguchiyDuh/hmm/milestones) and assign yourself.
-3. Branch, commit with Conventional Commits, open a draft PR, get CI green and one approval.
+The [specification](docs/README.md) has numbered sections, each with an endpoints table and a "Done when" list. The delivery plan is in [§23](docs/23-delivery-plan.md).
 
 ## License
 

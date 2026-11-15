@@ -45,7 +45,7 @@ Covers GitHub sign-in, sessions, admin bootstrap, bans, Telegram linking and ser
 ## 6.5 Telegram linking
 
 - The web requests a code: 8 characters, base32, valid 10 minutes, one active per user (a new code invalidates the previous one). Deep link: `https://t.me/<bot>?start=<code>`.
-- The bot posts the code and the Telegram identity to core (`/internal/telegram/link`). An unknown code → 404 `code_invalid`; an expired, used or superseded code → 410 `code_expired`.
+- The bot passes the code and the Telegram identity to `identity.service.link_telegram`. An unknown code → 404 `code_invalid`; an expired, used or superseded code → 410 `code_expired`.
 - One Telegram account ↔ one user:
   - linking a Telegram account that is linked to another user → 409 `telegram_already_linked` (that user unlinks first);
   - a user who links a new Telegram account replaces their own previous link.
@@ -63,8 +63,6 @@ Covers GitHub sign-in, sessions, admin bootstrap, bans, Telegram linking and ser
 | GET | `/api/v1/me` | user | User, `is_admin`, `onboarding_status`, `dnd_until`, Telegram link status, unread count, `allowed_actions` |
 | POST | `/api/v1/me/telegram/link-code` | user | → `{code, deep_link, expires_at}` |
 | DELETE | `/api/v1/me/telegram` | user | 204 |
-| POST | `/internal/telegram/link` | bot | `{code, telegram_user_id, chat_id, username}` → `{user_id, display_name}`; 404 `code_invalid`, 410 `code_expired`, 409 `telegram_already_linked` |
-| POST | `/internal/telegram/unlink` | bot | `{telegram_user_id}` → 204 |
 
 `allowed_actions` on `/me`: `link_telegram` always; `unlink_telegram` when linked; `refresh_github` and `request_help` for members; `create_project` and `create_event` for members without an active `creating_projects` / `creating_events` restriction.
 
@@ -73,4 +71,3 @@ Covers GitHub sign-in, sessions, admin bootstrap, bans, Telegram linking and ser
 - Login, logout and repeat login work; a renamed GitHub login still maps to the same user.
 - Session revocation is immediate.
 - An unsafe request from a foreign `Origin` is rejected.
-- The bot token cannot call parser routes and vice versa.
