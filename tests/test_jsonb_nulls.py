@@ -1,4 +1,3 @@
-import importlib
 from uuid import uuid4
 
 from sqlalchemy import text
@@ -6,17 +5,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm.models import AuditLog, Base
-
-migration = importlib.import_module("hmm.migrations.versions.0025_jsonb_sql_nulls")
-
-
-def nullable_jsonb() -> set[tuple[str, str]]:
-    return {
-        (table.name, column.name)
-        for table in Base.metadata.tables.values()
-        for column in table.columns
-        if isinstance(column.type, JSONB) and column.nullable
-    }
 
 
 def test_nullable_jsonb_columns_store_sql_null() -> None:
@@ -27,10 +15,6 @@ def test_nullable_jsonb_columns_store_sql_null() -> None:
         if isinstance(column.type, JSONB) and column.nullable and not column.type.none_as_null
     ]
     assert columns == []
-
-
-def test_migration_covers_every_nullable_jsonb_column() -> None:
-    assert set(migration.COLUMNS) == nullable_jsonb()
 
 
 async def test_none_is_sql_null(session: AsyncSession) -> None:

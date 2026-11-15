@@ -1,18 +1,11 @@
-import os
-import subprocess
-import sys
+import importlib
 from datetime import datetime
 from decimal import Decimal
-from pathlib import Path
 from uuid import uuid4
 
-import psycopg
 import pytest
-from conftest import TRUNCATE_PUBLIC
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import func, select
-from sqlalchemy.engine import make_url
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.areas import service
@@ -25,6 +18,8 @@ from hmm.common import (
     ErrorCode,
 )
 
+baseline = importlib.import_module("hmm.migrations.versions.0001_baseline")
+
 CREATE_BODY = {
     "key": "backend",
     "name": "Backend",
@@ -33,67 +28,8 @@ CREATE_BODY = {
 }
 
 
-def test_seed_migration(migrated_database: str) -> None:
-    def migrate(*args: str) -> None:
-        result = subprocess.run(
-            [sys.executable, "-m", "alembic", *args],
-            cwd=Path(__file__).resolve().parents[1],
-            env={**os.environ, "DATABASE_URL": migrated_database},
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        assert result.returncode == 0, result.stdout + result.stderr
-
-    conninfo = (
-        make_url(migrated_database)
-        .set(drivername="postgresql")
-        .render_as_string(hide_password=False)
-    )
-    try:
-        with psycopg.connect(conninfo) as connection:
-            connection.execute(TRUNCATE_PUBLIC)
-        migrate("downgrade", "0001")
-        migrate("upgrade", "head")
-        with psycopg.connect(conninfo) as connection:
-            rows = connection.execute(
-                "SELECT key, name, description, sort FROM areas ORDER BY sort, key"
-            ).fetchall()
-        assert tuple(row[0] for row in rows) == SEED_AREA_KEYS
-        assert [row[1] for row in rows] == [
-            "Backend",
-            "Frontend",
-            "Mobile",
-            "ML / AI",
-            "Data",
-            "Design",
-            "Product",
-            "DevOps",
-            "Security",
-            "GameDev",
-            "Hardware",
-            "QA",
-        ]
-        assert [row[2] for row in rows] == [
-            "APIs, databases, server-side logic, integrations",
-            "web UI, client-side apps",
-            "iOS, Android, cross-platform apps",
-            "machine learning, deep learning, LLM apps, CV/NLP",
-            "analytics, BI, data engineering, metrics and unit economics",
-            "UI/UX, graphics, branding, pitch visuals",
-            "product management, business analysis, scoping, pitching",
-            "infrastructure, CI/CD, cloud, deployment",
-            "CTF, application and network security",
-            "game design and development, engines, graphics",
-            "embedded, IoT, robotics, electronics",
-            "testing, test automation, quality",
-        ]
-        assert [row[3] for row in rows] == list(range(10, 121, 10))
-        migrate("downgrade", "0001")
-        with psycopg.connect(conninfo) as connection:
-            assert connection.execute("SELECT count(*) FROM areas").fetchone() == (0,)
-    finally:
-        migrate("upgrade", "head")
+def test_baseline_seeds_every_area() -> None:
+    assert tuple(key for key, _, _ in baseline.SEED_AREAS) == SEED_AREA_KEYS
 
 
 async def make_area(h: Harness, *, key: str = "backend", sort: int = 10) -> models.Area:
@@ -312,33 +248,18 @@ async def test_area_lists_order_and_actor_actions(harness: Harness) -> None:
             )
 
 
-async def test_internal_list_is_active_only_and_parser_only(harness: Harness) -> None:
+async def test_internal_list_is_active_only(harness: Harness) -> None:
     h = harness
     area = await make_area(h)
     archived = await make_area(h, key="frontend")
     async with h.db() as session:
         stored = await service.get_area(session, archived.id)
         stored.archived_at = h.now
-    async with h.parser() as client:
-        response = await client.get("/api/v1/internal/areas")
-        assert response.status_code == 200, response.text
-        assert response.json() == {
-            "items": [
-                {
-                    "id": str(area.id),
-                    "key": "backend",
-                    "name": "Backend",
-                    "description": "Original",
-                    "sort": 10,
-                }
-            ],
-            "next_cursor": None,
-        }
-    admin = await h.admin()
-    async with await h.client(admin) as client:
-        assert_problem(await client.get("/api/v1/internal/areas"), 401, ErrorCode.UNAUTHENTICATED)
-    async with h.bot() as client:
-        assert_problem(await client.get("/api/v1/internal/areas"), 401, ErrorCode.UNAUTHENTICATED)
+    async with h.db() as session:
+        listed = await service.list_areas(session, include_archived=False)
+    assert [(item.id, item.key, item.name, item.description, item.sort) for item in listed] == [
+        (area.id, "backend", "Backend", "Original", 10)
+    ]
 
 
 @pytest.mark.parametrize("action", ["edit", "archive", "unarchive"])

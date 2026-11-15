@@ -42,5 +42,9 @@ select = ["E", "F", "W", "I", "UP", "B", "ASYNC", "SIM", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-n auto"
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.ruff.lint.per-file-ignores]
+"src/hmm/migrations/versions/*" = ["E501"]

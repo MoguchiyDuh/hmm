@@ -11,6 +11,22 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
+SEED_AREAS: tuple[tuple[str, str, str], ...] = (
+    ("backend", "Backend", "APIs, databases, server-side logic, integrations"),
+    ("frontend", "Frontend", "web UI, client-side apps"),
+    ("mobile", "Mobile", "iOS, Android, cross-platform apps"),
+    ("ml_ai", "ML / AI", "machine learning, deep learning, LLM apps, CV/NLP"),
+    ("data", "Data", "analytics, BI, data engineering, metrics and unit economics"),
+    ("design", "Design", "UI/UX, graphics, branding, pitch visuals"),
+    ("product", "Product", "product management, business analysis, scoping, pitching"),
+    ("devops", "DevOps", "infrastructure, CI/CD, cloud, deployment"),
+    ("security", "Security", "CTF, application and network security"),
+    ("gamedev", "GameDev", "game design and development, engines, graphics"),
+    ("hardware", "Hardware", "embedded, IoT, robotics, electronics"),
+    ("qa", "QA", "testing, test automation, quality"),
+)
+
+
 def upgrade() -> None:
     op.execute("CREATE SCHEMA procrastinate")
     op.execute("SET LOCAL search_path TO procrastinate, public")
@@ -61,23 +77,6 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_areas")),
         sa.UniqueConstraint("key", name=op.f("uq_areas_key")),
     )
-    op.execute(
-        """
-        CREATE FUNCTION public.prevent_area_key_change() RETURNS trigger
-        LANGUAGE plpgsql AS $$
-        BEGIN
-            IF NEW.key IS DISTINCT FROM OLD.key THEN
-                RAISE EXCEPTION 'Area keys are immutable' USING ERRCODE = '23514';
-            END IF;
-            RETURN NEW;
-        END;
-        $$
-        """
-    )
-    op.execute(
-        "CREATE TRIGGER areas_key_immutable BEFORE UPDATE OF key ON areas "
-        "FOR EACH ROW EXECUTE FUNCTION public.prevent_area_key_change()"
-    )
     op.create_table(
         "parser_heartbeats",
         sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
@@ -108,8 +107,12 @@ def upgrade() -> None:
         sa.Column("input_hash", sa.Text(), nullable=False),
         sa.Column("status", sa.Text(), nullable=False),
         sa.Column("error", sa.Text(), nullable=True),
-        sa.Column("enrolled", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("others", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "enrolled", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "others", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("algo_version", sa.Text(), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
@@ -141,6 +144,12 @@ def upgrade() -> None:
         sa.Column("subject_id", sa.Uuid(), nullable=False),
         sa.Column("opens_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("closes_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "participants",
+            postgresql.JSONB(astext_type=sa.Text()),
+            server_default=sa.text("'{}'::jsonb"),
+            nullable=False,
+        ),
         sa.Column("revealed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "updated_at",
@@ -197,17 +206,16 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            (
-                "jsonb_typeof(contacts) = 'object' AND "
-                "jsonb_array_length(jsonb_path_query_array(contacts, '$.keyvalue()'))"
-                " <= 10"
-            ),
+            "jsonb_typeof(contacts) = 'object' AND jsonb_array_length(jsonb_path_query_array(contacts, '$.keyvalue()')) <= 10",
             name=op.f("ck_users_contacts"),
         ),
         sa.CheckConstraint("locale IN ('en', 'ru')", name=op.f("ck_users_locale_enum")),
         sa.CheckConstraint(
-            ("onboarding_status IN ('not_started', 'in_progress', 'completed', 'reopened')"),
+            "onboarding_status IN ('not_started', 'in_progress', 'completed', 'reopened')",
             name=op.f("ck_users_onboarding_status_enum"),
+        ),
+        sa.CheckConstraint(
+            "NOT (dnd_indefinite AND dnd_until IS NOT NULL)", name=op.f("ck_users_dnd")
         ),
         sa.CheckConstraint("char_length(about_md) <= 5000", name=op.f("ck_users_about_md_length")),
         sa.CheckConstraint(
@@ -217,9 +225,6 @@ def upgrade() -> None:
             "char_length(display_name) <= 100", name=op.f("ck_users_display_name_length")
         ),
         sa.CheckConstraint("mentor_capacity >= 0", name=op.f("ck_users_mentor_capacity")),
-        sa.CheckConstraint(
-            "NOT (dnd_indefinite AND dnd_until IS NOT NULL)", name=op.f("ck_users_dnd")
-        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_users")),
         sa.UniqueConstraint("github_id", name=op.f("uq_users_github_id")),
     )
@@ -335,7 +340,7 @@ def upgrade() -> None:
         sa.Column("old_effective", sa.Numeric(precision=4, scale=2), nullable=False),
         sa.Column("new_effective", sa.Numeric(precision=4, scale=2), nullable=False),
         sa.Column("reason", sa.Text(), nullable=False),
-        sa.Column("algo_version", sa.Text(), nullable=False),
+        sa.Column("algo_version", sa.Text(), nullable=True),
         sa.Column("actor_id", sa.Uuid(), nullable=True),
         sa.Column(
             "created_at",
@@ -394,7 +399,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            ("override_evidence IN ('interview', 'github_review', 'cv_review', 'other')"),
+            "override_evidence IN ('interview', 'github_review', 'cv_review', 'other')",
             name=op.f("ck_area_scores_override_evidence_enum"),
         ),
         sa.CheckConstraint(
@@ -430,8 +435,12 @@ def upgrade() -> None:
         sa.Column("action", sa.Text(), nullable=False),
         sa.Column("entity_type", sa.Text(), nullable=False),
         sa.Column("entity_id", sa.Text(), nullable=False),
-        sa.Column("before", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("after", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "before", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "after", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("reason", sa.Text(), nullable=True),
         sa.Column(
             "created_at",
@@ -479,10 +488,7 @@ def upgrade() -> None:
             name=op.f("ck_confirmations_fact_type_enum"),
         ),
         sa.CheckConstraint(
-            (
-                "source IN ('peer', 'lead', 'organizer', 'host', 'learner', 'mentor',"
-                " 'system', 'admin')"
-            ),
+            "source IN ('peer', 'lead', 'organizer', 'host', 'learner', 'mentor', 'system', 'admin')",
             name=op.f("ck_confirmations_source_enum"),
         ),
         sa.CheckConstraint(
@@ -560,13 +566,17 @@ def upgrade() -> None:
         sa.Column("registration_deadline", sa.DateTime(timezone=True), nullable=True),
         sa.Column("timezone", sa.Text(), nullable=False),
         sa.Column("format", sa.Text(), nullable=True),
-        sa.Column("location", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "location", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("language", sa.ARRAY(sa.Text()), nullable=False),
         sa.Column("eligibility", sa.Text(), nullable=True),
         sa.Column("themes", sa.ARRAY(sa.Text()), nullable=False),
         sa.Column("team_size_min", sa.Integer(), nullable=True),
         sa.Column("team_size_max", sa.Integer(), nullable=True),
-        sa.Column("prize", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "prize", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("difficulty", sa.Numeric(precision=3, scale=1), nullable=True),
         sa.Column("difficulty_rationale", sa.Text(), nullable=True),
         sa.Column("status", sa.Text(), nullable=False),
@@ -591,33 +601,22 @@ def upgrade() -> None:
             "format IN ('online', 'offline', 'hybrid')", name=op.f("ck_events_format_enum")
         ),
         sa.CheckConstraint(
-            (
-                "review_reasons <@ ARRAY['low_confidence', 'possible_duplicate', "
-                "'unmapped_areas', 'manual']::text[]"
-            ),
-            name=op.f("ck_events_review_reasons_enum"),
-        ),
-        sa.CheckConstraint(
-            (
-                "kind IN ('hackathon', 'contest', 'conference', 'meetup', 'workshop',"
-                " 'course', 'other')"
-            ),
+            "kind IN ('hackathon', 'contest', 'conference', 'meetup', 'workshop', 'course', 'other')",
             name=op.f("ck_events_kind_enum"),
         ),
         sa.CheckConstraint(
             "origin IN ('import', 'manual', 'member')", name=op.f("ck_events_origin_enum")
         ),
         sa.CheckConstraint(
+            "review_reasons <@ ARRAY['low_confidence', 'possible_duplicate', 'unmapped_areas', 'manual']::text[]",
+            name=op.f("ck_events_review_reasons_enum"),
+        ),
+        sa.CheckConstraint(
             "status IN ('draft', 'published', 'cancelled', 'archived')",
             name=op.f("ck_events_status_enum"),
         ),
         sa.CheckConstraint(
-            (
-                "(team_size_min IS NULL OR team_size_min BETWEEN 1 AND 20) AND "
-                "(team_size_max IS NULL OR team_size_max BETWEEN 1 AND 20) AND "
-                "(team_size_min IS NULL OR team_size_max IS NULL OR team_size_min <= "
-                "team_size_max)"
-            ),
+            "(team_size_min IS NULL OR team_size_min BETWEEN 1 AND 20) AND (team_size_max IS NULL OR team_size_max BETWEEN 1 AND 20) AND (team_size_min IS NULL OR team_size_max IS NULL OR team_size_min <= team_size_max)",
             name=op.f("ck_events_team_size"),
         ),
         sa.CheckConstraint(
@@ -660,7 +659,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            ("fact_type IN ('attendance', 'project_member', 'mentorship_side', 'activity_entry')"),
+            "fact_type IN ('attendance', 'project_member', 'mentorship_side', 'activity_entry')",
             name=op.f("ck_fact_awards_fact_type_enum"),
         ),
         sa.CheckConstraint(
@@ -694,10 +693,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            (
-                "kind IN ('project_recruiting', 'project_shipped', 'help_request', "
-                "'event_going', 'event_new', 'mentorship_completed')"
-            ),
+            "kind IN ('project_recruiting', 'project_shipped', 'help_request', 'event_going', 'event_new', 'mentorship_completed')",
             name=op.f("ck_feed_items_kind_enum"),
         ),
         sa.ForeignKeyConstraint(
@@ -722,7 +718,9 @@ def upgrade() -> None:
         sa.Column("resolved_by", sa.Uuid(), nullable=True),
         sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("resolution_note", sa.Text(), nullable=True),
-        sa.Column("penalty", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "penalty", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -742,10 +740,7 @@ def upgrade() -> None:
             "status IN ('to_check', 'pardoned', 'punished')", name=op.f("ck_flags_status_enum")
         ),
         sa.CheckConstraint(
-            (
-                "subject_type IN ('attendance', 'project_member', 'mentorship', "
-                "'confirmation', 'activity_entry', 'review', 'profile', 'ring')"
-            ),
+            "subject_type IN ('attendance', 'project_member', 'mentorship', 'confirmation', 'activity_entry', 'review', 'profile', 'ring')",
             name=op.f("ck_flags_subject_type_enum"),
         ),
         sa.CheckConstraint("char_length(reason) <= 1000", name=op.f("ck_flags_reason_length")),
@@ -776,10 +771,18 @@ def upgrade() -> None:
         sa.Column("fetched_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("status", sa.Text(), nullable=False),
         sa.Column("error", sa.Text(), nullable=True),
-        sa.Column("profile", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("repos", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("languages", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("stats", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "profile", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "repos", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "languages", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "stats", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("manual_refresh_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "updated_at",
@@ -1020,6 +1023,32 @@ def upgrade() -> None:
         sa.UniqueConstraint("dedupe_key", name=op.f("uq_notifications_dedupe_key")),
     )
     op.create_table(
+        "onboarding_baselines",
+        sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("area_scores", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("discrepancies", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            name=op.f("fk_onboarding_baselines_user_id_users"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("user_id", name=op.f("pk_onboarding_baselines")),
+    )
+    op.create_table(
         "quizzes",
         sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("version", sa.Integer(), nullable=False),
@@ -1241,60 +1270,6 @@ def upgrade() -> None:
         sa.UniqueConstraint("telegram_user_id", name=op.f("uq_telegram_links_telegram_user_id")),
     )
     op.create_table(
-        "enrollments",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
-        sa.Column("event_id", sa.Uuid(), nullable=False),
-        sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column("preferred_area_id", sa.Uuid(), nullable=True),
-        sa.Column("note", sa.Text(), nullable=True),
-        sa.Column("willing_to_lead", sa.Boolean(), server_default=sa.text("false"), nullable=False),
-        sa.Column("status", sa.Text(), nullable=False),
-        sa.Column("source", sa.Text(), nullable=False),
-        sa.Column("reserve_rank", sa.Integer(), nullable=True),
-        sa.Column("status_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint("source IN ('self', 'invite')", name=op.f("ck_enrollments_source_enum")),
-        sa.CheckConstraint(
-            ("status IN ('active', 'placed', 'reserve', 'withdrawn', 'lapsed', 'expired')"),
-            name=op.f("ck_enrollments_status_enum"),
-        ),
-        sa.CheckConstraint("char_length(note) <= 1000", name=op.f("ck_enrollments_note_length")),
-        sa.ForeignKeyConstraint(
-            ["event_id"],
-            ["events.id"],
-            name=op.f("fk_enrollments_event_id_events"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["preferred_area_id"],
-            ["areas.id"],
-            name=op.f("fk_enrollments_preferred_area_id_areas"),
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_enrollments_user_id_users"), ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_enrollments")),
-    )
-    op.create_index(
-        "uq_enrollments_event_id_user_id_live",
-        "enrollments",
-        ["event_id", "user_id"],
-        unique=True,
-        postgresql_where=sa.text("status IN ('active', 'placed', 'reserve')"),
-    )
-    op.create_table(
         "event_areas",
         sa.Column("event_id", sa.Uuid(), nullable=False),
         sa.Column("area_id", sa.Uuid(), nullable=False),
@@ -1354,7 +1329,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            ("jsonb_typeof(proof_links) = 'array' AND jsonb_array_length(proof_links) <= 10"),
+            "jsonb_typeof(proof_links) = 'array' AND jsonb_array_length(proof_links) <= 10",
             name=op.f("ck_event_attendances_proof_links_length"),
         ),
         sa.CheckConstraint(
@@ -1539,13 +1514,17 @@ def upgrade() -> None:
         "formation_runs",
         sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("event_id", sa.Uuid(), nullable=False),
-        sa.Column("round", sa.Integer(), nullable=False),
-        sa.Column("kind", sa.Text(), nullable=False),
         sa.Column("status", sa.Text(), nullable=False),
         sa.Column("planner", sa.Text(), nullable=False),
         sa.Column("input", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("output", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("validation_errors", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "output", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "validation_errors",
+            postgresql.JSONB(none_as_null=True, astext_type=sa.Text()),
+            nullable=True,
+        ),
         sa.Column("algo_version", sa.Text(), nullable=False),
         sa.Column("applied_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
@@ -1560,7 +1539,6 @@ def upgrade() -> None:
             server_default=sa.text("now()"),
             nullable=False,
         ),
-        sa.CheckConstraint("kind IN ('main', 'late')", name=op.f("ck_formation_runs_kind_enum")),
         sa.CheckConstraint(
             "planner IN ('algo', 'fallback')", name=op.f("ck_formation_runs_planner_enum")
         ),
@@ -1620,39 +1598,6 @@ def upgrade() -> None:
         ),
     )
     op.create_table(
-        "lead_fits",
-        sa.Column("event_id", sa.Uuid(), nullable=False),
-        sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column("fit", sa.Numeric(precision=3, scale=2), nullable=False),
-        sa.Column("reason", sa.Text(), nullable=False),
-        sa.Column("algo_version", sa.Text(), nullable=False),
-        sa.Column("computed_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint("char_length(reason) <= 1000", name=op.f("ck_lead_fits_reason_length")),
-        sa.CheckConstraint("fit BETWEEN 0 AND 1", name=op.f("ck_lead_fits_fit_range")),
-        sa.ForeignKeyConstraint(
-            ["event_id"],
-            ["events.id"],
-            name=op.f("fk_lead_fits_event_id_events"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_lead_fits_user_id_users"), ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("event_id", "user_id", name=op.f("pk_lead_fits")),
-    )
-    op.create_table(
         "member_restrictions",
         sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
@@ -1675,7 +1620,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            ("kind IN ('confirming', 'mentoring', 'creating_events', 'creating_projects')"),
+            "kind IN ('confirming', 'mentoring', 'creating_events', 'creating_projects')",
             name=op.f("ck_member_restrictions_kind_enum"),
         ),
         sa.CheckConstraint(
@@ -1715,6 +1660,7 @@ def upgrade() -> None:
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("last_checkin_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("close_proposed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("stalled_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("closed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("outcome", sa.Text(), nullable=True),
         sa.Column("summary", sa.Text(), nullable=True),
@@ -1867,6 +1813,105 @@ def upgrade() -> None:
         postgresql_where=sa.text("status = 'draft'"),
     )
     op.create_table(
+        "parties",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
+        sa.Column("event_id", sa.Uuid(), nullable=False),
+        sa.Column("owner_user_id", sa.Uuid(), nullable=False),
+        sa.Column("closed", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["event_id"], ["events.id"], name=op.f("fk_parties_event_id_events"), ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["owner_user_id"],
+            ["users.id"],
+            name=op.f("fk_parties_owner_user_id_users"),
+            ondelete="RESTRICT",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_parties")),
+    )
+    op.create_table(
+        "projects",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
+        sa.Column("event_id", sa.Uuid(), nullable=True),
+        sa.Column("name", sa.Text(), nullable=False),
+        sa.Column("description_md", sa.Text(), nullable=False),
+        sa.Column("goal", sa.Text(), nullable=False),
+        sa.Column("links", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
+        sa.Column("visibility", sa.Text(), nullable=False),
+        sa.Column(
+            "recruiting", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column("lead_user_id", sa.Uuid(), nullable=True),
+        sa.Column("status", sa.Text(), nullable=False),
+        sa.Column("team_status", sa.Text(), nullable=True),
+        sa.Column("paused_reason", sa.Text(), nullable=True),
+        sa.Column("origin", sa.Text(), nullable=False),
+        sa.Column("seats_closed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("last_progress_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("recommendation_refresh_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "jsonb_typeof(links) = 'array' AND jsonb_array_length(links) <= 10",
+            name=op.f("ck_projects_links_length"),
+        ),
+        sa.CheckConstraint(
+            "origin IN ('standalone', 'formation', 'admin')", name=op.f("ck_projects_origin_enum")
+        ),
+        sa.CheckConstraint(
+            "paused_reason IS NULL OR paused_reason IN ('manual', 'idle')",
+            name=op.f("ck_projects_paused_reason"),
+        ),
+        sa.CheckConstraint(
+            "status IN ('idea', 'active', 'shipped', 'paused', 'abandoned', 'disbanded', 'cancelled')",
+            name=op.f("ck_projects_status_enum"),
+        ),
+        sa.CheckConstraint(
+            "team_status IN ('formed', 'active', 'finished', 'withdrawn', 'disbanded', 'cancelled')",
+            name=op.f("ck_projects_team_status_enum"),
+        ),
+        sa.CheckConstraint(
+            "visibility IN ('public', 'members')", name=op.f("ck_projects_visibility_enum")
+        ),
+        sa.CheckConstraint(
+            "char_length(description_md) <= 5000", name=op.f("ck_projects_description_md_length")
+        ),
+        sa.CheckConstraint("char_length(goal) <= 1000", name=op.f("ck_projects_goal_length")),
+        sa.CheckConstraint("char_length(name) <= 100", name=op.f("ck_projects_name_length")),
+        sa.CheckConstraint(
+            "team_status IS NULL OR event_id IS NOT NULL", name=op.f("ck_projects_team_event")
+        ),
+        sa.ForeignKeyConstraint(
+            ["event_id"],
+            ["events.id"],
+            name=op.f("fk_projects_event_id_events"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["lead_user_id"],
+            ["users.id"],
+            name=op.f("fk_projects_lead_user_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_projects")),
+    )
+    op.create_table(
         "questions",
         sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
         sa.Column("quiz_id", sa.Uuid(), nullable=False),
@@ -1877,7 +1922,9 @@ def upgrade() -> None:
         sa.Column("help", sa.Text(), nullable=True),
         sa.Column("required", sa.Boolean(), nullable=False),
         sa.Column("position", sa.Integer(), nullable=False),
-        sa.Column("visible_if", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
+        sa.Column(
+            "visible_if", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
         sa.Column("config", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column(
             "updated_at",
@@ -1892,7 +1939,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            ("type IN ('single_choice', 'multi_choice', 'scale', 'text', 'number', 'url')"),
+            "type IN ('single_choice', 'multi_choice', 'scale', 'text', 'number', 'url')",
             name=op.f("ck_questions_type_enum"),
         ),
         sa.ForeignKeyConstraint(
@@ -1903,6 +1950,36 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_questions")),
         sa.UniqueConstraint("quiz_id", "key", name=op.f("uq_questions_quiz_id_key")),
+    )
+    op.create_table(
+        "quiz_sections",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
+        sa.Column("quiz_id", sa.Uuid(), nullable=False),
+        sa.Column("key", sa.Text(), nullable=False),
+        sa.Column("position", sa.Integer(), nullable=False),
+        sa.Column(
+            "visible_if", postgresql.JSONB(none_as_null=True, astext_type=sa.Text()), nullable=True
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["quiz_id"],
+            ["quizzes.id"],
+            name=op.f("fk_quiz_sections_quiz_id_quizzes"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_quiz_sections")),
+        sa.UniqueConstraint("quiz_id", "key", name=op.f("uq_quiz_sections_quiz_id_key")),
     )
     op.create_table(
         "review_reports",
@@ -1981,14 +2058,72 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_xp_adjustments")),
     )
     op.create_table(
+        "enrollments",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
+        sa.Column("event_id", sa.Uuid(), nullable=False),
+        sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.Column("preferred_area_id", sa.Uuid(), nullable=True),
+        sa.Column("party_id", sa.Uuid(), nullable=True),
+        sa.Column("note", sa.Text(), nullable=True),
+        sa.Column("willing_to_lead", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("status", sa.Text(), nullable=False),
+        sa.Column("source", sa.Text(), nullable=False),
+        sa.Column("status_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint("source IN ('self', 'invite')", name=op.f("ck_enrollments_source_enum")),
+        sa.CheckConstraint(
+            "status IN ('active', 'placed', 'reserve', 'withdrawn', 'lapsed', 'expired')",
+            name=op.f("ck_enrollments_status_enum"),
+        ),
+        sa.CheckConstraint("char_length(note) <= 1000", name=op.f("ck_enrollments_note_length")),
+        sa.ForeignKeyConstraint(
+            ["event_id"],
+            ["events.id"],
+            name=op.f("fk_enrollments_event_id_events"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["party_id"],
+            ["parties.id"],
+            name=op.f("fk_enrollments_party_id_parties"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["preferred_area_id"],
+            ["areas.id"],
+            name=op.f("fk_enrollments_preferred_area_id_areas"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name=op.f("fk_enrollments_user_id_users"), ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_enrollments")),
+    )
+    op.create_index(
+        "uq_enrollments_event_id_user_id_live",
+        "enrollments",
+        ["event_id", "user_id"],
+        unique=True,
+        postgresql_where=sa.text("status IN ('active', 'placed', 'reserve')"),
+    )
+    op.create_table(
         "event_formations",
         sa.Column("event_id", sa.Uuid(), nullable=False),
         sa.Column("phase", sa.Text(), nullable=False),
         sa.Column("target_override", sa.Integer(), nullable=True),
         sa.Column("formation_at_override", sa.DateTime(timezone=True), nullable=True),
         sa.Column("formation_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("review_ends_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("rounds", sa.Integer(), server_default=sa.text("0"), nullable=False),
         sa.Column("last_run_id", sa.Uuid(), nullable=True),
         sa.Column(
             "updated_at",
@@ -2003,10 +2138,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            "phase IN ('open', 'forming', 'review', 'locked', 'closed')",
+            "phase IN ('open', 'forming', 'formed', 'closed')",
             name=op.f("ck_event_formations_phase_enum"),
         ),
-        sa.CheckConstraint("rounds >= 0", name=op.f("ck_event_formations_rounds_nonnegative")),
         sa.CheckConstraint(
             "target_override BETWEEN 1 AND 20", name=op.f("ck_event_formations_target_range")
         ),
@@ -2023,6 +2157,135 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("event_id", name=op.f("pk_event_formations")),
+    )
+    op.create_table(
+        "invites",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
+        sa.Column("project_id", sa.Uuid(), nullable=True),
+        sa.Column("party_id", sa.Uuid(), nullable=True),
+        sa.Column("event_id", sa.Uuid(), nullable=True),
+        sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.Column("invited_by", sa.Uuid(), nullable=True),
+        sa.Column("kind", sa.Text(), nullable=False),
+        sa.Column("message", sa.Text(), nullable=True),
+        sa.Column("area_id", sa.Uuid(), nullable=True),
+        sa.Column("status", sa.Text(), nullable=False),
+        sa.Column("closed_reason", sa.Text(), nullable=True),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("responded_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "(kind = 'party' AND party_id IS NOT NULL AND project_id IS NULL) OR (kind = 'team' AND project_id IS NOT NULL AND party_id IS NULL)",
+            name=op.f("ck_invites_target"),
+        ),
+        sa.CheckConstraint("kind IN ('party', 'team')", name=op.f("ck_invites_kind_enum")),
+        sa.CheckConstraint(
+            "status IN ('pending', 'accepted', 'declined', 'withdrawn', 'expired', 'closed')",
+            name=op.f("ck_invites_status_enum"),
+        ),
+        sa.CheckConstraint("char_length(message) <= 1000", name=op.f("ck_invites_message_length")),
+        sa.ForeignKeyConstraint(
+            ["area_id"], ["areas.id"], name=op.f("fk_invites_area_id_areas"), ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["event_id"],
+            ["events.id"],
+            name=op.f("fk_invites_event_id_events"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["invited_by"],
+            ["users.id"],
+            name=op.f("fk_invites_invited_by_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["party_id"],
+            ["parties.id"],
+            name=op.f("fk_invites_party_id_parties"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_invites_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"], ["users.id"], name=op.f("fk_invites_user_id_users"), ondelete="CASCADE"
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_invites")),
+    )
+    op.create_index(
+        "uq_invites_party_id_user_id_live",
+        "invites",
+        ["party_id", "user_id"],
+        unique=True,
+        postgresql_where=sa.text("status = 'pending'"),
+    )
+    op.create_index(
+        "uq_invites_project_id_user_id_live",
+        "invites",
+        ["project_id", "user_id"],
+        unique=True,
+        postgresql_where=sa.text("status = 'pending'"),
+    )
+    op.create_table(
+        "join_requests",
+        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
+        sa.Column("project_id", sa.Uuid(), nullable=False),
+        sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.Column("note", sa.Text(), nullable=True),
+        sa.Column("status", sa.Text(), nullable=False),
+        sa.Column("responded_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
+        ),
+        sa.CheckConstraint(
+            "status IN ('pending', 'accepted', 'rejected', 'withdrawn', 'closed')",
+            name=op.f("ck_join_requests_status_enum"),
+        ),
+        sa.CheckConstraint("char_length(note) <= 1000", name=op.f("ck_join_requests_note_length")),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_join_requests_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            name=op.f("fk_join_requests_user_id_users"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_join_requests")),
+    )
+    op.create_index(
+        "uq_join_requests_project_id_user_id_live",
+        "join_requests",
+        ["project_id", "user_id"],
+        unique=True,
+        postgresql_where=sa.text("status = 'pending'"),
     )
     op.create_table(
         "mentorship_checkins",
@@ -2068,376 +2331,6 @@ def upgrade() -> None:
         ),
     )
     op.create_table(
-        "projects",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
-        sa.Column("event_id", sa.Uuid(), nullable=True),
-        sa.Column("name", sa.Text(), nullable=False),
-        sa.Column("description_md", sa.Text(), nullable=False),
-        sa.Column("goal", sa.Text(), nullable=False),
-        sa.Column("links", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column("visibility", sa.Text(), nullable=False),
-        sa.Column("recruiting", postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-        sa.Column("lead_user_id", sa.Uuid(), nullable=True),
-        sa.Column("status", sa.Text(), nullable=False),
-        sa.Column("team_status", sa.Text(), nullable=True),
-        sa.Column("origin", sa.Text(), nullable=False),
-        sa.Column("ready_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("review_ends_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("formed_in_run_id", sa.Uuid(), nullable=True),
-        sa.Column("locked_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("seat_open_since", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("seats_closed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("last_lead_action_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("last_progress_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint(
-            "jsonb_typeof(links) = 'array' AND jsonb_array_length(links) <= 10",
-            name=op.f("ck_projects_links_length"),
-        ),
-        sa.CheckConstraint(
-            "origin IN ('standalone', 'claim', 'formation', 'late_claim', 'admin')",
-            name=op.f("ck_projects_origin_enum"),
-        ),
-        sa.CheckConstraint(
-            (
-                "status IN ('idea', 'active', 'shipped', 'paused', 'abandoned', "
-                "'disbanded', 'cancelled')"
-            ),
-            name=op.f("ck_projects_status_enum"),
-        ),
-        sa.CheckConstraint(
-            (
-                "team_status IN ('forming', 'review', 'locked', 'active', 'finished',"
-                " 'withdrawn', 'disbanded', 'cancelled')"
-            ),
-            name=op.f("ck_projects_team_status_enum"),
-        ),
-        sa.CheckConstraint(
-            "visibility IN ('public', 'members')", name=op.f("ck_projects_visibility_enum")
-        ),
-        sa.CheckConstraint(
-            "char_length(description_md) <= 5000", name=op.f("ck_projects_description_md_length")
-        ),
-        sa.CheckConstraint("char_length(goal) <= 1000", name=op.f("ck_projects_goal_length")),
-        sa.CheckConstraint("char_length(name) <= 100", name=op.f("ck_projects_name_length")),
-        sa.CheckConstraint(
-            "team_status IS NULL OR event_id IS NOT NULL", name=op.f("ck_projects_team_event")
-        ),
-        sa.ForeignKeyConstraint(
-            ["event_id"],
-            ["events.id"],
-            name=op.f("fk_projects_event_id_events"),
-            ondelete="RESTRICT",
-        ),
-        sa.ForeignKeyConstraint(
-            ["formed_in_run_id"],
-            ["formation_runs.id"],
-            name=op.f("fk_projects_formed_in_run_id_formation_runs"),
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
-            ["lead_user_id"],
-            ["users.id"],
-            name=op.f("fk_projects_lead_user_id_users"),
-            ondelete="SET NULL",
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_projects")),
-    )
-    op.create_table(
-        "question_options",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
-        sa.Column("question_id", sa.Uuid(), nullable=False),
-        sa.Column("key", sa.Text(), nullable=False),
-        sa.Column("label", sa.Text(), nullable=False),
-        sa.Column("position", sa.Integer(), nullable=False),
-        sa.Column("area_hints", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.ForeignKeyConstraint(
-            ["question_id"],
-            ["questions.id"],
-            name=op.f("fk_question_options_question_id_questions"),
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_question_options")),
-        sa.UniqueConstraint("question_id", "key", name=op.f("uq_question_options_question_id_key")),
-        sa.CheckConstraint(
-            "jsonb_typeof(area_hints) = 'object' AND NOT jsonb_path_exists("
-            "area_hints, '$.* ? (@.type() != \"number\" || @ < 0 || @ > 1)')",
-            name=op.f("ck_question_options_area_hints_weights"),
-        ),
-    )
-    op.create_table(
-        "invites",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
-        sa.Column("project_id", sa.Uuid(), nullable=False),
-        sa.Column("event_id", sa.Uuid(), nullable=True),
-        sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column("invited_by", sa.Uuid(), nullable=True),
-        sa.Column("kind", sa.Text(), nullable=False),
-        sa.Column("message", sa.Text(), nullable=True),
-        sa.Column("area_id", sa.Uuid(), nullable=True),
-        sa.Column("status", sa.Text(), nullable=False),
-        sa.Column("closed_reason", sa.Text(), nullable=True),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("responded_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint(
-            "kind IN ('core', 'fill', 'project')", name=op.f("ck_invites_kind_enum")
-        ),
-        sa.CheckConstraint(
-            ("status IN ('pending', 'accepted', 'declined', 'withdrawn', 'expired', 'closed')"),
-            name=op.f("ck_invites_status_enum"),
-        ),
-        sa.CheckConstraint("char_length(message) <= 1000", name=op.f("ck_invites_message_length")),
-        sa.ForeignKeyConstraint(
-            ["area_id"], ["areas.id"], name=op.f("fk_invites_area_id_areas"), ondelete="SET NULL"
-        ),
-        sa.ForeignKeyConstraint(
-            ["event_id"],
-            ["events.id"],
-            name=op.f("fk_invites_event_id_events"),
-            ondelete="RESTRICT",
-        ),
-        sa.ForeignKeyConstraint(
-            ["invited_by"],
-            ["users.id"],
-            name=op.f("fk_invites_invited_by_users"),
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
-            name=op.f("fk_invites_project_id_projects"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_invites_user_id_users"), ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_invites")),
-    )
-    op.create_index(
-        "uq_invites_project_id_user_id_live",
-        "invites",
-        ["project_id", "user_id"],
-        unique=True,
-        postgresql_where=sa.text("status = 'pending'"),
-    )
-    op.create_table(
-        "join_requests",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
-        sa.Column("project_id", sa.Uuid(), nullable=False),
-        sa.Column("event_id", sa.Uuid(), nullable=True),
-        sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column("note", sa.Text(), nullable=True),
-        sa.Column("status", sa.Text(), nullable=False),
-        sa.Column("responded_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint(
-            "status IN ('pending', 'accepted', 'rejected', 'withdrawn', 'closed')",
-            name=op.f("ck_join_requests_status_enum"),
-        ),
-        sa.CheckConstraint("char_length(note) <= 1000", name=op.f("ck_join_requests_note_length")),
-        sa.ForeignKeyConstraint(
-            ["event_id"],
-            ["events.id"],
-            name=op.f("fk_join_requests_event_id_events"),
-            ondelete="RESTRICT",
-        ),
-        sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
-            name=op.f("fk_join_requests_project_id_projects"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"],
-            ["users.id"],
-            name=op.f("fk_join_requests_user_id_users"),
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_join_requests")),
-    )
-    op.create_index(
-        "uq_join_requests_event_id_user_id_live",
-        "join_requests",
-        ["event_id", "user_id"],
-        unique=True,
-        postgresql_where=sa.text("status = 'pending'"),
-    )
-    op.create_index(
-        "uq_join_requests_project_id_user_id_live",
-        "join_requests",
-        ["project_id", "user_id"],
-        unique=True,
-        postgresql_where=sa.text("status = 'pending' AND event_id IS NULL"),
-    )
-    op.create_table(
-        "lead_offers",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
-        sa.Column("project_id", sa.Uuid(), nullable=False),
-        sa.Column("event_id", sa.Uuid(), nullable=True),
-        sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column("source", sa.Text(), nullable=False),
-        sa.Column("offered_by", sa.Uuid(), nullable=True),
-        sa.Column("tier", sa.SmallInteger(), nullable=True),
-        sa.Column("reason", sa.Text(), nullable=False),
-        sa.Column("status", sa.Text(), nullable=False),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("responded_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint(
-            "source IN ('formation', 'succession', 'transfer')",
-            name=op.f("ck_lead_offers_source_enum"),
-        ),
-        sa.CheckConstraint(
-            ("status IN ('pending', 'accepted', 'declined', 'expired', 'cancelled', 'closed')"),
-            name=op.f("ck_lead_offers_status_enum"),
-        ),
-        sa.CheckConstraint(
-            "char_length(reason) <= 1000", name=op.f("ck_lead_offers_reason_length")
-        ),
-        sa.ForeignKeyConstraint(
-            ["event_id"],
-            ["events.id"],
-            name=op.f("fk_lead_offers_event_id_events"),
-            ondelete="RESTRICT",
-        ),
-        sa.ForeignKeyConstraint(
-            ["offered_by"],
-            ["users.id"],
-            name=op.f("fk_lead_offers_offered_by_users"),
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
-            ["project_id"],
-            ["projects.id"],
-            name=op.f("fk_lead_offers_project_id_projects"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["user_id"], ["users.id"], name=op.f("fk_lead_offers_user_id_users"), ondelete="CASCADE"
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_lead_offers")),
-    )
-    op.create_index(
-        "uq_lead_offers_project_id_live",
-        "lead_offers",
-        ["project_id"],
-        unique=True,
-        postgresql_where=sa.text("status = 'pending'"),
-    )
-    op.create_table(
-        "merge_proposals",
-        sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
-        sa.Column("event_id", sa.Uuid(), nullable=False),
-        sa.Column("run_id", sa.Uuid(), nullable=True),
-        sa.Column("absorbed_team_id", sa.Uuid(), nullable=False),
-        sa.Column("target_team_id", sa.Uuid(), nullable=False),
-        sa.Column("proposed_by", sa.Text(), nullable=False),
-        sa.Column("absorbed_accepted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("target_accepted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("status", sa.Text(), nullable=False),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            server_default=sa.text("now()"),
-            nullable=False,
-        ),
-        sa.CheckConstraint(
-            "proposed_by IN ('system', 'lead')", name=op.f("ck_merge_proposals_proposed_by_enum")
-        ),
-        sa.CheckConstraint(
-            "status IN ('pending', 'accepted', 'declined', 'expired', 'closed')",
-            name=op.f("ck_merge_proposals_status_enum"),
-        ),
-        sa.ForeignKeyConstraint(
-            ["absorbed_team_id"],
-            ["projects.id"],
-            name=op.f("fk_merge_proposals_absorbed_team_id_projects"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["event_id"],
-            ["events.id"],
-            name=op.f("fk_merge_proposals_event_id_events"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["run_id"],
-            ["formation_runs.id"],
-            name=op.f("fk_merge_proposals_run_id_formation_runs"),
-            ondelete="SET NULL",
-        ),
-        sa.ForeignKeyConstraint(
-            ["target_team_id"],
-            ["projects.id"],
-            name=op.f("fk_merge_proposals_target_team_id_projects"),
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_merge_proposals")),
-    )
-    op.create_table(
         "project_areas",
         sa.Column("project_id", sa.Uuid(), nullable=False),
         sa.Column("area_id", sa.Uuid(), nullable=False),
@@ -2478,9 +2371,7 @@ def upgrade() -> None:
         sa.Column("state", sa.Text(), nullable=False),
         sa.Column("trust", sa.Text(), nullable=False),
         sa.Column("joined_via", sa.Text(), nullable=False),
-        sa.Column("proposal_reason", sa.Text(), nullable=True),
-        sa.Column("confirm_by", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("confirm_kind", sa.Text(), nullable=True),
+        sa.Column("accept_by", sa.DateTime(timezone=True), nullable=True),
         sa.Column("is_team_row", sa.Boolean(), nullable=False),
         sa.Column("joined_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("confirmed_at", sa.DateTime(timezone=True), nullable=True),
@@ -2499,28 +2390,16 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            "confirm_kind IN ('placement', 'reconfirm', 'presence')",
-            name=op.f("ck_project_members_confirm_kind_enum"),
-        ),
-        sa.CheckConstraint(
-            (
-                "joined_via IN ('create', 'invite', 'claim', 'core_invite', "
-                "'join_request', 'formation', 'fill_invite', 'reserve_add', "
-                "'reserve_offer', 'swap', 'merge', 'admin')"
-            ),
+            "joined_via IN ('create', 'invite', 'join_request', 'formation', 'refill', 'admin')",
             name=op.f("ck_project_members_joined_via_enum"),
         ),
         sa.CheckConstraint(
-            (
-                "left_reason IN ('declined', 'lapsed', 'removed', 'left', 'swapped', "
-                "'merged', 'disbanded', 'banned', 'admin')"
-            ),
+            "left_reason IN ('declined', 'lapsed', 'removed', 'left', 'disbanded', 'banned', 'admin')",
             name=op.f("ck_project_members_left_reason_enum"),
         ),
         sa.CheckConstraint("role IN ('lead', 'member')", name=op.f("ck_project_members_role_enum")),
         sa.CheckConstraint(
-            ("state <> 'proposed' OR (confirm_by IS NOT NULL AND confirm_kind IS NOT NULL)"),
-            name=op.f("ck_project_members_proposal"),
+            "state <> 'proposed' OR accept_by IS NOT NULL", name=op.f("ck_project_members_proposal")
         ),
         sa.CheckConstraint(
             "state IN ('proposed', 'confirmed')", name=op.f("ck_project_members_state_enum")
@@ -2530,10 +2409,6 @@ def upgrade() -> None:
         ),
         sa.CheckConstraint(
             "NOT is_team_row OR event_id IS NOT NULL", name=op.f("ck_project_members_team_event")
-        ),
-        sa.CheckConstraint(
-            "char_length(proposal_reason) <= 1000",
-            name=op.f("ck_project_members_proposal_reason_length"),
         ),
         sa.ForeignKeyConstraint(
             ["area_id"],
@@ -2754,18 +2629,13 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_project_updates")),
     )
     op.create_table(
-        "swap_requests",
+        "question_options",
         sa.Column("id", sa.Uuid(), server_default=sa.text("uuidv7()"), nullable=False),
-        sa.Column("event_id", sa.Uuid(), nullable=False),
-        sa.Column("from_team_id", sa.Uuid(), nullable=False),
-        sa.Column("from_user_id", sa.Uuid(), nullable=False),
-        sa.Column("to_team_id", sa.Uuid(), nullable=False),
-        sa.Column("to_user_id", sa.Uuid(), nullable=False),
-        sa.Column("requested_by", sa.Uuid(), nullable=False),
-        sa.Column("to_lead_accepted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("from_user_accepted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("to_user_accepted_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("status", sa.Text(), nullable=False),
+        sa.Column("question_id", sa.Uuid(), nullable=False),
+        sa.Column("key", sa.Text(), nullable=False),
+        sa.Column("label", sa.Text(), nullable=False),
+        sa.Column("position", sa.Integer(), nullable=False),
+        sa.Column("area_hints", postgresql.JSONB(astext_type=sa.Text()), nullable=False),
         sa.Column(
             "updated_at",
             sa.DateTime(timezone=True),
@@ -2779,46 +2649,17 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.CheckConstraint(
-            "status IN ('pending', 'accepted', 'declined', 'expired', 'closed')",
-            name=op.f("ck_swap_requests_status_enum"),
+            "jsonb_typeof(area_hints) = 'object' AND NOT jsonb_path_exists(area_hints, '$.* ? (@.type() != \"number\" || @ < 0 || @ > 1)')",
+            name=op.f("ck_question_options_area_hints_weights"),
         ),
         sa.ForeignKeyConstraint(
-            ["event_id"],
-            ["events.id"],
-            name=op.f("fk_swap_requests_event_id_events"),
+            ["question_id"],
+            ["questions.id"],
+            name=op.f("fk_question_options_question_id_questions"),
             ondelete="CASCADE",
         ),
-        sa.ForeignKeyConstraint(
-            ["from_team_id"],
-            ["projects.id"],
-            name=op.f("fk_swap_requests_from_team_id_projects"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["from_user_id"],
-            ["users.id"],
-            name=op.f("fk_swap_requests_from_user_id_users"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["requested_by"],
-            ["users.id"],
-            name=op.f("fk_swap_requests_requested_by_users"),
-            ondelete="RESTRICT",
-        ),
-        sa.ForeignKeyConstraint(
-            ["to_team_id"],
-            ["projects.id"],
-            name=op.f("fk_swap_requests_to_team_id_projects"),
-            ondelete="CASCADE",
-        ),
-        sa.ForeignKeyConstraint(
-            ["to_user_id"],
-            ["users.id"],
-            name=op.f("fk_swap_requests_to_user_id_users"),
-            ondelete="CASCADE",
-        ),
-        sa.PrimaryKeyConstraint("id", name=op.f("pk_swap_requests")),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_question_options")),
+        sa.UniqueConstraint("question_id", "key", name=op.f("uq_question_options_question_id_key")),
     )
     op.create_table(
         "release_contributions",
@@ -2859,12 +2700,43 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("release_id", "user_id", name=op.f("pk_release_contributions")),
     )
 
+    op.execute(
+        """
+        CREATE FUNCTION public.prevent_area_key_change() RETURNS trigger
+        LANGUAGE plpgsql AS $$
+        BEGIN
+            IF NEW.key IS DISTINCT FROM OLD.key THEN
+                RAISE EXCEPTION 'Area keys are immutable' USING ERRCODE = '23514';
+            END IF;
+            RETURN NEW;
+        END;
+        $$
+        """
+    )
+    op.execute(
+        "CREATE TRIGGER areas_key_immutable BEFORE UPDATE OF key ON areas "
+        "FOR EACH ROW EXECUTE FUNCTION public.prevent_area_key_change()"
+    )
+    areas = sa.table(
+        "areas",
+        sa.column("key", sa.Text()),
+        sa.column("name", sa.Text()),
+        sa.column("description", sa.Text()),
+        sa.column("sort", sa.Integer()),
+    )
+    op.bulk_insert(
+        areas,
+        [
+            {"key": key, "name": name, "description": description, "sort": index * 10}
+            for index, (key, name, description) in enumerate(SEED_AREAS, start=1)
+        ],
+    )
+
 
 def downgrade() -> None:
     op.execute("DROP FUNCTION IF EXISTS public.prevent_area_key_change() CASCADE")
-    op.execute("DROP SCHEMA procrastinate CASCADE")
     op.drop_table("release_contributions")
-    op.drop_table("swap_requests")
+    op.drop_table("question_options")
     op.drop_table("project_updates")
     op.drop_table("project_results")
     op.drop_table("project_releases")
@@ -2881,20 +2753,9 @@ def downgrade() -> None:
     )
     op.drop_table("project_members")
     op.drop_table("project_areas")
-    op.drop_table("merge_proposals")
-    op.drop_index(
-        "uq_lead_offers_project_id_live",
-        table_name="lead_offers",
-        postgresql_where=sa.text("status = 'pending'"),
-    )
-    op.drop_table("lead_offers")
+    op.drop_table("mentorship_checkins")
     op.drop_index(
         "uq_join_requests_project_id_user_id_live",
-        table_name="join_requests",
-        postgresql_where=sa.text("status = 'pending' AND event_id IS NULL"),
-    )
-    op.drop_index(
-        "uq_join_requests_event_id_user_id_live",
         table_name="join_requests",
         postgresql_where=sa.text("status = 'pending'"),
     )
@@ -2904,14 +2765,25 @@ def downgrade() -> None:
         table_name="invites",
         postgresql_where=sa.text("status = 'pending'"),
     )
+    op.drop_index(
+        "uq_invites_party_id_user_id_live",
+        table_name="invites",
+        postgresql_where=sa.text("status = 'pending'"),
+    )
     op.drop_table("invites")
-    op.drop_table("question_options")
-    op.drop_table("projects")
-    op.drop_table("mentorship_checkins")
     op.drop_table("event_formations")
+    op.drop_index(
+        "uq_enrollments_event_id_user_id_live",
+        table_name="enrollments",
+        postgresql_where=sa.text("status IN ('active', 'placed', 'reserve')"),
+    )
+    op.drop_table("enrollments")
     op.drop_table("xp_adjustments")
     op.drop_table("review_reports")
+    op.drop_table("quiz_sections")
     op.drop_table("questions")
+    op.drop_table("projects")
+    op.drop_table("parties")
     op.drop_index(
         "uq_onboarding_submissions_user_id_live",
         table_name="onboarding_submissions",
@@ -2921,7 +2793,6 @@ def downgrade() -> None:
     op.drop_table("notification_deliveries")
     op.drop_table("mentorships")
     op.drop_table("member_restrictions")
-    op.drop_table("lead_fits")
     op.drop_table("help_offers")
     op.drop_table("formation_runs")
     op.drop_table("event_sources")
@@ -2931,12 +2802,6 @@ def downgrade() -> None:
     op.drop_table("event_field_locks")
     op.drop_table("event_attendances")
     op.drop_table("event_areas")
-    op.drop_index(
-        "uq_enrollments_event_id_user_id_live",
-        table_name="enrollments",
-        postgresql_where=sa.text("status IN ('active', 'placed', 'reserve')"),
-    )
-    op.drop_table("enrollments")
     op.drop_table("telegram_links")
     op.drop_table("telegram_link_codes")
     op.drop_table("settings")
@@ -2948,6 +2813,7 @@ def downgrade() -> None:
         postgresql_where=sa.text("status = 'published'"),
     )
     op.drop_table("quizzes")
+    op.drop_table("onboarding_baselines")
     op.drop_table("notifications")
     op.drop_table("notification_settings")
     op.drop_table("mentor_offers")
@@ -2993,3 +2859,4 @@ def downgrade() -> None:
     op.drop_table("parser_heartbeats")
     op.drop_table("areas")
     op.drop_table("algo_cache")
+    op.execute("DROP SCHEMA procrastinate CASCADE")

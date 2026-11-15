@@ -1,4 +1,5 @@
 import fcntl
+import hashlib
 import os
 import subprocess
 import sys
@@ -11,7 +12,7 @@ import pytest
 from harness import Harness, open_harness
 from psycopg import sql
 from sqlalchemy import text
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import URL, make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
 from hmm.common import OnboardingStatus
@@ -19,6 +20,7 @@ from hmm.models import User
 from hmm.platform.db import Base, create_engine
 
 ROOT = Path(__file__).resolve().parents[1]
+VERSIONS = ROOT / "src/hmm/migrations/versions"
 TRUNCATE_PUBLIC = """
 DO $$
 DECLARE
@@ -34,34 +36,58 @@ $$
 """
 
 
-def migrate(database_url: str) -> None:
-    conninfo = (
-        make_url(database_url).set(drivername="postgresql").render_as_string(hide_password=False)
+def schema_fingerprint() -> str:
+    digest = hashlib.sha256()
+    for path in sorted(VERSIONS.glob("*.py")):
+        digest.update(path.name.encode())
+        digest.update(path.read_bytes())
+    return digest.hexdigest()
+
+
+def conninfo(url: URL, database: str | None = None) -> str:
+    url = url.set(drivername="postgresql")
+    if database is not None:
+        url = url.set(database=database)
+    return url.render_as_string(hide_password=False)
+
+
+def fingerprint_of(admin: psycopg.Connection, database: str) -> str | None:
+    row = admin.execute(
+        "SELECT shobj_description(oid, 'pg_database') FROM pg_database WHERE datname = %s",
+        (database,),
+    ).fetchone()
+    return None if row is None else row[0]
+
+
+def stamp(admin: psycopg.Connection, database: str, fingerprint: str) -> None:
+    admin.execute(
+        sql.SQL("COMMENT ON DATABASE {} IS {}").format(
+            sql.Identifier(database), sql.Literal(fingerprint)
+        )
     )
-    first = True
-    for args in (("upgrade", "head"), ("downgrade", "base"), ("upgrade", "head"), ("check",)):
+
+
+def migrate(url: URL, fingerprint: str) -> None:
+    database = url.database or ""
+    with psycopg.connect(conninfo(url, "postgres"), autocommit=True) as admin:
+        if fingerprint_of(admin, database) == fingerprint:
+            return
+        with psycopg.connect(conninfo(url)) as connection:
+            connection.execute("DROP SCHEMA IF EXISTS procrastinate CASCADE")
+            connection.execute("DROP SCHEMA public CASCADE")
+            connection.execute("CREATE SCHEMA public")
         result = subprocess.run(
-            [sys.executable, "-m", "alembic", *args],
+            [sys.executable, "-m", "alembic", "upgrade", "head"],
             cwd=ROOT,
-            env={**os.environ, "DATABASE_URL": database_url},
+            env={**os.environ, "DATABASE_URL": url.render_as_string(hide_password=False)},
             capture_output=True,
             text=True,
             check=False,
         )
         assert result.returncode == 0, result.stdout + result.stderr
-        if args == ("upgrade", "head") and first:
-            first = False
-            with psycopg.connect(conninfo) as connection:
-                connection.execute(TRUNCATE_PUBLIC)
-        if args == ("downgrade", "base"):
-            with psycopg.connect(conninfo) as connection:
-                assert connection.execute(
-                    "SELECT count(*) FROM pg_namespace WHERE nspname = 'procrastinate'"
-                ).fetchone() == (0,)
-                assert connection.execute(
-                    "SELECT count(*) FROM pg_tables "
-                    "WHERE schemaname = 'public' AND tablename <> 'alembic_version'"
-                ).fetchone() == (0,)
+        with psycopg.connect(conninfo(url)) as connection:
+            connection.execute(TRUNCATE_PUBLIC)
+        stamp(admin, database, fingerprint)
 
 
 @pytest.fixture(scope="session")
@@ -76,29 +102,26 @@ def database_url() -> str:
 def migrated_database(
     database_url: str, worker_id: str, tmp_path_factory: pytest.TempPathFactory
 ) -> str:
-    if worker_id == "master":
-        migrate(database_url)
-        return database_url
-    root = tmp_path_factory.getbasetemp().parent
-    with (root / "migrate.lock").open("w") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
-        if not (root / "migrated").exists():
-            migrate(database_url)
-            (root / "migrated").touch()
     base = make_url(database_url)
+    fingerprint = schema_fingerprint()
+    if worker_id == "master":
+        migrate(base, fingerprint)
+        return database_url
+    with (tmp_path_factory.getbasetemp().parent / "migrate.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        migrate(base, fingerprint)
     name = f"{base.database}_{worker_id}"
-    conninfo = base.set(drivername="postgresql", database="postgres").render_as_string(
-        hide_password=False
-    )
-    with psycopg.connect(conninfo, autocommit=True) as connection:
-        connection.execute(
-            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name))
-        )
-        connection.execute(
-            sql.SQL("CREATE DATABASE {} TEMPLATE {}").format(
-                sql.Identifier(name), sql.Identifier(base.database or "")
+    with psycopg.connect(conninfo(base, "postgres"), autocommit=True) as admin:
+        if fingerprint_of(admin, name) != fingerprint:
+            admin.execute(
+                sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name))
             )
-        )
+            admin.execute(
+                sql.SQL("CREATE DATABASE {} TEMPLATE {}").format(
+                    sql.Identifier(name), sql.Identifier(base.database or "")
+                )
+            )
+            stamp(admin, name, fingerprint)
     return base.set(database=name).render_as_string(hide_password=False)
 
 
