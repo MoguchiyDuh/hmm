@@ -267,6 +267,13 @@ async def defer_job(
     return job_id
 
 
+def get_jobs(request: Request) -> procrastinate.App:
+    return request.app.state.jobs
+
+
+Jobs = Annotated[procrastinate.App, Depends(get_jobs)]
+
+
 def build_runtime(
     config: Config,
     engine: AsyncEngine,
@@ -310,10 +317,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-
-def get_jobs(request: Request) -> procrastinate.App:
-    return request.app.state.jobs
-
-
-Jobs = Annotated[procrastinate.App, Depends(get_jobs)]

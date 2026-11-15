@@ -16,10 +16,8 @@ from hmm.platform.models import AlgoCache
 type AlgoMethod = Literal[
     "score_onboarding",
     "compute_member",
-    "lead_fit",
     "recommend",
     "form_teams",
-    "rank_reserve",
     "match_mentors",
     "scan_community",
 ]
@@ -27,10 +25,8 @@ type AlgoMethod = Literal[
 ALGO_TIMEOUTS: dict[AlgoMethod, float] = {
     "score_onboarding": 60,
     "compute_member": 60,
-    "lead_fit": 120,
     "recommend": 60,
     "form_teams": 120,
-    "rank_reserve": 60,
     "match_mentors": 60,
     "scan_community": 600,
 }
