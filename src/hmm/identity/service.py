@@ -2,7 +2,6 @@ import hashlib
 import hmac
 import secrets
 from base64 import b32encode, urlsafe_b64decode, urlsafe_b64encode
-from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Literal
 from uuid import UUID
@@ -25,7 +24,7 @@ from hmm.common import (
     RestrictionKind,
 )
 from hmm.identity.github import GithubUser
-from hmm.identity.schemas import AccountAction
+from hmm.identity.schemas import AccountAction, CurrentUser, TelegramLink
 from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
@@ -39,14 +38,7 @@ ONBOARDED = frozenset({OnboardingStatus.COMPLETED, OnboardingStatus.REOPENED})
 TELEGRAM_CODE_TTL = timedelta(minutes=10)
 
 
-@dataclass
-class AccountState:
-    telegram: models.TelegramLink | None
-    unread_count: int
-    allowed_actions: list[AccountAction]
-
-
-async def account_state(session: AsyncSession, actor: models.User, now: datetime) -> AccountState:
+async def current_user(session: AsyncSession, actor: models.User, now: datetime) -> CurrentUser:
     link = await session.get(models.TelegramLink, actor.id)
     unread = await session.scalar(
         select(func.count()).where(
@@ -70,8 +62,24 @@ async def account_state(session: AsyncSession, actor: models.User, now: datetime
             allowed.add(AccountAction.CREATE_PROJECT)
         if RestrictionKind.CREATING_EVENTS not in restricted:
             allowed.add(AccountAction.CREATE_EVENT)
-    return AccountState(
-        link, unread or 0, [action for action in AccountAction if action in allowed]
+    return CurrentUser(
+        id=actor.id,
+        display_name=actor.display_name,
+        avatar_url=actor.avatar_url,
+        github_login=actor.github_login,
+        github_url=f"https://github.com/{actor.github_login}",
+        is_admin=actor.is_admin,
+        onboarding_status=actor.onboarding_status,
+        dnd_until=dnd_until(actor),
+        locale=actor.locale,
+        telegram=TelegramLink(
+            linked=link is not None,
+            username=link.username if link else None,
+            linked_at=link.linked_at if link else None,
+            broken_at=link.broken_at if link else None,
+        ),
+        unread_count=unread or 0,
+        allowed_actions=[action for action in AccountAction if action in allowed],
     )
 
 

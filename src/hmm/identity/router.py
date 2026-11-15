@@ -1,20 +1,17 @@
 import logging
 import secrets
-from datetime import datetime, timedelta
+from datetime import timedelta
 from ipaddress import ip_address
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from hmm import models
 from hmm.common import ErrorCode
 from hmm.identity import service as identity
 from hmm.identity.github import GithubError, authorize_url, exchange_code, fetch_user
 from hmm.identity.schemas import (
     CurrentUser,
-    TelegramLink,
     TelegramLinkCode,
 )
 from hmm.platform.clock import CurrentClock
@@ -57,30 +54,6 @@ def oauth_redirect(location: str) -> RedirectResponse:
         OAUTH_COOKIE, path=OAUTH_COOKIE_PATH, secure=True, httponly=True, samesite="lax"
     )
     return response
-
-
-async def current_user(session: AsyncSession, actor: models.User, now: datetime) -> CurrentUser:
-    state = await identity.account_state(session, actor, now)
-    link = state.telegram
-    return CurrentUser(
-        id=actor.id,
-        display_name=actor.display_name,
-        avatar_url=actor.avatar_url,
-        github_login=actor.github_login,
-        github_url=f"https://github.com/{actor.github_login}",
-        is_admin=actor.is_admin,
-        onboarding_status=actor.onboarding_status,
-        dnd_until=identity.dnd_until(actor),
-        locale=actor.locale,
-        telegram=TelegramLink(
-            linked=link is not None,
-            username=link.username if link else None,
-            linked_at=link.linked_at if link else None,
-            broken_at=link.broken_at if link else None,
-        ),
-        unread_count=state.unread_count,
-        allowed_actions=state.allowed_actions,
-    )
 
 
 @router.get(
@@ -192,7 +165,7 @@ async def logout_all(actor: UserAuth, response: Response, session: Session) -> N
 
 @router.get("/me", status_code=status.HTTP_200_OK, summary="Get current user")
 async def get_current_user(actor: UserAuth, session: Session, clock: CurrentClock) -> CurrentUser:
-    return await current_user(session, actor, clock.now())
+    return await identity.current_user(session, actor, clock.now())
 
 
 @router.post(

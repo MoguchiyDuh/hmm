@@ -11,7 +11,6 @@ from hmm.common import (
     ReviewContext,
     ReviewId,
     ReviewWindowId,
-    ReviewWindowSubjectType,
     UserId,
 )
 from hmm.platform.clock import CurrentClock
@@ -19,7 +18,6 @@ from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
 from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
-from hmm.platform.schemas import user_ref
 from hmm.platform.security import AdminAuth, MemberAuth
 from hmm.results import reviews, submissions, verification
 from hmm.results.schemas import (
@@ -34,7 +32,6 @@ from hmm.results.schemas import (
     Review,
     ReviewAction,
     ReviewReport,
-    ReviewWindowAction,
     UpdateHostReviewBody,
     UpdateResultBody,
     UpdateReviewBody,
@@ -131,23 +128,7 @@ async def get_result(
 async def list_pending_reviews(
     actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> list[PendingReviewWindow]:
-    rows = await reviews.pending_windows(session, actor_id=actor.id, now=clock.now())
-    return [
-        PendingReviewWindow(
-            id=row.window.id,
-            subject_type=ReviewWindowSubjectType(row.window.subject_type),
-            subject_id=row.window.subject_id,
-            subject_title=row.subject_title,
-            opens_at=row.window.opens_at,
-            closes_at=row.window.closes_at,
-            to_review=[user_ref(user) for user in row.to_review],
-            submitted=[
-                reviews.build_review(review, actor, [ReviewAction.EDIT]) for review in row.submitted
-            ],
-            allowed_actions=[ReviewWindowAction.REVIEW],
-        )
-        for row in rows
-    ]
+    return await reviews.pending_windows(session, actor=actor, now=clock.now())
 
 
 @router.put(
@@ -210,23 +191,10 @@ async def list_user_reviews(
     pagination: Annotated[CursorParams, Depends()],
     actor: MemberAuth,
     session: Session,
-    clock: CurrentClock,
     context: Annotated[ReviewContext | None, Query()] = None,
 ) -> UserReviews:
-    page = await reviews.user_reviews(session, target_id=id, context=context, params=pagination)
-    return UserReviews(
-        items=[
-            reviews.build_review(
-                review,
-                None
-                if review.context in {ReviewContext.HOST.value, ReviewContext.SPEAKER.value}
-                else page.users.get(review.reviewer_id),
-                [] if review.reviewer_id == actor.id else [ReviewAction.REPORT],
-            )
-            for review in page.items
-        ],
-        next_cursor=page.next_cursor,
-        reputation=page.reputation,
+    return await reviews.user_reviews(
+        session, target_id=id, actor_id=actor.id, context=context, params=pagination
     )
 
 
@@ -249,23 +217,7 @@ async def list_admin_reviews(
     session: Session,
     reported: Annotated[bool | None, Query()] = None,
 ) -> AdminReviewPage:
-    page = await reviews.admin_review_page(session, reported=reported, params=pagination)
-    return AdminReviewPage(
-        items=[
-            AdminReview(
-                **reviews.build_review(
-                    review,
-                    page.users.get(review.reviewer_id),
-                    [] if review.removed_at is not None else [ReviewAction.REMOVE],
-                ).model_dump(),
-                reports=[
-                    reviews.build_report(report) for report in page.reports.get(review.id, [])
-                ],
-            )
-            for review in page.items
-        ],
-        next_cursor=page.next_cursor,
-    )
+    return await reviews.admin_review_page(session, reported=reported, params=pagination)
 
 
 @router.post(

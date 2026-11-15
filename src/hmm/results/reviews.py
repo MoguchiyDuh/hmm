@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
@@ -20,6 +19,7 @@ from hmm.common import (
     ReviewContext,
     ReviewReportStatus,
     ReviewSubjectType,
+    ReviewWindowSubjectType,
 )
 from hmm.identity.service import ONBOARDED
 from hmm.notifications.payloads import AlertKind, NotificationPerson, ReviewRemovedPayload
@@ -126,17 +126,10 @@ async def submit_review(
     return review
 
 
-@dataclass(frozen=True)
-class PendingWindow:
-    window: models.ReviewWindow
-    subject_title: str
-    to_review: list[models.User]
-    submitted: list[models.Review]
-
-
 async def pending_windows(
-    session: AsyncSession, *, actor_id: UUID, now: datetime
-) -> list[PendingWindow]:
+    session: AsyncSession, *, actor: models.User, now: datetime
+) -> list[schemas.PendingReviewWindow]:
+    actor_id = actor.id
     windows = list(
         await session.scalars(
             select(models.ReviewWindow)
@@ -174,7 +167,7 @@ async def pending_windows(
         await session.scalars(select(models.User).where(models.User.id.in_(user_ids))),
         key=lambda user: (user.display_name, str(user.id)),
     )
-    pending: list[PendingWindow] = []
+    pending: list[schemas.PendingReviewWindow] = []
     for window, participants in visible:
         own_reviews = submitted.get(window.id, [])
         reviewed = {review.reviewee_id for review in own_reviews}
@@ -184,15 +177,22 @@ async def pending_windows(
             subject_id=window.subject_id,
         )
         pending.append(
-            PendingWindow(
-                window=window,
+            schemas.PendingReviewWindow(
+                id=window.id,
+                subject_type=ReviewWindowSubjectType(window.subject_type),
+                subject_id=window.subject_id,
                 subject_title=title,
+                opens_at=window.opens_at,
+                closes_at=window.closes_at,
                 to_review=[
-                    user
+                    user_ref(user)
                     for user in users
                     if user.id in participants and user.id != actor_id and user.id not in reviewed
                 ],
-                submitted=own_reviews,
+                submitted=[
+                    build_review(review, actor, [ReviewAction.EDIT]) for review in own_reviews
+                ],
+                allowed_actions=[schemas.ReviewWindowAction.REVIEW],
             )
         )
     return pending
@@ -275,21 +275,14 @@ async def submit_host_review(
     return review
 
 
-@dataclass(frozen=True)
-class UserReviewPage:
-    items: list[models.Review]
-    users: dict[UUID, models.User]
-    next_cursor: str | None
-    reputation: list[ReviewRatingSummary]
-
-
 async def user_reviews(
     session: AsyncSession,
     *,
     target_id: UUID,
+    actor_id: UUID,
     context: ReviewContext | None,
     params: CursorParams,
-) -> UserReviewPage:
+) -> schemas.UserReviews:
     target = await session.get(models.User, target_id)
     if target is None or target.onboarding_status not in ONBOARDED:
         raise ProblemError(ErrorCode.NOT_FOUND)
@@ -314,9 +307,17 @@ async def user_reviews(
         )
     }
     summaries = await reputation_summary(session, target_id)
-    return UserReviewPage(
-        items=items,
-        users=users,
+    return schemas.UserReviews(
+        items=[
+            build_review(
+                review,
+                None
+                if review.context in {ReviewContext.HOST.value, ReviewContext.SPEAKER.value}
+                else users.get(review.reviewer_id),
+                [] if review.reviewer_id == actor_id else [ReviewAction.REPORT],
+            )
+            for review in items
+        ],
         next_cursor=next_cursor,
         reputation=[
             ReviewRatingSummary(context=key, average=summary.avg, count=summary.count)
@@ -397,17 +398,9 @@ async def report_review(
     return report
 
 
-@dataclass(frozen=True)
-class AdminReviewPageData:
-    items: list[models.Review]
-    reports: dict[UUID, list[models.ReviewReport]]
-    users: dict[UUID, models.User]
-    next_cursor: str | None
-
-
 async def admin_review_page(
     session: AsyncSession, *, reported: bool | None, params: CursorParams
-) -> AdminReviewPageData:
+) -> schemas.AdminReviewPage:
     open_report = (
         select(models.ReviewReport.id)
         .where(
@@ -425,7 +418,7 @@ async def admin_review_page(
         session, statement, params, sort=[models.Review.created_at], id_column=models.Review.id
     )
     if not items:
-        return AdminReviewPageData(items=[], reports={}, users={}, next_cursor=None)
+        return schemas.AdminReviewPage(items=[], next_cursor=None)
     user_ids = {review.reviewer_id for review in items} | {review.reviewee_id for review in items}
     users = {
         user.id: user
@@ -438,7 +431,20 @@ async def admin_review_page(
         .order_by(models.ReviewReport.created_at, models.ReviewReport.id)
     ):
         reports.setdefault(report.review_id, []).append(report)
-    return AdminReviewPageData(items=items, reports=reports, users=users, next_cursor=next_cursor)
+    return schemas.AdminReviewPage(
+        items=[
+            schemas.AdminReview(
+                **build_review(
+                    review,
+                    users.get(review.reviewer_id),
+                    [] if review.removed_at is not None else [ReviewAction.REMOVE],
+                ).model_dump(),
+                reports=[build_report(report) for report in reports.get(review.id, [])],
+            )
+            for review in items
+        ],
+        next_cursor=next_cursor,
+    )
 
 
 async def remove_review(
