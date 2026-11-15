@@ -5,6 +5,7 @@ from pydantic import AwareDatetime
 
 from hmm.catalog import changes, review
 from hmm.catalog import events as catalog_events
+from hmm.catalog import views as catalog_views
 from hmm.catalog.schemas import (
     CreateEventBody,
     EventDetail,
@@ -58,7 +59,7 @@ async def list_events(
     mine: Annotated[bool | None, Query()] = None,
     origin: Annotated[EventOrigin | None, Query()] = None,
 ) -> EventSummaryPage:
-    return await catalog_events.list_events(
+    return await catalog_views.list_events(
         session,
         pagination,
         actor,
@@ -81,15 +82,15 @@ async def list_events(
 async def get_event(
     id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> EventDetail:
-    event = await catalog_events.visible_event(session, id, actor)
-    return await catalog_events.event_detail(session, event, actor, clock.now())
+    event = await catalog_views.visible_event(session, id, actor)
+    return await catalog_views.event_detail(session, event, actor, clock.now())
 
 
 @router.get("/events/{id}/projects", status_code=status.HTTP_200_OK, summary="List event projects")
 async def list_event_projects(
     id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> list[ProjectView]:
-    return await catalog_events.list_event_projects(session, id, actor)
+    return await catalog_views.list_event_projects(session, id, actor)
 
 
 @router.post("/admin/events", status_code=status.HTTP_201_CREATED, summary="Create a manual event")
@@ -101,7 +102,7 @@ async def create_event(
     clock: CurrentClock,
 ) -> EventDetail:
     event = await catalog_events.create_manual_event(session, body, actor, clock.now())
-    return await catalog_events.event_detail(session, event, actor, clock.now())
+    return await catalog_views.event_detail(session, event, actor, clock.now())
 
 
 @router.get(
@@ -127,7 +128,7 @@ async def update_event(
     clock: CurrentClock,
 ) -> EventDetail:
     event = await changes.update_event(session, jobs, id, body, actor, clock.now())
-    return await catalog_events.event_detail(session, event, actor, clock.now())
+    return await catalog_views.event_detail(session, event, actor, clock.now())
 
 
 @router.get(
@@ -177,7 +178,7 @@ async def publish_event(
     event = await review.publish_event(
         session, id, actor, body.reason if body else None, clock.now()
     )
-    return await catalog_events.event_detail(session, event, actor, clock.now())
+    return await catalog_views.event_detail(session, event, actor, clock.now())
 
 
 @router.post(
@@ -192,7 +193,7 @@ async def reject_event(
     body: ReasonBody | None = None,
 ) -> EventDetail:
     event = await review.reject_event(session, id, actor, body.reason if body else None)
-    return await catalog_events.event_detail(session, event, actor, clock.now())
+    return await catalog_views.event_detail(session, event, actor, clock.now())
 
 
 @router.post(
@@ -207,7 +208,7 @@ async def merge_event(
     clock: CurrentClock,
 ) -> EventDetail:
     event = await review.merge_event(session, jobs, id, body, actor, clock.now())
-    return await catalog_events.event_detail(session, event, actor, clock.now())
+    return await catalog_views.event_detail(session, event, actor, clock.now())
 
 
 @router.post("/admin/events/{id}/cancel", status_code=status.HTTP_200_OK, summary="Cancel an event")
@@ -229,4 +230,4 @@ async def cancel_event(
         actor_kind=ActorKind.ADMIN,
         now=clock.now(),
     )
-    return await catalog_events.event_detail(session, event, actor, clock.now())
+    return await catalog_views.event_detail(session, event, actor, clock.now())

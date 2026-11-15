@@ -14,16 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.catalog import schemas
-from hmm.catalog.events import (
-    DATE_FIELDS,
-    LIVE_ENROLLMENTS,
-    LOCKABLE_SKIP,
-    NOTIFY_FIELDS,
-    TEAM_TERMINAL,
-    EventAreaInput,
-    load_event,
-    resolve_areas,
-)
+from hmm.catalog.events import EventAreaInput, resolve_areas
 from hmm.common import (
     ActorKind,
     AttendanceStatus,
@@ -47,8 +38,30 @@ from hmm.notifications.payloads import (
 )
 from hmm.notifications.service import notify, raise_alert
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.recommendations import service as recommendations
+
+LIVE_ENROLLMENTS = frozenset(
+    {EnrollmentStatus.ACTIVE, EnrollmentStatus.PLACED, EnrollmentStatus.RESERVE}
+)
+
+TEAM_TERMINAL = frozenset({TeamStatus.DISBANDED, TeamStatus.CANCELLED})
+
+LOCKABLE_SKIP = frozenset({"status", "review_reasons"})
+
+NOTIFY_FIELDS = frozenset(
+    {
+        "starts_at",
+        "ends_at",
+        "team_size_min",
+        "team_size_max",
+        "format",
+        "registration_deadline",
+    }
+)
+
+DATE_FIELDS = frozenset({"starts_at", "ends_at", "registration_deadline"})
 
 
 async def event_recipients(session: AsyncSession, event_id: UUID) -> list[UUID]:
@@ -135,7 +148,7 @@ async def cancel_event(
     actor_kind: ActorKind,
     now: datetime,
 ) -> models.Event:
-    event = await load_event(session, event_id, for_update=True)
+    event = await get_or_404(session, models.Event, event_id, lock=True)
     if event.status == EventStatus.ARCHIVED:
         raise ProblemError(ErrorCode.INVALID_STATE, "Archived events cannot be cancelled")
     if event.status == EventStatus.CANCELLED:
@@ -285,7 +298,7 @@ async def update_event(
     actor: models.User,
     now: datetime,
 ) -> models.Event:
-    event = await load_event(session, event_id, for_update=True)
+    event = await get_or_404(session, models.Event, event_id, lock=True)
     if body.status is not None and body.status != event.status:
         if body.status == EventStatus.CANCELLED:
             return await cancel_event(
@@ -448,7 +461,7 @@ async def update_event(
 
 
 async def list_locks(session: AsyncSession, event_id: UUID) -> list[schemas.EventFieldLock]:
-    await load_event(session, event_id)
+    await get_or_404(session, models.Event, event_id)
     return [
         schemas.EventFieldLock(
             event_id=lock.event_id,
@@ -472,7 +485,7 @@ async def list_locks(session: AsyncSession, event_id: UUID) -> list[schemas.Even
 async def unlock_field(
     session: AsyncSession, event_id: UUID, field: str, actor: models.User, reason: str | None
 ) -> None:
-    event = await load_event(session, event_id)
+    event = await get_or_404(session, models.Event, event_id)
     lock = await session.scalar(
         select(models.EventFieldLock)
         .where(models.EventFieldLock.event_id == event_id, models.EventFieldLock.field == field)
@@ -499,7 +512,7 @@ async def unlock_field(
 
 
 async def list_revisions(session: AsyncSession, event_id: UUID) -> list[schemas.EventRevision]:
-    await load_event(session, event_id)
+    await get_or_404(session, models.Event, event_id)
     return [
         schemas.EventRevision(
             id=revision.id,

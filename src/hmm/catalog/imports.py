@@ -15,22 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.catalog.changes import (
+    DATE_FIELDS,
+    NOTIFY_FIELDS,
     cancel_event,
     json_value,
     notify_field_changes,
     replace_event_areas,
 )
-from hmm.catalog.events import (
-    DATE_FIELDS,
-    NON_TERMINAL_TEAMS,
-    NOTIFY_FIELDS,
-    TEAM_FIELDS,
-    EventAreaInput,
-    EventInput,
-    create_event,
-    load_event,
-    resolve_areas,
-)
+from hmm.catalog.events import EventAreaInput, EventInput, create_event, resolve_areas
 from hmm.catalog.import_schema import (
     EventImport,
     EventImportBatch,
@@ -47,13 +39,22 @@ from hmm.common import (
     EventReviewReason,
     EventRevisionOrigin,
     EventStatus,
+    TeamStatus,
     ValidationIssue,
 )
 from hmm.formation import common as formation_common
 from hmm.notifications.payloads import AlertKind
 from hmm.notifications.service import raise_alert
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import load_settings
+
+TEAM_FIELDS = frozenset({"team_size_min", "team_size_max"})
+
+NON_TERMINAL_TEAMS = (
+    TeamStatus.FORMED.value,
+    TeamStatus.ACTIVE.value,
+)
 
 
 def normalize_title(title: str) -> str:
@@ -264,11 +265,11 @@ async def import_event_item(
     )
     previous_hash = source_row.payload_hash if source_row is not None else None
     if source_row is not None:
-        event = await load_event(session, source_row.event_id, for_update=True)
+        event = await get_or_404(session, models.Event, source_row.event_id, lock=True)
     elif item.match_hint is not None and (
         await session.get(models.Event, item.match_hint.event_id) is not None
     ):
-        event = await load_event(session, item.match_hint.event_id, for_update=True)
+        event = await get_or_404(session, models.Event, item.match_hint.event_id, lock=True)
         source_row = await attach_source(session, event, item, digest, now)
     if event is not None and event.status == EventStatus.ARCHIVED.value:
         return EventImportResult(

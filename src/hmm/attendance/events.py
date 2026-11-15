@@ -13,6 +13,7 @@ from hmm.attendance import schemas
 from hmm.attendance.service import attendance_view
 from hmm.catalog import changes as catalog_changes
 from hmm.catalog import events as catalog_events
+from hmm.catalog import views as catalog_views
 from hmm.catalog.import_schema import Location
 from hmm.common import (
     ActorKind,
@@ -36,6 +37,7 @@ from hmm.common import (
 from hmm.feed import confirmations, digests, timeline
 from hmm.formation import common as formation_common
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.pagination import CursorParams, keyset_rows
@@ -52,8 +54,8 @@ async def set_attendance(
     now: datetime,
 ) -> schemas.Attendance:
     settings = await load_settings(session)
-    event = await catalog_events.load_event(session, event_id, for_update=True)
-    await catalog_events.visible_event(session, event_id, actor)
+    event = await get_or_404(session, models.Event, event_id, lock=True)
+    await catalog_views.visible_event(session, event_id, actor)
     if body.status == AttendanceStatus.GOING and (
         event.status != "published" or now >= event.ends_at
     ):
@@ -138,8 +140,8 @@ async def delete_attendance(
     actor: models.User,
     now: datetime,
 ) -> None:
-    await catalog_events.load_event(session, event_id, for_update=True)
-    await catalog_events.visible_event(session, event_id, actor)
+    await get_or_404(session, models.Event, event_id, lock=True)
+    await catalog_views.visible_event(session, event_id, actor)
     attendance = await session.scalar(
         select(models.EventAttendance)
         .where(
@@ -170,7 +172,7 @@ async def list_attendees(
     status: AttendanceStatus | None,
     now: datetime,
 ) -> schemas.AttendancePage:
-    event = await catalog_events.visible_event(session, event_id, actor)
+    event = await catalog_views.visible_event(session, event_id, actor)
     if status == AttendanceStatus.CANCELLED:
         raise ProblemError(ErrorCode.VALIDATION_ERROR, "status must be going or attended")
     statuses = (
@@ -432,8 +434,8 @@ async def update_member_event(
     actor: models.User,
     now: datetime,
 ) -> models.Event:
-    event = await catalog_events.visible_event(session, event_id, actor)
-    event = await catalog_events.load_event(session, event_id, for_update=True)
+    event = await catalog_views.visible_event(session, event_id, actor)
+    event = await get_or_404(session, models.Event, event_id, lock=True)
     if event.origin != EventOrigin.MEMBER.value:
         raise ProblemError(ErrorCode.NOT_FOUND)
     if not actor.is_admin and event.created_by != actor.id:
@@ -538,7 +540,7 @@ async def cancel_member_event(
     actor: models.User,
     now: datetime,
 ) -> models.Event:
-    event = await catalog_events.visible_event(session, event_id, actor)
+    event = await catalog_views.visible_event(session, event_id, actor)
     if event.origin != EventOrigin.MEMBER.value:
         raise ProblemError(ErrorCode.NOT_FOUND)
     if not actor.is_admin and event.created_by != actor.id:

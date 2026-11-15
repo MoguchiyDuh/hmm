@@ -8,8 +8,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.catalog import events as catalog_events
 from hmm.catalog import schemas
+from hmm.catalog import views as catalog_views
 from hmm.common import (
     ActorKind,
     AttendanceStatus,
@@ -23,6 +23,7 @@ from hmm.common import (
 )
 from hmm.formation import common as formation_common
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 
@@ -42,7 +43,7 @@ async def review_queue(
         .where(func.cardinality(models.Event.review_reasons) > 0)
         .order_by(models.Event.starts_at, models.Event.id)
     )
-    return [await catalog_events.event_detail(session, row, actor, now) for row in list(rows)]
+    return [await catalog_views.event_detail(session, row, actor, now) for row in list(rows)]
 
 
 async def publish_event(
@@ -52,7 +53,7 @@ async def publish_event(
     reason: str | None,
     now: datetime,
 ) -> models.Event:
-    event = await catalog_events.load_event(session, event_id, for_update=True)
+    event = await get_or_404(session, models.Event, event_id, lock=True)
     if event.status not in (EventStatus.DRAFT, EventStatus.PUBLISHED):
         raise ProblemError(
             ErrorCode.INVALID_STATE, "Only drafts and published events can be published"
@@ -85,7 +86,7 @@ async def publish_event(
 async def reject_event(
     session: AsyncSession, event_id: UUID, actor: models.User, reason: str | None
 ) -> models.Event:
-    event = await catalog_events.load_event(session, event_id, for_update=True)
+    event = await get_or_404(session, models.Event, event_id, lock=True)
     if event.status not in (EventStatus.DRAFT, EventStatus.PUBLISHED):
         raise ProblemError(
             ErrorCode.INVALID_STATE, "Only drafts and published events can be rejected"

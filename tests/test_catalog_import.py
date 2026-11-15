@@ -30,6 +30,7 @@ from hmm.common import (
     Trust,
 )
 from hmm.notifications.payloads import AlertKind, NotificationType
+from hmm.platform.db import get_or_404
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "imports"
 FIXTURE_NAMES = ("conference", "contest", "course", "hackathon", "meetup", "workshop")
@@ -121,7 +122,7 @@ async def test_import_creates_published_event(harness: Harness) -> None:
     assert results[0]["source_id"] == "s1"
     event_id = UUID(results[0]["event_id"])
     async with h.db() as session:
-        event = await catalog_events.load_event(session, event_id)
+        event = await get_or_404(session, models.Event, event_id)
         assert event.status == "published"
         assert event.origin == "import"
         assert event.formation_enabled is True
@@ -153,7 +154,7 @@ async def test_import_contract_fixtures(harness: Harness) -> None:
     assert [result["index"] for result in results] == list(range(6))
     assert results[1]["review_reasons"] == ["unmapped_areas"]
     async with h.db() as session:
-        contest = await catalog_events.load_event(session, UUID(results[1]["event_id"]))
+        contest = await get_or_404(session, models.Event, UUID(results[1]["event_id"]))
         assert contest.unmapped_areas == ["Reverse Engineering"]
         alerts = list(await session.scalars(select(models.AdminAlert)))
     assert [(alert.type, alert.subject_id) for alert in alerts] == [("import_review", contest.id)]
@@ -215,7 +216,7 @@ async def test_import_matching_precedence(harness: Harness) -> None:
             ("s1", event_id),
             ("s2", event_id),
         ]
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         updated_at = event.updated_at
         source = await session.scalar(
             select(models.EventSource).where(models.EventSource.source_id == "s1")
@@ -240,7 +241,7 @@ async def test_import_matching_precedence(harness: Harness) -> None:
         assert source.last_seen_at > last_seen
         assert source.first_seen_at == first_seen
         assert source.payload_hash == digest
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         assert event.updated_at == updated_at
     assert await count(h, models.EventRevision) == 0
     assert await count(h, models.EventSource) == 2
@@ -325,7 +326,7 @@ async def test_import_confidence_and_areas(harness: Harness) -> None:
     assert archived[0]["result"] == "draft"
     assert archived[0]["review_reasons"] == ["unmapped_areas"]
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(archived[0]["event_id"]))
+        event = await get_or_404(session, models.Event, UUID(archived[0]["event_id"]))
         assert event.unmapped_areas == ["design"]
     everything = await import_results(
         h,
@@ -351,16 +352,16 @@ async def test_import_archived_match_rejected(harness: Harness) -> None:
     created = await import_results(h, import_item(h, source_id="s1"))
     event_id = UUID(created[0]["event_id"])
     async with h.db() as session:
-        event = await catalog_events.load_event(session, event_id, for_update=True)
+        event = await get_or_404(session, models.Event, event_id, lock=True)
         event.status = "archived"
     async with h.db() as session:
-        before = await catalog_events.load_event(session, event_id)
+        before = await get_or_404(session, models.Event, event_id)
         updated_at = before.updated_at
     results = await import_results(h, import_item(h, source_id="s1", title="Changed title"))
     assert results[0]["result"] == "rejected"
     assert results[0]["errors"] == [{"loc": ["status"], "msg": "Event is archived"}]
     async with h.db() as session:
-        event = await catalog_events.load_event(session, event_id)
+        event = await get_or_404(session, models.Event, event_id)
         assert event.title == "Harbor Build Weekend"
         assert event.status == "archived"
         assert event.updated_at == updated_at
@@ -460,7 +461,7 @@ async def test_import_updates_event(harness: Harness) -> None:
     assert results[0]["event_id"] == event_id
     assert results[0]["ignored_fields"] == []
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         assert event.title == "Renamed weekend"
         assert event.summary == "Second summary"
         assert str(event.confidence) == "0.85"
@@ -494,7 +495,7 @@ async def test_import_respects_locks(harness: Harness) -> None:
     assert results[0]["result"] == "updated"
     assert results[0]["ignored_fields"] == ["title"]
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         assert event.title == "Admin title"
         assert event.summary == "Final"
     rows = await revisions(h, event_id)
@@ -576,7 +577,7 @@ async def test_import_unmapped_areas_reason(harness: Harness) -> None:
     assert results[0]["result"] == "updated"
     assert results[0]["review_reasons"] == ["low_confidence", "unmapped_areas"]
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         assert event.unmapped_areas == ["alchemy"]
         assert event.review_reasons == ["low_confidence", "unmapped_areas"]
     rows = await revisions(h, event_id)
@@ -585,7 +586,7 @@ async def test_import_unmapped_areas_reason(harness: Harness) -> None:
     assert results[0]["result"] == "updated"
     assert results[0]["review_reasons"] == ["low_confidence"]
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         assert event.unmapped_areas == []
         assert event.review_reasons == ["low_confidence"]
 
@@ -678,7 +679,7 @@ async def test_import_parser_cancellation(harness: Harness) -> None:
     results = await import_results(h, import_item(h, status="cancelled"))
     assert results[0]["result"] == "updated"
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         assert event.status == "cancelled"
         attendance = await session.scalar(
             select(models.EventAttendance.status).where(
@@ -717,7 +718,7 @@ async def test_import_parser_cancellation(harness: Harness) -> None:
         == 1
     )
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(event_id), for_update=True)
+        event = await get_or_404(session, models.Event, UUID(event_id), lock=True)
         event.status = "archived"
     archived = await import_results(h, import_item(h, status="cancelled"))
     assert archived[0]["result"] == "rejected"
@@ -735,7 +736,7 @@ async def test_import_identical_payload_unchanged(harness: Harness) -> None:
     locks = await lock_rows(h, event_id)
     total = len(await revisions(h, event_id))
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         updated_at = event.updated_at
     h.advance(timedelta(hours=1))
     bumped = {**payload, "source": {**payload["source"], "fetched_at": h.now.isoformat()}}
@@ -745,7 +746,7 @@ async def test_import_identical_payload_unchanged(harness: Harness) -> None:
     assert await count(h, models.Notification) == 0
     assert await lock_rows(h, event_id) == locks
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         assert event.updated_at == updated_at
 
 
@@ -759,7 +760,7 @@ async def test_import_locked_only_difference_unchanged(harness: Harness) -> None
     locks = await lock_rows(h, event_id)
     total = len(await revisions(h, event_id))
     async with h.db() as session:
-        updated_at = (await catalog_events.load_event(session, UUID(event_id))).updated_at
+        updated_at = (await get_or_404(session, models.Event, UUID(event_id))).updated_at
     for title in ("Parser title", "Parser title again"):
         h.advance(timedelta(hours=1))
         results = await import_results(h, {**base, "title": title})
@@ -769,7 +770,7 @@ async def test_import_locked_only_difference_unchanged(harness: Harness) -> None
     assert await lock_rows(h, event_id) == locks
     assert await count(h, models.Notification) == 0
     async with h.db() as session:
-        event = await catalog_events.load_event(session, UUID(event_id))
+        event = await get_or_404(session, models.Event, UUID(event_id))
         assert event.title == "Admin title"
         assert event.updated_at == updated_at
 

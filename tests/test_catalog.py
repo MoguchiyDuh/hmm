@@ -14,6 +14,7 @@ from hmm.algo.models import EventArea
 from hmm.catalog import changes as catalog_changes
 from hmm.catalog import events as catalog_events
 from hmm.catalog import jobs as catalog_jobs
+from hmm.catalog import views as catalog_views
 from hmm.common import (
     ActorKind,
     AreaImportance,
@@ -43,6 +44,7 @@ from hmm.common import (
 )
 from hmm.formation import common as formation_common
 from hmm.notifications.payloads import AlertKind, NotificationChange, NotificationType
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JOBS, REGISTRY, JobName
 
@@ -70,7 +72,7 @@ async def test_create_published_event(harness: Harness) -> None:
         )
         event_id = event.id
     async with h.db() as session:
-        stored = await catalog_events.load_event(session, event_id)
+        stored = await get_or_404(session, models.Event, event_id)
         assert stored.origin == "manual"
         assert stored.status == "published"
         assert stored.slug == "py-days-2027"
@@ -239,15 +241,15 @@ async def test_event_phase_boundaries(harness: Harness) -> None:
             (30, EventPhase.ONGOING),
             (32, EventPhase.ENDED),
         ):
-            assert catalog_events.event_phase(event, h.now + timedelta(days=days)) == expected
+            assert catalog_views.event_phase(event, h.now + timedelta(days=days)) == expected
         event.registration_deadline = None
         assert (
-            catalog_events.event_phase(event, h.now + timedelta(days=29))
+            catalog_views.event_phase(event, h.now + timedelta(days=29))
             == EventPhase.REGISTRATION_OPEN
         )
-        assert catalog_events.event_phase(event, event.starts_at) == EventPhase.ONGOING
+        assert catalog_views.event_phase(event, event.starts_at) == EventPhase.ONGOING
         event.registration_opens_at = None
-        assert catalog_events.event_phase(event, h.now) == EventPhase.REGISTRATION_OPEN
+        assert catalog_views.event_phase(event, h.now) == EventPhase.REGISTRATION_OPEN
 
 
 async def test_draft_formation_created_later(harness: Harness) -> None:
@@ -1187,7 +1189,7 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
             assert audits[0].reason == "Organizer postponed"
             assert audits[0].before == {"status": "published"}
             assert audits[0].after == {"status": "cancelled"}
-            updated_at = (await catalog_events.load_event(session, event.id)).updated_at
+            updated_at = (await get_or_404(session, models.Event, event.id)).updated_at
             notification_ids = {row.id for row in notifications}
             alert_ids = {row.id for row in alerts}
             audit_ids = {row.id for row in audits}
@@ -1201,7 +1203,7 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
             assert set(await session.scalars(select(models.Notification.id))) == notification_ids
             assert set(await session.scalars(select(models.AdminAlert.id))) == alert_ids
             assert set(await session.scalars(select(models.AuditLog.id))) == audit_ids
-            assert (await catalog_events.load_event(session, event.id)).updated_at == updated_at
+            assert (await get_or_404(session, models.Event, event.id)).updated_at == updated_at
 
 
 async def test_cancel_event_without_teams_has_no_alert(harness: Harness) -> None:
@@ -1274,11 +1276,9 @@ async def test_cancel_event_errors(harness: Harness) -> None:
             ErrorCode.FORBIDDEN,
         )
     async with h.db() as session:
+        assert (await get_or_404(session, models.Event, archived.id)).status == EventStatus.ARCHIVED
         assert (
-            await catalog_events.load_event(session, archived.id)
-        ).status == EventStatus.ARCHIVED
-        assert (
-            await catalog_events.load_event(session, published.id)
+            await get_or_404(session, models.Event, published.id)
         ).status == EventStatus.PUBLISHED
         assert list(await session.scalars(select(models.AuditLog))) == []
 
@@ -1320,12 +1320,12 @@ async def test_archive_old_events(harness: Harness) -> None:
     await catalog_jobs.archive_old_events(h.runtime)
     async with h.db() as session:
         for key, event in events.items():
-            stored = await catalog_events.load_event(session, event.id)
+            stored = await get_or_404(session, models.Event, event.id)
             expected = (
                 EventStatus.PUBLISHED if key in ("recent", "boundary") else EventStatus.ARCHIVED
             )
             assert stored.status == expected
-        archived = await catalog_events.load_event(session, events["archived"].id)
+        archived = await get_or_404(session, models.Event, events["archived"].id)
         assert archived.updated_at == h.now - timedelta(days=10)
         first = {
             row.id: (row.status, row.updated_at)
@@ -1342,14 +1342,14 @@ async def test_archive_old_events(harness: Harness) -> None:
     await catalog_jobs.archive_old_events(h.runtime)
     async with h.db() as session:
         assert (
-            await catalog_events.load_event(session, events["recent"].id)
+            await get_or_404(session, models.Event, events["recent"].id)
         ).status == EventStatus.ARCHIVED
         assert (
-            await catalog_events.load_event(session, events["boundary"].id)
+            await get_or_404(session, models.Event, events["boundary"].id)
         ).status == EventStatus.ARCHIVED
-        assert (
-            await catalog_events.load_event(session, events["archived"].id)
-        ).updated_at == first[events["archived"].id][1]
+        assert (await get_or_404(session, models.Event, events["archived"].id)).updated_at == first[
+            events["archived"].id
+        ][1]
 
 
 async def test_notify_event_changed(harness: Harness) -> None:
@@ -1549,7 +1549,7 @@ async def test_admin_patch_areas(harness: Harness, editable_event: models.Event)
         assert response.status_code == 200, response.text
         async with h.db() as session:
             assert list(await session.scalars(select(models.EventRevision.id))) == [revision_id]
-            assert (await catalog_events.load_event(session, event.id)).summary is None
+            assert (await get_or_404(session, models.Event, event.id)).summary is None
             assert [
                 lock.field for lock in await session.scalars(select(models.EventFieldLock))
             ] == ["areas"]
@@ -1669,7 +1669,7 @@ async def test_patch_event_idempotency(harness: Harness, editable_event: models.
         assert list(await session.scalars(select(models.EventFieldLock))) == []
         assert list(await session.scalars(select(models.AuditLog))) == []
         assert list(await session.scalars(select(models.Notification))) == []
-        assert (await catalog_events.load_event(session, event.id)).updated_at == event.updated_at
+        assert (await get_or_404(session, models.Event, event.id)).updated_at == event.updated_at
 
 
 @pytest.mark.parametrize("blocker", ["enrollment", "team", "single_member"])
@@ -1711,7 +1711,7 @@ async def test_patch_event_formation_guards(harness: Harness, blocker: str) -> N
             ErrorCode.INVALID_STATE,
         )
     async with h.db() as session:
-        assert (await catalog_events.load_event(session, event.id)).formation_enabled is False
+        assert (await get_or_404(session, models.Event, event.id)).formation_enabled is False
         assert list(await session.scalars(select(models.EventFieldLock))) == []
         assert list(await session.scalars(select(models.EventRevision))) == []
 
@@ -1949,7 +1949,7 @@ async def test_patch_event_normalization(harness: Harness, editable_event: model
             ErrorCode.VALIDATION_ERROR,
         )
     async with h.db() as session:
-        stored = await catalog_events.load_event(session, event.id)
+        stored = await get_or_404(session, models.Event, event.id)
         assert stored.location == {"city": "Berlin"}
         assert stored.prize == {"amount": 1000.0, "currency": "EUR"}
         assert stored.website_url == payload["website_url"]
