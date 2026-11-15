@@ -10,7 +10,7 @@ from hmm.common import AreaKey, ErrorCode
 from hmm.feed import schemas
 from hmm.feed.schemas import FeedItemAction, FeedKind
 from hmm.platform.errors import ProblemError
-from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
+from hmm.platform.pagination import CursorParams, keyset_rows
 from hmm.platform.schemas import UserRef
 from hmm.platform.settings import RuntimeSettings, load_settings
 
@@ -271,18 +271,9 @@ async def list_feed(
             if top_areas or mentor_areas
             else false()
         )
-    rows = list(
-        await session.scalars(
-            apply_keyset(
-                statement, params, sort=[models.FeedItem.created_at], id_column=models.FeedItem.id
-            )
-        )
+    rows, next_cursor = await keyset_rows(
+        session, statement, params, sort=[models.FeedItem.created_at], id_column=models.FeedItem.id
     )
-    next_cursor = None
-    if len(rows) > params.limit:
-        last = rows[params.limit - 1]
-        next_cursor = encode_cursor([last.created_at, last.id])
-    rows = rows[: params.limit]
     event_ids = {row.subject_id for row in rows if row.kind == FeedKind.EVENT_GOING}
     counts: dict[UUID, int] = {}
     if event_ids:

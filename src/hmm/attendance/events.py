@@ -41,7 +41,7 @@ from hmm.notifications.payloads import NotificationChange
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
-from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
+from hmm.platform.pagination import CursorParams, keyset_rows
 from hmm.platform.schemas import EventAction
 from hmm.platform.settings import load_settings
 
@@ -183,19 +183,12 @@ async def list_attendees(
         models.EventAttendance.event_id == event_id,
         models.EventAttendance.status.in_([value.value for value in statuses]),
     )
-    rows = list(
-        await session.scalars(
-            apply_keyset(
-                statement,
-                params,
-                sort=[models.EventAttendance.status_at],
-                id_column=models.EventAttendance.id,
-            )
-        )
-    )
-    items = rows[: params.limit]
-    next_cursor = (
-        encode_cursor([items[-1].status_at, items[-1].id]) if len(rows) > params.limit else None
+    items, next_cursor = await keyset_rows(
+        session,
+        statement,
+        params,
+        sort=[models.EventAttendance.status_at],
+        id_column=models.EventAttendance.id,
     )
     users = {
         user.id: user

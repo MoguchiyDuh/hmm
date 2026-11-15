@@ -28,7 +28,7 @@ from hmm.notifications.service import notify, raise_alert, resolve_alerts
 from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
-from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
+from hmm.platform.pagination import CursorParams, keyset_rows
 from hmm.platform.schemas import UserRef
 from hmm.results import schemas
 from hmm.results.schemas import Review, ReviewAction, ReviewRatingSummary
@@ -309,17 +309,8 @@ async def user_reviews(
         )
     elif context is not None:
         statement = statement.where(models.Review.context == context)
-    statement = apply_keyset(
-        statement,
-        params,
-        sort=[models.Review.created_at],
-        id_column=models.Review.id,
-        descending=True,
-    )
-    rows = list(await session.scalars(statement))
-    items = rows[: params.limit]
-    next_cursor = (
-        encode_cursor([items[-1].created_at, items[-1].id]) if len(rows) > params.limit else None
+    items, next_cursor = await keyset_rows(
+        session, statement, params, sort=[models.Review.created_at], id_column=models.Review.id
     )
     users = {
         user.id: user
@@ -462,17 +453,8 @@ async def admin_review_page(
         statement = statement.where(open_report)
     elif reported is False:
         statement = statement.where(~open_report)
-    statement = apply_keyset(
-        statement,
-        params,
-        sort=[models.Review.created_at],
-        id_column=models.Review.id,
-        descending=True,
-    )
-    rows = list(await session.scalars(statement))
-    items = rows[: params.limit]
-    next_cursor = (
-        encode_cursor([items[-1].created_at, items[-1].id]) if len(rows) > params.limit else None
+    items, next_cursor = await keyset_rows(
+        session, statement, params, sort=[models.Review.created_at], id_column=models.Review.id
     )
     if not items:
         return AdminReviewPageData(items=[], reports={}, users={}, next_cursor=None)

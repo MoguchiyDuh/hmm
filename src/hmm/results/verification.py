@@ -19,7 +19,7 @@ from hmm.common import (
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
-from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
+from hmm.platform.pagination import CursorParams, keyset_rows
 from hmm.projects.views import project_ref
 from hmm.results import schemas
 from hmm.results.schemas import ProjectResult as ProjectResultView
@@ -71,13 +71,9 @@ async def result_verify_page(
     statement = select(models.ProjectResult)
     if place_status is not None:
         statement = statement.where(models.ProjectResult.place_status == place_status.value)
-    rows = list(
-        await session.scalars(
-            apply_keyset(statement, params, sort=[], id_column=models.ProjectResult.project_id)
-        )
+    items, next_cursor = await keyset_rows(
+        session, statement, params, sort=[], id_column=models.ProjectResult.project_id
     )
-    items = rows[: params.limit]
-    next_cursor = encode_cursor([items[-1].project_id]) if len(rows) > params.limit else None
     if not items:
         return schemas.ResultToVerifyPage(items=[], next_cursor=None)
     ids = [result.project_id for result in items]

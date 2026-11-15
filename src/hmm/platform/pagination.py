@@ -64,6 +64,26 @@ def apply_keyset[T](
     )
 
 
+async def keyset_rows[T](
+    session: AsyncSession,
+    statement: Select[T],
+    params: CursorParams,
+    *,
+    sort: Sequence[Column],
+    id_column: Column,
+    descending: bool = True,
+) -> tuple[list[T], str | None]:
+    rows = list(
+        await session.scalars(
+            apply_keyset(statement, params, sort=sort, id_column=id_column, descending=descending)
+        )
+    )
+    items = rows[: params.limit]
+    if len(rows) <= params.limit:
+        return items, None
+    return items, encode_cursor([getattr(items[-1], column.key) for column in [*sort, id_column]])
+
+
 async def keyset_page[T, R](
     session: AsyncSession,
     statement: Select[T],
@@ -74,15 +94,7 @@ async def keyset_page[T, R](
     serialize: Callable[[T], R],
     descending: bool = True,
 ) -> Page[R]:
-    rows = list(
-        await session.scalars(
-            apply_keyset(statement, params, sort=sort, id_column=id_column, descending=descending)
-        )
+    items, next_cursor = await keyset_rows(
+        session, statement, params, sort=sort, id_column=id_column, descending=descending
     )
-    items = rows[: params.limit]
-    next_cursor = None
-    if len(rows) > params.limit:
-        next_cursor = encode_cursor(
-            [getattr(items[-1], column.key) for column in [*sort, id_column]]
-        )
     return Page(items=[serialize(row) for row in items], next_cursor=next_cursor)

@@ -42,7 +42,11 @@ from hmm.platform.audit import record_audit
 from hmm.platform.config import Config
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName
-from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor, keyset_page
+from hmm.platform.pagination import (
+    CursorParams,
+    keyset_page,
+    keyset_rows,
+)
 from hmm.platform.settings import (
     RuntimeSettings,
     SettingKey,
@@ -212,23 +216,9 @@ async def list_users(
         statement = statement.where(models.User.banned_at.is_(None))
     if is_admin is not None:
         statement = statement.where(models.User.is_admin.is_(is_admin))
-    rows = list(
-        await session.scalars(
-            apply_keyset(
-                statement,
-                pagination,
-                sort=[models.User.created_at],
-                id_column=models.User.id,
-            )
-        )
+    return await keyset_rows(
+        session, statement, pagination, sort=[models.User.created_at], id_column=models.User.id
     )
-    items = rows[: pagination.limit]
-    next_cursor = (
-        encode_cursor([items[-1].created_at, items[-1].id])
-        if len(rows) > pagination.limit
-        else None
-    )
-    return items, next_cursor
 
 
 async def list_audit_entries(

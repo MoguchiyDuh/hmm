@@ -37,7 +37,7 @@ from hmm.formation import common as formation_common
 from hmm.formation import queue as formation_queue
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
-from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
+from hmm.platform.pagination import CursorParams, keyset_rows
 from hmm.platform.schemas import EventAction, UserRef
 from hmm.platform.settings import RuntimeSettings, load_settings
 from hmm.projects import views as projects_views
@@ -808,20 +808,11 @@ async def list_events(
         statement = statement.where(models.Event.starts_at <= to)
     if mine is True:
         statement = statement.where(involved)
-    statement = apply_keyset(
-        statement,
-        pagination,
-        sort=[models.Event.starts_at],
-        id_column=models.Event.id,
-        descending=True,
+    items, next_cursor = await keyset_rows(
+        session, statement, pagination, sort=[models.Event.starts_at], id_column=models.Event.id
     )
-    rows = list(await session.scalars(statement))
-    items = rows[: pagination.limit]
     if not items:
         return schemas.EventSummaryPage(items=[], next_cursor=None)
-    next_cursor = (
-        encode_cursor([items[-1].starts_at, items[-1].id]) if len(rows) > pagination.limit else None
-    )
     settings = await load_settings(session)
     event_ids = [item.id for item in items]
     areas = await area_details(session, event_ids)

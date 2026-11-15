@@ -24,7 +24,7 @@ from hmm.notifications.service import notify
 from hmm.platform.db import locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
-from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
+from hmm.platform.pagination import CursorParams, keyset_rows
 from hmm.platform.settings import load_settings
 
 LIVE_STATUSES = (HelpRequestStatus.OPEN.value, HelpRequestStatus.DIRECT.value)
@@ -158,22 +158,12 @@ async def list_help_requests(
     if area_key is not None:
         area = await load_area(session, area_key)
         statement = statement.where(models.HelpRequest.area_id == area.id)
-    rows = list(
-        await session.scalars(
-            apply_keyset(
-                statement,
-                pagination,
-                sort=[models.HelpRequest.created_at],
-                id_column=models.HelpRequest.id,
-                descending=True,
-            )
-        )
-    )
-    items = rows[: pagination.limit]
-    next_cursor = (
-        encode_cursor([items[-1].created_at, items[-1].id])
-        if len(rows) > pagination.limit
-        else None
+    items, next_cursor = await keyset_rows(
+        session,
+        statement,
+        pagination,
+        sort=[models.HelpRequest.created_at],
+        id_column=models.HelpRequest.id,
     )
     return await views.help_request_page(session, items, next_cursor, actor, now)
 
