@@ -82,13 +82,15 @@ Package `hmm.parser`. Sources are configured in `src/hmm/parser/sources.toml` (o
 
 **Kind.** Adapters with `guess_kind` (and `luma`) take the kind from a keyword map over title and tags, first match in map order (hackathon, contest terms such as game jam and CTF, workshop, course, conference, meetup). A trailing title segment that is only a kind word wins over the map: "DevFest 2026: GameJam - Conference" is a conference.
 
+**LLM.** When `LLM_BASE_URL`, `LLM_API_KEY` and `LLM_MODEL` are set (§22.2), items of instances with `llm = true` go through an OpenAI-compatible chat completion after relevance filtering and before dedupe: one JSON verdict per item with `relevant`, `kind`, team size and up to 3 area keys from the known list. Not relevant → dropped (`irrelevant` in the instance stats). A different kind replaces the heuristic one; team size and areas only fill empty fields; every change is added to `inferred_fields`. The listing (title, summary, description up to 6,000 characters, organizer, listed kind, format, place, dates, themes, eligibility, website host) is sent as JSON with `<` and `>` escaped inside a `<listing>` block, and the system prompt marks it as untrusted data. Verdicts are cached in `algo_cache` (namespace `parser_llm`, 90 days) keyed by model, system prompt and listing, so unchanged items cost nothing on later runs. At most 200 uncached calls per run, 4 at a time; the rest, failed calls and invalid verdicts keep the heuristic result and are reported as one `llm` heartbeat error. Requests carry `x-opencode-session: <run_id>`, which OpenCode Go requires and other providers ignore. Eligibility is not taken from the model: in the trial it reported target audiences, not restrictions. The dry run uses the model only with `--llm`, with an in-memory cache. Enabled for `hackathonhub`, `luma-rs`, `gdg-rs` and `dev-events`, whose kinds come from categories or keywords.
+
 **Areas.** Known area keys only (`list_areas`; the dry run uses the seed keys), from a keyword map over tags and titles. First match is `primary`, the rest `nice`.
 
 **Adapter warnings.** An adapter can report setup warnings (e.g. `kaggle` without `KAGGLE_API_TOKEN`); they are logged once per instance run, by the job and the dry run alike.
 
 **Fetching.** GET follows up to 5 redirects with the SSRF check on every hop; POST sends a JSON body and never follows redirects. Spacing is per host unless the adapter passes a shared rate key (`devpost` spaces its listing API and all `<slug>.devpost.com` pages as one host).
 
-**Dry run.** `hmm-parser [--config PATH] [--source ID]… [--list] [-v]` prints `EventImport` JSONL to stdout and per-source stats to stderr, and touches no database. Exit code 1 when a source reported errors.
+**Dry run.** `hmm-parser [--config PATH] [--source ID]… [--list] [--llm] [-v]` prints `EventImport` JSONL to stdout and per-source stats to stderr, and touches no database. Exit code 1 when a source reported errors.
 
 **Shared instance keys:**
 
@@ -107,6 +109,7 @@ Package `hmm.parser`. Sources are configured in `src/hmm/parser/sources.toml` (o
 | `countries` | Europe | ISO 3166-1 alpha-2 codes kept |
 | `include_online` | `true` | keep online/hybrid events from anywhere |
 | `lookback_days` | `30` | drop events that ended earlier |
+| `llm` | `false` | refine items with the LLM step when it is configured |
 | `secret_env` | `[]` | env vars that must be set, else the instance is skipped |
 | `defaults` | `{}` | `EventImport` fields filled when the adapter leaves them empty |
 
@@ -146,4 +149,4 @@ Any other key is an adapter option; unknown options fail the load.
 | `confs-tech` | `confs_tech` | 24h | 60/min | Europe, online/hybrid |
 | `devpost` | `devpost` | 12h | 30/min | Europe, online |
 
-Not yet implemented: LLM classification and extraction, difficulty, Devpost winners and people, and the third adapter batch. Known gap: NWERC 2026's only site (Karlsruhe) has no country in the ICPC API and is dropped.
+Not yet implemented: LLM extraction for prose-only sources, difficulty, Devpost winners and people, and the third adapter batch. Known gap: NWERC 2026's only site (Karlsruhe) has no country in the ICPC API and is dropped.

@@ -51,6 +51,7 @@ class SourceConfig(Contract):
     countries: frozenset[str] = frozenset()
     include_online: bool = True
     lookback_days: Annotated[int, Field(ge=0)] = 30
+    llm: bool = False
     secret_env: tuple[str, ...] = ()
     defaults: dict[str, JsonValue] = Field(default_factory=dict)
     options: dict[str, Any] = Field(default_factory=dict)

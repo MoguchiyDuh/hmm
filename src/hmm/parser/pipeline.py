@@ -14,6 +14,7 @@ from hmm.common import EventFormat
 from hmm.parser.base import EMPTY, Adapter, SourceContext, create_adapter
 from hmm.parser.config import SourceConfig
 from hmm.parser.fetch import Fetcher, FetchError
+from hmm.parser.llm import Refiner
 from hmm.parser.normalize import EUROPE
 
 MAX_ERRORS_PER_SOURCE = 20
@@ -48,6 +49,7 @@ class SourceRun:
     items: list[EventImport] = field(default_factory=list)
     errors: list[dict[str, JsonValue]] = field(default_factory=list)
     dropped: int = 0
+    irrelevant: int = 0
     seen: set[str] = field(default_factory=set)
     checks: dict[str, bool] = field(default_factory=dict)
 
@@ -67,6 +69,7 @@ class SourceRun:
             "candidates": self.candidates,
             "items": len(self.items),
             "dropped": self.dropped,
+            "irrelevant": self.irrelevant,
             "errors": len(self.errors),
             "revisited": len(self.checks),
             "gone": sum(not found for found in self.checks.values()),
@@ -150,6 +153,14 @@ async def recheck(
     run.checks[tracked.source_id] = bool(items)
     for item in items:
         run.keep(item, ctx.now)
+
+
+async def refine(runs: Sequence[SourceRun], refiner: Refiner) -> None:
+    chosen = [run for run in runs if run.source.llm and run.items]
+    results = await asyncio.gather(*(refiner.refine(run.items) for run in chosen))
+    for run, (items, irrelevant) in zip(chosen, results, strict=True):
+        run.items = items
+        run.irrelevant = irrelevant
 
 
 def prefix(item: EventImport) -> str:

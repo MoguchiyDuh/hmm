@@ -21,7 +21,9 @@ from hmm.catalog.imports import import_events
 from hmm.catalog.parser import record_heartbeat, tracked_events
 from hmm.parser.config import SourceConfig, load_sources
 from hmm.parser.fetch import Fetcher, Resolver, Sleeper, resolve_host
-from hmm.parser.pipeline import SourceRun, chunks, collect, dedupe
+from hmm.parser.llm import Refiner
+from hmm.parser.pipeline import SourceRun, chunks, collect, dedupe, refine
+from hmm.platform.algo import DatabaseAlgoCache
 from hmm.platform.jobs import JobName, Runtime, job
 from hmm.platform.pagination import CursorParams
 
@@ -82,6 +84,7 @@ async def run_parser(
     sleep: Sleeper = asyncio.sleep,
 ) -> ParserHeartbeat:
     started_at = runtime.clock.now()
+    run_id = f"parser-{started_at:%Y%m%dT%H%M%S}-{uuid4().hex[:8]}"
     path = Path(runtime.config.parser_sources) if runtime.config.parser_sources else None
     sources = usable(load_sources(path), env, runtime)
     async with runtime.sessionmaker.begin() as session:
@@ -129,10 +132,29 @@ async def run_parser(
             for source in due
         )
     )
+    errors: list[JsonValue] = [error for run in runs for error in run.errors]
+    llm = runtime.config.llm()
+    if llm is not None:
+        refiner = Refiner(
+            client=runtime.http,
+            config=llm,
+            cache=DatabaseAlgoCache(runtime.sessionmaker, runtime.clock),
+            areas=areas,
+            session=run_id,
+            log=runtime.log,
+        )
+        await refine(runs, refiner)
+        if refiner.failed or refiner.skipped:
+            errors.append(
+                {
+                    "source": "llm",
+                    "stage": "llm",
+                    "error": f"{refiner.failed} calls failed, {refiner.skipped} over the limit",
+                }
+            )
     known = {event.source_id for event in tracked}
     items, merged = dedupe(runs)
     items = [item for item in items if item.status != "cancelled" or item.source.source_id in known]
-    errors: list[JsonValue] = [error for run in runs for error in run.errors]
     imported = 0
     rejected: dict[str, int] = {}
     for batch in chunks(items, BATCH_SIZE):
@@ -156,7 +178,7 @@ async def run_parser(
                 imported += 1
     finished_at = runtime.clock.now()
     heartbeat = ParserHeartbeat(
-        run_id=f"parser-{started_at:%Y%m%dT%H%M%S}-{uuid4().hex[:8]}",
+        run_id=run_id,
         started_at=started_at,
         finished_at=finished_at,
         stats=ParserStats(

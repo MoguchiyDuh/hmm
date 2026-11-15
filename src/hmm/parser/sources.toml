@@ -1,6 +1,7 @@
 [[source]]
 id = "hackathonhub"
 adapter = "hackathonhub"
+llm = true
 interval = "12h"
 rate = "30/min"
 priority = 60
@@ -23,6 +24,7 @@ window_days = 120
 [[source]]
 id = "luma-rs"
 adapter = "luma"
+llm = true
 interval = "6h"
 rate = "20/min"
 priority = 70
@@ -38,6 +40,7 @@ calendars = [
 [[source]]
 id = "gdg-rs"
 adapter = "jsonld_pages"
+llm = true
 interval = "12h"
 rate = "1/2s"
 priority = 80
@@ -53,6 +56,7 @@ listings = [
 [[source]]
 id = "dev-events"
 adapter = "jsonld_pages"
+llm = true
 interval = "24h"
 rate = "20/min"
 priority = 30

@@ -1,3 +1,4 @@
+import json
 from dataclasses import replace
 from datetime import timedelta
 from pathlib import Path
@@ -22,6 +23,7 @@ include_online = false
 id = "bbicc"
 adapter = "jsonld_pages"
 interval = "24h"
+llm = true
 countries = ["RS"]
 kind = "contest"
 guess_kind = false
@@ -59,13 +61,13 @@ def router() -> Router:
     )
 
 
-async def run(harness: Harness, tmp_path: Path, routes: Router) -> ParserHeartbeat:
+async def run(harness: Harness, tmp_path: Path, routes: Router, **config: str) -> ParserHeartbeat:
     path = tmp_path / "sources.toml"
     path.write_text(SOURCES)
-    config = harness.runtime.config.model_copy(update={"parser_sources": str(path)})
+    updated = harness.runtime.config.model_copy(update={"parser_sources": str(path), **config})
     async with httpx.AsyncClient(transport=routes.transport()) as http:
         harness.inject_http(http)
-        harness.runtime = replace(harness.runtime, config=config)
+        harness.runtime = replace(harness.runtime, config=updated)
         heartbeat = await run_parser(
             harness.runtime, env={}, resolve=public_resolve, sleep=no_sleep
         )
@@ -106,6 +108,7 @@ async def test_parser_run_imports_and_records_state(harness: Harness, tmp_path: 
             "candidates": 7,
             "items": 2,
             "dropped": 0,
+            "irrelevant": 0,
             "errors": 0,
             "revisited": 0,
             "gone": 0,
@@ -179,6 +182,7 @@ async def test_parser_run_revisits_unlisted_tracked_events(
             "candidates": 0,
             "items": 1,
             "dropped": 0,
+            "irrelevant": 0,
             "errors": 0,
             "revisited": 1,
             "gone": 0,
@@ -204,4 +208,40 @@ async def test_parser_run_skips_cancellations_of_unknown_events(
     routes.routes[PAGE] = cancelled
     heartbeat = await run(harness, tmp_path, routes)
     assert heartbeat.stats.imported == 2
+    assert await bbicc_status(harness) is None
+
+
+async def test_parser_run_drops_items_the_llm_rejects(harness: Harness, tmp_path: Path) -> None:
+    await harness.seed_areas()
+    prompts: list[str] = []
+
+    def model(request: httpx.Request) -> httpx.Response:
+        prompts.append(json.loads(request.content)["messages"][1]["content"])
+        verdict = {"relevant": False, "kind": "contest", "areas": []}
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": json.dumps(verdict)}}]}
+        )
+
+    routes = router()
+    routes.routes["https://llm.example/v1/chat/completions"] = model
+    llm = {"llm_base_url": "https://llm.example/v1", "llm_api_key": "fake", "llm_model": "m"}
+    heartbeat = await run(harness, tmp_path, routes, **llm)
+    assert heartbeat.stats.imported == 2
+    assert len(prompts) == 1 and "BBICC" in prompts[0]
+    assert await bbicc_status(harness) is None
+    async with harness.db() as session:
+        state = await session.get(models.ParserSourceState, "bbicc")
+        assert state is not None
+        assert isinstance(state.stats, dict) and state.stats["irrelevant"] == 1
+        cached = await session.scalar(
+            select(func.count())
+            .select_from(models.AlgoCache)
+            .where(models.AlgoCache.namespace == "parser_llm")
+        )
+        assert cached == 1
+    harness.advance(timedelta(hours=24))
+    again = router()
+    again.routes["https://llm.example/v1/chat/completions"] = model
+    await run(harness, tmp_path, again, **llm)
+    assert len(prompts) == 1
     assert await bbicc_status(harness) is None
