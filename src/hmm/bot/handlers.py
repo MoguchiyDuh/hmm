@@ -31,7 +31,6 @@ from hmm.bot.callbacks import (
     CloseCallback,
     ConfirmCallback,
     EventCallback,
-    EventOp,
     HelpCallback,
     LanguageCallback,
     MenuCallback,
@@ -417,8 +416,7 @@ async def on_event_op(
     )
     if reply is None:
         return
-    navigation = callback_data.op in (EventOp.SHOW, EventOp.LIST)
-    await query.answer(None if navigation else plain(reply.text.split("\n", 1)[0]))
+    await query.answer(plain(reply.toast) if reply.toast else None)
     if isinstance(query.message, Message):
         await edit(query.message, reply.text, reply.markup)
 

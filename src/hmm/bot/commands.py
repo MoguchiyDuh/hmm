@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -392,7 +392,6 @@ async def event_card(
     actor: models.User,
     now: datetime,
     event_id: UUID,
-    notice: str | None = None,
 ) -> Reply:
     event = await catalog_views.visible_event(session, event_id, actor)
     detail = await catalog_views.event_detail(session, event, actor, now)
@@ -411,7 +410,6 @@ async def event_card(
         detail.my_attendance is not None and detail.my_attendance.status == AttendanceStatus.GOING
     )
     text = lines(
-        f"{notice}\n" if notice else None,
         f"{subject(detail.title, f'/events/{detail.id}')} · {esc(texts.event_kinds[detail.kind])}",
         span(detail.starts_at, detail.ends_at, tz),
         texts.register_by.format(when(detail.registration_deadline, tz))
@@ -471,7 +469,7 @@ async def event_op(
         case EventOp.PARTY:
             await formation_parties.create_party(session, event_id, actor, now)
             notice = tr().party_created
-    card = await event_card(runtime, session, actor, now, event_id, notice)
+    card = replace(await event_card(runtime, session, actor, now, event_id), toast=notice)
     if op != EventOp.PARTY:
         return card
     url = web_url(f"/events/{event_id}")
@@ -479,7 +477,7 @@ async def event_op(
         return card
     invite = InlineKeyboardButton(text=tr().invite_teammates, url=url)
     rows = [[invite], *card.markup.inline_keyboard]
-    return Reply(card.text, InlineKeyboardMarkup(inline_keyboard=rows))
+    return replace(card, markup=InlineKeyboardMarkup(inline_keyboard=rows))
 
 
 async def enroll(session: AsyncSession, actor: models.User, now: datetime, event_id: UUID) -> Reply:

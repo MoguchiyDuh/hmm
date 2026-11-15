@@ -38,6 +38,7 @@ class Reply:
     ok: bool = True
     retry: bool = False
     locale: Locale | None = None
+    toast: str | None = None
 
 
 def problem_text(error: ProblemError, public_url: str, locale: Locale) -> str:

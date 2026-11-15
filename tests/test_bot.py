@@ -35,7 +35,14 @@ from hmm.bot.runtime import (
     respond_anonymous,
 )
 from hmm.bot.templates import Rendered
-from hmm.common import DeliveryStatus, ErrorCode, Locale, MemberState, NotificationChannel
+from hmm.common import (
+    DeliveryStatus,
+    EnrollmentStatus,
+    ErrorCode,
+    Locale,
+    MemberState,
+    NotificationChannel,
+)
 from hmm.notifications import service
 from hmm.notifications.payloads import ActionKey, EventCancelledPayload
 
@@ -345,8 +352,10 @@ async def test_events_and_enroll(harness: Harness) -> None:
         telegram_user_id,
         lambda s, a, n: commands.event_op(runtime, s, a, n, EventOp.ENROLL, event.id),
     )
-    assert enrolled.ok and enrolled.text.startswith("✅ You're in the queue.")
+    assert enrolled.ok and enrolled.toast == EN.enrolled_notice
     assert event.title in enrolled.text
+    assert enrolled.text.count(EN.enrollment[EnrollmentStatus.ACTIVE]) == 1
+    assert EN.enrolled_notice not in enrolled.text
     back = EventCallback(op=EventOp.LIST, event_id=event.id).pack()
     assert back in callbacks(enrolled)
     listed = await respond(
