@@ -21,6 +21,7 @@ from hmm.platform.algo import call_algo
 from hmm.platform.jobs import JobName, Runtime, job
 from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
+from hmm.recommendations import candidates as recommendations_candidates
 from hmm.recommendations import service as recommendations
 from hmm.scores.snapshot import build_member_snapshots
 
@@ -146,7 +147,7 @@ async def match_mentors(runtime: Runtime, request_id: str) -> None:
             limit=settings.mentor_notify_top_n,
         )
         algo_version = runtime.algorithm.version
-        input_hash = recommendations.hash_recommendations(payload, algo_version)
+        input_hash = recommendations_candidates.hash_recommendations(payload, algo_version)
         ctx = await runtime.algo_context(session)
         try:
             raw = await call_algo("match_mentors", runtime.algorithm.match_mentors(ctx, payload))

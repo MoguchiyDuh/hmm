@@ -27,7 +27,8 @@ from hmm.common import (
     RecommendationStatus,
     RecommendationSubjectType,
 )
-from hmm.recommendations import service
+from hmm.platform.db import get_or_404
+from hmm.recommendations import candidates, service
 
 _titles = itertools.count(1)
 
@@ -170,10 +171,10 @@ async def standalone(
         return project
 
 
-async def context_of(h: Harness, project: models.Project) -> service.RecommendationContext:
+async def context_of(h: Harness, project: models.Project) -> candidates.RecommendationContext:
     async with h.db() as session:
-        row = await service.recommendation_project(session, project.id)
-        return await service.recommendation_context(session, row, h.now, "fake-1")
+        row = await get_or_404(session, models.Project, project.id)
+        return await candidates.recommendation_context(session, row, h.now, "fake-1")
 
 
 async def invite(h: Harness, project: models.Project, user: models.User) -> None:

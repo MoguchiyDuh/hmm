@@ -5,9 +5,20 @@ from sqlalchemy import distinct, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.algo.models import EffectiveScore, MemberSnapshot, MentorOffer
+from hmm.algo.models import (
+    EffectiveScore,
+    EventArea,
+    EventSnapshot,
+    MemberSnapshot,
+    MentorOffer,
+    ProjectSnapshot,
+    Recruiting,
+)
 from hmm.common import (
     ErrorCode,
+    EventFormat,
+    EventKind,
+    EventOrigin,
     MemberReviewStatus,
     MemberRole,
     MemberState,
@@ -179,3 +190,42 @@ async def build_member_snapshots(
             joined_at=user.created_at,
         )
     return snapshots
+
+
+def event_snapshot(event: models.Event, areas: list[EventArea]) -> EventSnapshot:
+    return EventSnapshot(
+        id=event.id,
+        title=event.title,
+        summary=event.summary,
+        description_md=event.description_md,
+        themes=list(event.themes),
+        format=EventFormat(event.format) if event.format is not None else None,
+        starts_at=event.starts_at,
+        ends_at=event.ends_at,
+        timezone=event.timezone,
+        areas=areas,
+        team_size_min=event.team_size_min,
+        team_size_max=event.team_size_max,
+        difficulty=float(event.difficulty) if event.difficulty is not None else None,
+        kind=EventKind(event.kind),
+        origin=EventOrigin(event.origin),
+        created_by=event.created_by,
+    )
+
+
+def project_snapshot(project: models.Project, areas: list[str]) -> ProjectSnapshot:
+    links = project.links if isinstance(project.links, list) else []
+    return ProjectSnapshot(
+        id=project.id,
+        name=project.name,
+        goal=project.goal,
+        description_md=project.description_md,
+        areas=areas,
+        recruiting=Recruiting.model_validate(project.recruiting)
+        if project.recruiting is not None
+        else None,
+        event_id=project.event_id,
+        status=ProjectStatus(project.status),
+        team_status=TeamStatus(project.team_status) if project.team_status is not None else None,
+        links=[str(link) for link in links],
+    )

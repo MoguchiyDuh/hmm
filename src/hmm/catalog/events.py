@@ -41,6 +41,7 @@ from hmm.platform.schemas import EventAction, user_ref
 from hmm.platform.settings import RuntimeSettings, load_settings
 from hmm.projects import views as projects_views
 from hmm.projects.schemas import ProjectView
+from hmm.scores import snapshot as scores_snapshot
 
 SLUG_MAX = 100
 
@@ -316,26 +317,12 @@ async def event_snapshot(session: AsyncSession, event_id: UUID) -> EventSnapshot
         .where(models.EventArea.event_id == event_id)
         .order_by(models.Area.sort, models.Area.key)
     )
-    return EventSnapshot(
-        id=event.id,
-        title=event.title,
-        timezone=event.timezone,
-        summary=event.summary,
-        description_md=event.description_md,
-        themes=event.themes,
-        starts_at=event.starts_at,
-        ends_at=event.ends_at,
-        team_size_min=event.team_size_min,
-        team_size_max=event.team_size_max,
-        created_by=event.created_by,
-        areas=[
+    return scores_snapshot.event_snapshot(
+        event,
+        [
             EventArea(area=key, importance=AreaImportance(importance), headcount=headcount)
             for key, _, importance, headcount in rows
         ],
-        format=EventFormat(event.format) if event.format else None,
-        kind=EventKind(event.kind),
-        origin=EventOrigin(event.origin),
-        difficulty=float(event.difficulty) if event.difficulty is not None else None,
     )
 
 

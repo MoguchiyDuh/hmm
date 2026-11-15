@@ -20,14 +20,15 @@ async def refresh_recommendations(runtime: Runtime, project_id: str) -> None:
         prepared = await service.prepare_refresh(session, project, now, runtime.algorithm.version)
         if prepared is None:
             return None
+        row_id, context = prepared
     async with runtime.sessionmaker() as session:
         ctx = await runtime.algo_context(session)
     try:
-        result = await call_algo("recommend", runtime.algorithm.recommend(ctx, prepared.request))
+        result = await call_algo("recommend", runtime.algorithm.recommend(ctx, context.request))
     except Exception as error:
         failure_now = runtime.clock.now()
         async with runtime.sessionmaker.begin() as session:
-            await service.mark_failed(session, prepared.row_id, error, failure_now)
+            await service.mark_failed(session, row_id, error, failure_now)
             await raise_alert(
                 session,
                 AlertKind.ALGO_FAILURE,
@@ -44,7 +45,7 @@ async def refresh_recommendations(runtime: Runtime, project_id: str) -> None:
             )
         raise
     validated, dropped = service.validated_recommendations(
-        result, prepared.enrolled_ids, prepared.others_ids
+        result, context.enrolled_ids, context.others_ids
     )
     if dropped:
         runtime.log.warning(
@@ -52,5 +53,5 @@ async def refresh_recommendations(runtime: Runtime, project_id: str) -> None:
         )
     completion_now = runtime.clock.now()
     async with runtime.sessionmaker.begin() as session:
-        await service.mark_ready(session, prepared.row_id, validated, completion_now)
+        await service.mark_ready(session, row_id, validated, completion_now)
     return None

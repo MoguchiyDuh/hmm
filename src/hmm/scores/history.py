@@ -24,9 +24,7 @@ from hmm.algo.models import (
     MilestoneIn,
     PardonedFlag,
     ProjectResultContext,
-    ProjectSnapshot,
     ProjectUpdateIn,
-    Recruiting,
     ReleaseContext,
     ReleaseContribution,
 )
@@ -36,9 +34,6 @@ from hmm.common import (
     AttendanceRole,
     AttendanceStatus,
     ConfirmationSource,
-    EventFormat,
-    EventKind,
-    EventOrigin,
     FactType,
     FlagStatus,
     FlagSubjectType,
@@ -51,12 +46,11 @@ from hmm.common import (
     ProjectStatus,
     RestrictionKind,
     ResultOutcome,
-    TeamStatus,
     Trust,
 )
 from hmm.onboarding.baseline import load_onboarding_baseline
 from hmm.results.reviews import review_in
-from hmm.scores.snapshot import build_member_snapshot
+from hmm.scores import snapshot
 
 IMPORTANCE_ORDER = (AreaImportance.PRIMARY, AreaImportance.REQUIRED, AreaImportance.NICE)
 
@@ -166,17 +160,9 @@ class HistoryContext:
             self.event_areas[event_id].sort(key=lambda row: self.area_order(row.area_id))
 
     def event_snapshot(self, event: models.Event) -> EventSnapshot:
-        return EventSnapshot(
-            id=event.id,
-            title=event.title,
-            summary=event.summary,
-            description_md=event.description_md,
-            themes=list(event.themes),
-            format=EventFormat(event.format) if event.format is not None else None,
-            starts_at=event.starts_at,
-            ends_at=event.ends_at,
-            timezone=event.timezone,
-            areas=[
+        return snapshot.event_snapshot(
+            event,
+            [
                 EventArea(
                     area=self.areas[row.area_id].key,
                     importance=AreaImportance(row.importance),
@@ -184,12 +170,6 @@ class HistoryContext:
                 )
                 for row in self.event_areas[event.id]
             ],
-            team_size_min=event.team_size_min,
-            team_size_max=event.team_size_max,
-            difficulty=float(event.difficulty) if event.difficulty is not None else None,
-            kind=EventKind(event.kind),
-            origin=EventOrigin(event.origin),
-            created_by=event.created_by,
         )
 
     def event_area(self, event_id: UUID) -> str | None:
@@ -321,23 +301,6 @@ def result_context(result: models.ProjectResult) -> ProjectResultContext:
         retrospective_md=result.retrospective_md or "",
         auto_closed=result.auto_closed,
         submitted_at=result.submitted_at,
-    )
-
-
-def project_snapshot(project: models.Project, areas: list[str]) -> ProjectSnapshot:
-    return ProjectSnapshot(
-        id=project.id,
-        name=project.name,
-        goal=project.goal,
-        description_md=project.description_md,
-        areas=areas,
-        recruiting=Recruiting.model_validate(project.recruiting)
-        if project.recruiting is not None
-        else None,
-        event_id=project.event_id,
-        status=ProjectStatus(project.status),
-        team_status=TeamStatus(project.team_status) if project.team_status is not None else None,
-        links=string_list(project.links),
     )
 
 
@@ -476,7 +439,7 @@ async def member_facts(
                     event=ctx.event_snapshot(ctx.events[project.event_id])
                     if project.event_id is not None
                     else None,
-                    project=project_snapshot(
+                    project=snapshot.project_snapshot(
                         project, [ctx.areas[area_id].key for area_id in project_areas[project.id]]
                     ),
                     result=result_context(result) if result is not None else None,
@@ -698,7 +661,7 @@ async def pardoned_flags(session: AsyncSession, user_id: UUID) -> list[PardonedF
 
 
 async def load_member_history(session: AsyncSession, user_id: UUID, now: datetime) -> MemberHistory:
-    snapshot = await build_member_snapshot(session, user_id)
+    member = await snapshot.build_member_snapshot(session, user_id)
     onboarding = await load_onboarding_baseline(session, user_id)
     attendances = list(
         await session.scalars(
@@ -781,7 +744,7 @@ async def load_member_history(session: AsyncSession, user_id: UUID, now: datetim
     )
     return MemberHistory.model_validate(
         {
-            **snapshot.model_dump(),
+            **member.model_dump(),
             "onboarding": onboarding,
             "facts": facts,
             "activity_entries": activity_entries,
