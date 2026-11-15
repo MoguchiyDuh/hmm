@@ -559,3 +559,26 @@ def confirmation_view(
         if withdraw_allowed(confirmation, viewer_id, now, withdraw_days)
         else [],
     )
+
+
+async def confirm_fact(
+    session: AsyncSession,
+    jobs: procrastinate.App,
+    actor: models.User,
+    fact_type: ConfirmationFactType,
+    fact_id: UUID,
+    now: datetime,
+) -> schemas.Confirmation:
+    target = await confirmation_target(session, actor.id, fact_type, fact_id, now)
+    row = await add_confirmation(
+        session,
+        jobs,
+        fact_type=fact_type,
+        fact_id=fact_id,
+        subject_user_id=target.subject_user_id,
+        confirmer_id=actor.id,
+        source=target.source,
+        now=now,
+    )
+    days = (await load_settings(session)).confirmation_withdraw_days
+    return confirmation_view(row, actor.id, now, days)

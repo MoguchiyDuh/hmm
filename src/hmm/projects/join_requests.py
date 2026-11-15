@@ -80,8 +80,16 @@ async def create_join_request(
             requester=notification_person(actor),
             note=body.note,
             actions=(
-                ApiAction(key=ActionKey.JOIN_REQUEST_ACCEPT, entity_id=row.id, label_key="accept"),
-                ApiAction(key=ActionKey.JOIN_REQUEST_REJECT, entity_id=row.id, label_key="reject"),
+                ApiAction(
+                    key=ActionKey.JOIN_REQUEST_ACCEPT,
+                    entity_id=row.id,
+                    label_key="notifications.actions.join_request_accept",
+                ),
+                ApiAction(
+                    key=ActionKey.JOIN_REQUEST_REJECT,
+                    entity_id=row.id,
+                    label_key="notifications.actions.join_request_reject",
+                ),
             ),
         ),
         now,

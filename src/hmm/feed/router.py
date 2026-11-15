@@ -20,7 +20,6 @@ from hmm.platform.errors import PROBLEM_RESPONSES
 from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.security import MemberAuth
-from hmm.platform.settings import load_settings
 
 router = APIRouter(tags=["feed"], responses=PROBLEM_RESPONSES)
 
@@ -61,22 +60,9 @@ async def create_confirmation(
     clock: CurrentClock,
     jobs: Jobs,
 ) -> Confirmation:
-    now = clock.now()
-    target = await feed_confirmations.confirmation_target(
-        session, actor.id, body.fact_type, body.fact_id, now
+    return await feed_confirmations.confirm_fact(
+        session, jobs, actor, body.fact_type, body.fact_id, clock.now()
     )
-    row = await feed_confirmations.add_confirmation(
-        session,
-        jobs,
-        fact_type=body.fact_type,
-        fact_id=body.fact_id,
-        subject_user_id=target.subject_user_id,
-        confirmer_id=actor.id,
-        source=target.source,
-        now=now,
-    )
-    days = (await load_settings(session)).confirmation_withdraw_days
-    return feed_confirmations.confirmation_view(row, actor.id, now, days)
 
 
 @router.delete(

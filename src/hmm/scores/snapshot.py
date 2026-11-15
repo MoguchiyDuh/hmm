@@ -32,6 +32,7 @@ from hmm.platform.errors import ProblemError
 from hmm.platform.settings import load_settings
 from hmm.profiles.github import github_summary
 from hmm.scores.reputation import reputation_summaries
+from hmm.scores.schemas import MemberMetrics
 
 
 async def build_member_snapshot(session: AsyncSession, user_id: UUID) -> MemberSnapshot:
@@ -228,4 +229,16 @@ def project_snapshot(project: models.Project, areas: list[str]) -> ProjectSnapsh
         status=ProjectStatus(project.status),
         team_status=TeamStatus(project.team_status) if project.team_status is not None else None,
         links=[str(link) for link in links],
+    )
+
+
+async def member_metrics(session: AsyncSession, user_id: UUID) -> MemberMetrics:
+    snapshot = await build_member_snapshot(session, user_id)
+    return MemberMetrics(
+        xp=snapshot.xp,
+        activity=snapshot.activity,
+        reputation=snapshot.reputation,
+        hackathons_finished=snapshot.hackathons_finished,
+        projects_shipped=snapshot.projects_shipped,
+        mentorships_completed=snapshot.mentorships_completed,
     )

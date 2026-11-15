@@ -42,7 +42,7 @@ from hmm.scores.schemas import (
     UpdateActivityBody,
     XpAdjustment,
 )
-from hmm.scores.snapshot import build_member_snapshot
+from hmm.scores.snapshot import member_metrics
 
 router = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
 
@@ -119,15 +119,7 @@ async def delete_activity(
 async def get_metrics(
     id: UserId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> MemberMetrics:
-    snapshot = await build_member_snapshot(session, id)
-    return MemberMetrics(
-        xp=snapshot.xp,
-        activity=snapshot.activity,
-        reputation=snapshot.reputation,
-        hackathons_finished=snapshot.hackathons_finished,
-        projects_shipped=snapshot.projects_shipped,
-        mentorships_completed=snapshot.mentorships_completed,
-    )
+    return await member_metrics(session, id)
 
 
 @router.put(
