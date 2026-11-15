@@ -376,11 +376,16 @@ def formation_lines(formation: Formation | None, timezone: str) -> list[str | No
             timing = texts.teams_formed
     status = formation.my_enrollment.status if formation.my_enrollment else None
     team = formation.my_team
+    queue = None
+    if queued and formation.phase == FormationPhase.OPEN:
+        queue = (
+            texts.queue_line.format(people=headcount(queued), teams=plural(projected, texts.team))
+            if projected
+            else texts.queue_only.format(headcount(queued))
+        )
     return [
         timing,
-        texts.queue_line.format(people=headcount(queued), teams=plural(projected, texts.team))
-        if queued and formation.phase == FormationPhase.OPEN
-        else None,
+        queue,
         texts.enrollment.get(status) if status else None,
         texts.your_team.format(subject(team.name, f"/projects/{team.id}")) if team else None,
     ]

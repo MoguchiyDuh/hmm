@@ -154,7 +154,8 @@ def join_request_rejected(p: JoinRequestRejectedPayload) -> str:
 def formation_soon(p: FormationSoonPayload) -> str:
     return lines(
         f"⏳ Teams for {subject(p.event_title)} form {when(p.formation_at, p.timezone)}.",
-        f"{headcount(p.enrolled_count)} enrolled so far, about {plural(p.team_count, TEAM)}."
+        f"{headcount(p.enrolled_count)} enrolled so far"
+        + (f", about {plural(p.team_count, TEAM)}." if p.team_count else ".")
         if p.enrolled_count
         else None,
     )

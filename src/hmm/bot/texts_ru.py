@@ -80,6 +80,7 @@ TEXTS = Texts(
     teams_forming="Команды формируются прямо сейчас.",
     teams_formed="Команды сформированы.",
     queue_line="В очереди {people}, пока примерно {teams}.",
+    queue_only="В очереди {}.",
     your_team="Ваша команда: {}",
     team_size="команды от {} до {} человек",
     going_count="идут: {}",

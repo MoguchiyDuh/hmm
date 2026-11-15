@@ -151,8 +151,8 @@ def join_request_rejected(p: JoinRequestRejectedPayload) -> str:
 def formation_soon(p: FormationSoonPayload) -> str:
     return lines(
         f"⏳ Формирование команд на {subject(p.event_title)}: {when(p.formation_at, p.timezone)}.",
-        f"Уже записались: {headcount(p.enrolled_count)}, "
-        f"это примерно {plural(p.team_count, tr().team)}."
+        f"Уже записались: {headcount(p.enrolled_count)}"
+        + (f", это примерно {plural(p.team_count, tr().team)}." if p.team_count else ".")
         if p.enrolled_count
         else None,
     )

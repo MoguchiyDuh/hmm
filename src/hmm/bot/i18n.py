@@ -84,6 +84,7 @@ class Texts:
     teams_forming: str
     teams_formed: str
     queue_line: str
+    queue_only: str
     your_team: str
     team_size: str
     going_count: str

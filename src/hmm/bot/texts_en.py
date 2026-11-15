@@ -78,6 +78,7 @@ TEXTS = Texts(
     teams_forming="Teams are being formed now.",
     teams_formed="Teams are formed.",
     queue_line="{people} in the queue, about {teams} so far.",
+    queue_only="{} in the queue.",
     your_team="Your team: {}",
     team_size="teams of {} to {}",
     going_count="{} going",

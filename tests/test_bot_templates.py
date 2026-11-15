@@ -38,6 +38,7 @@ from hmm.notifications.payloads import (
     AlertKind,
     ApiAction,
     EventCancelledPayload,
+    FormationSoonPayload,
     Notification,
     NotificationPayload,
     NotificationType,
@@ -253,6 +254,17 @@ def test_russian_dates_and_relative_hint() -> None:
     month = TEXTS[Locale.RU].months[local.month - 1]
     assert f"{weekday} {local:%d} {month} {local:%H:%M} MSK (через 3 дня)" in text
     assert text.startswith("👥")
+
+
+@pytest.mark.parametrize("locale", list(Locale))
+def test_formation_soon_skips_zero_teams(locale: Locale) -> None:
+    payload = fixture(FIXTURES / "formation_soon.json")
+    assert isinstance(payload, FormationSoonPayload)
+    text = render(
+        payload.model_copy(update={"enrolled_count": 1, "team_count": 0}), PUBLIC_URL, locale=locale
+    ).text
+    assert "0 " not in text.splitlines()[-1]
+    assert TEXTS[locale].team.pick(0) not in text.splitlines()[-1]
 
 
 def test_telegram_locale() -> None:
