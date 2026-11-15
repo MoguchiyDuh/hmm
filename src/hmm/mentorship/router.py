@@ -11,9 +11,8 @@ from hmm.common import (
     MentorshipSide,
     MentorshipStatus,
 )
-from hmm.mentorship import mentor_offers
+from hmm.mentorship import help_offers, mentor_offers
 from hmm.mentorship import mentorships as mentorship_mentorships
-from hmm.mentorship import offers as mentorship_offers
 from hmm.mentorship import requests as mentorship_requests
 from hmm.mentorship.schemas import (
     AcknowledgeMentorshipBody,
@@ -161,7 +160,7 @@ async def create_help_offer(
     session: Session,
     clock: CurrentClock,
 ) -> HelpOffer:
-    return await mentorship_offers.create_help_offer(session, actor, id, body, clock.now())
+    return await help_offers.create_help_offer(session, actor, id, body, clock.now())
 
 
 @router.delete(
@@ -170,7 +169,7 @@ async def create_help_offer(
 async def withdraw_help_offer(
     id: HelpOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> None:
-    await mentorship_offers.withdraw_help_offer(session, actor, id)
+    await help_offers.withdraw_help_offer(session, actor, id)
 
 
 @router.post(
@@ -181,7 +180,7 @@ async def withdraw_help_offer(
 async def accept_help_offer(
     id: HelpOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Mentorship:
-    return await mentorship_offers.accept_help_offer(session, actor, id, clock.now())
+    return await help_offers.accept_help_offer(session, actor, id, clock.now())
 
 
 @router.get("/me/mentorships", status_code=status.HTTP_200_OK, summary="List own mentorships")

@@ -11,7 +11,7 @@ from sqlalchemy import func, select, update
 
 from hmm import models
 from hmm.common import ErrorCode
-from hmm.mentorship import offers as mentorship_offers
+from hmm.mentorship import help_offers
 from hmm.platform.errors import ProblemError
 
 REQUESTS = "/api/v1/help-requests"
@@ -369,7 +369,7 @@ async def test_concurrent_accepts(harness: Harness) -> None:
 
     async def attempt(offer_id: UUID) -> Any:
         async with h.sessionmaker.begin() as session:
-            return await mentorship_offers.accept_help_offer(session, learner, offer_id, h.now)
+            return await help_offers.accept_help_offer(session, learner, offer_id, h.now)
 
     results = await asyncio.gather(
         *(attempt(offer_id) for offer_id in offer_ids), return_exceptions=True
