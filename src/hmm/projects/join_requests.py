@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.common import ErrorCode, JoinedVia
+from hmm.identity.service import require_eligible
 from hmm.notifications.payloads import (
     ActionKey,
     ApiAction,
@@ -20,7 +21,7 @@ from hmm.platform.errors import ProblemError
 from hmm.platform.schemas import notification_person
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
-from hmm.projects.invites import add_member, eligible_invitee
+from hmm.projects.invites import add_member
 from hmm.projects.views import CLOSED_PROJECT_STATUSES, join_request_view
 
 
@@ -130,7 +131,7 @@ async def respond_join_request(
     if row.status != "pending":
         raise ProblemError(ErrorCode.INVALID_STATE)
     if action == "accepted":
-        await eligible_invitee(session, row.user_id, now)
+        await require_eligible(session, row.user_id, now, invite=True)
         await add_member(session, project, row.user_id, JoinedVia.JOIN_REQUEST, now)
         await enqueue_project_refresh(session, jobs, project.id)
     row.status = action

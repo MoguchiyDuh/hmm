@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hmm import models
 from hmm.common import ErrorCode, InviteKind, JoinedVia
 from hmm.formation.schemas import Invite
+from hmm.identity.service import require_eligible
 from hmm.notifications.payloads import (
     InviteAcceptedPayload,
     InviteDeclinedPayload,
@@ -22,17 +23,6 @@ from hmm.platform.settings import load_settings
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
 from hmm.projects.views import CLOSED_PROJECT_STATUSES, POST_RESULT_TEAM_STATUSES
-
-
-async def eligible_invitee(session: AsyncSession, user_id: UUID, now: datetime) -> models.User:
-    user = await get_or_404(session, models.User, user_id)
-    if user.banned_at is not None:
-        raise ProblemError(ErrorCode.BANNED)
-    if user.onboarding_status not in {"completed", "reopened"}:
-        raise ProblemError(ErrorCode.ONBOARDING_REQUIRED)
-    if user.dnd_indefinite or (user.dnd_until is not None and user.dnd_until > now):
-        raise ProblemError(ErrorCode.USER_DND)
-    return user
 
 
 async def add_member(
@@ -96,7 +86,7 @@ async def create_invite(
         raise ProblemError(ErrorCode.INVALID_STATE)
     if project.lead_user_id != actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
-    user = await eligible_invitee(session, body.user_id, now)
+    user = await require_eligible(session, body.user_id, now, invite=True)
     if user.id in await project_member_ids(session, project.id):
         raise ProblemError(ErrorCode.INVALID_STATE)
     if (
@@ -181,7 +171,7 @@ async def respond_invite(
         await session.flush()
         return ProblemError(ErrorCode.INVALID_STATE, "Invite has expired")
     if action == "accepted":
-        await eligible_invitee(session, actor.id, now)
+        await require_eligible(session, actor.id, now, invite=True)
         await add_member(session, project, actor.id, JoinedVia.INVITE, now)
     row.status = action
     row.responded_at = now

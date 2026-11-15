@@ -352,6 +352,19 @@ def dnd_active(user: models.User, now: datetime) -> bool:
     return user.dnd_indefinite or (user.dnd_until is not None and user.dnd_until > now)
 
 
+async def require_eligible(
+    session: AsyncSession, user_id: UUID, now: datetime, *, invite: bool = False
+) -> models.User:
+    user = await get_or_404(session, models.User, user_id)
+    if user.banned_at is not None:
+        raise ProblemError(ErrorCode.BANNED)
+    if user.onboarding_status not in ONBOARDED:
+        raise ProblemError(ErrorCode.ONBOARDING_REQUIRED)
+    if invite and dnd_active(user, now):
+        raise ProblemError(ErrorCode.USER_DND)
+    return user
+
+
 async def lock_user(session: AsyncSession, user_id: UUID) -> models.User:
     return await get_or_404(session, models.User, user_id, lock=True)
 

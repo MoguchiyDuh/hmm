@@ -15,8 +15,9 @@ from hmm.common import (
     TeamStatus,
 )
 from hmm.formation import schemas
+from hmm.identity.service import require_eligible
 from hmm.platform.audit import record_audit
-from hmm.platform.db import get_or_404, locked
+from hmm.platform.db import locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import RuntimeSettings, load_settings
 
@@ -229,13 +230,7 @@ def require_lead(project: models.Project, actor: models.User) -> None:
 async def eligible_user(
     session: AsyncSession, user_id: UUID, event_id: UUID, now: datetime, *, invite: bool = False
 ) -> models.User:
-    user = await get_or_404(session, models.User, user_id)
-    if user.banned_at is not None:
-        raise ProblemError(ErrorCode.BANNED)
-    if user.onboarding_status not in {"completed", "reopened"}:
-        raise ProblemError(ErrorCode.ONBOARDING_REQUIRED)
-    if invite and (user.dnd_indefinite or (user.dnd_until is not None and user.dnd_until > now)):
-        raise ProblemError(ErrorCode.USER_DND)
+    user = await require_eligible(session, user_id, now, invite=invite)
     if await team_member(session, event_id, user_id) is not None:
         raise ProblemError(ErrorCode.ALREADY_IN_TEAM)
     return user
