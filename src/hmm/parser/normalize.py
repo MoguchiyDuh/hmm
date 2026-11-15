@@ -5,7 +5,8 @@ from collections.abc import Iterable
 from datetime import UTC, date, datetime, time, timedelta
 from html.parser import HTMLParser
 from itertools import pairwise
-from zoneinfo import ZoneInfo
+from typing import Any
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import HttpUrl, TypeAdapter, ValidationError
 
@@ -115,6 +116,11 @@ COUNTRY_NAMES: dict[str, str] = {
     "ukraine": "UA",
     "united kingdom": "GB",
     "uk": "GB",
+    "u.k.": "GB",
+    "united states": "US",
+    "united states of america": "US",
+    "usa": "US",
+    "u.s.a.": "US",
     "vatican city": "VA",
     "wales": "GB",
 }
@@ -230,6 +236,33 @@ MONTHS: dict[str, int] = {
     for name in names
 }
 
+CURRENCY_SYMBOLS: dict[str, str] = {"€": "EUR", "£": "GBP", "$": "USD", "₹": "INR"}
+CURRENCIES: frozenset[str] = frozenset(
+    {
+        "AUD",
+        "BGN",
+        "CAD",
+        "CHF",
+        "CZK",
+        "DKK",
+        "EUR",
+        "GBP",
+        "HUF",
+        "INR",
+        "JPY",
+        "NOK",
+        "PLN",
+        "RON",
+        "RSD",
+        "SEK",
+        "USD",
+    }
+)
+
+_MONEY = re.compile(
+    r"(?:(?P<sym>[€£$₹])\s*(?P<code>[A-Za-z]{3}\b)?|(?P<pre>\b[A-Za-z]{3}\b))?\s*"
+    r"(?P<num>\d{1,3}(?:[,\s]\d{3})+|\d+)(?:\.\d+)?\s*(?P<post>[A-Za-z]{3}\b|[€£$₹])?"
+)
 _MD_IMAGE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
 _MD_LINK = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 _MD_EMPHASIS = re.compile(r"(\*\*|__|\*|_|~~|`)(\S(?:.*?\S)?)\1")
@@ -249,6 +282,10 @@ _TEAM_MAX = re.compile(
 
 
 _URL = TypeAdapter(HttpUrl)
+
+
+def as_dict(value: object) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
 
 def web_url(value: object) -> str | None:
@@ -294,6 +331,34 @@ def city_name(value: str | None) -> str | None:
 
 def zone_for(country: str | None) -> str | None:
     return COUNTRY_ZONES.get(country) if country else None
+
+
+def zone_name(value: object) -> str | None:
+    if not isinstance(value, str) or "/" not in value:
+        return None
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError):
+        return None
+    return value
+
+
+def money(value: str | None) -> tuple[float | None, str | None]:
+    if not value:
+        return None, None
+    for match in _MONEY.finditer(value):
+        currency = None
+        for part in (match["code"], match["pre"], match["post"], match["sym"]):
+            if part is None:
+                continue
+            code = CURRENCY_SYMBOLS.get(part) or part.upper()
+            if code in CURRENCIES:
+                currency = code
+                break
+        amount = float(re.sub(r"[,\s]", "", match["num"]))
+        if amount > 0 and currency is not None:
+            return amount, currency
+    return None, None
 
 
 def parse_datetime(value: object) -> datetime | None:

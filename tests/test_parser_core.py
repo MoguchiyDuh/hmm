@@ -18,8 +18,9 @@ from hmm.parser.config import (
     source_from_table,
 )
 from hmm.parser.fetch import Fetcher, FetchError
-from hmm.parser.normalize import summary_of, team_size
+from hmm.parser.normalize import money, summary_of, team_size
 from hmm.parser.pipeline import SourceRun, dedupe, relevant
+from hmm.parser.sources.devpost import listing_dates
 from hmm.parser.sources.hackathonist import parse_when
 from hmm.parser.sources.luma import to_markdown
 
@@ -136,6 +137,93 @@ async def test_fetch_spaces_requests_per_host() -> None:
     assert all(9 < wait <= 20 for wait in waits)
 
 
+async def test_fetch_posts_json_and_does_not_follow_redirects() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        if request.url.path == "/moved":
+            return httpx.Response(307, headers={"location": "/elsewhere"})
+        return httpx.Response(200, json={"ok": True})
+
+    target, client = fetcher(handler)
+    async with client:
+        fetched = await target.request(
+            "POST",
+            "https://api.example/rpc",
+            spacing=0,
+            request_timeout=5,
+            max_bytes=1000,
+            body={"page": 2},
+            headers={"Authorization": "Bearer fake-token"},
+        )
+        assert fetched.json() == {"ok": True}
+        with pytest.raises(FetchError) as error:
+            await target.request(
+                "POST",
+                "https://api.example/moved",
+                spacing=0,
+                request_timeout=5,
+                max_bytes=1000,
+                body={},
+            )
+    assert error.value.status == 307
+    assert [request.method for request in seen] == ["POST", "POST"]
+    assert seen[0].headers["content-type"] == "application/json"
+    assert seen[0].content == b'{"page":2}'
+    assert seen[0].headers["authorization"] == "Bearer fake-token"
+
+
+async def test_fetch_rate_key_spaces_across_hosts() -> None:
+    waits: list[float] = []
+
+    async def sleep(delay: float) -> None:
+        waits.append(delay)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200)))
+    target = Fetcher(client=client, resolve=public_resolve, sleep=sleep)
+    async with client:
+        for host in ("a.devpost.example", "b.devpost.example"):
+            await target.get(
+                f"https://{host}/",
+                spacing=10,
+                request_timeout=5,
+                max_bytes=10,
+                rate_key="devpost.example",
+            )
+    assert len(waits) == 1
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("75,000 Usd", (75000.0, "USD")),
+        ("€10,000+", (10000.0, "EUR")),
+        ("$CAD 1,050", (1050.0, "CAD")),
+        ("Prize 1st place, £500", (500.0, "GBP")),
+        ("3 Swag", (None, None)),
+        ("Knowledge", (None, None)),
+    ],
+)
+def test_money(text: str, expected: tuple[float | None, str | None]) -> None:
+    assert money(text) == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Nov 15, 2026", (date(2026, 11, 15), date(2026, 11, 15))),
+        ("Nov 14 - 15, 2026", (date(2026, 11, 14), date(2026, 11, 15))),
+        ("Oct 30 - Dec 04, 2026", (date(2026, 10, 30), date(2026, 12, 4))),
+        ("Nov 15, 2026 - Feb 15, 2027", (date(2026, 11, 15), date(2027, 2, 15))),
+        ("Dec 28 - Jan 03, 2027", (date(2026, 12, 28), date(2027, 1, 3))),
+        ("soon", None),
+    ],
+)
+def test_devpost_listing_dates(text: str, expected: tuple[date, date] | None) -> None:
+    assert listing_dates(text) == expected
+
+
 def test_durations_and_rates() -> None:
     assert parse_duration("12h") == timedelta(hours=12)
     assert parse_duration("30m") == timedelta(minutes=30)
@@ -156,6 +244,12 @@ def test_default_sources_load_and_build() -> None:
         "gdg-rs",
         "dev-events",
         "bbicc",
+        "icpc",
+        "mlh",
+        "hackalendar",
+        "kaggle",
+        "confs-tech",
+        "devpost",
     } <= ids
     ctftime = next(source for source in sources if source.id == "ctftime")
     assert ctftime.spacing == 10.0
@@ -165,9 +259,19 @@ def test_default_sources_load_and_build() -> None:
 
 
 def test_adapters_register_themselves() -> None:
-    assert {"hackathonhub", "hackathonist", "ctftime", "luma", "jsonld_pages"} <= set(
-        load_adapters()
-    )
+    assert {
+        "hackathonhub",
+        "hackathonist",
+        "ctftime",
+        "luma",
+        "jsonld_pages",
+        "icpc",
+        "mlh",
+        "hackalendar",
+        "kaggle",
+        "confs_tech",
+        "devpost",
+    } <= set(load_adapters())
     assert ADAPTERS["luma"].name == "luma"
 
 

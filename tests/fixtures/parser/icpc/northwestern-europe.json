@@ -1,0 +1,145 @@
+{
+ "abbr": "Northwestern-Europe",
+ "activeSites": [
+  {
+   "id": 39932,
+   "name": "Karlsruhe Institute of Technology (NWERC)",
+   "siteDate": null,
+   "email": "contact@2025.nwerc.eu",
+   "siteType": "NORMAL",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": true,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "Karlsruhe Institute of Technology",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": null,
+    "country": null,
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 0.0,
+    "longitude": 0.0
+   },
+   "enforceCapacity": false,
+   "capacityFull": true
+  }
+ ],
+ "closedForRegistration": true,
+ "contestDelivery": "ONSITE",
+ "contestType": "REGIONALS",
+ "email": "contact@2026.nwerc.eu",
+ "endDate": "2026-11-29",
+ "flickrPhotoAlbumLink": "",
+ "flickrPhotoAlbumTags": null,
+ "geographicArea": "Northwest Europe",
+ "homepage": "https://2026.nwerc.eu/",
+ "icpcYear": 2027,
+ "id": 9582,
+ "name": "The 2026 ICPC Northwestern Europe Regional Contest",
+ "problemsUrl": "",
+ "regActive": false,
+ "regEndDate": "2026-11-02",
+ "regStartDate": "2026-08-31",
+ "regional": false,
+ "reportUrl": "",
+ "resultsUrl": "",
+ "shortname": "ICPC Northwestern Europe RC",
+ "showPublicPagesType": "WITHOUT_PEOPLE",
+ "showTeamsInPublicPages": true,
+ "sites": [
+  {
+   "id": 39930,
+   "name": "Administrative Site",
+   "siteDate": null,
+   "email": "contact@2025.nwerc.eu",
+   "siteType": "ADMINISTRATIVE",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": false,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "Administrative Site Location",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": null,
+    "country": null,
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 0.0,
+    "longitude": 0.0
+   },
+   "enforceCapacity": false,
+   "capacityFull": true
+  },
+  {
+   "id": 39931,
+   "name": "(delete me)",
+   "siteDate": null,
+   "email": "contact@nwerc.eu",
+   "siteType": "ADMINISTRATIVE",
+   "siteDelivery": "ONLINE",
+   "allowRegistration": false,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "Reykjavík University",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": null,
+    "country": null,
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 0.0,
+    "longitude": 0.0
+   },
+   "enforceCapacity": false,
+   "capacityFull": true
+  },
+  {
+   "id": 39932,
+   "name": "Karlsruhe Institute of Technology (NWERC)",
+   "siteDate": null,
+   "email": "contact@2025.nwerc.eu",
+   "siteType": "NORMAL",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": true,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "Karlsruhe Institute of Technology",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": null,
+    "country": null,
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 0.0,
+    "longitude": 0.0
+   },
+   "enforceCapacity": false,
+   "capacityFull": true
+  }
+ ],
+ "startDate": "2026-11-27",
+ "superRegional": false,
+ "timezone": "UTC+01:00",
+ "worldFinals": false
+}

@@ -1,7 +1,10 @@
+import json
+import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+import pytest
 from parser_support import Router, json_file, respond, run_source
 
 from hmm.common import EventFormat, EventKind
@@ -350,3 +353,329 @@ async def test_jsonld_pages_graph_and_defaults() -> None:
     assert (item.team_size_min, item.team_size_max, item.eligibility) == (4, 4, "Undergrads")
     assert item.starts_at == datetime(2027, 3, 6, 23, tzinfo=UTC)
     assert item.ends_at - item.starts_at == timedelta(days=7) - timedelta(seconds=1)
+
+
+ICPC_API = "https://icpc.global/api/contest/public"
+ICPC_REGIONS = ("seerc", "central-europe", "northwestern-europe", "swerc")
+
+
+async def test_icpc_imports_one_event_per_site() -> None:
+    router = Router({f"{ICPC_API}/{slug}": json_file(f"icpc/{slug}.json") for slug in ICPC_REGIONS})
+    run = await run_source({"id": "icpc", "adapter": "icpc"}, router)
+    assert run.errors == []
+    assert run.candidates == 4
+    items = by_id(run.items)
+    assert set(items) == {
+        "icpc:9565:39817",
+        "icpc:9565:39816",
+        "icpc:9588:40036",
+        "icpc:9592:41856",
+    }
+    greece = items["icpc:9565:39817"]
+    assert greece.title == "The 2026 ICPC Southeastern Europe Regional Contest \u2014 Thessaloniki"
+    assert greece.kind == EventKind.CONTEST
+    assert greece.format == EventFormat.OFFLINE
+    assert greece.location is not None
+    assert (greece.location.country, greece.location.city) == ("GR", "Thessaloniki")
+    assert greece.timezone == "Europe/Athens"
+    assert greece.starts_at == datetime(2026, 12, 10, 22, tzinfo=UTC)
+    assert greece.ends_at == datetime(2026, 12, 13, 21, 59, 59, tzinfo=UTC)
+    assert greece.registration_opens_at == datetime(2026, 10, 21, 21, tzinfo=UTC)
+    assert greece.registration_deadline == datetime(2026, 11, 20, 21, 59, 59, tzinfo=UTC)
+    assert (greece.team_size_min, greece.team_size_max) == (3, 3)
+    assert {"team_size_min", "team_size_max", "starts_at"} <= set(greece.inferred_fields)
+    assert greece.eligibility == "University teams from Southeastern Europe"
+    assert str(greece.website_url) == "https://icpc.global/regionals/finder/seerc"
+    assert items["icpc:9565:39816"].title.endswith("\u2014 Kyiv")
+    cerc = items["icpc:9588:40036"]
+    assert cerc.title == "The 2026 ICPC Central Europe Regional Contest"
+    assert cerc.location is not None and cerc.location.country == "PL"
+    swerc = items["icpc:9592:41856"]
+    assert swerc.location is not None and swerc.location.country == "IT"
+
+
+async def test_icpc_skips_regions_without_a_contest() -> None:
+    router = Router({f"{ICPC_API}/seerc": json_file("icpc/seerc.json")})
+    run = await run_source(
+        {"id": "icpc", "adapter": "icpc", "regions": ["seerc", "missing"]}, router
+    )
+    assert run.errors == []
+    assert len(run.items) == 2
+
+
+MLH_SEASON = "https://www.mlh.com/seasons/2027/events"
+MLH_PAGES = {
+    (): "mlh/season.html",
+    (("upcoming_page", "2"),): "mlh/upcoming_2.html",
+    (("page", "2"),): "mlh/past_2.html",
+    (("page", "3"),): "mlh/past_3.html",
+}
+
+
+def mlh_season(request: httpx.Request) -> httpx.Response:
+    name = MLH_PAGES.get(tuple(request.url.params.multi_items()))
+    if name is None:
+        return httpx.Response(500)
+    return respond(name)(request)
+
+
+async def test_mlh_pages_html_lists_and_filters_regions() -> None:
+    router = Router({MLH_SEASON: mlh_season})
+    run = await run_source({"id": "mlh", "adapter": "mlh"}, router)
+    assert run.errors == []
+    assert [str(request.url) for request in router.requests] == [
+        MLH_SEASON,
+        f"{MLH_SEASON}?upcoming_page=2",
+        f"{MLH_SEASON}?page=2",
+        f"{MLH_SEASON}?page=3",
+        "https://www.mlh.com/seasons/2028/events",
+    ]
+    items = by_id(run.items)
+    assert set(items) == {
+        "mlh:01a063b5-6f38-3b26-77aa-c9afde29ba75",
+        "mlh:01a1169b-c4ad-5d41-61cf-deccaa37655c",
+        "mlh:01a1456b-e3fd-791d-2d70-f96efa81449e",
+        "mlh:01a0f9ce-2aec-1d0e-a9c8-f5b4213b0d1b",
+        "mlh:01a1a71c-fe3c-68ff-32da-e25d4d01eeb3",
+        "mlh:019ff171-24a3-0dd9-42c5-eabf54b0893c",
+    }
+    unihack = items["mlh:01a063b5-6f38-3b26-77aa-c9afde29ba75"]
+    assert unihack.starts_at == datetime(2026, 11, 13, 20, tzinfo=UTC)
+    assert unihack.location is not None and unihack.location.country == "RO"
+    assert unihack.timezone == "Europe/Bucharest"
+    assert "starts_at" not in unihack.inferred_fields
+    assert str(unihack.website_url) == "https://unihack.eu/"
+    hackeps = items["mlh:01a1169b-c4ad-5d41-61cf-deccaa37655c"]
+    assert hackeps.starts_at == datetime(2026, 11, 27, 23, tzinfo=UTC)
+    assert hackeps.ends_at == datetime(2026, 11, 29, 22, 59, 59, tzinfo=UTC)
+    assert {"starts_at", "ends_at"} <= set(hackeps.inferred_fields)
+    solana = items["mlh:01a1a71c-fe3c-68ff-32da-e25d4d01eeb3"]
+    assert solana.format == EventFormat.ONLINE
+    assert solana.location is None
+    assert items["mlh:01a1456b-e3fd-791d-2d70-f96efa81449e"].themes == ["MLH", "Software"]
+
+
+HK_MCP = "https://hackalendar.com/api/mcp"
+HK_DETAIL = "artefact-adopt-ai-hackathon-adopt-ai-for-health-paris-2026"
+
+
+def hackalendar_mcp(request: httpx.Request) -> httpx.Response:
+    body = json.loads(request.content)
+    params = body["params"]
+    if params["name"] == "get_hackathon":
+        if params["arguments"]["slug"] == HK_DETAIL:
+            return json_file("hackalendar/get.json")(request)
+        return httpx.Response(404)
+    return json_file(f"hackalendar/search_{params['arguments']['offset']}.json")(request)
+
+
+async def test_hackalendar_pages_mcp_and_maps_precision() -> None:
+    router = Router({HK_MCP: hackalendar_mcp})
+    run = await run_source({"id": "hackalendar", "adapter": "hackalendar"}, router)
+    assert run.errors == []
+    search = [json.loads(request.content) for request in router.requests]
+    assert search[0] == {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": "search_hackathons", "arguments": {"limit": 50, "offset": 0}},
+    }
+    assert all(request.method == "POST" for request in router.requests)
+    assert router.requests[0].headers["accept"] == "application/json, text/event-stream"
+    items = by_id(run.items)
+    assert len(items) == 4
+    assert "hackalendar:eu-vibe-coding-hackathon-from-idea-to-subscription-in-48h-2026" not in items
+    health = items[f"hackalendar:{HK_DETAIL}"]
+    assert health.starts_at == datetime(2026, 11, 13, 17, tzinfo=UTC)
+    assert health.ends_at == datetime(2026, 11, 15, 22, 59, 59, tzinfo=UTC)
+    assert health.inferred_fields == ["timezone", "ends_at"]
+    assert health.location is not None and health.location.address == "M\u00e9tafore"
+    assert health.description_md is not None and health.description_md.startswith("Pour la")
+    robotics = items["hackalendar:robotics-ai-hacklab-berlin-2026"]
+    assert robotics.prize is not None
+    assert (robotics.prize.amount, robotics.prize.currency) == (10000.0, "EUR")
+    assert [area.key for area in robotics.areas] == ["ml_ai", "hardware"]
+    online = items["hackalendar:threat-intelligence-threat-modelling-hackathon-2026"]
+    assert online.format == EventFormat.ONLINE
+    assert online.location is None
+
+
+KAGGLE_API = "https://api.kaggle.com/v1/competitions.CompetitionApiService/ListCompetitions"
+KAGGLE_INTERNAL = "https://www.kaggle.com/api/i/competitions.CompetitionService/ListCompetitions"
+
+
+def kaggle_router() -> Router:
+    def official(request: httpx.Request) -> httpx.Response:
+        group = json.loads(request.content)["group"]
+        name = "general" if group == "COMPETITION_LIST_TAB_GENERAL" else "community"
+        return json_file(f"kaggle/{name}.json")(request)
+
+    def internal(request: httpx.Request) -> httpx.Response:
+        page = 2 if json.loads(request.content).get("pageToken") else 1
+        return json_file(f"kaggle/internal_{page}.json")(request)
+
+    return Router({KAGGLE_API: official, KAGGLE_INTERNAL: internal})
+
+
+async def test_kaggle_official_api_with_token() -> None:
+    router = kaggle_router()
+    run = await run_source(
+        {"id": "kaggle", "adapter": "kaggle"}, router, env={"KAGGLE_API_TOKEN": "KGAT_fake"}
+    )
+    assert run.errors == []
+    assert [request.headers["authorization"] for request in router.requests] == [
+        "Bearer KGAT_fake"
+    ] * 2
+    assert json.loads(router.requests[1].content) == {
+        "group": "COMPETITION_LIST_TAB_COMMUNITY",
+        "sortBy": "COMPETITION_SORT_BY_PRIZE",
+        "pageSize": 20,
+        "page": 1,
+    }
+    items = by_id(run.items)
+    assert set(items) == {
+        "kaggle:178013",
+        "kaggle:149921",
+        "kaggle:166661",
+        "kaggle:157303",
+        "kaggle:160984",
+    }
+    gemma = items["kaggle:149921"]
+    assert gemma.kind == EventKind.CONTEST
+    assert gemma.format == EventFormat.ONLINE
+    assert gemma.prize is not None and (gemma.prize.amount, gemma.prize.currency) == (
+        75000.0,
+        "USD",
+    )
+    assert gemma.registration_deadline == datetime(2026, 11, 25, 23, 59, tzinfo=UTC)
+    assert gemma.ends_at == datetime(2026, 12, 2, 23, 59, tzinfo=UTC)
+    assert gemma.team_size_max == 5
+    assert gemma.areas[0].key == "ml_ai"
+    assert str(gemma.website_url) == "https://www.kaggle.com/competitions/gemma-4-developer-agent"
+    assert items["kaggle:178013"].registration_deadline == items["kaggle:178013"].ends_at
+
+
+async def test_kaggle_without_token_warns_and_uses_internal_api(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    router = kaggle_router()
+    with caplog.at_level(logging.WARNING, logger="tests.parser"):
+        run = await run_source({"id": "kaggle", "adapter": "kaggle"}, router)
+    assert run.errors == []
+    assert "KAGGLE_API_TOKEN is not set" in caplog.text
+    assert [str(request.url) for request in router.requests] == [KAGGLE_INTERNAL] * 2
+    assert "authorization" not in router.requests[0].headers
+    assert json.loads(router.requests[1].content)["pageToken"] == "100"
+    assert set(by_id(run.items)) == {"kaggle:178013", "kaggle:149921", "kaggle:166661"}
+
+
+CT_RAW = "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences"
+CT_TREE = "https://api.github.com/repos/tech-conferences/conference-data/git/trees/main"
+CT_FILES = ("2026/general", "2026/devops", "2026/security", "2027/general")
+
+
+def confs_router(*, tree: bool = True) -> Router:
+    routes = {
+        f"{CT_RAW}/{name}.json": respond(f"confs_tech/{name.replace('/', '_')}.json", "text/plain")
+        for name in CT_FILES
+    }
+    if tree:
+        routes[CT_TREE] = json_file("confs_tech/tree.json")
+    return Router(routes)
+
+
+async def test_confs_tech_merges_topics_and_maps_formats() -> None:
+    router = confs_router()
+    run = await run_source({"id": "confs-tech", "adapter": "confs_tech"}, router)
+    assert run.errors == []
+    assert len(router.requests) == 5
+    items = by_id(run.items)
+    assert set(items) == {
+        "confs-tech:api-conference-berlin@2026-11-16",
+        "confs-tech:it-tage@2026-12-07",
+        "confs-tech:heapcon@2026-11-05",
+        "confs-tech:nextgen-intelligence-conference-data-cloud-ai@2026-11-16",
+        "confs-tech:edtech-conference@2026-11-26",
+        "confs-tech:voxxed-days-zurich@2027-03-09",
+        "confs-tech:inted@2027-03-09",
+    }
+    api = items["confs-tech:api-conference-berlin@2026-11-16"]
+    assert api.kind == EventKind.CONFERENCE
+    assert api.format == EventFormat.HYBRID
+    assert api.themes == ["devops", "security"]
+    assert api.starts_at == datetime(2026, 11, 15, 23, tzinfo=UTC)
+    heapcon = items["confs-tech:heapcon@2026-11-05"]
+    assert heapcon.location is not None
+    assert (heapcon.location.country, heapcon.location.city) == ("RS", "Belgrade")
+    assert heapcon.language == ["en"]
+    london = items["confs-tech:nextgen-intelligence-conference-data-cloud-ai@2026-11-16"]
+    assert london.location is not None and london.location.country == "GB"
+    assert items["confs-tech:edtech-conference@2026-11-26"].format == EventFormat.OFFLINE
+
+
+async def test_confs_tech_falls_back_to_topic_list_and_keeps_online() -> None:
+    router = confs_router(tree=False)
+    run = await run_source(
+        {"id": "confs-tech", "adapter": "confs_tech", "topics": ["general", "devops", "rust"]},
+        router,
+        now=datetime(2026, 5, 1, 12, tzinfo=UTC),
+    )
+    assert run.errors == []
+    assert len(router.requests) == 1 + 3 * 2
+    online = by_id(run.items)["confs-tech:ai-sre-summit@2026-05-12"]
+    assert online.format == EventFormat.ONLINE
+    assert online.location is None
+    assert online.timezone is None
+    assert online.themes == ["general", "devops"]
+
+
+DEVPOST_API = "https://devpost.com/api/hackathons"
+
+
+def devpost_router() -> Router:
+    def listing(request: httpx.Request) -> httpx.Response:
+        return json_file(f"devpost/page_{request.url.params['page']}.json")(request)
+
+    return Router(
+        {
+            DEVPOST_API: listing,
+            "https://hacksussex-gamejam-2026.devpost.com/": respond("devpost/hacksussex.html"),
+            "https://devfest-ai-hackathon.devpost.com/": respond("devpost/devfest.html"),
+            "https://dtit-hackathon-2026.devpost.com/": respond("devpost/kosice.html"),
+        }
+    )
+
+
+async def test_devpost_listing_and_site_json_ld() -> None:
+    router = devpost_router()
+    run = await run_source({"id": "devpost", "adapter": "devpost", "per_page": 4}, router)
+    assert run.errors == []
+    first = router.requests[0].url.params
+    assert first.get_list("status[]") == ["open", "upcoming"]
+    assert (first["per_page"], first["page"]) == ("4", "1")
+    fetched = {request.url.host for request in router.requests}
+    assert "haven-seattle.devpost.com" not in fetched
+    items = by_id(run.items)
+    assert set(items) == {"devpost:31667", "devpost:31655", "devpost:30880", "devpost:31602"}
+    kiroween = items["devpost:31667"]
+    assert kiroween.format == EventFormat.ONLINE
+    assert kiroween.confidence == 0.7
+    assert kiroween.starts_at == datetime(2026, 10, 30, tzinfo=UTC)
+    assert kiroween.ends_at == datetime(2026, 12, 4, 23, 59, 59, tzinfo=UTC)
+    assert kiroween.registration_deadline == kiroween.ends_at
+    assert kiroween.prize is not None and kiroween.prize.currency == "USD"
+    assert kiroween.areas[0].key == "ml_ai"
+    sussex = items["devpost:31655"]
+    assert sussex.location is not None
+    assert (sussex.location.country, sussex.location.address) == ("GB", "Falmer, Brighton, UK")
+    assert sussex.starts_at == datetime(2026, 12, 5, 11, tzinfo=UTC)
+    assert sussex.registration_deadline is None
+    assert sussex.confidence == 0.8
+    munster = items["devpost:30880"]
+    assert munster.location is not None and munster.location.country == "DE"
+    kosice = items["devpost:31602"]
+    assert kosice.location is not None and kosice.location.country == "SK"
+    assert kosice.prize is not None and (kosice.prize.amount, kosice.prize.currency) == (
+        10000.0,
+        "EUR",
+    )

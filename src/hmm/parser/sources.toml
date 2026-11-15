@@ -89,3 +89,47 @@ listings = ["https://bbicc.fon.bg.ac.rs/wp-sitemap-posts-page-1.xml"]
 team_size_min = 4
 team_size_max = 4
 eligibility = "Teams of four undergraduate students plus a faculty advisor, by invitation"
+
+[[source]]
+id = "icpc"
+adapter = "icpc"
+interval = "24h"
+rate = "10/min"
+priority = 70
+regions = ["seerc", "central-europe", "northwestern-europe", "swerc"]
+
+[[source]]
+id = "mlh"
+adapter = "mlh"
+interval = "12h"
+rate = "10/min"
+priority = 50
+regions = ["EMEA"]
+
+[[source]]
+id = "hackalendar"
+adapter = "hackalendar"
+interval = "12h"
+rate = "30/min"
+priority = 55
+
+[[source]]
+id = "kaggle"
+adapter = "kaggle"
+interval = "24h"
+rate = "12/min"
+priority = 50
+
+[[source]]
+id = "confs-tech"
+adapter = "confs_tech"
+interval = "24h"
+rate = "60/min"
+priority = 30
+
+[[source]]
+id = "devpost"
+adapter = "devpost"
+interval = "12h"
+rate = "30/min"
+priority = 45

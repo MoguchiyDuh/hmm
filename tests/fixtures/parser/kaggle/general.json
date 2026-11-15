@@ -1,0 +1,187 @@
+{
+ "competitions": [
+  {
+   "id": 178013,
+   "ref": "https://www.kaggle.com/competitions/physical-engineerings-last-exam",
+   "title": "Google - Agent Harness on Physical-Engineering's Last Exam",
+   "url": "https://www.kaggle.com/competitions/physical-engineerings-last-exam",
+   "description": "Build autonomous agent harnesses to solve real-world structural, civil, electrical, and mechanical engineering tasks",
+   "organizationName": "Google",
+   "category": "Featured",
+   "reward": "400,000 Usd",
+   "tags": [
+    {
+     "ref": "engineering",
+     "name": "engineering"
+    },
+    {
+     "ref": "nlp",
+     "name": "nlp"
+    },
+    {
+     "ref": "model comparison",
+     "name": "model comparison"
+    },
+    {
+     "ref": "agentic",
+     "name": "agentic"
+    }
+   ],
+   "deadline": "2027-01-05T23:59:59Z",
+   "teamCount": 33,
+   "mergerDeadline": "2027-01-05T23:59:59Z",
+   "enabledDate": "2026-11-09T19:19:06.950Z",
+   "maxDailySubmissions": 1,
+   "maxTeamSize": 5,
+   "hostName": "Google",
+   "dateCreated": "2026-11-02T19:02:09.759108300Z"
+  },
+  {
+   "id": 149921,
+   "ref": "https://www.kaggle.com/competitions/gemma-4-developer-agent",
+   "title": "Google - The Gemma 4 Developer Agent Competition",
+   "url": "https://www.kaggle.com/competitions/gemma-4-developer-agent",
+   "description": "Accelerate research in autonomous coding agents",
+   "organizationName": "Google DeepMind",
+   "category": "Featured",
+   "reward": "75,000 Usd",
+   "tags": [
+    {
+     "ref": "artificial intelligence",
+     "name": "artificial intelligence"
+    },
+    {
+     "ref": "coding",
+     "name": "coding"
+    },
+    {
+     "ref": "custom metric",
+     "name": "custom metric"
+    }
+   ],
+   "deadline": "2026-12-02T23:59:00Z",
+   "teamCount": 5810,
+   "mergerDeadline": "2026-11-25T23:59:00Z",
+   "newEntrantDeadline": "2026-11-25T23:59:00Z",
+   "enabledDate": "2026-09-23T14:05:47.363Z",
+   "maxDailySubmissions": 1,
+   "maxTeamSize": 5,
+   "evaluationMetric": "Gemma 4 Developer Agent (149921)",
+   "awardsPoints": true,
+   "hostName": "Google DeepMind",
+   "dateCreated": "2026-06-16T18:24:03.200176800Z",
+   "licenseName": "Apache 2.0"
+  },
+  {
+   "id": 166661,
+   "ref": "https://www.kaggle.com/competitions/squares-in-squares",
+   "title": "Squares in Squares",
+   "url": "https://www.kaggle.com/competitions/squares-in-squares",
+   "description": "Find the smallest enclosing square for N unit squares",
+   "organizationName": "Kaggle",
+   "category": "Playground",
+   "reward": "50,000 Usd",
+   "tags": [
+    {
+     "ref": "optimization",
+     "name": "optimization"
+    },
+    {
+     "ref": "mathematics",
+     "name": "mathematics"
+    },
+    {
+     "ref": "math",
+     "name": "math"
+    },
+    {
+     "ref": "custom metric",
+     "name": "custom metric"
+    }
+   ],
+   "deadline": "2027-07-18T23:59:00Z",
+   "teamCount": 2114,
+   "mergerDeadline": "2027-07-11T23:59:00Z",
+   "newEntrantDeadline": "2027-07-11T23:59:00Z",
+   "enabledDate": "2026-10-21T21:00:04.467Z",
+   "maxDailySubmissions": 10,
+   "maxTeamSize": 5,
+   "evaluationMetric": "Squares in Squares",
+   "hostName": "Kaggle",
+   "dateCreated": "2026-09-17T14:15:04.712937400Z",
+   "licenseName": "CC0: Public Domain"
+  },
+  {
+   "id": 125225,
+   "ref": "https://www.kaggle.com/competitions/playground-series-s6e11",
+   "title": "Predicting Credit Card Fraud",
+   "url": "https://www.kaggle.com/competitions/playground-series-s6e11",
+   "description": "Playground Series - Season 6 Episode 11",
+   "organizationName": "Kaggle",
+   "category": "Playground",
+   "reward": "3 Swag",
+   "tags": [
+    {
+     "ref": "beginner",
+     "name": "beginner"
+    },
+    {
+     "ref": "tabular",
+     "name": "tabular"
+    },
+    {
+     "ref": "roc auc score",
+     "name": "roc auc score"
+    }
+   ],
+   "deadline": "2026-11-30T23:59:00Z",
+   "teamCount": 1886,
+   "mergerDeadline": "2026-11-30T23:59:00Z",
+   "enabledDate": "2026-11-01T00:00:00Z",
+   "maxDailySubmissions": 10,
+   "maxTeamSize": 3,
+   "evaluationMetric": "Roc Auc Score",
+   "hostName": "Kaggle",
+   "dateCreated": "2025-12-03T22:49:45.227713300Z",
+   "licenseName": "Attribution 4.0 International (CC BY 4.0)"
+  },
+  {
+   "id": 3136,
+   "ref": "https://www.kaggle.com/competitions/titanic",
+   "title": "Titanic - Machine Learning from Disaster",
+   "url": "https://www.kaggle.com/competitions/titanic",
+   "description": "Start here! Predict survival on the Titanic and get familiar with ML basics",
+   "organizationName": "Kaggle",
+   "category": "Getting Started",
+   "reward": "Knowledge",
+   "tags": [
+    {
+     "ref": "beginner",
+     "name": "beginner"
+    },
+    {
+     "ref": "tabular",
+     "name": "tabular"
+    },
+    {
+     "ref": "binary classification",
+     "name": "binary classification"
+    },
+    {
+     "ref": "categorizationaccuracy",
+     "name": "categorizationaccuracy"
+    }
+   ],
+   "deadline": "2030-01-01T00:00:00Z",
+   "teamCount": 11387,
+   "mergerDeadline": "2030-01-01T00:00:00Z",
+   "enabledDate": "2012-09-28T21:13:33.550Z",
+   "maxDailySubmissions": 10,
+   "maxTeamSize": 10,
+   "evaluationMetric": "Categorization Accuracy",
+   "hostName": "Kaggle",
+   "dateCreated": "2012-09-14T16:40:22.604174100Z",
+   "licenseName": "Subject to Competition Rules"
+  }
+ ]
+}

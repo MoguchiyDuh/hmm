@@ -1,0 +1,90 @@
+{
+ "competitions": [
+  {
+   "id": 113664,
+   "ref": "https://www.kaggle.com/competitions/banana",
+   "title": "Nano Banana Hackathon",
+   "url": "https://www.kaggle.com/competitions/banana",
+   "description": "Compete for your share of over $400,000 in prizes",
+   "organizationName": "Google DeepMind",
+   "category": "Community",
+   "reward": "400,000 Usd",
+   "tags": [
+    {
+     "ref": "artificial intelligence",
+     "name": "artificial intelligence"
+    },
+    {
+     "ref": "beginner",
+     "name": "beginner"
+    },
+    {
+     "ref": "intermediate",
+     "name": "intermediate"
+    },
+    {
+     "ref": "advanced",
+     "name": "advanced"
+    },
+    {
+     "ref": "image generator",
+     "name": "image generator"
+    }
+   ],
+   "deadline": "2025-09-08T06:59:00Z",
+   "teamCount": 825,
+   "mergerDeadline": "2025-09-08T06:59:00Z",
+   "enabledDate": "2025-09-05T19:30:00Z",
+   "maxDailySubmissions": 5,
+   "maxTeamSize": 10,
+   "hostName": "Google DeepMind",
+   "dateCreated": "2025-08-28T15:12:17.583205900Z",
+   "licenseName": "Subject to Competition Rules"
+  },
+  {
+   "id": 157303,
+   "ref": "https://www.kaggle.com/competitions/neurips-2026-smart-buildings",
+   "title": "Smart Buildings Competition",
+   "url": "https://www.kaggle.com/competitions/neurips-2026-smart-buildings",
+   "description": "Train an efficient HVAC control system that generalizes to buildings it hasn't seen before.",
+   "organizationName": "University of Washington",
+   "category": "Community",
+   "reward": "40,000 Usd",
+   "tags": [
+    {
+     "ref": "mean absolute error",
+     "name": "mean absolute error"
+    }
+   ],
+   "deadline": "2027-01-15T17:59:59Z",
+   "teamCount": 764,
+   "mergerDeadline": "2026-12-03T23:59:59Z",
+   "newEntrantDeadline": "2026-12-03T23:59:59Z",
+   "enabledDate": "2026-10-13T20:06:22.087Z",
+   "maxDailySubmissions": 5,
+   "maxTeamSize": 5,
+   "evaluationMetric": "Mean Absolute Error",
+   "isKernelsSubmissionsOnly": true,
+   "hostName": "University of Washington",
+   "dateCreated": "2026-07-22T23:22:09.014133200Z",
+   "licenseName": "CC BY-NC-SA 4.0"
+  },
+  {
+   "id": 160984,
+   "ref": "https://www.kaggle.com/competitions/flag-os-open-computing-global-challenge-season-2",
+   "title": "FlagOS Open Computing Global Challenge (Season 2)",
+   "url": "https://www.kaggle.com/competitions/flag-os-open-computing-global-challenge-season-2",
+   "description": "The FlagOS Open Computing Global Challenge is a multi-season",
+   "category": "Community",
+   "reward": "14,925 Usd",
+   "deadline": "2026-12-30T16:00:00Z",
+   "teamCount": 8,
+   "mergerDeadline": "2026-12-30T16:00:00Z",
+   "enabledDate": "2026-08-18T03:08:50.333Z",
+   "maxDailySubmissions": 5,
+   "maxTeamSize": 10,
+   "dateCreated": "2026-08-14T02:57:36.080901900Z",
+   "tags": []
+  }
+ ]
+}

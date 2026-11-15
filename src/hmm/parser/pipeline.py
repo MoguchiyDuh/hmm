@@ -89,6 +89,8 @@ async def collect(
     ctx = SourceContext(source=source, fetcher=fetcher, now=now, areas=areas, env=env, log=log)
     try:
         instance = adapter or create_adapter(source)
+        for message in instance.warnings(ctx):
+            log.warning("parser %s: %s", source.id, message)
         async with asyncio.timeout(source.budget.total_seconds()):
             async for candidate in instance.discover(ctx):
                 run.candidates += 1

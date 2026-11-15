@@ -1,0 +1,62 @@
+{
+ "sha": "d63132da001c92453b9b360812a85808545afd52",
+ "url": "https://api.github.com/repos/tech-conferences/conference-data/git/trees/d63132da001c92453b9b360812a85808545afd52",
+ "tree": [
+  {
+   "path": "README.md",
+   "mode": "100644",
+   "type": "blob",
+   "sha": "b41d07c579890ba1499e180c83c6cbfe175203c9",
+   "size": 6821,
+   "url": "https://api.github.com/repos/tech-conferences/conference-data/git/blobs/b41d07c579890ba1499e180c83c6cbfe175203c9"
+  },
+  {
+   "path": "conferences",
+   "mode": "040000",
+   "type": "tree",
+   "sha": "69216af557f38dfaa52536126809b30b45987c95",
+   "url": "https://api.github.com/repos/tech-conferences/conference-data/git/trees/69216af557f38dfaa52536126809b30b45987c95"
+  },
+  {
+   "path": "conferences/2025/general.json",
+   "mode": "100644",
+   "type": "blob",
+   "sha": "596b5215f13160e67a9fff6fc52503b9412d5edc",
+   "size": 30758,
+   "url": "https://api.github.com/repos/tech-conferences/conference-data/git/blobs/596b5215f13160e67a9fff6fc52503b9412d5edc"
+  },
+  {
+   "path": "conferences/2026/devops.json",
+   "mode": "100644",
+   "type": "blob",
+   "sha": "4f718ba67555a27e0f84111a97b29da4fa351e12",
+   "size": 14222,
+   "url": "https://api.github.com/repos/tech-conferences/conference-data/git/blobs/4f718ba67555a27e0f84111a97b29da4fa351e12"
+  },
+  {
+   "path": "conferences/2026/general.json",
+   "mode": "100644",
+   "type": "blob",
+   "sha": "7274fd4789d304e08e8c9ed8147d7f8512f314d9",
+   "size": 18445,
+   "url": "https://api.github.com/repos/tech-conferences/conference-data/git/blobs/7274fd4789d304e08e8c9ed8147d7f8512f314d9"
+  },
+  {
+   "path": "conferences/2026/security.json",
+   "mode": "100644",
+   "type": "blob",
+   "sha": "7645584f4801a92ed4a3f07ee69ec015de7b56a8",
+   "size": 13137,
+   "url": "https://api.github.com/repos/tech-conferences/conference-data/git/blobs/7645584f4801a92ed4a3f07ee69ec015de7b56a8"
+  },
+  {
+   "path": "conferences/2027/general.json",
+   "mode": "100644",
+   "type": "blob",
+   "sha": "8ff479704318eb4330e56a02679be82294ae40dd",
+   "size": 5938,
+   "url": "https://api.github.com/repos/tech-conferences/conference-data/git/blobs/8ff479704318eb4330e56a02679be82294ae40dd"
+  }
+ ],
+ "truncated": false
+}

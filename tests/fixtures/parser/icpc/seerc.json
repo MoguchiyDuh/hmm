@@ -1,0 +1,172 @@
+{
+ "abbr": "SEERC",
+ "activeSites": [
+  {
+   "id": 39817,
+   "name": "Thessaloniki Greece",
+   "siteDate": "2026-12-13",
+   "email": "a.spitalas@upatras.gr",
+   "siteType": "NORMAL",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": true,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "University of Macedonia, Greece",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": "Thessaloniki",
+    "country": {
+     "a2": "GR",
+     "a3": "GRC",
+     "available": true,
+     "currency": "EUR",
+     "id": 82,
+     "name": "Greece",
+     "number": 300,
+     "version": 0
+    },
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 40.625,
+    "longitude": 22.9601
+   },
+   "enforceCapacity": false,
+   "capacityFull": false
+  }
+ ],
+ "closedForRegistration": false,
+ "contestDelivery": "ONSITE",
+ "contestType": "REGIONALS",
+ "email": "a.spitalas@upatras.gr",
+ "endDate": "2026-12-13",
+ "flickrPhotoAlbumLink": "",
+ "flickrPhotoAlbumTags": null,
+ "geographicArea": "Southeastern Europe",
+ "homepage": "",
+ "icpcYear": 2027,
+ "id": 9565,
+ "name": "The 2026 ICPC Southeastern Europe Regional Contest",
+ "problemsUrl": "",
+ "regActive": true,
+ "regEndDate": "2026-11-20",
+ "regStartDate": "2026-10-22",
+ "regional": false,
+ "reportUrl": "",
+ "resultsUrl": "",
+ "shortname": "ICPC Southeastern Europe RC",
+ "showPublicPagesType": "WITHOUT_PEOPLE",
+ "showTeamsInPublicPages": true,
+ "sites": [
+  {
+   "id": 39815,
+   "name": "Administrative Site",
+   "siteDate": null,
+   "email": "a.spitalas@upatras.gr",
+   "siteType": "ADMINISTRATIVE",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": false,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "Administrative Site Location",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": null,
+    "country": null,
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 0.0,
+    "longitude": 0.0
+   },
+   "enforceCapacity": false,
+   "capacityFull": true
+  },
+  {
+   "id": 39817,
+   "name": "Thessaloniki Greece",
+   "siteDate": "2026-12-13",
+   "email": "a.spitalas@upatras.gr",
+   "siteType": "NORMAL",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": true,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "University of Macedonia, Greece",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": "Thessaloniki",
+    "country": {
+     "a2": "GR",
+     "a3": "GRC",
+     "available": true,
+     "currency": "EUR",
+     "id": 82,
+     "name": "Greece",
+     "number": 300,
+     "version": 0
+    },
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 40.625,
+    "longitude": 22.9601
+   },
+   "enforceCapacity": false,
+   "capacityFull": false
+  },
+  {
+   "id": 39816,
+   "name": "Kyiv Ukraine",
+   "siteDate": "2026-12-13",
+   "email": "atsypko@kse.org.ua",
+   "siteType": "NORMAL",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": true,
+   "invitationOnly": true,
+   "additionalInfo": null,
+   "homepage": "https://kse.ua/",
+   "locationName": "KSE, Ukraine",
+   "address": {
+    "addressLine1": "Mykoly Shpaka St",
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": "Kyiv",
+    "country": {
+     "a2": "UA",
+     "a3": "UKR",
+     "available": true,
+     "currency": "UAG",
+     "id": 225,
+     "name": "Ukraine",
+     "number": 804,
+     "version": 0
+    },
+    "state": "",
+    "zip": "02000"
+   },
+   "latLong": {
+    "latitude": 50.458408,
+    "longitude": 30.430105
+   },
+   "enforceCapacity": false,
+   "capacityFull": false
+  }
+ ],
+ "startDate": "2026-12-11",
+ "superRegional": false,
+ "timezone": "UTC",
+ "worldFinals": false
+}

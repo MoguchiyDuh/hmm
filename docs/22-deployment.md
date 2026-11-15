@@ -49,6 +49,7 @@ Application:
 | `LLM_BASE_URL` `LLM_API_KEY` `LLM_MODEL` | worker | OpenAI-compatible chat endpoint |
 | `PARSER_SOURCES` | worker | Path to a parser sources TOML; default is the bundled `hmm/parser/sources.toml` (§19.5) |
 | `HACKATHONHUB_ANON_KEY` | worker | Optional pinned Supabase anon key for the `hackathonhub` adapter; discovered from the site bundle when unset |
+| `KAGGLE_API_TOKEN` | worker | Optional Kaggle API token (`KGAT_…`) for the `kaggle` adapter. Without it the adapter falls back to Kaggle's anonymous internal API, skips community competitions, and logs a warning every run |
 | `LOG_LEVEL` | api, worker, bot | `DEBUG`, `INFO` (default), `WARNING`, `ERROR` or `CRITICAL` |
 
 Production stack:

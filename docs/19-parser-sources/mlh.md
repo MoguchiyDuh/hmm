@@ -26,18 +26,10 @@ The listing is the whole season, split into two independently paginated lists in
 | upcoming | `props.upcomingEvents` | `?upcoming_page=N` | 1–2 (24 each) | 48 |
 | past | `props.pastEvents` | `?page=N` | 1–4 (24/24/24/13) | 85 |
 
-Paging only works with the Inertia headers:
+Paging: plain HTML GETs with the page params work (re-probed for the adapter, same day): `?upcoming_page=2` returns the next 24 upcoming events and `?page=2` the next past page, each as a full HTML page with the same `data-page` JSON. `scrollProps.<list>.nextPage` gives the next page number (`null` on the last page).
 
-```
-GET /seasons/2027/events?upcoming_page=2
-X-Inertia: true
-X-Inertia-Version: <page "version" value, e.g. 233dea28baaf5ec514a3bd1f3042198400fa2164>
-X-Requested-With: XMLHttpRequest
-→ 200, application/json, 43 KB (props only, same shape)
-```
+The Inertia JSON route no longer answers: `X-Inertia: true` with the page's own `X-Inertia-Version` (or any other value, or none, with or without the session cookie) returns **409 with an empty body** and `x-inertia-location` pointing at the same URL. The adapter does not use it.
 
-- Without `X-Inertia` the server ignores the param and returns the same page 1 HTML for every `?page=`/`?upcoming_page=` value (verified pages 2, 3, 5).
-- Wrong or missing `X-Inertia-Version` → **409 with an empty body**. Read `version` from the last HTML page load (changes per deploy).
 - `?page=2` alone moves `pastEvents` to page 2 and leaves `upcomingEvents` on page 1; `?upcoming_page=2` moves only `upcomingEvents`.
 - Season URL is the only discovery dimension; `/seasons/2028/events` → 404. `/seasons/2026/events` and `/seasons/2025/events` return `upcomingEvents: []` and `pastEvents: [24 …]` (page 1 only).
 - `sitemaps/events-*.xml` covers the archive of every `/events/<slug>` ever created (test events, peer-group calls, non-hackathons included) with `lastmod`, so it is a change feed for tracked items but a bad discovery feed.
@@ -55,7 +47,7 @@ X-Requested-With: XMLHttpRequest
 | `dateRange` | `NOV 13 - 15` | — | display string, no year |
 | `location` | `Timișoara, Timiș` | `location.city`/`state` | free text, no country |
 | `venueAddress.country` | `RO` | `location.country` | ISO-2, set on all 133 events sampled |
-| `formatType` | `physical` | `format` | only `physical` and `hybrid_physical` seen (133 events). No `online` |
+| `formatType` | `physical` | `format` | `physical`, `hybrid_physical`, and `digital` (online, `region: null`, e.g. Solana Hackathon) |
 | `region` | `EMEA` | — | `AMER`/`EMEA`/`APAC`, `null` on 6 past events. Use for cheap prefilter |
 | `websiteUrl` | `https://unihack.eu/` | `website_url` | organizer site, always external |
 | `customFields.hackathon_focus` | `["Software"]` | `themes` | present on ~10 % of events, else `[]` |
@@ -108,7 +100,7 @@ EMEA upcoming: UniHack (Timișoara, RO), Junction (Espoo, FI), DurHack (Durham, 
 ## Quirks
 
 - `mlh.io` is a redirector now; every URL must be followed to `www.mlh.com`, and the season path is `/seasons/<year>/events` (the site also answers `/seasons/<year>/events/` with a trailing slash).
-- Pagination is Inertia, not plain HTTP: two different page params, a required matching version, and 409-on-mismatch.
+- Two independent page params (`upcoming_page`, `page`); each page repeats page 1 of the other list. The `X-Inertia` JSON route answers 409.
 - The listing is a snapshot of one season; the 2027 season already holds 85 past events, so an adapter must read both lists.
 - No JSON-LD at all, so the `jsonld_sitemap`/`jsonld_pages` fallback extracts nothing — a dedicated adapter is justified.
 - `01:11:11Z` is a placeholder time for date-only events.

@@ -1,0 +1,12 @@
+{
+ "jsonrpc": "2.0",
+ "id": 1,
+ "result": {
+  "content": [
+   {
+    "type": "text",
+    "text": "{\n \"count\": 2,\n \"nextOffset\": null,\n \"events\": [\n  {\n   \"slug\": \"threat-intelligence-threat-modelling-hackathon-2026\",\n   \"name\": \"Threat Intelligence & Threat Modelling Hackathon\",\n   \"url\": \"https://hackalendar.com/e/threat-intelligence-threat-modelling-hackathon-2026\",\n   \"startsAt\": \"2026-12-04\",\n   \"endsAt\": \"2026-12-07T11:59:00.000Z\",\n   \"timezone\": \"Europe/Paris\",\n   \"temporalPrecision\": {\n    \"end\": \"datetime\",\n    \"start\": \"date\",\n    \"timezone\": \"unknown\"\n   },\n   \"location\": \"Online\",\n   \"countryCode\": null,\n   \"mode\": \"online\",\n   \"themes\": [\n    \"ai\",\n    \"data\"\n   ],\n   \"isFree\": true,\n   \"prizePool\": null,\n   \"organizer\": \"Apart Research\",\n   \"registrationUrl\": \"https://apartresearch.com/sprints/threat-intelligence-threat-modelling-2026\",\n   \"registrationDeadline\": null,\n   \"deadlineNote\": \"In 18 days\",\n   \"happeningNow\": false,\n   \"pickNote\": null,\n   \"picked\": false,\n   \"pickedAt\": null,\n   \"cancelled\": false\n  },\n  {\n   \"slug\": \"eu-vibe-coding-hackathon-from-idea-to-subscription-in-48h-2026\",\n   \"name\": \"EU Vibe Coding Hackathon: From Idea to Subscription in 48h\",\n   \"url\": \"https://hackalendar.com/e/eu-vibe-coding-hackathon-from-idea-to-subscription-in-48h-2026\",\n   \"startsAt\": \"2026-12-18T17:00:00.000Z\",\n   \"endsAt\": \"2026-12-20T18:00:00.000Z\",\n   \"timezone\": \"Europe/Paris\",\n   \"temporalPrecision\": {\n    \"end\": \"datetime\",\n    \"start\": \"datetime\",\n    \"timezone\": \"published\"\n   },\n   \"location\": \"Location to confirm\",\n   \"countryCode\": null,\n   \"mode\": \"in_person\",\n   \"themes\": [],\n   \"isFree\": true,\n   \"prizePool\": \"\\u20ac1,000\",\n   \"organizer\": \"The AI Fellowship\",\n   \"registrationUrl\": \"https://lu.ma/b3ckj1xy\",\n   \"registrationDeadline\": null,\n   \"deadlineNote\": \"In 33 days\",\n   \"happeningNow\": false,\n   \"pickNote\": null,\n   \"picked\": false,\n   \"pickedAt\": null,\n   \"cancelled\": false\n  }\n ]\n}"
+   }
+  ]
+ }
+}

@@ -1,0 +1,81 @@
+{
+ "hackathons": [
+  {
+   "id": 31602,
+   "title": "Hackathon 2026",
+   "displayed_location": {
+    "icon": "map-marker-alt",
+    "location": "Technical University of Košice - Library"
+   },
+   "open_state": "upcoming",
+   "thumbnail_url": "//d112y698adiu2z.cloudfront.net/photos/production/challenge_thumbnails/005/490/884/datas/medium_square.png",
+   "analytics_identifier": "Hackathon 2026 (31602)",
+   "url": "https://dtit-hackathon-2026.devpost.com/",
+   "time_left_to_submission": "Upcoming",
+   "submission_period_dates": "Nov 28 - 29, 2026",
+   "themes": [
+    {
+     "id": 23,
+     "name": "Beginner Friendly"
+    },
+    {
+     "id": 22,
+     "name": "Open Ended"
+    }
+   ],
+   "prize_amount": "€<span data-currency-value>10,000</span>",
+   "prizes_counts": {
+    "cash": 7,
+    "other": 0
+   },
+   "registrations_count": 3,
+   "featured": false,
+   "organization_name": "Deutsche Telekom IT Solutions Slovakia",
+   "winners_announced": false,
+   "submission_gallery_url": "https://dtit-hackathon-2026.devpost.com/project-gallery",
+   "start_a_submission_url": "https://dtit-hackathon-2026.devpost.com/challenges/start_a_submission",
+   "invite_only": true,
+   "eligibility_requirement_invite_only_description": "Only participants registered via company website",
+   "managed_by_devpost_badge": false
+  },
+  {
+   "id": 32111,
+   "title": "Sandbox test 2",
+   "displayed_location": {
+    "icon": "map-marker-alt",
+    "location": "Edmonton, Canada"
+   },
+   "open_state": "open",
+   "thumbnail_url": "https://assets.devpost.com/assets/defaults/thumbnail-placeholder-8c916ef4da99a222ce6ece077c71c7e282f071f830747b2abb5718018cbfa699.gif",
+   "analytics_identifier": "Sandbox test 2 (32111)",
+   "url": "https://sandbox-test-2.devpost.com/",
+   "time_left_to_submission": "6 days left",
+   "submission_period_dates": "Nov 12 - 19, 2026",
+   "themes": [
+    {
+     "id": 23,
+     "name": "Beginner Friendly"
+    }
+   ],
+   "prize_amount": "$CAD <span data-currency-value>28</span>",
+   "prizes_counts": {
+    "cash": 1,
+    "other": 0
+   },
+   "registrations_count": 2,
+   "featured": false,
+   "organization_name": "NAIT",
+   "winners_announced": false,
+   "submission_gallery_url": "https://sandbox-test-2.devpost.com/project-gallery",
+   "start_a_submission_url": "https://sandbox-test-2.devpost.com/challenges/start_a_submission",
+   "invite_only": true,
+   "eligibility_requirement_invite_only_description": "NAIT Students",
+   "managed_by_devpost_badge": false
+  }
+ ],
+ "meta": {
+  "total_count": 6,
+  "per_page": 4,
+  "fuzzy": false
+ }
+}

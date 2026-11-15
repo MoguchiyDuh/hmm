@@ -1,0 +1,161 @@
+{
+ "hackathons": [
+  {
+   "id": 31667,
+   "title": "Kiroween 2026",
+   "displayed_location": {
+    "icon": "globe",
+    "location": "Online"
+   },
+   "open_state": "open",
+   "thumbnail_url": "//d112y698adiu2z.cloudfront.net/photos/production/challenge_thumbnails/005/585/149/datas/medium_square.png",
+   "analytics_identifier": "Kiroween 2026 (31667)",
+   "url": "https://kiroween.devpost.com/",
+   "time_left_to_submission": "19 days left",
+   "submission_period_dates": "Oct 30 - Dec 04, 2026",
+   "themes": [
+    {
+     "id": 23,
+     "name": "Beginner Friendly"
+    },
+    {
+     "id": 6,
+     "name": "Machine Learning/AI"
+    },
+    {
+     "id": 22,
+     "name": "Open Ended"
+    }
+   ],
+   "prize_amount": "$<span data-currency-value>100,000</span>",
+   "prizes_counts": {
+    "cash": 15,
+    "other": 2
+   },
+   "registrations_count": 14248,
+   "featured": true,
+   "organization_name": "Kiro",
+   "winners_announced": false,
+   "submission_gallery_url": "https://kiroween.devpost.com/project-gallery",
+   "start_a_submission_url": "https://kiroween.devpost.com/challenges/start_a_submission",
+   "invite_only": false,
+   "eligibility_requirement_invite_only_description": null,
+   "managed_by_devpost_badge": true
+  },
+  {
+   "id": 31655,
+   "title": "HackSussex GameJam 2026",
+   "displayed_location": {
+    "icon": "map-marker-alt",
+    "location": "Brighton"
+   },
+   "open_state": "upcoming",
+   "thumbnail_url": "//d112y698adiu2z.cloudfront.net/photos/production/challenge_thumbnails/005/774/255/datas/medium_square.png",
+   "analytics_identifier": "HackSussex GameJam 2026 (31655)",
+   "url": "https://hacksussex-gamejam-2026.devpost.com/",
+   "time_left_to_submission": "Upcoming",
+   "submission_period_dates": "Dec 05 - 06, 2026",
+   "themes": [
+    {
+     "id": 4,
+     "name": "Gaming"
+    }
+   ],
+   "prize_amount": "£<span data-currency-value>0</span>",
+   "prizes_counts": {
+    "cash": 1,
+    "other": 0
+   },
+   "registrations_count": 98,
+   "featured": false,
+   "organization_name": "HackSussex",
+   "winners_announced": false,
+   "submission_gallery_url": "https://hacksussex-gamejam-2026.devpost.com/project-gallery",
+   "start_a_submission_url": "https://hacksussex-gamejam-2026.devpost.com/challenges/start_a_submission",
+   "invite_only": false,
+   "eligibility_requirement_invite_only_description": null,
+   "managed_by_devpost_badge": false
+  },
+  {
+   "id": 30880,
+   "title": "DevFest Münster 2026: Agentic AI Hackathon",
+   "displayed_location": {
+    "icon": "map-marker-alt",
+    "location": "Volkshochschule"
+   },
+   "open_state": "upcoming",
+   "thumbnail_url": "//d112y698adiu2z.cloudfront.net/photos/production/challenge_thumbnails/005/339/368/datas/medium_square.png",
+   "analytics_identifier": "DevFest Münster 2026: Agentic AI Hackathon (30880)",
+   "url": "https://devfest-ai-hackathon.devpost.com/",
+   "time_left_to_submission": "Upcoming",
+   "submission_period_dates": "Nov 21, 2026",
+   "themes": [
+    {
+     "id": 23,
+     "name": "Beginner Friendly"
+    },
+    {
+     "id": 17,
+     "name": "Low/No Code"
+    },
+    {
+     "id": 6,
+     "name": "Machine Learning/AI"
+    }
+   ],
+   "prize_amount": "$<span data-currency-value>0</span>",
+   "prizes_counts": {
+    "cash": 0,
+    "other": 3
+   },
+   "registrations_count": 37,
+   "featured": false,
+   "organization_name": "GDG Münster",
+   "winners_announced": false,
+   "submission_gallery_url": "https://devfest-ai-hackathon.devpost.com/project-gallery",
+   "start_a_submission_url": "https://devfest-ai-hackathon.devpost.com/challenges/start_a_submission",
+   "invite_only": false,
+   "eligibility_requirement_invite_only_description": null,
+   "managed_by_devpost_badge": false
+  },
+  {
+   "id": 31088,
+   "title": "Haven Seattle",
+   "displayed_location": {
+    "icon": "map-marker-alt",
+    "location": "Seattle, Washington, USA"
+   },
+   "open_state": "open",
+   "thumbnail_url": "//d112y698adiu2z.cloudfront.net/photos/production/challenge_thumbnails/005/577/271/datas/medium_square.png",
+   "analytics_identifier": "Haven Seattle (31088)",
+   "url": "https://haven-seattle.devpost.com/",
+   "time_left_to_submission": "1 day left",
+   "submission_period_dates": "Nov 14 - 15, 2026",
+   "themes": [
+    {
+     "id": 18,
+     "name": "Design"
+    }
+   ],
+   "prize_amount": "$<span data-currency-value>100</span>",
+   "prizes_counts": {
+    "cash": 1,
+    "other": 0
+   },
+   "registrations_count": 4,
+   "featured": false,
+   "organization_name": "Hack Club",
+   "winners_announced": false,
+   "submission_gallery_url": "https://haven-seattle.devpost.com/project-gallery",
+   "start_a_submission_url": "https://haven-seattle.devpost.com/challenges/start_a_submission",
+   "invite_only": false,
+   "eligibility_requirement_invite_only_description": null,
+   "managed_by_devpost_badge": false
+  }
+ ],
+ "meta": {
+  "total_count": 6,
+  "per_page": 4,
+  "fuzzy": false
+ }
+}

@@ -12,7 +12,7 @@ from pydantic import ValidationError
 from hmm.catalog.import_schema import EventImport
 from hmm.common import Contract, EventFormat
 from hmm.parser.config import SourceConfig, SourceConfigError
-from hmm.parser.fetch import Fetched, Fetcher
+from hmm.parser.fetch import Fetched, Fetcher, Params
 from hmm.parser.normalize import EUROPE
 
 EMPTY = (None, "", [], {})
@@ -42,9 +42,10 @@ class SourceContext:
         self,
         url: str,
         *,
-        params: Mapping[str, str | int] | None = None,
+        params: Params | None = None,
         headers: Mapping[str, str] | None = None,
         accept: frozenset[int] = frozenset({200}),
+        rate_key: str | None = None,
     ) -> Fetched:
         return await self.fetcher.get(
             url,
@@ -54,6 +55,30 @@ class SourceContext:
             params=params,
             headers=headers,
             accept=accept,
+            rate_key=rate_key,
+        )
+
+    async def post(
+        self,
+        url: str,
+        body: Any,
+        *,
+        params: Params | None = None,
+        headers: Mapping[str, str] | None = None,
+        accept: frozenset[int] = frozenset({200}),
+        rate_key: str | None = None,
+    ) -> Fetched:
+        return await self.fetcher.request(
+            "POST",
+            url,
+            spacing=self.source.spacing,
+            request_timeout=self.source.timeout,
+            max_bytes=self.source.max_bytes,
+            params=params,
+            headers=headers,
+            body=body,
+            accept=accept,
+            rate_key=rate_key,
         )
 
     def in_scope(self, country: str | None, fmt: EventFormat | None) -> bool:
@@ -83,6 +108,9 @@ class Adapter[O: Contract](ABC):
     @property
     def extractor_version(self) -> str:
         return f"{self.name}/{self.version}"
+
+    def warnings(self, ctx: SourceContext) -> list[str]:
+        return []
 
     @abstractmethod
     def discover(self, ctx: SourceContext) -> AsyncIterator[Candidate]: ...

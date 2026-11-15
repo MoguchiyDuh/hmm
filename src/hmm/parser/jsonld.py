@@ -136,12 +136,12 @@ def location(node: Node, index: dict[str, Node]) -> dict[str, str | None]:
     if not isinstance(address, dict):
         return {"country": country_in_text(name) if name else None, "city": None, "address": None}
     region = text(address.get("addressRegion"))
+    street = text(address.get("streetAddress"))
     country = (
         country_code(text(address.get("addressCountry")))
         or country_code(region)
-        or country_in_text(" ".join(part for part in (region, name) if part))
+        or country_in_text(" ".join(part for part in (region, name, street) if part))
     )
-    street = text(address.get("streetAddress"))
     city = city_name(text(address.get("addressLocality")))
     venue = name if name and name != city and "," not in name else None
     return {

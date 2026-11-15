@@ -9,6 +9,11 @@ Probed 2026-11-15. Adapter: `kaggle`. Kinds: contest (some titled "hackathon").
 - `kaggle` 2.2.5 imports `six` without declaring it: install with `--with six` or add it as a dependency.
 - Alternative without a token: the site's internal endpoint `POST https://www.kaggle.com/api/i/competitions.CompetitionService/ListCompetitions` with `{"pageSize":100,"listOption":"LIST_OPTION_ACTIVE"}` answers anonymously (survey, not re-probed) and adds `totalCompetitors`, `numPrizes`, `rulesRequired`. Its `sortBy` and `listOption` were ignored, so filter client-side.
 
+## Adapter re-probe (2026-11-15)
+
+- Official RPC body uses the SDK's enum names: `{"group": "COMPETITION_LIST_TAB_GENERAL" | "COMPETITION_LIST_TAB_COMMUNITY", "sortBy": "COMPETITION_SORT_BY_PRIZE", "pageSize": 20, "page": N, "pageToken": …}`. Lower-case `group` values are silently ignored. `general` = 20 rows, no next token. `community` returns no `nextPageToken` either, but legacy `page` works; sorted by prize it is 20 cash rows per page down to 1,000 Usd by page 8, mixed with ended competitions.
+- Anonymous internal endpoint (`{"pageSize": 100, "listOption": "LIST_OPTION_ACTIVE"}`, browser UA, no cookie or XSRF needed) returns **762** rows of all history sorted by prize, `nextPageToken` = offset (`"100"`, `"200"`, …), 270–390 KB per page. It omits community competitions. `reward` is `{id: "USD", quantity: 400000}`; slug is `competitionName`; new-entrant deadline is `prohibitNewEntrantsExplicitDeadline`. A `selector` wrapper body is rejected with 400.
+
 ## Discovery
 
 `competitions_list(group, category, sort_by, page, search, page_size, page_token)`.

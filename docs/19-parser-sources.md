@@ -1,6 +1,6 @@
 # 19. Parser: sources and adapters
 
-Survey of 2026-11-15. The first adapter batch is implemented (§19.6): `hackathonhub`, `hackathonist`, `ctftime`, `luma`, `jsonld_pages`. Access methods, volumes and counts were tested on the survey date and will drift. Tier 1 sources and Kaggle were probed live; their observed behavior, field mappings and config sketches are in [19-parser-sources/](19-parser-sources/), one file per source.
+Survey of 2026-11-15. Implemented adapters (§19.6): `hackathonhub`, `hackathonist`, `ctftime`, `luma`, `jsonld_pages`, `icpc`, `mlh`, `hackalendar`, `kaggle`, `confs_tech`, `devpost`. Access methods, volumes and counts were tested on the survey date and will drift. Tier 1 sources and Kaggle were probed live; their observed behavior, field mappings and config sketches are in [19-parser-sources/](19-parser-sources/), one file per source.
 
 ## Access policy
 

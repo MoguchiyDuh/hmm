@@ -4,7 +4,7 @@ import json
 import re
 import socket
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlsplit
@@ -17,6 +17,7 @@ RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
 
 type Resolver = Callable[[str, int], Awaitable[list[str]]]
 type Sleeper = Callable[[float], Awaitable[None]]
+type Params = Mapping[str, str | int | Sequence[str | int]]
 
 
 class FetchError(Exception):
@@ -72,20 +73,50 @@ class Fetcher:
         spacing: float,
         request_timeout: float,
         max_bytes: int,
-        params: Mapping[str, str | int] | None = None,
+        params: Params | None = None,
         headers: Mapping[str, str] | None = None,
         accept: frozenset[int] = frozenset({200}),
+        rate_key: str | None = None,
+    ) -> Fetched:
+        return await self.request(
+            "GET",
+            url,
+            spacing=spacing,
+            request_timeout=request_timeout,
+            max_bytes=max_bytes,
+            params=params,
+            headers=headers,
+            accept=accept,
+            rate_key=rate_key,
+        )
+
+    async def request(
+        self,
+        method: str,
+        url: str,
+        *,
+        spacing: float,
+        request_timeout: float,
+        max_bytes: int,
+        params: Params | None = None,
+        headers: Mapping[str, str] | None = None,
+        body: Any = None,
+        accept: frozenset[int] = frozenset({200}),
+        rate_key: str | None = None,
     ) -> Fetched:
         attempt = 0
         while True:
             try:
                 fetched = await self._follow(
+                    method,
                     url,
                     spacing=spacing,
                     request_timeout=request_timeout,
                     max_bytes=max_bytes,
                     params=params,
                     headers=headers,
+                    body=body,
+                    rate_key=rate_key,
                 )
             except httpx.TransportError as error:
                 if attempt >= self.retries:
@@ -105,30 +136,35 @@ class Fetcher:
 
     async def _follow(
         self,
+        method: str,
         url: str,
         *,
         spacing: float,
         request_timeout: float,
         max_bytes: int,
-        params: Mapping[str, str | int] | None,
+        params: Params | None,
         headers: Mapping[str, str] | None,
+        body: Any,
+        rate_key: str | None,
     ) -> Fetched:
         current = url
         query = params
+        follow = method == "GET"
         for _ in range(MAX_REDIRECTS + 1):
             await self._guard(current)
-            await self._wait(urlsplit(current).hostname or "", spacing)
+            await self._wait(rate_key or urlsplit(current).hostname or "", spacing)
             request = self.client.build_request(
-                "GET",
+                method,
                 current,
                 params=query,
                 headers={"User-Agent": self.user_agent, **(headers or {})},
+                json=body,
                 timeout=request_timeout,
             )
             self.requests += 1
             response = await self.client.send(request, stream=True, follow_redirects=False)
             try:
-                if response.is_redirect and "location" in response.headers:
+                if follow and response.is_redirect and "location" in response.headers:
                     current = urljoin(str(response.url), response.headers["location"])
                     query = None
                     continue

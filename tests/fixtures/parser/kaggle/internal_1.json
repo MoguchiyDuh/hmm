@@ -1,0 +1,107 @@
+{
+ "competitions": [
+  {
+   "id": 6775,
+   "competitionName": "passenger-screening-algorithm-challenge",
+   "title": "Passenger Screening Algorithm Challenge",
+   "briefDescription": "Improve the accuracy of the Department of Homeland Security's threat recognition algorithms",
+   "dateEnabled": "2017-06-22T16:00:23.557Z",
+   "deadline": "2017-12-15T23:59:00Z",
+   "maxTeamSize": 20,
+   "reward": {
+    "id": "USD",
+    "quantity": 1500000
+   },
+   "prohibitNewEntrantsExplicitDeadline": "2017-12-04T23:59:00Z",
+   "teamMergerExplicitDeadline": "2017-12-04T23:59:00Z",
+   "organization": {
+    "slug": "dhs",
+    "name": "Department of Homeland Security",
+    "thumbnailImageUrl": "https://storage.googleapis.com/kaggle-organizations/384/thumbnail.png%3Fr=232",
+    "profileUrl": "/organizations/dhs"
+   },
+   "hostName": "Department of Homeland Security",
+   "categories": [
+    {
+     "name": "image"
+    },
+    {
+     "name": "logloss"
+    }
+   ],
+   "competitionHostSegmentId": 1
+  },
+  {
+   "id": 178013,
+   "competitionName": "physical-engineerings-last-exam",
+   "title": "Google - Agent Harness on Physical-Engineering's Last Exam",
+   "briefDescription": "Build autonomous agent harnesses to solve real-world structural, civil, electrical, and mechanical engineering tasks",
+   "dateEnabled": "2026-11-09T19:19:06.950Z",
+   "deadline": "2027-01-05T23:59:59Z",
+   "maxTeamSize": 5,
+   "reward": {
+    "id": "USD",
+    "quantity": 400000
+   },
+   "organization": {
+    "slug": "google",
+    "name": "Google",
+    "thumbnailImageUrl": "https://storage.googleapis.com/kaggle-organizations/855/thumbnail.png",
+    "profileUrl": "/organizations/google"
+   },
+   "hostName": "Google",
+   "categories": [
+    {
+     "name": "agentic"
+    },
+    {
+     "name": "engineering"
+    },
+    {
+     "name": "model comparison"
+    },
+    {
+     "name": "nlp"
+    }
+   ],
+   "competitionHostSegmentId": 1
+  },
+  {
+   "id": 149921,
+   "competitionName": "gemma-4-developer-agent",
+   "title": "Google - The Gemma 4 Developer Agent Competition",
+   "briefDescription": "Accelerate research in autonomous coding agents",
+   "dateEnabled": "2026-09-23T14:05:47.363Z",
+   "deadline": "2026-12-02T23:59:00Z",
+   "maxTeamSize": 5,
+   "reward": {
+    "id": "USD",
+    "quantity": 75000,
+    "clarification": "1st Place - $37,000 2nd Place - $18,000 3rd Place - $10,000"
+   },
+   "prohibitNewEntrantsExplicitDeadline": "2026-11-25T23:59:00Z",
+   "teamMergerExplicitDeadline": "2026-11-25T23:59:00Z",
+   "organization": {
+    "slug": "deepmind",
+    "name": "Google DeepMind",
+    "thumbnailImageUrl": "https://storage.googleapis.com/kaggle-organizations/3823/thumbnail.png",
+    "profileUrl": "/organizations/deepmind"
+   },
+   "hostName": "Google DeepMind",
+   "categories": [
+    {
+     "name": "coding"
+    },
+    {
+     "name": "artificial intelligence"
+    },
+    {
+     "name": "custom metric"
+    }
+   ],
+   "competitionHostSegmentId": 1
+  }
+ ],
+ "totalResults": 6,
+ "nextPageToken": "100"
+}

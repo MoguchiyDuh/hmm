@@ -24,6 +24,7 @@ x-core-environment: &core-environment
   LLM_BASE_URL: ${LLM_BASE_URL:-}
   LLM_API_KEY: ${LLM_API_KEY:-}
   LLM_MODEL: ${LLM_MODEL:-}
+  KAGGLE_API_TOKEN: ${KAGGLE_API_TOKEN:-}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
 
 services:

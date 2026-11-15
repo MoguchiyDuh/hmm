@@ -1,0 +1,145 @@
+{
+ "abbr": "Central-Europe",
+ "activeSites": [
+  {
+   "id": 40036,
+   "name": "CERC",
+   "siteDate": "2027-01-10",
+   "email": "cerc26@cs.uni.wroc.pl",
+   "siteType": "NORMAL",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": true,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "Wrocław, Poland",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": null,
+    "country": null,
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 0.0,
+    "longitude": 0.0
+   },
+   "enforceCapacity": false,
+   "capacityFull": false
+  }
+ ],
+ "closedForRegistration": false,
+ "contestDelivery": "ONSITE",
+ "contestType": "REGIONALS",
+ "email": "cerc26@cs.uni.wroc.pl",
+ "endDate": "2027-01-10",
+ "flickrPhotoAlbumLink": "",
+ "flickrPhotoAlbumTags": null,
+ "geographicArea": "Austria, Croatia, Czech Republic, Hungary, Latvia, Poland, Slovakia and Slovenia",
+ "homepage": "",
+ "icpcYear": 2027,
+ "id": 9588,
+ "name": "The 2026 ICPC Central Europe Regional Contest",
+ "problemsUrl": "",
+ "regActive": true,
+ "regEndDate": "2026-11-30",
+ "regStartDate": "2026-11-09",
+ "regional": false,
+ "reportUrl": "",
+ "resultsUrl": "",
+ "shortname": "ICPC Central Europe RC",
+ "showPublicPagesType": "WITHOUT_PEOPLE",
+ "showTeamsInPublicPages": true,
+ "sites": [
+  {
+   "id": 40035,
+   "name": "Administrative Site",
+   "siteDate": null,
+   "email": "cerc25@cs.uni.wroc.pl",
+   "siteType": "ADMINISTRATIVE",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": false,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "Administrative Site Location",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": null,
+    "country": null,
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 0.0,
+    "longitude": 0.0
+   },
+   "enforceCapacity": false,
+   "capacityFull": true
+  },
+  {
+   "id": 40036,
+   "name": "CERC",
+   "siteDate": "2027-01-10",
+   "email": "cerc26@cs.uni.wroc.pl",
+   "siteType": "NORMAL",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": true,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "Wrocław, Poland",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": null,
+    "country": null,
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 0.0,
+    "longitude": 0.0
+   },
+   "enforceCapacity": false,
+   "capacityFull": false
+  },
+  {
+   "id": 40037,
+   "name": "CERC unofficial",
+   "siteDate": null,
+   "email": "cerc25@cs.uni.wroc.pl",
+   "siteType": "ADMINISTRATIVE",
+   "siteDelivery": "ONSITE",
+   "allowRegistration": false,
+   "invitationOnly": false,
+   "additionalInfo": null,
+   "homepage": null,
+   "locationName": "Wrocław, Poland",
+   "address": {
+    "addressLine1": null,
+    "addressLine2": null,
+    "addressLine3": null,
+    "city": null,
+    "country": null,
+    "state": "",
+    "zip": null
+   },
+   "latLong": {
+    "latitude": 0.0,
+    "longitude": 0.0
+   },
+   "enforceCapacity": false,
+   "capacityFull": false
+  }
+ ],
+ "startDate": "2027-01-08",
+ "superRegional": false,
+ "timezone": "UTC",
+ "worldFinals": false
+}

@@ -78,6 +78,10 @@ Package `hmm.parser`. Sources are configured in `src/hmm/parser/sources.toml` (o
 
 **Areas.** Known area keys only (`list_areas`; the dry run uses the seed keys), from a keyword map over tags and titles. First match is `primary`, the rest `nice`.
 
+**Adapter warnings.** An adapter can report setup warnings (e.g. `kaggle` without `KAGGLE_API_TOKEN`); they are logged once per instance run, by the job and the dry run alike.
+
+**Fetching.** GET follows up to 5 redirects with the SSRF check on every hop; POST sends a JSON body and never follows redirects. Spacing is per host unless the adapter passes a shared rate key (`devpost` spaces its listing API and all `<slug>.devpost.com` pages as one host).
+
 **Dry run.** `hmm-parser [--config PATH] [--source ID]… [--list] [-v]` prints `EventImport` JSONL to stdout and per-source stats to stderr, and touches no database. Exit code 1 when a source reported errors.
 
 **Shared instance keys:**
@@ -88,7 +92,7 @@ Package `hmm.parser`. Sources are configured in `src/hmm/parser/sources.toml` (o
 | `adapter` | required | adapter name |
 | `enabled` | `true` | |
 | `interval` | `12h` | minimum time between runs (`s`, `m`, `h`, `d`) |
-| `rate` | 1 request/s | per-host spacing, `N/min`, `N/10s`, `N/h` |
+| `rate` | 1 request/s | per-host (or per rate key) spacing, `N/min`, `N/10s`, `N/h` |
 | `timeout` | `30` | seconds per request |
 | `max_bytes` | 8 MiB | response size cap |
 | `budget` | `10m` | wall-clock limit for the instance |
@@ -102,7 +106,7 @@ Package `hmm.parser`. Sources are configured in `src/hmm/parser/sources.toml` (o
 
 Any other key is an adapter option; unknown options fail the load.
 
-**Adapters (first batch):**
+**Adapters:**
 
 | adapter | options | confidence | notes |
 |---|---|---|---|
@@ -111,6 +115,12 @@ Any other key is an adapter option; unknown options fail the load.
 | `ctftime` | `api`, `window_days` (120), `limit` (200) | 0.85 | Country parsed from onsite `location` text; team size from description prose |
 | `luma` | `calendars` (required), `api`, `site`, `page_limit`, `max_pages`, `details`, `kind` | 0.85 | `future` and `past` items; `past` paging stops at the lookback cutoff. `event/get` per in-scope event for the ProseMirror description and locale |
 | `jsonld_pages` | `listings` (URL or `{url, kind}`), `follow`, `id_pattern`, `kind`, `guess_kind`, `max_follow` | 0.8 | Without `follow`, Event JSON-LD is read from the listing itself; with `follow`, regex matches in the listing are fetched as detail pages. `id_pattern` group 1 is the local id (else the last URL path segment); non-matching URLs are skipped. Date-only or midnight-to-midnight events become local whole days |
+| `icpc` | `api`, `finder`, `regions` (finder slugs) | 0.85 | `GET /api/contest/public/<slug>` per region; 404 = no current contest. One event per `NORMAL` site as `<contestId>:<siteId>`; administrative, "delete me" and "unofficial" sites dropped; when any site has a `siteDate`, undated sites are dropped. Country from `address.country.a2`, else site name/location text. Multi-site titles get "— <city or site name>". Contest dates and registration window are whole local days; team of 3 is inferred |
+| `mlh` | `site`, `regions` (`["EMEA"]`), `max_pages` (10) | 0.8 | Season pages `/seasons/<year>/events` from the cutoff's season through next season (404 accepted). Inertia page JSON from `<script data-page="app">`; plain `?upcoming_page=N` / `?page=N` paging (the `X-Inertia` JSON route answers 409). Past paging stops once a page ends before the cutoff. `01:11:11Z` starts and `23:59:59Z` ends are date-only placeholders → local whole days. Region filter skips events with a non-matching `region`; `null` regions are kept |
+| `hackalendar` | `endpoint`, `page_size` (50), `max_pages`, `details` (`true`) | 0.85 | JSON-RPC `tools/call` on the public MCP endpoint (stateless, no `initialize`): `search_hackathons {limit, offset}` paged by `nextOffset`, then `get_hackathon {slug}` for description and venue. `temporalPrecision: date` → local whole day; `cancelled: true` → cancelled; `prizePool` text parsed for amount and currency |
+| `kaggle` | `token_env` (`KAGGLE_API_TOKEN`), `api`, `internal`, `site`, `min_reward` (1000), `community_pages` (6), `max_pages` (6), `skip_categories` (`["Getting Started"]`) | 0.85 | With a token: official `ListCompetitions` (Bearer), group `general` plus `community` sorted by prize until the reward drops under `min_reward`. Without one: anonymous internal `ListCompetitions` (prize-sorted, no community) and a setup warning. Only cash rewards ≥ `min_reward`; deadlines in 2100+ are placeholders. Registration deadline = new-entrant deadline, else merger deadline, else the end |
+| `confs_tech` | `repo`, `branch`, `raw`, `api`, `topics` (32 topics), `years_ahead` (1) | 0.8 | Files `conferences/<year>/<topic>.json` for the cutoff year through `years_ahead`, listed from the git tree API (fallback: `topics`, 404 accepted). Rows deduped on `(lower(name), startDate)` with topics merged into themes; id `<slug>@<startDate>`. `online` + city = hybrid, city only = offline, `online` only = online. CFP link goes into the description |
+| `devpost` | `api`, `statuses` (`open`, `upcoming`), `per_page` (40), `max_pages`, `details` (`true`), `rate_key` | 0.8 with site JSON-LD, 0.7 listing only | `/api/hackathons` listing; in-person rows whose location text names an out-of-scope country are dropped before any detail fetch. `<slug>.devpost.com` JSON-LD gives ISO dates, format, address (country from the street line), status and prize pool; listing text dates are the fallback. Online events get the end as registration deadline. Sandbox/test titles skipped |
 
 **Instances:**
 
@@ -123,5 +133,11 @@ Any other key is an adapter option; unknown options fail the load.
 | `gdg-rs` | `jsonld_pages` | 12h | 1/2s | RS; GDG Belgrade and GDG on Campus Belgrade chapters |
 | `dev-events` | `jsonld_pages` | 24h | 20/min | Europe, offline; Serbia and neighbouring country pages, Serbian meetups |
 | `bbicc` | `jsonld_pages` | 24h | 10/min | RS; team of 4 defaults |
+| `icpc` | `icpc` | 24h | 10/min | Europe; SEERC, CERC, NWERC, SWERC |
+| `mlh` | `mlh` | 12h | 10/min | Europe (EMEA region), online |
+| `hackalendar` | `hackalendar` | 12h | 30/min | Europe, online |
+| `kaggle` | `kaggle` | 24h | 12/min | online; official API when `KAGGLE_API_TOKEN` is set |
+| `confs-tech` | `confs_tech` | 24h | 60/min | Europe, online/hybrid |
+| `devpost` | `devpost` | 12h | 30/min | Europe, online |
 
-Not yet implemented: LLM classification and extraction, difficulty, the tracked-event revisit loop (§19.4.3), cancellations by disappearance, and the second and third adapter batches.
+Not yet implemented: LLM classification and extraction, difficulty, the tracked-event revisit loop (§19.4.3), cancellations by disappearance, Devpost winners and people (needs the revisit loop), and the third adapter batch. Known gap: NWERC 2026's only site (Karlsruhe) has no country in the ICPC API and is dropped.

@@ -1,0 +1,12 @@
+{
+ "jsonrpc": "2.0",
+ "id": 1,
+ "result": {
+  "content": [
+   {
+    "type": "text",
+    "text": "{\n \"slug\": \"artefact-adopt-ai-hackathon-adopt-ai-for-health-paris-2026\",\n \"name\": \"Artefact Adopt AI - Hackathon Adopt AI for Health\",\n \"url\": \"https://hackalendar.com/e/artefact-adopt-ai-hackathon-adopt-ai-for-health-paris-2026\",\n \"startsAt\": \"2026-11-13T17:00:00.000Z\",\n \"endsAt\": \"2026-11-15\",\n \"timezone\": \"Europe/Paris\",\n \"temporalPrecision\": {\n  \"end\": \"date\",\n  \"start\": \"datetime\",\n  \"timezone\": \"unknown\"\n },\n \"location\": \"Paris\",\n \"countryCode\": \"FR\",\n \"mode\": \"in_person\",\n \"themes\": [\n  \"ai\",\n  \"health\"\n ],\n \"isFree\": null,\n \"prizePool\": null,\n \"organizer\": null,\n \"registrationUrl\": \"https://hackathons-artefactadoptai.agorize.com/fr/challenges/hackathon-adopt-ai-for-health\",\n \"registrationDeadline\": null,\n \"deadlineNote\": null,\n \"happeningNow\": true,\n \"pickNote\": null,\n \"picked\": false,\n \"pickedAt\": null,\n \"cancelled\": false,\n \"description\": \"Pour la premi\\u00e8re fois, Hacking Health Camp, Artefact Adopt AI et Unaite X Unaite Fellowship s'unissent pour un \\u00e9v\\u00e9nement unique. Talents, experts et soignants se rassemblent pour transformer les d\\u00e9fis majeurs de la sant\\u00e9 en solutions concr\\u00e8tes gr\\u00e2ce \\u00e0 l'IA.\",\n \"venueName\": \"M\\u00e9tafore\",\n \"calendarUrl\": \"https://hackalendar.com/e/artefact-adopt-ai-hackathon-adopt-ai-for-health-paris-2026/calendar.ics\"\n}"
+   }
+  ]
+ }
+}

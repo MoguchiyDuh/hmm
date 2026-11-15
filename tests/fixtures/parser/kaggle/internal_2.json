@@ -1,0 +1,81 @@
+{
+ "competitions": [
+  {
+   "id": 166661,
+   "competitionName": "squares-in-squares",
+   "title": "Squares in Squares",
+   "briefDescription": "Find the smallest enclosing square for N unit squares",
+   "dateEnabled": "2026-10-21T21:00:04.467Z",
+   "deadline": "2027-07-18T23:59:00Z",
+   "maxTeamSize": 5,
+   "reward": {
+    "id": "USD",
+    "quantity": 50000,
+    "clarification": "Prizes will be awarded at the 3-month, 6-month, and 9-month marks"
+   },
+   "prohibitNewEntrantsExplicitDeadline": "2027-07-11T23:59:00Z",
+   "teamMergerExplicitDeadline": "2027-07-11T23:59:00Z",
+   "organization": {
+    "slug": "kaggle",
+    "name": "Kaggle",
+    "thumbnailImageUrl": "https://storage.googleapis.com/kaggle-organizations/4/thumbnail.png?t=2026-10-14-14-25-46",
+    "profileUrl": "/organizations/kaggle"
+   },
+   "hostName": "Kaggle",
+   "categories": [
+    {
+     "name": "optimization"
+    },
+    {
+     "name": "mathematics"
+    },
+    {
+     "name": "math"
+    },
+    {
+     "name": "custom metric"
+    }
+   ],
+   "competitionHostSegmentId": 8
+  },
+  {
+   "id": 999001,
+   "competitionName": "tiny-prize",
+   "title": "Tiny Prize",
+   "briefDescription": "Find the smallest enclosing square for N unit squares",
+   "dateEnabled": "2026-10-21T21:00:04.467Z",
+   "deadline": "2027-07-18T23:59:00Z",
+   "maxTeamSize": 5,
+   "reward": {
+    "id": "USD",
+    "quantity": 500
+   },
+   "prohibitNewEntrantsExplicitDeadline": "2027-07-11T23:59:00Z",
+   "teamMergerExplicitDeadline": "2027-07-11T23:59:00Z",
+   "organization": {
+    "slug": "kaggle",
+    "name": "Kaggle",
+    "thumbnailImageUrl": "https://storage.googleapis.com/kaggle-organizations/4/thumbnail.png?t=2026-10-14-14-25-46",
+    "profileUrl": "/organizations/kaggle"
+   },
+   "hostName": "Kaggle",
+   "categories": [
+    {
+     "name": "optimization"
+    },
+    {
+     "name": "mathematics"
+    },
+    {
+     "name": "math"
+    },
+    {
+     "name": "custom metric"
+    }
+   ],
+   "competitionHostSegmentId": 8
+  }
+ ],
+ "totalResults": 6,
+ "nextPageToken": "200"
+}
