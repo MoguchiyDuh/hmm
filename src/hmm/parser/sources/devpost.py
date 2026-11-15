@@ -5,7 +5,7 @@ from typing import Annotated, Any
 
 from pydantic import Field
 
-from hmm.catalog.import_schema import EventImport
+from hmm.catalog.import_schema import EventImport, TrackedEvent
 from hmm.common import Contract, EventFormat, EventKind
 from hmm.parser import jsonld
 from hmm.parser.base import Adapter, Candidate, SourceContext, adapter
@@ -86,6 +86,20 @@ def pool(node: dict[str, Any]) -> tuple[float | None, str | None]:
     return None, None
 
 
+def listed(row: dict[str, Any]) -> tuple[str | None, str | None, EventFormat, str | None]:
+    title = clean_text(row.get("title"))
+    if title is not None and _TEST_TITLE.match(title):
+        title = None
+    displayed = row.get("displayed_location")
+    place = clean_text(displayed.get("location")) if isinstance(displayed, dict) else None
+    return (
+        title,
+        place,
+        listing_format(place or "online"),
+        country_in_text(place) if place else None,
+    )
+
+
 @adapter
 class Devpost(Adapter[DevpostOptions]):
     name = "devpost"
@@ -122,11 +136,7 @@ class Devpost(Adapter[DevpostOptions]):
                 return
 
     async def detail(self, ctx: SourceContext, url: str) -> dict[str, Any] | None:
-        try:
-            page = await ctx.get(url, rate_key=self.options.rate_key)
-        except FetchError as error:
-            ctx.log.info("parser %s: %s detail failed: %s", ctx.source.id, url, error)
-            return None
+        page = await ctx.get(url, rate_key=self.options.rate_key)
         nodes, index = jsonld.events(page.text())
         for node in nodes:
             found = jsonld.fields(node, index, url)
@@ -137,19 +147,55 @@ class Devpost(Adapter[DevpostOptions]):
 
     async def extract(self, ctx: SourceContext, candidate: Candidate) -> list[EventImport]:
         row: dict[str, Any] = candidate.payload
-        title = clean_text(row.get("title"))
-        if title is None or _TEST_TITLE.match(title):
+        title, _, listed_format, listed_country = listed(row)
+        if title is None:
             return []
-        displayed = row.get("displayed_location")
-        place = clean_text(displayed.get("location")) if isinstance(displayed, dict) else None
-        listed_format = listing_format(place or "online")
-        listed_country = country_in_text(place) if place else None
         settled = listed_format == EventFormat.ONLINE or (
             listed_format == EventFormat.OFFLINE and listed_country is not None
         )
         if settled and not ctx.in_scope(listed_country, listed_format):
             return []
-        found = await self.detail(ctx, candidate.url) if self.options.details else None
+        found: dict[str, Any] | None = None
+        if self.options.details:
+            try:
+                found = await self.detail(ctx, candidate.url)
+            except FetchError as error:
+                ctx.log.info("parser %s: %s detail failed: %s", ctx.source.id, candidate.url, error)
+        return self.convert(ctx, candidate.key, candidate.url, row, found)
+
+    async def revisit(self, ctx: SourceContext, tracked: TrackedEvent) -> list[EventImport] | None:
+        if not tracked.urls:
+            return None
+        local = tracked.source_id.split(":", 1)[1]
+        url = str(tracked.urls[0])
+        found = await self.detail(ctx, url)
+        if found is None or found["title"] is None:
+            return []
+        response = await ctx.get(
+            self.options.api,
+            params={"search": found["title"], "per_page": self.options.per_page},
+            rate_key=self.options.rate_key,
+        )
+        data = response.json()
+        rows = data.get("hackathons") if isinstance(data, dict) else None
+        if not isinstance(rows, list):
+            raise FetchError(response.url, "devpost: expected a hackathons list")
+        for row in rows:
+            if isinstance(row, dict) and str(row.get("id")) == local:
+                return self.convert(ctx, local, web_url(row.get("url")) or url, row, found)
+        return []
+
+    def convert(
+        self,
+        ctx: SourceContext,
+        local: str,
+        url: str,
+        row: dict[str, Any],
+        found: dict[str, Any] | None,
+    ) -> list[EventImport]:
+        title, place, listed_format, listed_country = listed(row)
+        if title is None:
+            return []
         if found is not None:
             fmt = found["format"] or listed_format
             location = found["location"] if fmt != EventFormat.ONLINE else None
@@ -189,9 +235,8 @@ class Devpost(Adapter[DevpostOptions]):
             "summary": clip(summary, 500),
             "organizer": clean_text(row.get("organization_name"))
             or (found["organizer"] if found is not None else None),
-            "website_url": candidate.url,
-            "registration_url": (found["registration_url"] if found is not None else None)
-            or candidate.url,
+            "website_url": url,
+            "registration_url": (found["registration_url"] if found is not None else None) or url,
             "starts_at": starts_at,
             "ends_at": ends_at,
             "registration_deadline": ends_at if online else None,
@@ -205,4 +250,4 @@ class Devpost(Adapter[DevpostOptions]):
             "confidence": ctx.confidence(confidence),
             "inferred_fields": [*inferred, *(["registration_deadline"] if online else [])],
         }
-        return [self.build(ctx, candidate.key, [candidate.url], fields)]
+        return [self.build(ctx, local, [url], fields)]

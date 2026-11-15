@@ -1,11 +1,12 @@
 import logging
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import httpx
 
+from hmm.catalog.import_schema import TrackedEvent
 from hmm.common import SEED_AREA_KEYS
 from hmm.parser.config import source_from_table
 from hmm.parser.fetch import Fetcher
@@ -62,6 +63,7 @@ async def run_source(
     *,
     now: datetime = NOW,
     env: Mapping[str, str] | None = None,
+    revisits: Sequence[TrackedEvent] = (),
 ) -> SourceRun:
     source = source_from_table(table)
     async with httpx.AsyncClient(transport=router.transport()) as client:
@@ -73,4 +75,5 @@ async def run_source(
             areas=frozenset(SEED_AREA_KEYS),
             env=env or {},
             log=logging.getLogger("tests.parser"),
+            revisits=revisits,
         )

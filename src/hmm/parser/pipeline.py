@@ -7,15 +7,16 @@ from typing import Any
 
 from pydantic import JsonValue
 
-from hmm.catalog.import_schema import EventImport, Location
+from hmm.catalog.import_schema import EventImport, Location, TrackedEvent
 from hmm.catalog.imports import normalize_title
 from hmm.common import EventFormat
 from hmm.parser.base import EMPTY, Adapter, SourceContext, create_adapter
 from hmm.parser.config import SourceConfig
-from hmm.parser.fetch import Fetcher
+from hmm.parser.fetch import Fetcher, FetchError
 from hmm.parser.normalize import EUROPE
 
 MAX_ERRORS_PER_SOURCE = 20
+GONE_STATUSES = frozenset({404, 410})
 DEDUPE_WINDOW = timedelta(days=1)
 MERGED_FIELDS: tuple[str, ...] = (
     "summary",
@@ -44,6 +45,8 @@ class SourceRun:
     items: list[EventImport] = field(default_factory=list)
     errors: list[dict[str, JsonValue]] = field(default_factory=list)
     dropped: int = 0
+    seen: set[str] = field(default_factory=set)
+    checks: dict[str, bool] = field(default_factory=dict)
 
     def error(self, stage: str, message: str, key: str | None = None) -> None:
         if len(self.errors) < MAX_ERRORS_PER_SOURCE:
@@ -62,7 +65,16 @@ class SourceRun:
             "items": len(self.items),
             "dropped": self.dropped,
             "errors": len(self.errors),
+            "revisited": len(self.checks),
+            "gone": sum(not found for found in self.checks.values()),
         }
+
+    def keep(self, item: EventImport, now: datetime) -> None:
+        self.seen.add(item.source.source_id)
+        if relevant(self.source, item, now):
+            self.items.append(item)
+        else:
+            self.dropped += 1
 
 
 def relevant(source: SourceConfig, item: EventImport, now: datetime) -> bool:
@@ -84,6 +96,7 @@ async def collect(
     env: Mapping[str, str],
     log: logging.Logger,
     adapter: Adapter[Any] | None = None,
+    revisits: Sequence[TrackedEvent] = (),
 ) -> SourceRun:
     run = SourceRun(source=source, started_at=now)
     ctx = SourceContext(source=source, fetcher=fetcher, now=now, areas=areas, env=env, log=log)
@@ -101,16 +114,39 @@ async def collect(
                     run.error("extract", f"{type(error).__name__}: {error}", candidate.key)
                     continue
                 for item in found:
-                    if relevant(source, item, now):
-                        run.items.append(item)
-                    else:
-                        run.dropped += 1
+                    run.keep(item, now)
+            for tracked in revisits:
+                if tracked.source_id not in run.seen:
+                    await recheck(run, instance, ctx, tracked)
     except TimeoutError:
         run.error("budget", f"source exceeded its {source.budget} budget")
     except Exception as error:
         log.warning("parser %s: discovery failed: %s", source.id, error)
         run.error("discover", f"{type(error).__name__}: {error}")
     return run
+
+
+async def recheck(
+    run: SourceRun, instance: Adapter[Any], ctx: SourceContext, tracked: TrackedEvent
+) -> None:
+    try:
+        found = await instance.revisit(ctx, tracked)
+    except FetchError as error:
+        if error.status in GONE_STATUSES:
+            run.checks[tracked.source_id] = False
+        else:
+            run.error("revisit", f"FetchError: {error}", tracked.source_id)
+        return
+    except Exception as error:
+        ctx.log.warning("parser %s: revisit %s failed: %s", ctx.source.id, tracked.source_id, error)
+        run.error("revisit", f"{type(error).__name__}: {error}", tracked.source_id)
+        return
+    if found is None:
+        return
+    items = [item for item in found if item.source.source_id == tracked.source_id]
+    run.checks[tracked.source_id] = bool(items)
+    for item in items:
+        run.keep(item, ctx.now)
 
 
 def prefix(item: EventImport) -> str:

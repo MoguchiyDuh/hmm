@@ -4,7 +4,7 @@ from pathlib import Path
 
 import httpx
 from harness import Harness
-from parser_support import Router, json_file, no_sleep, public_resolve, respond
+from parser_support import Router, fixture, json_file, no_sleep, public_resolve, respond
 from sqlalchemy import func, select
 
 from hmm import models
@@ -107,6 +107,8 @@ async def test_parser_run_imports_and_records_state(harness: Harness, tmp_path: 
             "items": 2,
             "dropped": 0,
             "errors": 0,
+            "revisited": 0,
+            "gone": 0,
             "rejected": 0,
         }
         assert states["broken"].last_success_at is None
@@ -129,3 +131,77 @@ async def test_parser_run_respects_intervals(harness: Harness, tmp_path: Path) -
     async with harness.db() as session:
         assert await session.scalar(select(func.count()).select_from(models.ParserHeartbeat)) == 3
         assert await session.scalar(select(func.count()).select_from(models.EventSource)) == 3
+
+
+SITEMAP = "https://bbicc.fon.bg.ac.rs/wp-sitemap-posts-page-1.xml"
+PAGE = "https://bbicc.fon.bg.ac.rs/bbicc-2027/"
+
+
+def cancelled(_: httpx.Request) -> httpx.Response:
+    body = fixture("jsonld/bbicc_2027.html").replace(b"EventScheduled", b"EventCancelled")
+    return httpx.Response(200, content=body, headers={"content-type": "text/html"})
+
+
+def unlisted(_: httpx.Request) -> httpx.Response:
+    return httpx.Response(
+        200, content=b"<urlset></urlset>", headers={"content-type": "application/xml"}
+    )
+
+
+async def bbicc_status(harness: Harness) -> str | None:
+    async with harness.db() as session:
+        return await session.scalar(
+            select(models.Event.status)
+            .join(models.EventSource, models.EventSource.event_id == models.Event.id)
+            .where(models.EventSource.source_id == "bbicc:bbicc-2027")
+        )
+
+
+async def test_parser_run_revisits_unlisted_tracked_events(
+    harness: Harness, tmp_path: Path
+) -> None:
+    await harness.seed_areas()
+    await run(harness, tmp_path, router())
+    harness.advance(timedelta(hours=24))
+    routes = router()
+    routes.routes[SITEMAP] = unlisted
+    routes.routes[PAGE] = cancelled
+    await run(harness, tmp_path, routes)
+    assert [str(request.url) for request in routes.requests].count(PAGE) == 1
+    assert await bbicc_status(harness) == "cancelled"
+    async with harness.db() as session:
+        revisit = await session.get(models.ParserRevisit, "bbicc:bbicc-2027")
+        assert revisit is not None
+        assert (revisit.checked_at, revisit.misses) == (harness.now, 0)
+        state = await session.get(models.ParserSourceState, "bbicc")
+        assert state is not None
+        assert state.stats == {
+            "candidates": 0,
+            "items": 1,
+            "dropped": 0,
+            "errors": 0,
+            "revisited": 1,
+            "gone": 0,
+            "rejected": 0,
+        }
+    harness.advance(timedelta(hours=24))
+    gone = router()
+    gone.routes[SITEMAP] = unlisted
+    del gone.routes[PAGE]
+    await run(harness, tmp_path, gone)
+    assert await bbicc_status(harness) == "cancelled"
+    async with harness.db() as session:
+        revisit = await session.get(models.ParserRevisit, "bbicc:bbicc-2027")
+        assert revisit is not None
+        assert (revisit.checked_at, revisit.misses) == (harness.now, 1)
+
+
+async def test_parser_run_skips_cancellations_of_unknown_events(
+    harness: Harness, tmp_path: Path
+) -> None:
+    await harness.seed_areas()
+    routes = router()
+    routes.routes[PAGE] = cancelled
+    heartbeat = await run(harness, tmp_path, routes)
+    assert heartbeat.stats.imported == 2
+    assert await bbicc_status(harness) is None

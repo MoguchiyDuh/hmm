@@ -13,6 +13,7 @@ from hmm.models import (
     AlgoCache,
     Notification,
     NotificationDelivery,
+    ParserHeartbeat,
     TelegramLinkCode,
     UserSession,
 )
@@ -224,6 +225,16 @@ async def test_cleanup(harness: Harness) -> None:
                 TelegramLinkCode(code="live", user_id=user.id, expires_at=live),
                 AlgoCache(namespace="cleanup", key="expired", value=b"expired", expires_at=expired),
                 AlgoCache(namespace="cleanup", key="live", value=b"live", expires_at=live),
+                *(
+                    ParserHeartbeat(
+                        run_id=f"parser-{age}",
+                        started_at=now - timedelta(days=age),
+                        finished_at=now - timedelta(days=age),
+                        stats={},
+                        errors=[],
+                    )
+                    for age in (40, 31, 2)
+                ),
                 *notifications,
             ]
         )
@@ -274,6 +285,24 @@ async def test_cleanup(harness: Harness) -> None:
             assert [(row.namespace, row.key, row.value, row.expires_at) for row in caches] == [
                 ("cleanup", "live", b"live", live)
             ]
+            assert list(await session.scalars(select(ParserHeartbeat.run_id))) == ["parser-2"]
+
+
+async def test_cleanup_keeps_the_latest_parser_heartbeat(harness: Harness) -> None:
+    async with harness.db() as session:
+        session.add_all(
+            ParserHeartbeat(
+                run_id=f"parser-{age}",
+                started_at=harness.now - timedelta(days=age),
+                finished_at=harness.now - timedelta(days=age),
+                stats={},
+                errors=[],
+            )
+            for age in (60, 45)
+        )
+    await cleanup(harness.runtime)
+    async with harness.db() as session:
+        assert list(await session.scalars(select(ParserHeartbeat.run_id))) == ["parser-45"]
 
 
 async def test_ticks_run_every_sweep(harness: Harness) -> None:

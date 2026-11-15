@@ -1,12 +1,13 @@
 from datetime import timedelta
 
-from sqlalchemy import delete, or_
+from sqlalchemy import delete, or_, select
 
 from hmm import models
 from hmm.common import DeliveryStatus
 from hmm.platform.jobs import JobName, Runtime, job
 
 DELIVERY_RETENTION = timedelta(days=30)
+HEARTBEAT_RETENTION = timedelta(days=30)
 
 
 @job(JobName.CLEANUP)
@@ -33,3 +34,15 @@ async def cleanup(runtime: Runtime) -> None:
             )
         )
         await session.execute(delete(models.AlgoCache).where(models.AlgoCache.expires_at <= now))
+        latest = (
+            select(models.ParserHeartbeat.id)
+            .order_by(models.ParserHeartbeat.started_at.desc())
+            .limit(1)
+            .scalar_subquery()
+        )
+        await session.execute(
+            delete(models.ParserHeartbeat).where(
+                models.ParserHeartbeat.started_at < now - HEARTBEAT_RETENTION,
+                models.ParserHeartbeat.id != latest,
+            )
+        )

@@ -9,7 +9,7 @@ from typing import Any, ClassVar, cast
 
 from pydantic import ValidationError
 
-from hmm.catalog.import_schema import EventImport
+from hmm.catalog.import_schema import EventImport, TrackedEvent
 from hmm.common import Contract, EventFormat
 from hmm.parser.config import SourceConfig, SourceConfigError
 from hmm.parser.fetch import Fetched, Fetcher, Params
@@ -117,6 +117,9 @@ class Adapter[O: Contract](ABC):
 
     @abstractmethod
     async def extract(self, ctx: SourceContext, candidate: Candidate) -> list[EventImport]: ...
+
+    async def revisit(self, ctx: SourceContext, tracked: TrackedEvent) -> list[EventImport] | None:
+        return None
 
     def build(
         self,

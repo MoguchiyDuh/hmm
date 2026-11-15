@@ -6,27 +6,57 @@ from pathlib import Path
 from uuid import uuid4
 
 from pydantic import JsonValue
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.areas.service import list_areas
-from hmm.catalog.import_schema import EventImportBatch, ParserHeartbeat, ParserStats
+from hmm.catalog.import_schema import (
+    EventImportBatch,
+    ParserHeartbeat,
+    ParserStats,
+    TrackedEvent,
+)
 from hmm.catalog.imports import import_events
-from hmm.catalog.parser import record_heartbeat
+from hmm.catalog.parser import record_heartbeat, tracked_events
 from hmm.parser.config import SourceConfig, load_sources
 from hmm.parser.fetch import Fetcher, Resolver, Sleeper, resolve_host
 from hmm.parser.pipeline import SourceRun, chunks, collect, dedupe
 from hmm.platform.jobs import JobName, Runtime, job
+from hmm.platform.pagination import CursorParams
 
 BATCH_SIZE = 50
+TRACKED_PAGE = 100
 DUE_SLACK = timedelta(minutes=5)
+REVISIT_UPCOMING = timedelta(days=1)
+REVISIT_ENDED = timedelta(days=7)
 
 
 def is_due(source: SourceConfig, state: models.ParserSourceState | None, now: datetime) -> bool:
     if state is None:
         return True
     return now - state.last_started_at >= source.interval - DUE_SLACK
+
+
+def revisit_due(event: TrackedEvent, checked_at: datetime | None, now: datetime) -> bool:
+    if checked_at is None:
+        return True
+    if event.ends_at > now:
+        return now - checked_at >= REVISIT_UPCOMING - DUE_SLACK
+    if checked_at < event.ends_at:
+        return True
+    return now - checked_at >= REVISIT_ENDED - DUE_SLACK
+
+
+async def all_tracked(session: AsyncSession, now: datetime) -> list[TrackedEvent]:
+    events: list[TrackedEvent] = []
+    cursor: str | None = None
+    while True:
+        page = await tracked_events(session, CursorParams(cursor=cursor, limit=TRACKED_PAGE), now)
+        events.extend(page.items)
+        if page.next_cursor is None:
+            return events
+        cursor = page.next_cursor
 
 
 def usable(
@@ -56,6 +86,11 @@ async def run_parser(
     sources = usable(load_sources(path), env, runtime)
     async with runtime.sessionmaker.begin() as session:
         areas = frozenset(area.key for area in await list_areas(session, include_archived=False))
+        tracked = await all_tracked(session, started_at)
+        checked = {
+            row.source_id: row.checked_at
+            for row in await session.scalars(select(models.ParserRevisit))
+        }
         states = {
             state.source_id: state
             for state in await session.scalars(select(models.ParserSourceState).with_for_update())
@@ -76,13 +111,27 @@ async def run_parser(
                 state.adapter = source.adapter
                 state.last_started_at = started_at
     fetcher = Fetcher(client=runtime.http, resolve=resolve, sleep=sleep)
+    revisits: dict[str, list[TrackedEvent]] = {}
+    for event in tracked:
+        if revisit_due(event, checked.get(event.source_id), started_at):
+            revisits.setdefault(event.source_id.split(":", 1)[0], []).append(event)
     runs = await asyncio.gather(
         *(
-            collect(source, fetcher=fetcher, now=started_at, areas=areas, env=env, log=runtime.log)
+            collect(
+                source,
+                fetcher=fetcher,
+                now=started_at,
+                areas=areas,
+                env=env,
+                log=runtime.log,
+                revisits=revisits.get(source.id, ()),
+            )
             for source in due
         )
     )
+    known = {event.source_id for event in tracked}
     items, merged = dedupe(runs)
+    items = [item for item in items if item.status != "cancelled" or item.source.source_id in known]
     errors: list[JsonValue] = [error for run in runs for error in run.errors]
     imported = 0
     rejected: dict[str, int] = {}
@@ -120,6 +169,7 @@ async def run_parser(
     )
     async with runtime.sessionmaker.begin() as session:
         await store_states(session, runs, rejected, finished_at)
+        await store_revisits(session, runs, known, finished_at)
         await record_heartbeat(session, heartbeat)
     runtime.log.info(
         "parser run: %d sources, %d items, %d merged, %d imported, %d errors",
@@ -150,6 +200,26 @@ async def store_states(
             state.last_success_at = finished_at
             state.last_error = None
         state.stats = {**run.stats(), "rejected": rejected.get(run.source.id, 0)}
+
+
+async def store_revisits(
+    session: AsyncSession, runs: list[SourceRun], known: set[str], checked_at: datetime
+) -> None:
+    for run in runs:
+        for source_id, found in run.checks.items():
+            row = await session.get(models.ParserRevisit, source_id, with_for_update=True)
+            if row is None:
+                session.add(
+                    models.ParserRevisit(
+                        source_id=source_id, checked_at=checked_at, misses=0 if found else 1
+                    )
+                )
+            else:
+                row.checked_at = checked_at
+                row.misses = 0 if found else row.misses + 1
+    await session.execute(
+        delete(models.ParserRevisit).where(models.ParserRevisit.source_id.not_in(known))
+    )
 
 
 @job(JobName.PARSER_RUN)

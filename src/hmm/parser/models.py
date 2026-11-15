@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pydantic import JsonValue
-from sqlalchemy import DateTime, Text
+from sqlalchemy import DateTime, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,3 +20,11 @@ class ParserSourceState(Mutable, Base):
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     stats: Mapped[JsonValue] = mapped_column(JSONB, nullable=False)
+
+
+class ParserRevisit(Mutable, Base):
+    __tablename__ = "parser_revisits"
+
+    source_id: Mapped[str] = mapped_column(Text, nullable=False, primary_key=True)
+    checked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    misses: Mapped[int] = mapped_column(Integer, nullable=False)

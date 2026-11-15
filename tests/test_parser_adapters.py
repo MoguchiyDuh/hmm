@@ -7,6 +7,7 @@ import httpx
 import pytest
 from parser_support import Router, json_file, respond, run_source
 
+from hmm.catalog.import_schema import TrackedEvent
 from hmm.common import EventFormat, EventKind
 
 HH_SITE = "https://hackathonhub.eu"
@@ -465,7 +466,20 @@ def hackalendar_mcp(request: httpx.Request) -> httpx.Response:
     if params["name"] == "get_hackathon":
         if params["arguments"]["slug"] == HK_DETAIL:
             return json_file("hackalendar/get.json")(request)
-        return httpx.Response(404)
+        slug = params["arguments"]["slug"]
+        return httpx.Response(
+            200,
+            json={
+                "jsonrpc": "2.0",
+                "id": 1,
+                "result": {
+                    "content": [
+                        {"type": "text", "text": f'No published event with slug "{slug}".'}
+                    ],
+                    "isError": True,
+                },
+            },
+        )
     return json_file(f"hackalendar/search_{params['arguments']['offset']}.json")(request)
 
 
@@ -498,6 +512,39 @@ async def test_hackalendar_pages_mcp_and_maps_precision() -> None:
     online = items["hackalendar:threat-intelligence-threat-modelling-hackathon-2026"]
     assert online.format == EventFormat.ONLINE
     assert online.location is None
+
+
+def tracked(source_id: str, url: str, ends_at: datetime) -> TrackedEvent:
+    return TrackedEvent.model_validate({"source_id": source_id, "urls": [url], "ends_at": ends_at})
+
+
+async def test_hackalendar_revisits_by_slug() -> None:
+    def unlisted(request: httpx.Request) -> httpx.Response:
+        if json.loads(request.content)["params"]["name"] == "search_hackathons":
+            text = json.dumps({"count": 0, "nextOffset": None, "events": []})
+            return httpx.Response(
+                200,
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "result": {"content": [{"type": "text", "text": text}]},
+                },
+            )
+        return hackalendar_mcp(request)
+
+    ends = datetime(2026, 11, 15, 22, 59, 59, tzinfo=UTC)
+    run = await run_source(
+        {"id": "hackalendar", "adapter": "hackalendar"},
+        Router({HK_MCP: unlisted}),
+        revisits=[
+            tracked(f"hackalendar:{HK_DETAIL}", HK_MCP, ends),
+            tracked("hackalendar:removed-hack-2026", HK_MCP, ends),
+        ],
+    )
+    assert run.errors == []
+    assert run.checks == {f"hackalendar:{HK_DETAIL}": True, "hackalendar:removed-hack-2026": False}
+    assert [item.source.source_id for item in run.items] == [f"hackalendar:{HK_DETAIL}"]
+    assert run.items[0].description_md is not None
 
 
 KAGGLE_API = "https://api.kaggle.com/v1/competitions.CompetitionApiService/ListCompetitions"
@@ -644,6 +691,32 @@ def devpost_router() -> Router:
             "https://dtit-hackathon-2026.devpost.com/": respond("devpost/kosice.html"),
         }
     )
+
+
+async def test_devpost_revisits_ended_hackathons_by_search() -> None:
+    def api(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("search") == "HackSussex GameJam 2026":
+            return json_file("devpost/page_1.json")(request)
+        return httpx.Response(200, json={"hackathons": [], "meta": {"total_count": 0}})
+
+    router = devpost_router()
+    router.routes[DEVPOST_API] = api
+    sussex = "https://hacksussex-gamejam-2026.devpost.com/"
+    ends = datetime(2026, 12, 7, tzinfo=UTC)
+    run = await run_source(
+        {"id": "devpost", "adapter": "devpost"},
+        router,
+        revisits=[
+            tracked("devpost:31655", sussex, ends),
+            tracked("devpost:99999", "https://gone.devpost.com/", ends),
+        ],
+    )
+    assert run.errors == []
+    assert run.checks == {"devpost:31655": True, "devpost:99999": False}
+    item = run.items[0]
+    assert item.source.source_id == "devpost:31655"
+    assert item.confidence == 0.8
+    assert item.location is not None and item.location.country == "GB"
 
 
 async def test_devpost_listing_and_site_json_ld() -> None:

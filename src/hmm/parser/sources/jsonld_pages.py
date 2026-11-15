@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 
-from hmm.catalog.import_schema import EventImport
+from hmm.catalog.import_schema import EventImport, TrackedEvent
 from hmm.common import Contract, EventKind
 from hmm.parser import jsonld
 from hmm.parser.base import Adapter, Candidate, SourceContext, adapter
@@ -88,6 +88,12 @@ class JsonLdPages(Adapter[JsonLdPagesOptions]):
                 ids.add(item.source.source_id)
                 items.append(item)
         return items
+
+    async def revisit(self, ctx: SourceContext, tracked: TrackedEvent) -> list[EventImport] | None:
+        if self.options.follow is None or not tracked.urls:
+            return None
+        url = str(tracked.urls[0])
+        return await self.extract(ctx, Candidate(key=url, url=url, payload=self.options.kind))
 
     def local_id(self, url: str) -> str | None:
         if self.options.id_pattern is None:
