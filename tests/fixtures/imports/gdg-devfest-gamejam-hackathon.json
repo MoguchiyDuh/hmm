@@ -1,0 +1,35 @@
+{
+  "source": {
+    "source_id": "gdg-rs:google-gdg-on-campus-university-of-belgrade-belgrade-serbia-presents-devfest-2026-gamejam-hackathon",
+    "urls": [
+      "https://gdg.community.dev/events/details/google-gdg-on-campus-university-of-belgrade-belgrade-serbia-presents-devfest-2026-gamejam-hackathon/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "DevFest 2026: GameJam - Hackathon",
+  "summary": "DevFest 2026 GameJam Hackathon is a thrilling 48-hour event for developers, designers, and engineers to create video game prototypes. Participants receive industry insights and mentorship, turning ideas into games. The event encourages creativity, teamwork, and networking, ending with a showcase judged by experts. Perfect for those seeking innovation and opportunity.",
+  "description_md": "DevFest 2026 GameJam Hackathon is a thrilling 48-hour event for developers, designers, and engineers to create video game prototypes. Participants receive industry insights and mentorship, turning ideas into games. The event encourages creativity, teamwork, and networking, ending with a showcase judged by experts. Perfect for those seeking innovation and opportunity.",
+  "organizer": "Google Developer Groups",
+  "website_url": "https://gdg.community.dev/events/details/google-gdg-on-campus-university-of-belgrade-belgrade-serbia-presents-devfest-2026-gamejam-hackathon/",
+  "starts_at": "2026-12-04T00:00:00+01:00",
+  "ends_at": "2026-12-06T19:00:00+01:00",
+  "timezone": "Europe/Belgrade",
+  "format": "offline",
+  "location": {
+    "country": "RS",
+    "city": "Belgrade",
+    "address": "Veljka Dugosevica 54"
+  },
+  "areas": [
+    {
+      "key": "gamedev",
+      "importance": "primary"
+    }
+  ],
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone"
+  ],
+  "extractor_version": "jsonld_pages/1"
+}

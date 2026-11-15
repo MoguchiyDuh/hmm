@@ -1,0 +1,35 @@
+{
+  "source": {
+    "source_id": "gdg-rs:google-gdg-on-campus-university-of-belgrade-belgrade-serbia-presents-devfest-2026-gamejam-conference",
+    "urls": [
+      "https://gdg.community.dev/events/details/google-gdg-on-campus-university-of-belgrade-belgrade-serbia-presents-devfest-2026-gamejam-conference/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "conference",
+  "title": "DevFest 2026: GameJam - Conference",
+  "summary": "DevFest 2026 GameJam Conference equips developers, designers, and engineers with cutting-edge knowledge for a 48-hour game challenge. Attendees explore Google technologies and game design techniques through expert sessions, mastering skills from gameplay mechanics to effective pitching. This event transforms creative concepts into game prototypes, fostering innovation and professional growth.",
+  "description_md": "DevFest 2026 GameJam Conference equips developers, designers, and engineers with cutting-edge knowledge for a 48-hour game challenge. Attendees explore Google technologies and game design techniques through expert sessions, mastering skills from gameplay mechanics to effective pitching. This event transforms creative concepts into game prototypes, fostering innovation and professional growth.",
+  "organizer": "Google Developer Groups",
+  "website_url": "https://gdg.community.dev/events/details/google-gdg-on-campus-university-of-belgrade-belgrade-serbia-presents-devfest-2026-gamejam-conference/",
+  "starts_at": "2026-12-03T20:00:00+01:00",
+  "ends_at": "2026-12-04T18:00:00+01:00",
+  "timezone": "Europe/Belgrade",
+  "format": "offline",
+  "location": {
+    "country": "RS",
+    "city": "Belgrade",
+    "address": "Veljka Dugosevica 54"
+  },
+  "areas": [
+    {
+      "key": "gamedev",
+      "importance": "primary"
+    }
+  ],
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone"
+  ],
+  "extractor_version": "jsonld_pages/1"
+}

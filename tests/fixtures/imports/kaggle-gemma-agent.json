@@ -1,0 +1,38 @@
+{
+  "source": {
+    "source_id": "kaggle:149921",
+    "urls": [
+      "https://www.kaggle.com/competitions/gemma-4-developer-agent"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "contest",
+  "title": "Google - The Gemma 4 Developer Agent Competition",
+  "summary": "Accelerate research in autonomous coding agents",
+  "organizer": "Google DeepMind",
+  "website_url": "https://www.kaggle.com/competitions/gemma-4-developer-agent",
+  "registration_url": "https://www.kaggle.com/competitions/gemma-4-developer-agent",
+  "starts_at": "2026-09-23T14:05:47.363000Z",
+  "ends_at": "2026-12-02T23:59:00Z",
+  "registration_deadline": "2026-11-25T23:59:00Z",
+  "format": "online",
+  "themes": [
+    "Kaggle",
+    "artificial intelligence",
+    "coding",
+    "custom metric"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    }
+  ],
+  "team_size_max": 5,
+  "prize": {
+    "amount": 75000.0,
+    "currency": "USD"
+  },
+  "confidence": 0.85,
+  "extractor_version": "kaggle/1"
+}

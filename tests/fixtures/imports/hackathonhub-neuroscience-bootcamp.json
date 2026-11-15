@@ -1,0 +1,57 @@
+{
+  "source": {
+    "source_id": "hackathonhub:9606d37a-7ae6-42b2-9d77-bed5c32b82a0",
+    "urls": [
+      "https://hackathonhub.eu/events/experimental-neuroscience-bootcamp-2026",
+      "https://noblackboxes.org/esb-course/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "course",
+  "title": "Experimental Neuroscience Bootcamp",
+  "summary": "This five-day online bootcamp provides scientists with a deep understanding of the technological foundations of their experimental work. Participants learn through hands-on exercises how sensors, computers, and AI systems function, rather than just using them as black boxes. By the end of the course, they receive a certificate and join a global network of researchers who truly understand their tools.",
+  "description_md": "This five-day online bootcamp provides scientists with a deep understanding of the technological foundations of their experimental work. Participants learn through hands-on exercises how sensors, computers, and AI systems function, rather than just using them as black boxes. By the end of the course, they receive a certificate and join a global network of researchers who truly understand their tools.",
+  "organizer": "No Black Boxes",
+  "website_url": "https://hackathonhub.eu/events/experimental-neuroscience-bootcamp-2026",
+  "registration_url": "https://noblackboxes.org/esb-course/",
+  "starts_at": "2026-10-19T00:00:00+02:00",
+  "ends_at": "2026-10-23T23:59:59+02:00",
+  "registration_deadline": "2026-08-26T23:59:00Z",
+  "timezone": "Europe/Berlin",
+  "format": "online",
+  "location": {
+    "country": "DE"
+  },
+  "language": [
+    "en"
+  ],
+  "themes": [
+    "ai",
+    "developer-tools",
+    "iot",
+    "neurotech",
+    "data-science"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    },
+    {
+      "key": "hardware",
+      "importance": "nice"
+    },
+    {
+      "key": "data",
+      "importance": "nice"
+    }
+  ],
+  "confidence": 0.6,
+  "inferred_fields": [
+    "timezone",
+    "starts_at",
+    "ends_at",
+    "kind"
+  ],
+  "extractor_version": "hackathonhub/1"
+}

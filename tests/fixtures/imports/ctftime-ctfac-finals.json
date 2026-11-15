@@ -1,0 +1,43 @@
+{
+  "source": {
+    "source_id": "ctftime:3463",
+    "urls": [
+      "https://ctftime.org/event/3463/",
+      "https://ctf.ac.upt.ro/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "contest",
+  "title": "CTF@AC26 - Finals",
+  "summary": "RO: CTF@AC este un concurs de tip Capture the Flag (CTF) organizat de echipa de securitate cibernetică a Universității Politehnica Timișoara. Prin acest eveniment ne propunem: ✅ Promovarea culturii securității cibernetice ✅ Atragerea elevilor și studenților pasionați de IT și securitate",
+  "description_md": "RO:\nCTF@AC este un concurs de tip Capture the Flag (CTF) organizat de echipa de securitate cibernetică a Universității Politehnica Timișoara. Prin acest eveniment ne propunem:\n✅ Promovarea culturii securității cibernetice\n✅ Atragerea elevilor și studenților pasionați de IT și securitate\n\nPremii:\n3000 euros\n\nDiscord: https://ctf.ac.upt.ro/discord\n\nEN:\nCTF@AC is a Capture the Flag (CTF) competition organized by the cybersecurity team of Politehnica University Timisoara. Through this event we aim to:\n✅ Promote the culture of cybersecurity\n✅ Attract students passionate about IT and security\n\nPrizes:\n3000 euros\n\nDiscord: https://ctf.ac.upt.ro/discord",
+  "organizer": "UPT-CTF",
+  "website_url": "https://ctf.ac.upt.ro/",
+  "registration_url": "https://ctftime.org/event/3463/",
+  "starts_at": "2026-10-30T10:00:00Z",
+  "ends_at": "2026-11-01T10:00:00Z",
+  "timezone": "Europe/Bucharest",
+  "format": "offline",
+  "location": {
+    "country": "RO",
+    "address": "Faculty of Automation & Computer Science, Timisoara, Romania"
+  },
+  "themes": [
+    "CTF",
+    "Jeopardy"
+  ],
+  "areas": [
+    {
+      "key": "security",
+      "importance": "primary"
+    }
+  ],
+  "prize": {
+    "description": "University\n1st place: 1000 euros\n2nd place: 500 euros\n3rd place: 250 euros\n\nHighschool\n1st place: 1000 euros\n2nd place: 500 euros\n3rd place: 250 euros"
+  },
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone"
+  ],
+  "extractor_version": "ctftime/1"
+}

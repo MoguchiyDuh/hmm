@@ -1,0 +1,35 @@
+{
+  "source": {
+    "source_id": "confs-tech:heapcon@2026-11-05",
+    "urls": [
+      "https://heapcon.io/2026",
+      "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2026/general.json"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "conference",
+  "title": "Heapcon",
+  "description_md": "Call for papers: https://forms.gle/QBM1aqkL8yS4c6YM8 (closes 2026-06-01)",
+  "website_url": "https://heapcon.io/2026",
+  "starts_at": "2026-11-05T00:00:00+01:00",
+  "ends_at": "2026-11-06T23:59:59+01:00",
+  "timezone": "Europe/Belgrade",
+  "format": "offline",
+  "location": {
+    "country": "RS",
+    "city": "Belgrade"
+  },
+  "language": [
+    "en"
+  ],
+  "themes": [
+    "general"
+  ],
+  "confidence": 0.8,
+  "inferred_fields": [
+    "timezone",
+    "starts_at",
+    "ends_at"
+  ],
+  "extractor_version": "confs_tech/1"
+}

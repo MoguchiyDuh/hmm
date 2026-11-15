@@ -1,0 +1,29 @@
+{
+  "source": {
+    "source_id": "hackathonist:b87648066bd6-20261106",
+    "urls": [
+      "https://raw.githubusercontent.com/zsevic/hackathonist/gh-pages/README.md",
+      "https://bne.rs/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "Rivian Hakaton",
+  "website_url": "https://bne.rs/",
+  "starts_at": "2026-11-06T00:00:00+01:00",
+  "ends_at": "2026-11-07T23:59:59+01:00",
+  "timezone": "Europe/Belgrade",
+  "format": "hybrid",
+  "location": {
+    "country": "RS",
+    "address": "Rivian HQ"
+  },
+  "confidence": 0.8,
+  "inferred_fields": [
+    "timezone",
+    "starts_at",
+    "ends_at",
+    "location.country"
+  ],
+  "extractor_version": "hackathonist/1"
+}

@@ -1,0 +1,28 @@
+{
+  "source": {
+    "source_id": "gdg-rs:google-gdg-belgrade-presents-mentorship-program-202627-opening-ceremony",
+    "urls": [
+      "https://gdg.community.dev/events/details/google-gdg-belgrade-presents-mentorship-program-202627-opening-ceremony/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "meetup",
+  "title": "Mentorship Program 2026/27 Opening Ceremony",
+  "summary": "The GDG Belgrade Mentorship Program is back for a new season! 🚀🎉",
+  "description_md": "The GDG Belgrade Mentorship Program is back for a new season! 🚀🎉\n\nJoin us for the Opening Ceremony as we kick off six months of learning, growth, and meaningful connections!\n\nMeet fellow mentors and mentees, discover what to expect from the mentorship journey, and connect with our community in a welcoming and inspiring atmosphere. 💛💚💙❤️",
+  "website_url": "https://gdg.community.dev/events/details/google-gdg-belgrade-presents-mentorship-program-202627-opening-ceremony/",
+  "starts_at": "2026-11-01T12:00:00+01:00",
+  "ends_at": "2026-11-01T14:00:00+01:00",
+  "timezone": "Europe/Belgrade",
+  "format": "offline",
+  "location": {
+    "country": "RS",
+    "city": "Belgrade",
+    "address": "ASK Centar, 11 Topličin venac"
+  },
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone"
+  ],
+  "extractor_version": "jsonld_pages/1"
+}

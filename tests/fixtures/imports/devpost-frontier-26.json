@@ -1,0 +1,33 @@
+{
+  "source": {
+    "source_id": "devpost:32093",
+    "urls": [
+      "https://frontier26.devpost.com/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "FRONTIER//26",
+  "summary": "About the challenge : FRONTIER//26 is a global online AI innovation challenge by LovHack, taking place from 4–11 December 2026. Participants can choose between two tracks: SPARK , an ideathon focused on research, problem-solving and developing innovative proposals, and SHIP , a buildathon focused",
+  "organizer": "LoveHack",
+  "website_url": "https://frontier26.devpost.com/",
+  "registration_url": "https://frontier26.devpost.com/register",
+  "starts_at": "2026-12-04T00:00:00-05:00",
+  "ends_at": "2026-12-11T23:45:00-05:00",
+  "registration_deadline": "2026-12-11T23:45:00-05:00",
+  "format": "online",
+  "themes": [
+    "Machine Learning/AI"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    }
+  ],
+  "confidence": 0.8,
+  "inferred_fields": [
+    "registration_deadline"
+  ],
+  "extractor_version": "devpost/1"
+}

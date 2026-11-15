@@ -1,0 +1,38 @@
+{
+  "source": {
+    "source_id": "hackalendar:launch-day-hackathon-paris-2026",
+    "urls": [
+      "https://hackalendar.com/e/launch-day-hackathon-paris-2026",
+      "https://lu.ma/fg1lny5k"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "status": "cancelled",
+  "kind": "hackathon",
+  "title": "Launch Day Hackathon",
+  "summary": "This is the day you Launch. Let’s build together in the startup heart of Paris. Bring your business or start one. Use Codex to build fast, integrate payments, cook up launch video's & share what you've built with the world! We’ll cheer on each other’s launches. The strongest teams pitch on stage with a chance to win credit prizes! Curated attendance. Apply with your strongest work!",
+  "description_md": "This is the day you Launch.\nLet’s build together in the startup heart of Paris.\nBring your business or start one. Use Codex to build fast, integrate payments, cook up launch video's & share what you've built with the world!\nWe’ll cheer on each other’s launches. The strongest teams pitch on stage with a chance to win credit prizes!\nCurated attendance. Apply with your strongest work!\n\nPowered by Mollie\nSupported by OpenAI",
+  "organizer": "borvibe",
+  "website_url": "https://hackalendar.com/e/launch-day-hackathon-paris-2026",
+  "registration_url": "https://lu.ma/fg1lny5k",
+  "starts_at": "2026-11-28T09:00:00Z",
+  "ends_at": "2026-11-28T19:00:00Z",
+  "timezone": "Europe/Paris",
+  "format": "offline",
+  "location": {
+    "country": "FR",
+    "city": "Paris",
+    "address": "Paris, France"
+  },
+  "themes": [
+    "ai"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    }
+  ],
+  "confidence": 0.85,
+  "extractor_version": "hackalendar/1"
+}

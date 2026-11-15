@@ -1,0 +1,45 @@
+{
+  "source": {
+    "source_id": "hackathonhub:3d231aa2-e9a1-4884-904c-23b2df0d9961",
+    "urls": [
+      "https://hackathonhub.eu/events/arcade-game-jam-cluj-napoca-2026",
+      "https://luma.com/q8by929z"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "contest",
+  "title": "Arcade Game Jam",
+  "summary": "The Arcade Game Jam is an event where participants develop games for two arcade machines. The created games must be web exports and can be made using any game engine. The finished arcade machines will be used at events to showcase the community-developed games.",
+  "description_md": "The Arcade Game Jam is an event where participants develop games for two arcade machines. The created games must be web exports and can be made using any game engine. The finished arcade machines will be used at events to showcase the community-developed games.",
+  "organizer": "TAGAP",
+  "website_url": "https://hackathonhub.eu/events/arcade-game-jam-cluj-napoca-2026",
+  "registration_url": "https://luma.com/q8by929z",
+  "starts_at": "2026-10-16T00:00:00+03:00",
+  "ends_at": "2026-10-18T23:59:59+03:00",
+  "timezone": "Europe/Bucharest",
+  "format": "offline",
+  "location": {
+    "country": "RO",
+    "city": "Cluj-Napoca",
+    "address": "Founders Hive, Strada 13 Septembrie 12a, 400394 Cluj-Napoca"
+  },
+  "language": [
+    "en"
+  ],
+  "themes": [
+    "gaming"
+  ],
+  "areas": [
+    {
+      "key": "gamedev",
+      "importance": "primary"
+    }
+  ],
+  "confidence": 0.8,
+  "inferred_fields": [
+    "timezone",
+    "starts_at",
+    "ends_at"
+  ],
+  "extractor_version": "hackathonhub/1"
+}

@@ -1,0 +1,37 @@
+{
+  "source": {
+    "source_id": "luma-rs:evt-AmARtBfQH8yTRQT",
+    "urls": [
+      "https://api.lu.ma/calendar/get-items",
+      "https://luma.com/AI-Salon-Belgrade-October-2026"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "meetup",
+  "title": "AI Salon Belgrade",
+  "summary": "AiSalon je globalna zajednica koja okuplja AI osnivače i developere, investitore i partnere kako bi se povezali i sarađivali.",
+  "description_md": "[AiSalon](https://aisalon.ai/?utm_source=luma) je globalna zajednica koja okuplja AI osnivače i developere, investitore i partnere kako bi se povezali i sarađivali.\n\nObeležite u kalendaru utorak, 20. oktobar, za 6. izdanje #AiSalonBelgrade.\n\nBroj mesta je ograničen, zato se prijavite na vreme. Ulaz je dozvoljen samo registrovanim učesnicima.\n\nCeo događaj biće na srpskom jeziku.\n\n# ​​​Meeting Agenda:\n\n## ​​​6:00 PM: Dolazak i upoznavanje\n\nUzmite piće, smestite se i upoznajte ljude oko sebe.\n\nPozdravna reč.\n\n## ​​​6:10 PM: Od ideje do aplikacije za 20 minuta: live demo\n\nŽarko Antanasković, HUB201\n\n## 6:30 PM:**Napravi svog AI asistenta za 20 minuta, bez ijedne linije koda.**\n\nJana Stevanović, Associate AI Consultant ICT Hub\n\n## 6:50 PM AI Startup Pitches and Demos\n\nCreative Agent - Stefan Stehlik\n\nNucipal - Igor Djuric\n\nH4Sound - Antonije Jeremić\n\n## **7:45 Druženje i Umrežavanje**\n\n**Lokacija događaja:**\n\nICT Hub - Kralja Milana 10, Belgrade",
+  "organizer": "AI Salon (www.AiSalon.ai)",
+  "website_url": "https://luma.com/AI-Salon-Belgrade-October-2026",
+  "registration_url": "https://luma.com/AI-Salon-Belgrade-October-2026",
+  "starts_at": "2026-10-20T16:00:00Z",
+  "ends_at": "2026-10-20T18:00:00Z",
+  "timezone": "Europe/Belgrade",
+  "format": "offline",
+  "location": {
+    "country": "RS",
+    "city": "Belgrade",
+    "address": "Belgrade, Serbia"
+  },
+  "language": [
+    "sr"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    }
+  ],
+  "confidence": 0.85,
+  "extractor_version": "luma/1"
+}

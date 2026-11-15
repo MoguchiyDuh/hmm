@@ -1,0 +1,48 @@
+{
+  "source": {
+    "source_id": "hackalendar:artefact-adopt-ai-hackathon-robotique-defense-paris-2026",
+    "urls": [
+      "https://hackalendar.com/e/artefact-adopt-ai-hackathon-robotique-defense-paris-2026",
+      "https://hackathons-artefactadoptai.agorize.com/fr/challenges/hackathon-robotique-defense1"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "Artefact Adopt AI - Hackathon Robotique Défense",
+  "summary": "The Hackathon Robotique Défense brings together engineering students to work on defense robotics topics over three days, co-organized with the Agence de l'Innovation de Défense (Ministère des Armées). Teams of 4 to 8 people will tackle challenges across two tracks: autonomous navigation and mobility in hostile terrain, and fine manipulation and logistics.",
+  "description_md": "The Hackathon Robotique Défense brings together engineering students to work on defense robotics topics over three days, co-organized with the Agence de l'Innovation de Défense (Ministère des Armées). Teams of 4 to 8 people will tackle challenges across two tracks: autonomous navigation and mobility in hostile terrain, and fine manipulation and logistics.\n\nParticipants take part in mentoring sessions and preliminary work to learn to use a simulator before the final sprint, testing, and prize ceremony on the Adopt AI stage.",
+  "organizer": "Artefact Adopt AI",
+  "website_url": "https://hackalendar.com/e/artefact-adopt-ai-hackathon-robotique-defense-paris-2026",
+  "registration_url": "https://hackathons-artefactadoptai.agorize.com/fr/challenges/hackathon-robotique-defense1",
+  "starts_at": "2026-12-02T00:00:00+01:00",
+  "ends_at": "2026-12-04T23:59:59+01:00",
+  "timezone": "Europe/Paris",
+  "format": "offline",
+  "location": {
+    "country": "FR",
+    "city": "Paris",
+    "address": "Grand Palais"
+  },
+  "themes": [
+    "ai",
+    "hardware",
+    "student"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    },
+    {
+      "key": "hardware",
+      "importance": "nice"
+    }
+  ],
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone",
+    "starts_at",
+    "ends_at"
+  ],
+  "extractor_version": "hackalendar/1"
+}

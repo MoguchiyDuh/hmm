@@ -1,0 +1,37 @@
+{
+  "source": {
+    "source_id": "hackalendar:chonk-in-london-mistral-vibe-hackathon-2026",
+    "urls": [
+      "https://hackalendar.com/e/chonk-in-london-mistral-vibe-hackathon-2026",
+      "https://mistr.al/48O6jiS"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "Le Chonk in London - Mistral Vibe Hackathon",
+  "summary": "Mistral Vibe Hackathon Practical Info Dates: Saturday, Nov 21 - One Day Hackathon Schedule: From 8:30 AM to 8:30 PM. Must be 18+ to participate Teams: 3-5 people Exact venue details will be accessible to selected participants All applications are reviewed by the Mistral team on a rolling basis Selected participants will receive confirmation one week before the event Breakfast, lunch & dinner will be provided to all hackers throughout the day Before event day: find your teammates or we will…",
+  "description_md": "Mistral Vibe Hackathon\nPractical Info\nDates: Saturday, Nov 21 - One Day Hackathon\nSchedule: From 8:30 AM to 8:30 PM.\nMust be 18+ to participate\nTeams: 3-5 people\nExact venue details will be accessible to selected participants\nAll applications are reviewed by the Mistral team on a rolling basis\nSelected participants will receive confirmation one week before the event\nBreakfast, lunch & dinner will be provided to all hackers throughout the day\nBefore event day: find your teammates or we will help you find one on the spot.\n\nPrizes\n🥇 1st place\n$3,000 Mistral credits\n🥈 2nd place\n$2,000 Mistral credits\n🥉 3rd place\n$1,000 Mistral credits\n\nJudges\nJudging panel composed of AI engineers, software engineers, TPM, and AI scientists from Mistral",
+  "organizer": "Mistral Events",
+  "website_url": "https://hackalendar.com/e/chonk-in-london-mistral-vibe-hackathon-2026",
+  "registration_url": "https://mistr.al/48O6jiS",
+  "starts_at": "2026-11-21T08:30:00Z",
+  "ends_at": "2026-11-21T20:30:00Z",
+  "timezone": "Europe/London",
+  "format": "offline",
+  "location": {
+    "country": "GB",
+    "city": "London",
+    "address": "Fora - Chancery House"
+  },
+  "themes": [
+    "ai"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    }
+  ],
+  "confidence": 0.85,
+  "extractor_version": "hackalendar/1"
+}

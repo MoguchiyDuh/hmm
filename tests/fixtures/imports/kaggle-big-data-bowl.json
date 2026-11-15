@@ -1,0 +1,42 @@
+{
+  "source": {
+    "source_id": "kaggle:162982",
+    "urls": [
+      "https://www.kaggle.com/competitions/nfl-big-data-bowl-2027"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "contest",
+  "title": "NFL Big Data Bowl 2027",
+  "summary": "Uncover non-obvious linkages between Combine sensor tracking and regular-season NFL game performance",
+  "organizer": "The National Football League",
+  "website_url": "https://www.kaggle.com/competitions/nfl-big-data-bowl-2027",
+  "registration_url": "https://www.kaggle.com/competitions/nfl-big-data-bowl-2027",
+  "starts_at": "2026-10-06T19:43:47.377000Z",
+  "ends_at": "2027-01-06T23:59:00Z",
+  "registration_deadline": "2027-01-06T23:59:00Z",
+  "format": "online",
+  "themes": [
+    "Kaggle",
+    "football",
+    "sports",
+    "data analytics"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    },
+    {
+      "key": "data",
+      "importance": "nice"
+    }
+  ],
+  "team_size_max": 5,
+  "prize": {
+    "amount": 100000.0,
+    "currency": "USD"
+  },
+  "confidence": 0.85,
+  "extractor_version": "kaggle/1"
+}

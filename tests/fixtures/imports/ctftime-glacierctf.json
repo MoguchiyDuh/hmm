@@ -1,0 +1,35 @@
+{
+  "source": {
+    "source_id": "ctftime:3337",
+    "urls": [
+      "https://ctftime.org/event/3337/",
+      "https://glacierctf.com/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "contest",
+  "title": "GlacierCTF 2026",
+  "summary": "We're excited to announce GlacierCTF 2026 for its fifth edition, a 24-hour jeopardy CTF organized by LosFuzzys.",
+  "description_md": "We're excited to announce GlacierCTF 2026 for its fifth edition, a 24-hour jeopardy CTF organized by LosFuzzys.\n\nJoin our discord at:\nhttps://discord.gg/DFYnRAME23\n\n- Hex-Rays (hex-rays.com)\n- ISEC @ Graz University of Technology (isec.tugraz.at)\n\nInfra sponsored by goo.gle/ctfsponsorship",
+  "organizer": "LosFuzzys",
+  "website_url": "https://glacierctf.com/",
+  "registration_url": "https://ctftime.org/event/3337/",
+  "starts_at": "2026-11-20T18:00:00Z",
+  "ends_at": "2026-11-21T18:00:00Z",
+  "format": "online",
+  "themes": [
+    "CTF",
+    "Jeopardy"
+  ],
+  "areas": [
+    {
+      "key": "security",
+      "importance": "primary"
+    }
+  ],
+  "prize": {
+    "description": "TBA"
+  },
+  "confidence": 0.85,
+  "extractor_version": "ctftime/1"
+}

@@ -1,0 +1,48 @@
+{
+  "source": {
+    "source_id": "hackathonhub:d637abf9-9d1d-48e3-ae57-ddd269a52e17",
+    "urls": [
+      "https://hackathonhub.eu/events/commit-athens-2-a-free-evening-hackathon-athens-2026",
+      "https://luma.com/a2wqs1l3"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "Commit Athens 2: A Free Evening Hackathon",
+  "summary": "Commit Athens 2 is a compact, free evening hackathon organised by students in Athens. Participants are randomly assigned into teams of five and have three and a half hours to build a working prototype using any tools they like. The event concludes with each team presenting their creation in a quick five-minute demo.",
+  "description_md": "Commit Athens 2 is a compact, free evening hackathon organised by students in Athens. Participants are randomly assigned into teams of five and have three and a half hours to build a working prototype using any tools they like. The event concludes with each team presenting their creation in a quick five-minute demo.",
+  "organizer": "Commit Athens",
+  "website_url": "https://hackathonhub.eu/events/commit-athens-2-a-free-evening-hackathon-athens-2026",
+  "registration_url": "https://luma.com/a2wqs1l3",
+  "starts_at": "2026-12-04T17:30:00Z",
+  "ends_at": "2026-12-04T22:30:00Z",
+  "timezone": "Europe/Athens",
+  "format": "offline",
+  "location": {
+    "country": "GR",
+    "city": "Athens",
+    "address": "Agiou Markou 22, Athina 105 60, Greece"
+  },
+  "language": [
+    "en"
+  ],
+  "themes": [
+    "ai",
+    "developer-tools"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    }
+  ],
+  "team_size_min": 5,
+  "team_size_max": 5,
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone",
+    "team_size_min",
+    "team_size_max"
+  ],
+  "extractor_version": "hackathonhub/1"
+}

@@ -1,0 +1,26 @@
+{
+  "source": {
+    "source_id": "mlh:01a1a71c-fe3c-68ff-32da-e25d4d01eeb3",
+    "urls": [
+      "https://www.mlh.com/events/solana-hackathon-0f",
+      "https://events.mlh.com/events/15200-solana-hackathon"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "Solana Hackathon",
+  "website_url": "https://events.mlh.com/events/15200-solana-hackathon",
+  "starts_at": "2026-11-06T00:00:00Z",
+  "ends_at": "2026-11-08T23:59:59Z",
+  "format": "online",
+  "themes": [
+    "MLH",
+    "Software"
+  ],
+  "confidence": 0.8,
+  "inferred_fields": [
+    "starts_at",
+    "ends_at"
+  ],
+  "extractor_version": "mlh/1"
+}

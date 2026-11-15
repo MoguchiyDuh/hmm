@@ -1,0 +1,36 @@
+{
+  "source": {
+    "source_id": "luma-rs:evt-arv3ZeIzFzwk491",
+    "urls": [
+      "https://api.lu.ma/calendar/get-items",
+      "https://luma.com/yk92u440"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "meetup",
+  "title": "Garaža Meetup w/ HeyData: AI and the Next Generation of Compliance",
+  "summary": "Join us in Garaža for a conversation with Miloš Djurdjević, Co-Founder and Co-CEO of heyData, and Martin Bastius, Co-Founder and Chief Legal Officer. Tihomir Bajić, General Partner at Fifth Quarter Ventures, will moderate the conversation.",
+  "description_md": "Join us in Garaža for a conversation with **Miloš Djurdjević**, Co-Founder and Co-CEO of [heyData](https://heydata.eu/), and **Martin Bastius**, Co-Founder and Chief Legal Officer. **Tihomir Bajić**, General Partner at Fifth Quarter Ventures, will moderate the conversation.\n\n[heyData](https://heydata.eu/) was founded in Berlin in 2020 with the idea that compliance should be easy for everyone. They started with GDPR and now help companies handle ISO 27001, NIS2, and the EU AI Act on one platform. **More than 2,000 companies across Europe** use heyData, and earlier this year they raised a **$16.5 million Series A** led by Riverside Acceleration Capital to grow across Europe and bring security and compliance together.\n\nCompliance is something every company has to deal with, and almost nobody enjoys it. We'll talk with Miloš and Martin about how they built a business around it and where AI is taking the whole market.\n\n## Topics:\n\n- Turning regulation into a product opportunity: building a company around GDPR, ISO, NIS2 and the EU AI Act\n- From compliance service to scalable software: finding the right product model\n- Selling a “must-have” nobody wants to buy: making compliance valuable to customers\n- Expanding across Europe: building a product for fragmented markets and regulations\n- From early traction to Series A: what changed in the company at each stage\n- Building a team around a complex, regulation-heavy product\n- AI and the next generation of compliance: where the market is heading\n\n## Speakers\n\n**[Miloš Djurdjević](https://www.linkedin.com/in/milos-djurdjevic)** **- Co-Founder & Co-CEO,** **[heyData](https://heydata.eu/)****.** Before starting heyData, Miloš worked at foodpanda (Rocket Internet), Earlybird Venture Capital, ottonova, Dialogue and Zeitgold, across the UK, Germany, Mexico and Hong Kong. He studied medicine before switching to business, and today he is also an angel investor and advisor to early-stage startups.\n\n**[Martin Bastius](https://www.linkedin.com/in/martin-bastius)** **- Co-Founder & Chief Legal Officer,** **[heyData](https://heydata.eu/)****.** Martin is a lawyer specialized in data protection and IT law. He started his career at Hengeler Mueller and Raue, then worked as Head of Legal and Data Protection Officer at fintech Zeitgold before co-founding heyData, where he leads the privacy product.  \n  \n**Moderator:** **[Tihomir Bajić](https://www.linkedin.com/in/tihomirbajic)** **- General Partner,** **[Fifth Quarter Ventures](https://www.fifthquarter.vc/)****.** Tihomir has more than 20 years of startup experience in Silicon Valley, New York, and Toronto. As a founding engineer, he helped build three startups to $100M+ exits and has co-founded the Long-Term Stock Exchange. He founded Serbian Entrepreneurs and today invests in early-stage founders from the Western Balkans through Fifth Quarter Ventures.   \n  \nWho should attend?\n\n- Startup founders and CTOs\n- Engineers and technical leads\n- Product managers working on agentic or AI-powered products\n- Students interested in startups and technology\n\n**Event language:** English  \n  \nAbout Garaža: Garaža is a non-profit community of Serbian tech startups created by founders for founders. Garaža connects founders and operators to share experiences and support each other's growth through pay-it-forward.",
+  "organizer": "Garaža",
+  "website_url": "https://luma.com/yk92u440",
+  "registration_url": "https://luma.com/yk92u440",
+  "starts_at": "2026-10-20T16:00:00Z",
+  "ends_at": "2026-10-20T18:00:00Z",
+  "timezone": "Europe/Belgrade",
+  "format": "offline",
+  "location": {
+    "country": "RS",
+    "city": "Belgrade"
+  },
+  "language": [
+    "en"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    }
+  ],
+  "confidence": 0.85,
+  "extractor_version": "luma/1"
+}

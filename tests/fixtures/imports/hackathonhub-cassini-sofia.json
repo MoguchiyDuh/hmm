@@ -1,0 +1,59 @@
+{
+  "source": {
+    "source_id": "hackathonhub:76a4d96f-ca0a-4a95-94bb-a62d0dfa1444",
+    "urls": [
+      "https://hackathonhub.eu/events/12th-cassini-hackathon-eu-space-for-peace-and-resilience-sofia-2026",
+      "https://www.cassini.eu/hackathons/bulgaria"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "12th CASSINI Hackathon – EU Space for Peace and Resilience",
+  "summary": "The 12th CASSINI Hackathon invites participants to develop innovative solutions leveraging European space technologies for peace and resilience. Participants choose one of three challenges focusing on cybersecurity, crisis response, or countering transnational crime. There are opportunities to win cash prizes and receive six months of mentoring, with no prior space experience required.",
+  "description_md": "The 12th CASSINI Hackathon invites participants to develop innovative solutions leveraging European space technologies for peace and resilience. Participants choose one of three challenges focusing on cybersecurity, crisis response, or countering transnational crime. There are opportunities to win cash prizes and receive six months of mentoring, with no prior space experience required.",
+  "organizer": "CASSINI Hackathons",
+  "website_url": "https://hackathonhub.eu/events/12th-cassini-hackathon-eu-space-for-peace-and-resilience-sofia-2026",
+  "registration_url": "https://www.cassini.eu/hackathons/bulgaria",
+  "starts_at": "2026-11-27T00:00:00+02:00",
+  "ends_at": "2026-11-28T23:59:59+02:00",
+  "timezone": "Europe/Sofia",
+  "format": "offline",
+  "location": {
+    "country": "BG",
+    "city": "Sofia"
+  },
+  "language": [
+    "en"
+  ],
+  "themes": [
+    "ai",
+    "cybersecurity",
+    "data-science",
+    "social-impact"
+  ],
+  "areas": [
+    {
+      "key": "ml_ai",
+      "importance": "primary"
+    },
+    {
+      "key": "security",
+      "importance": "nice"
+    },
+    {
+      "key": "data",
+      "importance": "nice"
+    }
+  ],
+  "prize": {
+    "amount": 9000.0,
+    "currency": "EUR"
+  },
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone",
+    "starts_at",
+    "ends_at"
+  ],
+  "extractor_version": "hackathonhub/1"
+}

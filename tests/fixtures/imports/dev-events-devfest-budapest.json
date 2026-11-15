@@ -1,0 +1,29 @@
+{
+  "source": {
+    "source_id": "dev-events:mljhl37t",
+    "urls": [
+      "https://dev.events/conferences/dev-fest-budapest-2026-mljhl37t"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "conference",
+  "title": "DevFest Budapest 2026",
+  "summary": "Google conference in Budapest, Hungary",
+  "description_md": "Google conference in Budapest, Hungary",
+  "website_url": "https://dev.events/conferences/dev-fest-budapest-2026-mljhl37t",
+  "starts_at": "2026-11-27T00:00:00+01:00",
+  "ends_at": "2026-11-27T23:59:59+01:00",
+  "timezone": "Europe/Budapest",
+  "format": "offline",
+  "location": {
+    "country": "HU",
+    "city": "Budapest"
+  },
+  "confidence": 0.8,
+  "inferred_fields": [
+    "timezone",
+    "starts_at",
+    "ends_at"
+  ],
+  "extractor_version": "jsonld_pages/1"
+}

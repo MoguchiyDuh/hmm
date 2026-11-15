@@ -1,0 +1,29 @@
+{
+  "source": {
+    "source_id": "dev-events:kswvb12b",
+    "urls": [
+      "https://dev.events/conferences/update-conference-krakow-2027-kswvb12b"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "conference",
+  "title": "Update Conference Krakow 2027",
+  "summary": ".NET conference in Krakow, Poland and Online",
+  "description_md": ".NET conference in Krakow, Poland and Online",
+  "website_url": "https://dev.events/conferences/update-conference-krakow-2027-kswvb12b",
+  "starts_at": "2027-06-02T00:00:00+02:00",
+  "ends_at": "2027-06-03T23:59:59+02:00",
+  "timezone": "Europe/Warsaw",
+  "format": "hybrid",
+  "location": {
+    "country": "PL",
+    "city": "Krakow"
+  },
+  "confidence": 0.8,
+  "inferred_fields": [
+    "timezone",
+    "starts_at",
+    "ends_at"
+  ],
+  "extractor_version": "jsonld_pages/1"
+}

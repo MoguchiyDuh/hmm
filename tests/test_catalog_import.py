@@ -35,6 +35,7 @@ from hmm.platform.db import get_or_404
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "imports"
 FIXTURE_NAMES = ("conference", "contest", "course", "hackathon", "meetup", "workshop")
+PARSER_FIXTURES = sorted(path for path in FIXTURES.glob("*.json") if path.stem not in FIXTURE_NAMES)
 
 
 def import_item(
@@ -155,6 +156,46 @@ async def test_import_contract_fixtures(harness: Harness) -> None:
         alerts = list(await session.scalars(select(models.AdminAlert)))
     assert [(alert.type, alert.subject_id) for alert in alerts] == [("import_review", contest.id)]
     assert await count(h, models.Event, models.Event.status == "published") == 5
+
+
+async def test_import_real_parser_fixtures(harness: Harness) -> None:
+    h = harness
+    await h.seed_areas()
+    assert len(PARSER_FIXTURES) >= 30
+    items = {path.stem: json.loads(path.read_text()) for path in PARSER_FIXTURES}
+    cancelled = items.pop("hackalendar-launch-day-cancelled")
+    results = await import_results(h, {**cancelled, "status": "announced"}, *items.values())
+    assert {result["result"] for result in results} == {"created", "draft"}
+    reasons = {result["source_id"]: result["review_reasons"] for result in results}
+    for pair in (
+        ("dev-events:ztj8s4fl", "confs-tech:international-javascript-conference-munich@2027-11-15"),
+        ("dev-events:kswvb12b", "dev-events:rmlc6jen"),
+    ):
+        assert sorted(reasons[source_id] for source_id in pair) == [[], ["possible_duplicate"]]
+    assert reasons["hackathonhub:a8bd75a2-5b6c-40e8-9230-17f7648e582a"] == ["unmapped_areas"]
+    assert reasons["hackathonhub:9606d37a-7ae6-42b2-9d77-bed5c32b82a0"] == ["low_confidence"]
+    flagged = {source_id for source_id, found in reasons.items() if found}
+    assert len(flagged) == 4
+    async with h.db() as session:
+        winners = list(
+            await session.scalars(
+                select(models.EventSourcePerson).where(
+                    models.EventSourcePerson.source_id == "devpost:29519"
+                )
+            )
+        )
+    assert sorted((row.place, row.github_login) for row in winners if row.github_login) == [
+        (1, "ksambhi"),
+        (1, "m31-galaxy"),
+        (2, "Schebbair"),
+        (2, "mserra0"),
+    ]
+    assert len(winners) == 8
+    [cancel] = await import_results(h, cancelled)
+    assert cancel["result"] == "updated"
+    async with h.db() as session:
+        event = await get_or_404(session, models.Event, UUID(cancel["event_id"]))
+        assert event.status == "cancelled"
 
 
 async def test_import_invalid_siblings(harness: Harness) -> None:

@@ -1,0 +1,32 @@
+{
+  "source": {
+    "source_id": "confs-tech:fun-ocaml@2027-01-25",
+    "urls": [
+      "https://fun-ocaml.com/",
+      "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/opensource.json"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "conference",
+  "title": "FUN OCaml",
+  "description_md": "Call for papers: https://cfp.fun-ocaml.com/fun-ocaml-2027-bengaluru/cfp (closes 2026-09-30)",
+  "website_url": "https://fun-ocaml.com/",
+  "starts_at": "2027-01-25T00:00:00Z",
+  "ends_at": "2027-01-26T23:59:59Z",
+  "format": "hybrid",
+  "location": {
+    "city": "Bangalore"
+  },
+  "language": [
+    "en"
+  ],
+  "themes": [
+    "opensource"
+  ],
+  "confidence": 0.8,
+  "inferred_fields": [
+    "starts_at",
+    "ends_at"
+  ],
+  "extractor_version": "confs_tech/1"
+}

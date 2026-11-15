@@ -1,0 +1,50 @@
+{
+  "source": {
+    "source_id": "hackathonhub:a8bd75a2-5b6c-40e8-9230-17f7648e582a",
+    "urls": [
+      "https://hackathonhub.eu/events/qhack-2026-2026",
+      "https://qhack.ai/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "contest",
+  "title": "Qhack 2026",
+  "summary": "Qhack 2026 is a world-renowned annual quantum coding competition powered by PennyLane. It targets hobbyists, students, and curious developers interested in hands-on quantum computing, machine learning, and quantum chemistry. Participants tackle coding challenges and can win from a substantial prize pool.",
+  "description_md": "Qhack 2026 is a world-renowned annual quantum coding competition powered by PennyLane. It targets hobbyists, students, and curious developers interested in hands-on quantum computing, machine learning, and quantum chemistry. Participants tackle coding challenges and can win from a substantial prize pool.",
+  "organizer": "Xanadu",
+  "website_url": "https://hackathonhub.eu/events/qhack-2026-2026",
+  "registration_url": "https://qhack.ai/",
+  "starts_at": "2026-10-16T10:00:00Z",
+  "ends_at": "2026-10-23T23:59:59+02:00",
+  "timezone": "Europe/Berlin",
+  "format": "online",
+  "location": {
+    "country": "DE"
+  },
+  "language": [
+    "en"
+  ],
+  "themes": [
+    "quantum-computing",
+    "developer-tools",
+    "open-source",
+    "ai"
+  ],
+  "areas": [
+    {
+      "key": "quantum_computing",
+      "importance": "primary"
+    }
+  ],
+  "prize": {
+    "amount": 15000.0,
+    "currency": "USD"
+  },
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone",
+    "ends_at",
+    "kind"
+  ],
+  "extractor_version": "hackathonhub/1"
+}

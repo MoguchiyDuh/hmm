@@ -1,0 +1,39 @@
+{
+  "source": {
+    "source_id": "bbicc:bbicc-2027",
+    "urls": [
+      "https://bbicc.fon.bg.ac.rs/bbicc-2027/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "contest",
+  "title": "BBICC 2027: Belgrade Business International Case Competition",
+  "summary": "The 12th Belgrade Business International Case Competition takes place 7–13 March 2027 in Belgrade, with three real-world cases for undergraduate teams.",
+  "description_md": "The 12th Belgrade Business International Case Competition takes place 7–13 March 2027 in Belgrade, with three real-world cases for undergraduate teams.",
+  "organizer": "Belgrade Business International Case Competition",
+  "website_url": "https://bbicc.fon.bg.ac.rs/bbicc-2027/",
+  "starts_at": "2027-03-07T00:00:00+01:00",
+  "ends_at": "2027-03-13T23:59:59+01:00",
+  "timezone": "Europe/Belgrade",
+  "format": "offline",
+  "location": {
+    "country": "RS",
+    "city": "Belgrade"
+  },
+  "eligibility": "Teams of four undergraduate students plus a faculty advisor, by invitation",
+  "areas": [
+    {
+      "key": "product",
+      "importance": "primary"
+    }
+  ],
+  "team_size_min": 4,
+  "team_size_max": 4,
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone",
+    "starts_at",
+    "ends_at"
+  ],
+  "extractor_version": "jsonld_pages/1"
+}

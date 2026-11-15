@@ -1,0 +1,30 @@
+{
+  "source": {
+    "source_id": "mlh:019f19d0-5bc4-ae3a-8026-18ec241c0053",
+    "urls": [
+      "https://www.mlh.com/events/junction-40",
+      "https://hackjunction.com/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "Junction",
+  "website_url": "https://hackjunction.com/",
+  "starts_at": "2026-11-13T21:00:00Z",
+  "ends_at": "2026-11-15T21:00:00Z",
+  "timezone": "Europe/Helsinki",
+  "format": "offline",
+  "location": {
+    "country": "FI",
+    "city": "Espoo",
+    "address": "Espoo, Uusimaa"
+  },
+  "themes": [
+    "MLH"
+  ],
+  "confidence": 0.8,
+  "inferred_fields": [
+    "timezone"
+  ],
+  "extractor_version": "mlh/1"
+}

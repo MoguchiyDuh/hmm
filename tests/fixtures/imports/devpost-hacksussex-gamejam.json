@@ -1,0 +1,38 @@
+{
+  "source": {
+    "source_id": "devpost:31655",
+    "urls": [
+      "https://hacksussex-gamejam-2026.devpost.com/"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "HackSussex GameJam 2026",
+  "summary": "About HackSussex Game Jam 2026 This is an opportunity for students of all abilities to collaborate, learn new skills, and build something cool using technology. It's a great way for people with similar interests to work together on exciting projects in a fast-paced, creative environment. HackSuss",
+  "organizer": "HackSussex",
+  "website_url": "https://hacksussex-gamejam-2026.devpost.com/",
+  "registration_url": "https://hacksussex-gamejam-2026.devpost.com/register",
+  "starts_at": "2026-12-05T06:00:00-05:00",
+  "ends_at": "2026-12-06T06:15:00-05:00",
+  "timezone": "Europe/London",
+  "format": "offline",
+  "location": {
+    "country": "GB",
+    "city": "Falmer",
+    "address": "Falmer, Brighton, UK"
+  },
+  "themes": [
+    "Gaming"
+  ],
+  "areas": [
+    {
+      "key": "gamedev",
+      "importance": "primary"
+    }
+  ],
+  "confidence": 0.8,
+  "inferred_fields": [
+    "timezone"
+  ],
+  "extractor_version": "devpost/1"
+}

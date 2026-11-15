@@ -1,0 +1,47 @@
+{
+  "source": {
+    "source_id": "hackathonhub:832c0ed3-a5d0-4690-907a-27365afe99f2",
+    "urls": [
+      "https://hackathonhub.eu/events/haven-budapest-teen-only-game-jam-hackathon-budapest-2026",
+      "https://haven.hackclub.com/budapest"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "hackathon",
+  "title": "Haven Budapest - Teen Only Game Jam Hackathon",
+  "summary": "Haven Budapest is a 12-hour game jam where you’ll build your own video game from scratch, team up with other teens, and learn by doing. No experience needed! 🎮",
+  "description_md": "Haven Budapest is a 12-hour game jam where you’ll build your own video game from scratch, team up with other teens, and learn by doing. No experience needed! 🎮\n\nWhat is Haven?\nHaven is organized by Hack Club, a nonprofit that supports a global community of 100,000+ teen coders and makers. On the same weekend, Haven events take place in 200+ cities around the world, and Budapest is one of them!\n\nWhat will you do?\n🛠️ Learn: we kick off with a beginner-friendly workshop on the Godot game engine, so you can start building right away.\n👥 Build: work in a team of up to 3 for 12 hours, with mentors around the whole time to help you.\n🏆 Show off: at the end of the day, everyone presents and play-tests each other’s games, and we vote on the winners in creative categories.\n\nWho can join?\n🎮 Teens aged 13–18 only.\nNever coded before? → SIGN UP!\nNever made a game? → SIGN UP!\nInto art or music? → SIGN UP! A great team needs more than just programmers. Bring a friend who draws or makes music.\nNo team? No problem, you can find teammates at the event.\n\n📅 Date: Saturday, November 14, 2026,\n📍 Location: Puzl CowOrKing, 1036 Budapest, Lajos utca 126–130.\n💰 Cost: COMPLETELY FREE!!!\n🎒 Bring: your laptop and charger\n\nYou won’t pay a cent, yet you’ll get free food all day, cool merch, awesome stickers, and the winners will take home amazing prizes!\n\n👉 Sign up: haven.hack.club/budapest\n❓ Questions? budapest@haven.hackclub.com\n\nCome build with us at Haven! 🫵🏻",
+  "organizer": "Haven Budapest",
+  "website_url": "https://hackathonhub.eu/events/haven-budapest-teen-only-game-jam-hackathon-budapest-2026",
+  "registration_url": "https://haven.hackclub.com/budapest",
+  "starts_at": "2026-11-14T09:00:00Z",
+  "ends_at": "2026-11-14T21:00:00Z",
+  "timezone": "Europe/Budapest",
+  "format": "offline",
+  "location": {
+    "country": "HU",
+    "city": "Budapest",
+    "address": "Lajos utca 126"
+  },
+  "language": [
+    "en"
+  ],
+  "eligibility": "School students only",
+  "themes": [
+    "gaming"
+  ],
+  "areas": [
+    {
+      "key": "gamedev",
+      "importance": "primary"
+    }
+  ],
+  "team_size_max": 3,
+  "confidence": 0.8,
+  "inferred_fields": [
+    "timezone",
+    "kind",
+    "team_size_max"
+  ],
+  "extractor_version": "hackathonhub/1"
+}

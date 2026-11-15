@@ -1,0 +1,43 @@
+{
+  "source": {
+    "source_id": "ctftime:3242",
+    "urls": [
+      "https://ctftime.org/event/3242/",
+      "https://blackalps.ch/ba-26/contest"
+    ],
+    "fetched_at": "2026-11-15T22:30:00.529546Z"
+  },
+  "kind": "contest",
+  "title": "BlackAlps CTF 2026",
+  "summary": "The BlackAlps CTF will be held at the end of the BlackAlps conference in Yverdon-les-Bains in Switzerland. It's a CTF for all level including from beginner up to advanced team.",
+  "description_md": "The BlackAlps CTF will be held at the end of the BlackAlps conference in Yverdon-les-Bains in Switzerland. It's a CTF for all level including from beginner up to advanced team.\n\nThe CTF will last 5 hours and be on site for about 300 people.\n\nThere is no specific categories.\n\nRegistration is mandatory.\n\nWelcome at 18:45. Start at 19:00. End at 23:30. Awards ceremony at 23:45.",
+  "organizer": "BlackAlps",
+  "website_url": "https://blackalps.ch/ba-26/contest",
+  "registration_url": "https://ctftime.org/event/3242/",
+  "starts_at": "2026-11-06T18:15:00Z",
+  "ends_at": "2026-11-06T22:30:00Z",
+  "timezone": "Europe/Zurich",
+  "format": "offline",
+  "location": {
+    "country": "CH",
+    "address": "Switzerland, Yverdon-les-Bains"
+  },
+  "themes": [
+    "CTF",
+    "Jeopardy"
+  ],
+  "areas": [
+    {
+      "key": "security",
+      "importance": "primary"
+    }
+  ],
+  "prize": {
+    "description": "We observe that the arrival of artificial intelligence (AI) has significantly affected the spirit of CTFs.\nTo keep the event engaging, the #BlackAlps26 CTF is introducing a new format that reflects what CTFs mean to us: having fun, learning and sharing.\n\nFor this year we are introducing Write-up presentations: participants will be able to present their solutions on stage during the final hour and prizes will be awarded to write-up presenters."
+  },
+  "confidence": 0.85,
+  "inferred_fields": [
+    "timezone"
+  ],
+  "extractor_version": "ctftime/1"
+}
