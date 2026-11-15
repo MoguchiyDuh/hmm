@@ -1,6 +1,7 @@
-from typing import Annotated
+from typing import Annotated, cast
+from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Query, Request, status
+from fastapi import APIRouter, Body, Depends, Query, Request, Response, status
 from hmm_contracts.common import (
     AreaKey,
     EventId,
@@ -11,14 +12,16 @@ from hmm_contracts.common import (
     UserId,
 )
 
+from hmm_core import models
+from hmm_core.formation import schemas as formation_schemas
 from hmm_core.formation import service as formation
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import PROBLEM_RESPONSES
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, problem_response
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import MemberAuth
-from hmm_core.projects import service
+from hmm_core.projects import invites, join_requests, service
 from hmm_core.projects.schemas import (
     CreateMilestoneBody,
     CreateProjectBody,
@@ -26,7 +29,6 @@ from hmm_core.projects.schemas import (
     CreateProjectJoinRequestBody,
     CreateProjectReleaseBody,
     CreateProjectUpdateBody,
-    Invite,
     JoinRequest,
     Milestone,
     Project,
@@ -38,6 +40,7 @@ from hmm_core.projects.schemas import (
     UpdateMilestoneBody,
     UpdateProjectBody,
 )
+from hmm_core.projects.views import POST_RESULT_TEAM_STATUSES
 from hmm_core.recommendations import service as recommendations
 
 router = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
@@ -165,16 +168,25 @@ async def create_invite(
     session: Session,
     clock: CurrentClock,
     request: Request,
-) -> Invite:
-    invite = await formation.create_invite(session, id, body, actor, clock.now())
+) -> formation_schemas.Invite:
+    project = await session.get(models.Project, id)
+    if (
+        project is not None
+        and project.team_status is not None
+        and project.team_status not in POST_RESULT_TEAM_STATUSES
+    ):
+        return await formation.create_invite(
+            session, id, formation_schemas.InviteBody(user_id=body.user_id), actor, clock.now()
+        )
+    invite = await invites.create_invite(session, id, body, actor, clock.now())
     await recommendations.enqueue_project_refresh(session, request.app.state.jobs, id)
-    return (await formation.invite_views(session, [invite], actor))[0]
+    return invite
 
 
 @router.post(
     "/projects/{id}/join-requests",
     status_code=status.HTTP_201_CREATED,
-    summary="Request to join a project or hackathon team",
+    summary="Request to join a standalone project",
 )
 async def create_join_request(
     id: ProjectId,
@@ -184,9 +196,9 @@ async def create_join_request(
     clock: CurrentClock,
     request: Request,
 ) -> JoinRequest:
-    join_request = await formation.create_join_request(session, id, body, actor, clock.now())
+    join_request = await join_requests.create_join_request(session, id, body, actor, clock.now())
     await recommendations.enqueue_project_refresh(session, request.app.state.jobs, id)
-    return (await formation.join_request_views(session, [join_request], actor))[0]
+    return join_request
 
 
 @router.delete(
@@ -212,20 +224,116 @@ async def remove_member(
     "/projects/{id}/leave", status_code=status.HTTP_204_NO_CONTENT, summary="Leave a project"
 )
 async def leave_project(
-    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+    id: ProjectId,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+    body: formation_schemas.DeclinePlacementBody | None = None,
 ) -> None:
-    await service.leave_project(session, request.app.state.jobs, id, actor, clock.now())
+    await service.leave_project(session, request.app.state.jobs, id, actor, clock.now(), body)
 
 
 @router.post(
-    "/projects/{id}/claim-lead",
+    "/projects/{id}/transfer-lead",
     status_code=status.HTTP_200_OK,
-    summary="Claim lead of a paused leaderless project as member",
+    summary="Transfer project lead immediately",
 )
-async def claim_lead(
-    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
-) -> Project:
-    return await service.claim_project_lead(session, request.app.state.jobs, id, actor, clock.now())
+async def transfer_lead(
+    id: ProjectId,
+    body: formation_schemas.TransferLeadBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Project | formation_schemas.Team:
+    project = await session.get(models.Project, id)
+    if (
+        project is not None
+        and project.team_status is not None
+        and project.team_status not in POST_RESULT_TEAM_STATUSES
+    ):
+        return await formation.transfer_lead(session, id, body, actor, clock.now())
+    return await service.transfer_project_lead(
+        session, request.app.state.jobs, id, body.user_id, actor, clock.now()
+    )
+
+
+@router.post("/invites/{id}/accept")
+async def accept_invite(
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+) -> formation_schemas.Invite:
+    row = await session.get(models.Invite, id)
+    if row is not None and row.event_id is None:
+        result = await invites.respond_invite(session, id, actor, clock.now(), "accepted")
+    else:
+        result = await formation.accept_invite(session, id, actor, clock.now())
+    if isinstance(result, ProblemError):
+        return cast(formation_schemas.Invite, problem_response(request, result.code, result.detail))
+    return result
+
+
+@router.post("/invites/{id}/decline")
+async def decline_invite(
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+) -> formation_schemas.Invite:
+    row = await session.get(models.Invite, id)
+    if row is not None and row.event_id is None:
+        result = await invites.respond_invite(session, id, actor, clock.now(), "declined")
+    else:
+        result = await formation.decline_invite(session, id, actor, clock.now())
+    if isinstance(result, ProblemError):
+        return cast(formation_schemas.Invite, problem_response(request, result.code, result.detail))
+    return result
+
+
+@router.delete("/invites/{id}", status_code=204)
+async def withdraw_invite(
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+) -> Response:
+    row = await session.get(models.Invite, id)
+    if row is not None and row.event_id is None:
+        result = await invites.respond_invite(session, id, actor, clock.now(), "withdrawn")
+    else:
+        result = await formation.withdraw_invite(session, id, actor, clock.now())
+    if isinstance(result, ProblemError):
+        return problem_response(request, result.code, result.detail)
+    return Response(status_code=204)
+
+
+@router.get("/projects/{id}/join-requests")
+async def list_join_requests(
+    id: ProjectId, actor: MemberAuth, session: Session
+) -> list[JoinRequest]:
+    return await join_requests.list_join_requests(session, id, actor)
+
+
+@router.post("/join-requests/{id}/accept")
+async def accept_join_request(
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+) -> JoinRequest:
+    return await join_requests.respond_join_request(
+        session, request.app.state.jobs, id, actor, clock.now(), "accepted"
+    )
+
+
+@router.post("/join-requests/{id}/reject")
+async def reject_join_request(
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+) -> JoinRequest:
+    return await join_requests.respond_join_request(
+        session, request.app.state.jobs, id, actor, clock.now(), "rejected"
+    )
+
+
+@router.delete("/join-requests/{id}", status_code=204)
+async def withdraw_join_request(
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+) -> Response:
+    await join_requests.respond_join_request(
+        session, request.app.state.jobs, id, actor, clock.now(), "withdrawn"
+    )
+    return Response(status_code=204)
 
 
 @router.get(

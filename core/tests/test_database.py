@@ -255,25 +255,25 @@ async def test_question_option_weights(session: AsyncSession) -> None:
 async def test_settings_roundtrip_and_audit(session: AsyncSession) -> None:
     actor = await add_user(session)
     assert await load_settings(session) == RuntimeSettings()
-    effective = await set_setting(session, SettingKey.REVIEW_HOURS, 60, actor.id, "Longer review")
-    assert effective.review_hours == 60
-    assert (await load_settings(session)).review_hours == 60
-    override = await session.get(Setting, "review_hours")
+    effective = await set_setting(session, SettingKey.ACCEPT_HOURS, 60, actor.id, "Longer review")
+    assert effective.accept_hours == 60
+    assert (await load_settings(session)).accept_hours == 60
+    override = await session.get(Setting, "accept_hours")
     assert override is not None and override.updated_by == actor.id
     audit = (await session.scalars(select(AuditLog))).one()
     assert audit.action == AuditAction.SETTING_SET
-    assert audit.entity_id == "review_hours"
-    assert audit.before == 48 and audit.after == 60
+    assert audit.entity_id == "accept_hours"
+    assert audit.before == 24 and audit.after == 60
     assert audit.reason == "Longer review"
-    await set_setting(session, SettingKey.REVIEW_HOURS, 72, actor.id)
-    assert (await load_settings(session)).review_hours == 72
+    await set_setting(session, SettingKey.ACCEPT_HOURS, 72, actor.id)
+    assert (await load_settings(session)).accept_hours == 72
     assert await session.scalar(select(func.count()).select_from(Setting)) == 1
 
 
 async def test_invalid_setting_writes_nothing(session: AsyncSession) -> None:
     actor = await add_user(session)
     with pytest.raises(ValidationError):
-        await set_setting(session, SettingKey.REVIEW_MIN_HOURS, 49, actor.id)
+        await set_setting(session, SettingKey.RESULTS_DUE_DAYS, 40, actor.id)
     assert await session.scalar(select(func.count()).select_from(Setting)) == 0
     assert await session.scalar(select(func.count()).select_from(AuditLog)) == 0
 
@@ -281,7 +281,7 @@ async def test_invalid_setting_writes_nothing(session: AsyncSession) -> None:
 async def test_settings_and_audit_rollback(session: AsyncSession) -> None:
     actor = await add_user(session)
     await session.commit()
-    await set_setting(session, SettingKey.REVIEW_HOURS, 60, actor.id)
+    await set_setting(session, SettingKey.ACCEPT_HOURS, 60, actor.id)
     await session.rollback()
     assert await load_settings(session) == RuntimeSettings()
     assert await session.scalar(select(func.count()).select_from(AuditLog)) == 0

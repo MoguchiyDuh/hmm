@@ -86,7 +86,7 @@ async def team(
     event: models.Event,
     lead: models.User,
     *members: models.User,
-    team_status: str = "forming",
+    team_status: str = "formed",
 ) -> models.Project:
     async with h.db() as session:
         project = models.Project(
@@ -99,10 +99,10 @@ async def team(
             recruiting=None,
             lead_user_id=lead.id,
             status=ProjectStatus.ACTIVE.value
-            if team_status in {"locked", "finished"}
+            if team_status in {"active", "finished"}
             else ProjectStatus.IDEA.value,
             team_status=team_status,
-            origin=ProjectOrigin.CLAIM.value,
+            origin=ProjectOrigin.FORMATION.value,
         )
         session.add(project)
         await session.flush()
@@ -115,7 +115,7 @@ async def team(
                     role="lead" if user is lead else "member",
                     state="confirmed",
                     trust="self",
-                    joined_via="claim",
+                    joined_via="formation",
                     is_team_row=True,
                     joined_at=h.now,
                 )
@@ -167,7 +167,7 @@ async def standalone(
             lead_user_id=lead.id,
             status=ProjectStatus.IDEA.value,
             team_status=None,
-            origin=ProjectOrigin.CLAIM.value,
+            origin=ProjectOrigin.FORMATION.value,
         )
         session.add(project)
         await session.flush()
@@ -237,8 +237,8 @@ async def forming_setup(
     project = await team(h, event, lead, member)
     async with h.db() as session:
         session.add(models.ProjectArea(project_id=project.id, area_id=areas["backend"].id))
-        await enroll(session, event, low)
-        await enroll(session, event, high)
+        await enroll(session, event, low, "reserve")
+        await enroll(session, event, high, "reserve")
     for user, value in ((low, "2"), (high, "8"), (plain_low, "3"), (plain_high, "9")):
         await score(h, areas["backend"], user, value)
     return project, event, areas, [low, high, plain_low, plain_high]
@@ -296,7 +296,7 @@ async def test_input_changes_recompute(harness: Harness) -> None:
     await refresh_recommendations(runtime, project_id=str(project.id))
     third = await h.user()
     async with h.db() as session:
-        await enroll(session, event, third)
+        await enroll(session, event, third, "reserve")
     await refresh_recommendations(runtime, project_id=str(project.id))
     rows = await rows_of(h, project)
     assert algorithm.calls == 2

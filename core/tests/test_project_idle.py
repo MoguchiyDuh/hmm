@@ -76,7 +76,6 @@ async def seed_project(
             team_status=team_status,
             paused_reason=paused_reason,
             origin="standalone",
-            last_lead_action_at=h.now,
             last_progress_at=last_progress_at or h.now,
         )
         session.add(project)
@@ -142,7 +141,7 @@ async def test_idle_timer_scope(harness: Harness, pause: bool) -> None:
         row = await session.get(models.Project, missing_progress.id)
         assert row is not None
         row.last_progress_at = None
-    for team_status in ("forming", "review", "locked", "active", "disbanded", "cancelled"):
+    for team_status in ("formed", "active", "disbanded", "cancelled"):
         await seed_project(h, lead, team_status=team_status, last_progress_at=old)
     finished = await seed_project(
         h, lead, status="active", team_status="finished", last_progress_at=old
@@ -188,7 +187,6 @@ async def test_idle_pause_boundary_and_effects(harness: Harness) -> None:
         assert row is not None
         assert row.status == "paused"
         assert row.paused_reason == "idle"
-        assert row.last_lead_action_at == project.last_lead_action_at
         assert row.last_progress_at == project.last_progress_at
         row = await session.get(models.Project, recent.id)
         assert row is not None and row.status == "idea"
@@ -230,10 +228,6 @@ async def test_manual_idle_and_leaderless_pause_causes(harness: Harness) -> None
         row.paused_reason = "idle"
         assert service.resume_idle_project(row) is True
         assert row.status == "active" and row.paused_reason is None
-        await service.pause_project_for_lead(session, row, h.now)
-        assert row.lead_user_id is None and row.paused_reason is None
-        assert service.resume_idle_project(row) is False
-        assert row.status == "paused" and row.paused_reason is None
 
 
 @pytest.mark.parametrize(
@@ -243,7 +237,7 @@ async def test_manual_idle_and_leaderless_pause_causes(harness: Harness) -> None
         ("paused", "idle", None, "active", None),
         ("paused", "manual", None, "paused", "manual"),
         ("paused", None, None, "paused", None),
-        ("idea", None, "forming", "idea", None),
+        ("idea", None, "formed", "idea", None),
         ("active", None, None, "active", None),
     ],
 )

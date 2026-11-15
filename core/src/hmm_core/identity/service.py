@@ -481,14 +481,13 @@ async def ban_user(
     await delete_sessions(session, user.id)
     from hmm_core.formation import service as formation
 
-    await formation.withdraw_user_enrollments(session, user.id, now)
-    await formation.withdraw_user_pending_items(session, user.id, now)
+    admin = await session.get(models.User, actor)
+    await formation.remove_user_from_formation(session, user.id, now, actor=admin)
     from hmm_core.projects import service as projects
 
     await projects.remove_user_from_standalone_projects(
         session, user.id, actor, ActorKind.ADMIN, now
     )
-    await formation.remove_user_from_teams(session, user.id, now, actor=actor)
     from hmm_core.mentorship.service import cancel_all_for_ban, withdraw_all_for_ban
 
     await withdraw_all_for_ban(session, user.id, now)

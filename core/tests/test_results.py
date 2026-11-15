@@ -56,14 +56,14 @@ async def team(harness: Harness) -> Team:
             visibility="public",
             status="active",
             team_status="active",
-            origin="claim",
+            origin="formation",
             event_id=event.id,
             lead_user_id=lead.id,
         )
         session.add(project)
         await session.flush()
         for user, role, via in (
-            (lead, "lead", "claim"),
+            (lead, "lead", "formation"),
             (a, "member", "formation"),
             (b, "member", "formation"),
         ):
@@ -202,7 +202,7 @@ async def test_submit_rejections(harness: Harness, team: Team) -> None:
     async with harness.db() as session:
         project = await session.get(models.Project, team.project.id)
         assert project is not None
-        project.team_status = "locked"
+        project.team_status = "formed"
     assert_problem(await submit(harness, team.lead, team), 409, ErrorCode.INVALID_STATE)
     async with harness.db() as session:
         project = await session.get(models.Project, team.project.id)

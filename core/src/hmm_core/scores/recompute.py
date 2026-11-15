@@ -102,9 +102,6 @@ async def recompute_member(session: AsyncSession, runtime: Runtime, user_id: UUI
         statement.on_conflict_do_update(index_elements=[models.MemberMetric.user_id], set_=values)
     )
     await apply_member_flags(session, user_id, metrics.flags, algo_version=version, now=now)
-    await defer_job(
-        session, runtime.jobs, JobName.COMPUTE_LEAD_FITS_FOR_MEMBER, user_id=str(user_id)
-    )
     return True
 
 

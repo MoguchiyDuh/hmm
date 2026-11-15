@@ -10,35 +10,20 @@
 
 | type | recipient | actions |
 |---|---|---|
-| `invite_received` (`kind` core/fill) | invitee | accept / decline |
-| `invite_accepted`, `invite_declined`, `invite_expired`, `invite_closed` | lead / invitee | – |
-| `join_request_received` | lead | accept / reject |
+| `party_invite` | invitee | accept / decline |
+| `team_invite` | invitee | accept / decline |
+| `invite_accepted`, `invite_declined` | inviter | – |
+| `invite_expired`, `invite_closed` | inviter, invitee | – |
 | `join_request_accepted`, `join_request_rejected` | requester | – |
-| `formation_soon` | enrolled members, leads | – |
-| `formation_rescheduled` | enrolled members, leads | – |
-| `team_proposed` | placed member (with `confirm_by`) | confirm / decline |
-| `team_reconfirm` | existing core member at formation (with `confirm_by`) | confirm / leave |
-| `presence_check` | every team member before `starts_at` (with `confirm_by`) | confirm / leave |
-| `lead_offer` (`source` formation/succession/transfer) | offered member | accept / decline |
-| `lead_offer_declined` | transferring lead | – |
-| `formation_ready` | claimed leads (with `confirm_by`) | confirm / open team |
-| `reserve_placed` | reserve members (with rank) | – |
-| `confirm_reminder` | proposed members, 24/6/1 h before `confirm_by` | confirm / decline |
-| `review_ending` | leads of teams below `V` | open team |
+| `formation_soon` | the queue: enrolled members and parties | – |
+| `team_proposed` | placed member (with `accept_by`) | accept / decline |
+| `accept_reminder` | proposed member 6 h before `accept_by` | accept / decline |
 | `placement_lapsed` | removed silent member | enroll again |
-| `swap_request_received` | other lead, both moved members | accept / decline |
-| `merge_proposed` | both leads | accept / decline |
-| `swap_result`, `merge_result`, `placement_changed` | leads / moved members | – |
-| `team_locked` | team, reserve | – |
+| `reserve_placed` | queue member placed by a refill (with `accept_by`) | accept / decline |
 | `team_member_joined`, `team_member_left` | lead / team | – |
-| `seat_opened` | lead (with quick-pick and head-start deadline) | open team |
-| `seat_autofilled` | lead | – |
-| `reserve_offer` | offered reserve member (with `confirm_by`) | confirm / decline |
-| `lead_opportunity` | eligible enrolled/reserve members | claim lead |
-| `lead_transferred`, `lead_stepped_down` | team | – |
-| `lead_assigned` | forced lead | transfer / step down |
+| `lead_assigned` | new lead, on every lead change (§12.7) | – |
 | `team_disbanded`, `team_status_changed` | team | – |
-| `event_changed`, `event_cancelled` | team members, enrolled members, `going` attendees | – |
+| `event_changed`, `event_cancelled` | team members, queued members, `going` attendees | – |
 | `attendance_confirm_digest` | attendees after `ends_at`; member organizer/host | confirm attendees |
 | `project_invite_received` | invitee | accept / decline |
 | `project_join_request_received` | project lead | accept / reject |
@@ -46,7 +31,6 @@
 | `project_idle`, `project_paused` | lead / members | open project |
 | `project_released` | project members | – |
 | `contributions_confirm_digest` | project members after a release | confirm lead |
-| `project_lead_offer`, `project_lead_claimable` | member / members of a paused project | accept / claim |
 | `help_request_match` | suggested mentors | help |
 | `help_request_direct` | target mentor | help / decline |
 | `help_request_declined` | learner | open to everyone |
@@ -92,12 +76,10 @@ Defaults: every type is on for web and Telegram, except that `score_changed`, `t
 
 | type | severity | trigger |
 |---|---|---|
-| `formation_undersized` | info | core below `V` after formation (§12.5) |
-| `formation_failed` | warning | algo plan invalid, fallback used, or the formation job failed (§12.5) |
-| `team_below_min` | warning | team below `min` with an empty reserve, disbanded at `reg_deadline`, or dropped below `min` after it (§12.7) |
-| `event_dates_changed` | info | dates changed while teams are in `review`/`locked` (§12.2) |
-| `forced_lead`, `lead_below_threshold` | info | lead role forced or assigned by an admin, or transferred below the threshold (§12.4, §12.8) |
-| `result_overdue` | warning | no result `results_due_days` after `ends_at` (§12.10) |
+| `formation_failed` | warning | algo plan invalid, `pack()` used, or the run failed and the phase returned to `open` (§12.5) |
+| `team_below_min` | info | a team below `min` at `reg_deadline` (§12.6) |
+| `event_dates_changed` | info | dates changed while teams are `formed` or `active` (§12.2) |
+| `result_overdue` | warning | no result `results_due_days` after `ends_at` (§13.1) |
 | `import_review` | info | import created a draft with review reasons (§11.2) |
 | `event_cancelled_with_teams` | warning | a cancelled event had teams (§11.2) |
 | `team_size_conflict` | warning | a team size change leaves a team outside the new bounds (§11.2) |

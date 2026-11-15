@@ -2,13 +2,10 @@ from datetime import date, datetime
 from uuid import UUID
 
 from hmm_contracts.common import (
-    ConfirmKind,
     InviteKind,
     InviteStatus,
     JoinedVia,
     JoinRequestStatus,
-    LeadOfferSource,
-    LeadOfferStatus,
     LeftReason,
     MemberRole,
     MemberState,
@@ -27,12 +24,11 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
-    SmallInteger,
     Text,
     Uuid,
     text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from hmm_core.platform.db import Base, Created, Mutable, enum_check
@@ -76,25 +72,12 @@ class Project(Mutable, Base):
     team_status: Mapped[str | None] = mapped_column(Text, nullable=True)
     paused_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     origin: Mapped[str] = mapped_column(Text, nullable=False)
-    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    review_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    formed_in_run_id: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("formation_runs.id", ondelete="SET NULL"), nullable=True
-    )
-    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    seat_open_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     seats_closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    last_lead_action_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
     last_progress_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     recommendation_refresh_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
-    )
-    lead_succession_excluded: Mapped[list[UUID]] = mapped_column(
-        ARRAY(Uuid), nullable=False, server_default=text("'{}'")
     )
 
 
@@ -116,8 +99,6 @@ class ProjectMember(Mutable, Base):
         enum_check("state", MemberState),
         enum_check("trust", Trust),
         enum_check("joined_via", JoinedVia),
-        CheckConstraint("char_length(proposal_reason) <= 1000", name="proposal_reason_length"),
-        enum_check("confirm_kind", ConfirmKind),
         enum_check("left_reason", LeftReason),
         Index(
             "uq_project_members_event_id_user_id_live",
@@ -134,7 +115,7 @@ class ProjectMember(Mutable, Base):
         ),
         CheckConstraint("NOT is_team_row OR event_id IS NOT NULL", name="team_event"),
         CheckConstraint(
-            "state <> 'proposed' OR (confirm_by IS NOT NULL AND confirm_kind IS NOT NULL)",
+            "state <> 'proposed' OR accept_by IS NOT NULL",
             name="proposal",
         ),
     )
@@ -158,9 +139,7 @@ class ProjectMember(Mutable, Base):
     state: Mapped[str] = mapped_column(Text, nullable=False)
     trust: Mapped[str] = mapped_column(Text, nullable=False)
     joined_via: Mapped[str] = mapped_column(Text, nullable=False)
-    proposal_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
-    confirm_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    confirm_kind: Mapped[str | None] = mapped_column(Text, nullable=True)
+    accept_by: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     is_team_row: Mapped[bool] = mapped_column(Boolean, nullable=False)
     joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -174,6 +153,18 @@ class Invite(Mutable, Base):
         enum_check("kind", InviteKind),
         CheckConstraint("char_length(message) <= 1000", name="message_length"),
         enum_check("status", InviteStatus),
+        CheckConstraint(
+            "(kind = 'party' AND party_id IS NOT NULL AND project_id IS NULL) OR "
+            "(kind = 'team' AND project_id IS NOT NULL AND party_id IS NULL)",
+            name="target",
+        ),
+        Index(
+            "uq_invites_party_id_user_id_live",
+            "party_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("status = 'pending'"),
+        ),
         Index(
             "uq_invites_project_id_user_id_live",
             "project_id",
@@ -186,8 +177,11 @@ class Invite(Mutable, Base):
     id: Mapped[UUID] = mapped_column(
         Uuid, server_default=text("uuidv7()"), nullable=False, primary_key=True
     )
-    project_id: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    project_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=True
+    )
+    party_id: Mapped[UUID | None] = mapped_column(
+        Uuid, ForeignKey("parties.id", ondelete="CASCADE"), nullable=True
     )
     event_id: Mapped[UUID | None] = mapped_column(
         Uuid, ForeignKey("events.id", ondelete="RESTRICT"), nullable=True
@@ -215,18 +209,11 @@ class JoinRequest(Mutable, Base):
         CheckConstraint("char_length(note) <= 1000", name="note_length"),
         enum_check("status", JoinRequestStatus),
         Index(
-            "uq_join_requests_event_id_user_id_live",
-            "event_id",
-            "user_id",
-            unique=True,
-            postgresql_where=text("status = 'pending'"),
-        ),
-        Index(
             "uq_join_requests_project_id_user_id_live",
             "project_id",
             "user_id",
             unique=True,
-            postgresql_where=text("status = 'pending' AND event_id IS NULL"),
+            postgresql_where=text("status = 'pending'"),
         ),
     )
 
@@ -235,52 +222,12 @@ class JoinRequest(Mutable, Base):
     )
     project_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
-    )
-    event_id: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("events.id", ondelete="RESTRICT"), nullable=True
     )
     user_id: Mapped[UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False)
-    responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-
-
-class LeadOffer(Mutable, Base):
-    __tablename__ = "lead_offers"
-    __table_args__ = (
-        enum_check("source", LeadOfferSource),
-        CheckConstraint("char_length(reason) <= 1000", name="reason_length"),
-        enum_check("status", LeadOfferStatus),
-        Index(
-            "uq_lead_offers_project_id_live",
-            "project_id",
-            unique=True,
-            postgresql_where=text("status = 'pending'"),
-        ),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        Uuid, server_default=text("uuidv7()"), nullable=False, primary_key=True
-    )
-    project_id: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
-    )
-    event_id: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("events.id", ondelete="RESTRICT"), nullable=True
-    )
-    user_id: Mapped[UUID] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
-    source: Mapped[str] = mapped_column(Text, nullable=False)
-    offered_by: Mapped[UUID | None] = mapped_column(
-        Uuid, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    tier: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
-    reason: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(Text, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     responded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 

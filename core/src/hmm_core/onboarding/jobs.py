@@ -95,6 +95,3 @@ async def score_onboarding(runtime: Runtime, user_id: str) -> None:
                 )
             )
         await defer_job(session, runtime.jobs, JobName.RECOMPUTE_MEMBER, user_id=user_id)
-        await defer_job(
-            session, runtime.jobs, JobName.COMPUTE_LEAD_FITS_FOR_MEMBER, user_id=user_id
-        )

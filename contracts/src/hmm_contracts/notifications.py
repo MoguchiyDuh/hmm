@@ -9,7 +9,6 @@ from hmm_contracts.common import (
     AlertStatus,
     AreaKey,
     AttendanceId,
-    ConfirmKind,
     Contract,
     DeliveryId,
     DeliveryStatus,
@@ -21,17 +20,13 @@ from hmm_contracts.common import (
     InviteId,
     InviteKind,
     JoinRequestId,
-    LeadOfferId,
-    LeadOfferSource,
     Locale,
-    MemberState,
     MentorshipId,
     MentorshipKind,
     MentorshipOutcome,
-    MergeProposalId,
-    MergeProposalStatus,
     NotificationChannel,
     NotificationId,
+    PartyId,
     ProjectId,
     ProjectMemberId,
     ProjectStatus,
@@ -43,8 +38,6 @@ from hmm_contracts.common import (
     ReviewWindowId,
     ReviewWindowSubjectType,
     SubjectId,
-    SwapRequestId,
-    SwapRequestStatus,
     TeamStatus,
     TimeZoneName,
     UserId,
@@ -55,6 +48,7 @@ __all__ = [
     "ALERT_SEVERITIES",
     "ALLOWED_ACTIONS",
     "TELEGRAM_OFF_BY_DEFAULT",
+    "AcceptReminderPayload",
     "ActionKey",
     "ActionRoute",
     "AdminAlert",
@@ -64,14 +58,11 @@ __all__ = [
     "ApiAction",
     "AttendanceConfirmDigestPayload",
     "AttendanceConfirmationCandidate",
-    "ConfirmReminderPayload",
     "ContributionsConfirmDigestPayload",
     "DeliveryAck",
     "DeliveryAckResult",
     "EventCancelledPayload",
     "EventChangedPayload",
-    "FormationReadyPayload",
-    "FormationRescheduledPayload",
     "FormationSoonPayload",
     "HelpOfferAcceptedPayload",
     "HelpOfferClosedPayload",
@@ -84,54 +75,39 @@ __all__ = [
     "InviteClosedPayload",
     "InviteDeclinedPayload",
     "InviteExpiredPayload",
-    "InviteReceivedPayload",
     "JoinRequestAcceptedPayload",
-    "JoinRequestReceivedPayload",
     "JoinRequestRejectedPayload",
     "LeadAssignedPayload",
-    "LeadOfferDeclinedPayload",
-    "LeadOfferPayload",
-    "LeadOpportunityPayload",
-    "LeadSteppedDownPayload",
-    "LeadTransferredPayload",
     "LinkAction",
     "MentorshipCloseProposedPayload",
     "MentorshipClosedPayload",
     "MentorshipIdlePayload",
     "MentorshipStalledPayload",
     "MentorshipStartedPayload",
-    "MergeProposedPayload",
-    "MergeResultPayload",
     "Notification",
     "NotificationActionCallback",
     "NotificationActionResult",
-    "NotificationCandidate",
     "NotificationChange",
     "NotificationPayload",
     "NotificationPerson",
     "NotificationType",
     "OnboardingReopenedPayload",
+    "PartyInvitePayload",
     "PenaltyAppliedPayload",
     "PendingDeliveriesQuery",
     "PendingDelivery",
-    "PlacementChangedPayload",
     "PlacementLapsedPayload",
-    "PresenceCheckPayload",
     "ProjectIdlePayload",
     "ProjectInviteReceivedPayload",
     "ProjectJoinRequestReceivedPayload",
-    "ProjectLeadClaimablePayload",
-    "ProjectLeadOfferPayload",
     "ProjectMemberJoinedPayload",
     "ProjectMemberLeftPayload",
     "ProjectMemberRemovedPayload",
     "ProjectPausedPayload",
     "ProjectReleasedPayload",
-    "ReserveOfferPayload",
     "ReservePlacedPayload",
     "RestrictionLiftedPayload",
     "ResultDuePayload",
-    "ReviewEndingPayload",
     "ReviewReceivedPayload",
     "ReviewRemovedPayload",
     "ReviewsOpenPayload",
@@ -139,16 +115,11 @@ __all__ = [
     "ScoreChange",
     "ScoreChangedPayload",
     "ScoresReviewedPayload",
-    "SeatAutofilledPayload",
-    "SeatOpenedPayload",
-    "SwapRequestReceivedPayload",
-    "SwapResultPayload",
     "TeamDisbandedPayload",
-    "TeamLockedPayload",
+    "TeamInvitePayload",
     "TeamMemberJoinedPayload",
     "TeamMemberLeftPayload",
     "TeamProposedPayload",
-    "TeamReconfirmPayload",
     "TeamStatusChangedPayload",
     "TelegramLinkBrokenPayload",
     "TelegramLinkRequest",
@@ -161,40 +132,21 @@ type WebPath = Annotated[str, StringConstraints(pattern=r"^/([^/\s][^\s]*)?$")]
 
 
 class NotificationType(StrEnum):
-    INVITE_RECEIVED = "invite_received"
+    PARTY_INVITE = "party_invite"
+    TEAM_INVITE = "team_invite"
     INVITE_ACCEPTED = "invite_accepted"
     INVITE_DECLINED = "invite_declined"
     INVITE_EXPIRED = "invite_expired"
     INVITE_CLOSED = "invite_closed"
-    JOIN_REQUEST_RECEIVED = "join_request_received"
     JOIN_REQUEST_ACCEPTED = "join_request_accepted"
     JOIN_REQUEST_REJECTED = "join_request_rejected"
     FORMATION_SOON = "formation_soon"
-    FORMATION_RESCHEDULED = "formation_rescheduled"
     TEAM_PROPOSED = "team_proposed"
-    TEAM_RECONFIRM = "team_reconfirm"
-    PRESENCE_CHECK = "presence_check"
-    LEAD_OFFER = "lead_offer"
-    LEAD_OFFER_DECLINED = "lead_offer_declined"
-    FORMATION_READY = "formation_ready"
     RESERVE_PLACED = "reserve_placed"
-    CONFIRM_REMINDER = "confirm_reminder"
-    REVIEW_ENDING = "review_ending"
+    ACCEPT_REMINDER = "accept_reminder"
     PLACEMENT_LAPSED = "placement_lapsed"
-    SWAP_REQUEST_RECEIVED = "swap_request_received"
-    MERGE_PROPOSED = "merge_proposed"
-    SWAP_RESULT = "swap_result"
-    MERGE_RESULT = "merge_result"
-    PLACEMENT_CHANGED = "placement_changed"
-    TEAM_LOCKED = "team_locked"
     TEAM_MEMBER_JOINED = "team_member_joined"
     TEAM_MEMBER_LEFT = "team_member_left"
-    SEAT_OPENED = "seat_opened"
-    SEAT_AUTOFILLED = "seat_autofilled"
-    RESERVE_OFFER = "reserve_offer"
-    LEAD_OPPORTUNITY = "lead_opportunity"
-    LEAD_TRANSFERRED = "lead_transferred"
-    LEAD_STEPPED_DOWN = "lead_stepped_down"
     LEAD_ASSIGNED = "lead_assigned"
     TEAM_DISBANDED = "team_disbanded"
     TEAM_STATUS_CHANGED = "team_status_changed"
@@ -210,8 +162,6 @@ class NotificationType(StrEnum):
     PROJECT_PAUSED = "project_paused"
     PROJECT_RELEASED = "project_released"
     CONTRIBUTIONS_CONFIRM_DIGEST = "contributions_confirm_digest"
-    PROJECT_LEAD_OFFER = "project_lead_offer"
-    PROJECT_LEAD_CLAIMABLE = "project_lead_claimable"
     HELP_REQUEST_MATCH = "help_request_match"
     HELP_REQUEST_DIRECT = "help_request_direct"
     HELP_REQUEST_DECLINED = "help_request_declined"
@@ -244,18 +194,9 @@ class ActionKey(StrEnum):
     INVITE_DECLINE = "invite_decline"
     JOIN_REQUEST_ACCEPT = "join_request_accept"
     JOIN_REQUEST_REJECT = "join_request_reject"
-    PLACEMENT_CONFIRM = "placement_confirm"
+    PLACEMENT_ACCEPT = "placement_accept"
     PLACEMENT_DECLINE = "placement_decline"
-    PROJECT_LEAVE = "project_leave"
-    LEAD_OFFER_ACCEPT = "lead_offer_accept"
-    LEAD_OFFER_DECLINE = "lead_offer_decline"
     EVENT_ENROLL = "event_enroll"
-    SWAP_ACCEPT = "swap_accept"
-    SWAP_DECLINE = "swap_decline"
-    MERGE_ACCEPT = "merge_accept"
-    MERGE_DECLINE = "merge_decline"
-    LEAD_STEP_DOWN = "lead_step_down"
-    PROJECT_CLAIM_LEAD = "project_claim_lead"
     HELP_OFFER_ACCEPT = "help_offer_accept"
     HELP_REQUEST_DECLINE = "help_request_decline"
     HELP_REQUEST_OPEN = "help_request_open"
@@ -286,28 +227,13 @@ ACTION_ROUTES: dict[ActionKey, ActionRoute] = {
     ActionKey.JOIN_REQUEST_REJECT: ActionRoute(
         method="POST", path="/api/v1/join-requests/{id}/reject"
     ),
-    ActionKey.PLACEMENT_CONFIRM: ActionRoute(
-        method="POST", path="/api/v1/projects/{id}/placement/confirm"
+    ActionKey.PLACEMENT_ACCEPT: ActionRoute(
+        method="POST", path="/api/v1/projects/{id}/placement/accept"
     ),
     ActionKey.PLACEMENT_DECLINE: ActionRoute(
         method="POST", path="/api/v1/projects/{id}/placement/decline", body={"withdraw": False}
     ),
-    ActionKey.PROJECT_LEAVE: ActionRoute(method="POST", path="/api/v1/projects/{id}/leave"),
-    ActionKey.LEAD_OFFER_ACCEPT: ActionRoute(method="POST", path="/api/v1/lead-offers/{id}/accept"),
-    ActionKey.LEAD_OFFER_DECLINE: ActionRoute(
-        method="POST", path="/api/v1/lead-offers/{id}/decline"
-    ),
     ActionKey.EVENT_ENROLL: ActionRoute(method="POST", path="/api/v1/events/{id}/enroll", body={}),
-    ActionKey.SWAP_ACCEPT: ActionRoute(method="POST", path="/api/v1/swaps/{id}/accept"),
-    ActionKey.SWAP_DECLINE: ActionRoute(method="POST", path="/api/v1/swaps/{id}/decline"),
-    ActionKey.MERGE_ACCEPT: ActionRoute(method="POST", path="/api/v1/merges/{id}/accept"),
-    ActionKey.MERGE_DECLINE: ActionRoute(method="POST", path="/api/v1/merges/{id}/decline"),
-    ActionKey.LEAD_STEP_DOWN: ActionRoute(
-        method="POST", path="/api/v1/projects/{id}/lead/step-down"
-    ),
-    ActionKey.PROJECT_CLAIM_LEAD: ActionRoute(
-        method="POST", path="/api/v1/projects/{id}/claim-lead"
-    ),
     ActionKey.HELP_OFFER_ACCEPT: ActionRoute(method="POST", path="/api/v1/help-offers/{id}/accept"),
     ActionKey.HELP_REQUEST_DECLINE: ActionRoute(
         method="POST", path="/api/v1/help-requests/{id}/decline"
@@ -320,44 +246,22 @@ ACTION_ROUTES: dict[ActionKey, ActionRoute] = {
 
 
 ALLOWED_ACTIONS: dict[NotificationType, tuple[ActionKey, ...]] = {
-    NotificationType.INVITE_RECEIVED: (ActionKey.INVITE_ACCEPT, ActionKey.INVITE_DECLINE),
+    NotificationType.PARTY_INVITE: (ActionKey.INVITE_ACCEPT, ActionKey.INVITE_DECLINE),
+    NotificationType.TEAM_INVITE: (ActionKey.INVITE_ACCEPT, ActionKey.INVITE_DECLINE),
     NotificationType.INVITE_ACCEPTED: (),
     NotificationType.INVITE_DECLINED: (),
     NotificationType.INVITE_EXPIRED: (),
     NotificationType.INVITE_CLOSED: (),
-    NotificationType.JOIN_REQUEST_RECEIVED: (
-        ActionKey.JOIN_REQUEST_ACCEPT,
-        ActionKey.JOIN_REQUEST_REJECT,
-    ),
     NotificationType.JOIN_REQUEST_ACCEPTED: (),
     NotificationType.JOIN_REQUEST_REJECTED: (),
     NotificationType.FORMATION_SOON: (),
-    NotificationType.FORMATION_RESCHEDULED: (),
-    NotificationType.TEAM_PROPOSED: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PLACEMENT_DECLINE),
-    NotificationType.TEAM_RECONFIRM: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PROJECT_LEAVE),
-    NotificationType.PRESENCE_CHECK: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PROJECT_LEAVE),
-    NotificationType.LEAD_OFFER: (ActionKey.LEAD_OFFER_ACCEPT, ActionKey.LEAD_OFFER_DECLINE),
-    NotificationType.LEAD_OFFER_DECLINED: (),
-    NotificationType.FORMATION_READY: (ActionKey.PLACEMENT_CONFIRM,),
+    NotificationType.TEAM_PROPOSED: (ActionKey.PLACEMENT_ACCEPT, ActionKey.PLACEMENT_DECLINE),
     NotificationType.RESERVE_PLACED: (),
-    NotificationType.CONFIRM_REMINDER: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PLACEMENT_DECLINE),
-    NotificationType.REVIEW_ENDING: (),
+    NotificationType.ACCEPT_REMINDER: (ActionKey.PLACEMENT_ACCEPT, ActionKey.PLACEMENT_DECLINE),
     NotificationType.PLACEMENT_LAPSED: (ActionKey.EVENT_ENROLL,),
-    NotificationType.SWAP_REQUEST_RECEIVED: (ActionKey.SWAP_ACCEPT, ActionKey.SWAP_DECLINE),
-    NotificationType.MERGE_PROPOSED: (ActionKey.MERGE_ACCEPT, ActionKey.MERGE_DECLINE),
-    NotificationType.SWAP_RESULT: (),
-    NotificationType.MERGE_RESULT: (),
-    NotificationType.PLACEMENT_CHANGED: (),
-    NotificationType.TEAM_LOCKED: (),
     NotificationType.TEAM_MEMBER_JOINED: (),
     NotificationType.TEAM_MEMBER_LEFT: (),
-    NotificationType.SEAT_OPENED: (),
-    NotificationType.SEAT_AUTOFILLED: (),
-    NotificationType.RESERVE_OFFER: (ActionKey.PLACEMENT_CONFIRM, ActionKey.PLACEMENT_DECLINE),
-    NotificationType.LEAD_OPPORTUNITY: (),
-    NotificationType.LEAD_TRANSFERRED: (),
-    NotificationType.LEAD_STEPPED_DOWN: (),
-    NotificationType.LEAD_ASSIGNED: (ActionKey.LEAD_STEP_DOWN,),
+    NotificationType.LEAD_ASSIGNED: (),
     NotificationType.TEAM_DISBANDED: (),
     NotificationType.TEAM_STATUS_CHANGED: (),
     NotificationType.EVENT_CHANGED: (),
@@ -375,8 +279,6 @@ ALLOWED_ACTIONS: dict[NotificationType, tuple[ActionKey, ...]] = {
     NotificationType.PROJECT_PAUSED: (),
     NotificationType.PROJECT_RELEASED: (),
     NotificationType.CONTRIBUTIONS_CONFIRM_DIGEST: (),
-    NotificationType.PROJECT_LEAD_OFFER: (ActionKey.LEAD_OFFER_ACCEPT,),
-    NotificationType.PROJECT_LEAD_CLAIMABLE: (ActionKey.PROJECT_CLAIM_LEAD,),
     NotificationType.HELP_REQUEST_MATCH: (),
     NotificationType.HELP_REQUEST_DIRECT: (ActionKey.HELP_REQUEST_DECLINE,),
     NotificationType.HELP_REQUEST_DECLINED: (ActionKey.HELP_REQUEST_OPEN,),
@@ -416,12 +318,9 @@ TELEGRAM_OFF_BY_DEFAULT: frozenset[NotificationType] = frozenset(
 
 
 class AlertKind(StrEnum):
-    FORMATION_UNDERSIZED = "formation_undersized"
     FORMATION_FAILED = "formation_failed"
     TEAM_BELOW_MIN = "team_below_min"
     EVENT_DATES_CHANGED = "event_dates_changed"
-    FORCED_LEAD = "forced_lead"
-    LEAD_BELOW_THRESHOLD = "lead_below_threshold"
     RESULT_OVERDUE = "result_overdue"
     IMPORT_REVIEW = "import_review"
     EVENT_CANCELLED_WITH_TEAMS = "event_cancelled_with_teams"
@@ -435,12 +334,9 @@ class AlertKind(StrEnum):
 
 
 ALERT_SEVERITIES: dict[AlertKind, AlertSeverity] = {
-    AlertKind.FORMATION_UNDERSIZED: AlertSeverity.INFO,
     AlertKind.FORMATION_FAILED: AlertSeverity.WARNING,
-    AlertKind.TEAM_BELOW_MIN: AlertSeverity.WARNING,
+    AlertKind.TEAM_BELOW_MIN: AlertSeverity.INFO,
     AlertKind.EVENT_DATES_CHANGED: AlertSeverity.INFO,
-    AlertKind.FORCED_LEAD: AlertSeverity.INFO,
-    AlertKind.LEAD_BELOW_THRESHOLD: AlertSeverity.INFO,
     AlertKind.RESULT_OVERDUE: AlertSeverity.WARNING,
     AlertKind.IMPORT_REVIEW: AlertSeverity.INFO,
     AlertKind.EVENT_CANCELLED_WITH_TEAMS: AlertSeverity.WARNING,
@@ -470,12 +366,6 @@ class LinkAction(Contract):
 class NotificationPerson(Contract):
     user_id: UserId
     display_name: str
-
-
-class NotificationCandidate(NotificationPerson):
-    rank: int = Field(ge=1)
-    area_key: AreaKey | None = None
-    reason: str
 
 
 class AttendanceConfirmationCandidate(NotificationPerson):
@@ -545,7 +435,7 @@ class _ProjectPayload(_Payload):
 
 class _TeamInvitePayload(_TeamPayload):
     invite_id: InviteId
-    kind: Literal[InviteKind.CORE, InviteKind.FILL]
+    kind: Literal[InviteKind.TEAM] = InviteKind.TEAM
     actor: NotificationPerson
     invitee: NotificationPerson
     expires_at: AwareDatetime
@@ -553,13 +443,26 @@ class _TeamInvitePayload(_TeamPayload):
     area_key: AreaKey | None = None
 
 
-class InviteReceivedPayload(_TeamInvitePayload):
-    type: Literal[NotificationType.INVITE_RECEIVED] = NotificationType.INVITE_RECEIVED
+class TeamInvitePayload(_TeamInvitePayload):
+    type: Literal[NotificationType.TEAM_INVITE] = NotificationType.TEAM_INVITE
 
 
-class _InviteOutcomePayload(_ProjectPayload):
+class PartyInvitePayload(_EventPayload):
+    type: Literal[NotificationType.PARTY_INVITE] = NotificationType.PARTY_INVITE
+    party_id: PartyId
+    invite_id: InviteId
+    kind: Literal[InviteKind.PARTY] = InviteKind.PARTY
+    actor: NotificationPerson
+    invitee: NotificationPerson
+    expires_at: AwareDatetime
+
+
+class _InviteOutcomePayload(_Payload):
     invite_id: InviteId
     kind: InviteKind
+    party_id: PartyId | None = None
+    project_id: ProjectId | None = None
+    project_name: str | None = None
     actor: NotificationPerson
     invitee: NotificationPerson
     expires_at: AwareDatetime
@@ -582,17 +485,6 @@ class InviteExpiredPayload(_InviteOutcomePayload):
 class InviteClosedPayload(_InviteOutcomePayload):
     type: Literal[NotificationType.INVITE_CLOSED] = NotificationType.INVITE_CLOSED
     reason: str
-
-
-class _TeamJoinRequestPayload(_TeamPayload):
-    join_request_id: JoinRequestId
-    requester: NotificationPerson
-    lead: NotificationPerson
-    note: str | None = None
-
-
-class JoinRequestReceivedPayload(_TeamJoinRequestPayload):
-    type: Literal[NotificationType.JOIN_REQUEST_RECEIVED] = NotificationType.JOIN_REQUEST_RECEIVED
 
 
 class _JoinRequestOutcomePayload(_ProjectPayload):
@@ -619,17 +511,9 @@ class FormationSoonPayload(_EventPayload):
     team_count: int = Field(ge=0)
 
 
-class FormationRescheduledPayload(_EventPayload):
-    type: Literal[NotificationType.FORMATION_RESCHEDULED] = NotificationType.FORMATION_RESCHEDULED
-    previous_formation_at: AwareDatetime
-    formation_at: AwareDatetime
-    timezone: TimeZoneName
-    reason: str
-
-
 class _PlacementPayload(_TeamPayload):
     project_member_id: ProjectMemberId
-    confirm_by: AwareDatetime
+    accept_by: AwareDatetime
     timezone: TimeZoneName
     members: tuple[NotificationPerson, ...]
 
@@ -640,125 +524,21 @@ class TeamProposedPayload(_PlacementPayload):
     area_key: AreaKey | None = None
 
 
-class TeamReconfirmPayload(_PlacementPayload):
-    type: Literal[NotificationType.TEAM_RECONFIRM] = NotificationType.TEAM_RECONFIRM
-
-
-class PresenceCheckPayload(_PlacementPayload):
-    type: Literal[NotificationType.PRESENCE_CHECK] = NotificationType.PRESENCE_CHECK
-    starts_at: AwareDatetime
-
-
-class LeadOfferPayload(_TeamPayload):
-    type: Literal[NotificationType.LEAD_OFFER] = NotificationType.LEAD_OFFER
-    lead_offer_id: LeadOfferId
-    source: LeadOfferSource
-    offered_member: NotificationPerson
-    offered_by: NotificationPerson | None = None
-    expires_at: AwareDatetime
-
-
-class LeadOfferDeclinedPayload(_TeamPayload):
-    type: Literal[NotificationType.LEAD_OFFER_DECLINED] = NotificationType.LEAD_OFFER_DECLINED
-    lead_offer_id: LeadOfferId
-    offered_member: NotificationPerson
-    reason: str
-
-
-class FormationReadyPayload(_PlacementPayload):
-    type: Literal[NotificationType.FORMATION_READY] = NotificationType.FORMATION_READY
-    proposed_count: int = Field(ge=0)
-    confirmed_count: int = Field(ge=0)
-
-
 class ReservePlacedPayload(_EventPayload):
     type: Literal[NotificationType.RESERVE_PLACED] = NotificationType.RESERVE_PLACED
-    rank: int = Field(ge=1)
     reserve_count: int = Field(ge=1)
 
 
-class ConfirmReminderPayload(_PlacementPayload):
-    type: Literal[NotificationType.CONFIRM_REMINDER] = NotificationType.CONFIRM_REMINDER
-    confirm_kind: ConfirmKind
+class AcceptReminderPayload(_PlacementPayload):
+    type: Literal[NotificationType.ACCEPT_REMINDER] = NotificationType.ACCEPT_REMINDER
     hours_remaining: int = Field(ge=0)
-
-
-class ReviewEndingPayload(_TeamPayload):
-    type: Literal[NotificationType.REVIEW_ENDING] = NotificationType.REVIEW_ENDING
-    review_ends_at: AwareDatetime
-    timezone: TimeZoneName
-    member_count: int = Field(ge=0)
-    viable_size: int = Field(ge=1)
-    has_lead: bool
 
 
 class PlacementLapsedPayload(_TeamPayload):
     type: Literal[NotificationType.PLACEMENT_LAPSED] = NotificationType.PLACEMENT_LAPSED
-    confirm_by: AwareDatetime
+    accept_by: AwareDatetime
     reason: str
     reg_deadline: AwareDatetime
-
-
-class _SwapPayload(_TeamPayload):
-    swap_request_id: SwapRequestId
-    other_project_id: ProjectId
-    other_team_name: str
-    from_member: NotificationPerson
-    to_member: NotificationPerson
-
-
-class SwapRequestReceivedPayload(_SwapPayload):
-    type: Literal[NotificationType.SWAP_REQUEST_RECEIVED] = NotificationType.SWAP_REQUEST_RECEIVED
-    expires_at: AwareDatetime
-
-
-class SwapResultPayload(_SwapPayload):
-    type: Literal[NotificationType.SWAP_RESULT] = NotificationType.SWAP_RESULT
-    status: SwapRequestStatus
-    reason: str
-
-
-class _MergePayload(_TeamPayload):
-    merge_proposal_id: MergeProposalId
-    target_project_id: ProjectId
-    target_team_name: str
-    target_lead: NotificationPerson
-    members: tuple[NotificationPerson, ...]
-    merged_size: int = Field(ge=1)
-
-
-class MergeProposedPayload(_MergePayload):
-    type: Literal[NotificationType.MERGE_PROPOSED] = NotificationType.MERGE_PROPOSED
-    expires_at: AwareDatetime
-    reason: str
-
-
-class MergeResultPayload(_MergePayload):
-    type: Literal[NotificationType.MERGE_RESULT] = NotificationType.MERGE_RESULT
-    status: MergeProposalStatus
-    reason: str
-
-
-class PlacementChangedPayload(_TeamPayload):
-    type: Literal[NotificationType.PLACEMENT_CHANGED] = NotificationType.PLACEMENT_CHANGED
-    project_member_id: ProjectMemberId
-    state: MemberState
-    confirm_by: AwareDatetime | None = None
-    confirm_kind: ConfirmKind | None = None
-    timezone: TimeZoneName
-    members: tuple[NotificationPerson, ...]
-    previous_project_id: ProjectId
-    previous_team_name: str
-    reason: str
-
-
-class TeamLockedPayload(_TeamPayload):
-    type: Literal[NotificationType.TEAM_LOCKED] = NotificationType.TEAM_LOCKED
-    members: tuple[NotificationPerson, ...]
-    lead: NotificationPerson
-    starts_at: AwareDatetime
-    timezone: TimeZoneName
-    reserve_count: int = Field(ge=0)
 
 
 class TeamMemberJoinedPayload(_TeamPayload):
@@ -774,46 +554,11 @@ class TeamMemberLeftPayload(_TeamPayload):
     reason: str
 
 
-class SeatOpenedPayload(_TeamPayload):
-    type: Literal[NotificationType.SEAT_OPENED] = NotificationType.SEAT_OPENED
-    open_seats: int = Field(ge=1)
-    head_start_ends_at: AwareDatetime
-    reg_deadline: AwareDatetime
-    quick_pick: tuple[NotificationCandidate, ...]
-
-
-class SeatAutofilledPayload(_TeamPayload):
-    type: Literal[NotificationType.SEAT_AUTOFILLED] = NotificationType.SEAT_AUTOFILLED
-    member: NotificationPerson
-    open_seats: int = Field(ge=0)
-
-
-class ReserveOfferPayload(_PlacementPayload):
-    type: Literal[NotificationType.RESERVE_OFFER] = NotificationType.RESERVE_OFFER
-    rank: int = Field(ge=1)
-    proposal_reason: str
-
-
-class LeadOpportunityPayload(_EventPayload):
-    type: Literal[NotificationType.LEAD_OPPORTUNITY] = NotificationType.LEAD_OPPORTUNITY
-    expires_at: AwareDatetime
-    reserve_count: int = Field(ge=0)
-    viable_size: int = Field(ge=1)
-
-
-class LeadTransferredPayload(_TeamPayload):
-    type: Literal[NotificationType.LEAD_TRANSFERRED] = NotificationType.LEAD_TRANSFERRED
-    previous_lead: NotificationPerson
-    lead: NotificationPerson
-
-
-class LeadSteppedDownPayload(_TeamPayload):
-    type: Literal[NotificationType.LEAD_STEPPED_DOWN] = NotificationType.LEAD_STEPPED_DOWN
-    previous_lead: NotificationPerson
-
-
-class LeadAssignedPayload(_TeamPayload):
+class LeadAssignedPayload(_ProjectPayload):
     type: Literal[NotificationType.LEAD_ASSIGNED] = NotificationType.LEAD_ASSIGNED
+    team_name: str
+    event_id: EventId | None = None
+    event_title: str | None = None
     lead: NotificationPerson
     reason: str
 
@@ -857,7 +602,7 @@ class ProjectInviteReceivedPayload(_ProjectPayload):
         NotificationType.PROJECT_INVITE_RECEIVED
     )
     invite_id: InviteId
-    kind: Literal[InviteKind.PROJECT] = InviteKind.PROJECT
+    kind: Literal[InviteKind.TEAM] = InviteKind.TEAM
     actor: NotificationPerson
     expires_at: AwareDatetime
     message: str | None = None
@@ -923,20 +668,6 @@ class ContributionsConfirmDigestPayload(_ProjectPayload):
     release_title: str
     lead: NotificationPerson
     project_member_id: ProjectMemberId
-
-
-class ProjectLeadOfferPayload(_ProjectPayload):
-    type: Literal[NotificationType.PROJECT_LEAD_OFFER] = NotificationType.PROJECT_LEAD_OFFER
-    lead_offer_id: LeadOfferId
-    source: LeadOfferSource
-    offered_by: NotificationPerson | None = None
-    expires_at: AwareDatetime
-
-
-class ProjectLeadClaimablePayload(_ProjectPayload):
-    type: Literal[NotificationType.PROJECT_LEAD_CLAIMABLE] = NotificationType.PROJECT_LEAD_CLAIMABLE
-    member_count: int = Field(ge=1)
-    reason: str
 
 
 class _HelpRequestPayload(_Payload):
@@ -1140,40 +871,21 @@ class AdminDigestPayload(_Payload):
 
 
 type NotificationPayload = Annotated[
-    InviteReceivedPayload
+    PartyInvitePayload
+    | TeamInvitePayload
     | InviteAcceptedPayload
     | InviteDeclinedPayload
     | InviteExpiredPayload
     | InviteClosedPayload
-    | JoinRequestReceivedPayload
     | JoinRequestAcceptedPayload
     | JoinRequestRejectedPayload
     | FormationSoonPayload
-    | FormationRescheduledPayload
     | TeamProposedPayload
-    | TeamReconfirmPayload
-    | PresenceCheckPayload
-    | LeadOfferPayload
-    | LeadOfferDeclinedPayload
-    | FormationReadyPayload
     | ReservePlacedPayload
-    | ConfirmReminderPayload
-    | ReviewEndingPayload
+    | AcceptReminderPayload
     | PlacementLapsedPayload
-    | SwapRequestReceivedPayload
-    | MergeProposedPayload
-    | SwapResultPayload
-    | MergeResultPayload
-    | PlacementChangedPayload
-    | TeamLockedPayload
     | TeamMemberJoinedPayload
     | TeamMemberLeftPayload
-    | SeatOpenedPayload
-    | SeatAutofilledPayload
-    | ReserveOfferPayload
-    | LeadOpportunityPayload
-    | LeadTransferredPayload
-    | LeadSteppedDownPayload
     | LeadAssignedPayload
     | TeamDisbandedPayload
     | TeamStatusChangedPayload
@@ -1189,8 +901,6 @@ type NotificationPayload = Annotated[
     | ProjectPausedPayload
     | ProjectReleasedPayload
     | ContributionsConfirmDigestPayload
-    | ProjectLeadOfferPayload
-    | ProjectLeadClaimablePayload
     | HelpRequestMatchPayload
     | HelpRequestDirectPayload
     | HelpRequestDeclinedPayload

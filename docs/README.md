@@ -3,8 +3,8 @@
 A community platform for hackathon teams, projects, events and mentorship.
 
 - **Registration:** members sign in with GitHub, complete a branching onboarding quiz, optionally attach a CV, and get per-area skill scores. Admins may review those scores later without blocking anyone.
-- **Hackathons:** a parser discovers events. Members enroll, eligible members claim the lead role and gather a core, others can volunteer to lead if needed, and one formation round packs everyone into complete teams.
-- **Review:** leads adjust the result, and everyone on a team confirms their spot, then again shortly before the start. Silence means removal. Every team ends up with a lead, picked by a fixed lead order. A reserve fills open seats.
+- **Hackathons:** a parser discovers events. Members join a matchmaking queue alone or with a party of friends, and one formation run packs the queue into complete teams.
+- **After formation:** every placed member accepts their seat within 24 h or loses it, and open seats keep filling from the queue until the registration deadline. Every team has a lead by a fixed rule, and the role passes at once when it empties.
 - **After the event:** results, peer ratings, XP, activity and score progression. The team can continue as a project.
 - **Between hackathons:** standalone projects (team, plan, releases), event attendance ("we went to X") and mentorship ("I want to learn X").
 - **Points:** XP needs a second party: co-participants, leads, organizers or learners confirm facts. Algo computes everything; suspicious items go to an admin "to check" queue to punish or pardon.
@@ -16,7 +16,7 @@ These documents are the contract between five parallel groups. Anything not spec
 | Group | Owns | Talks to | Read first |
 |---|---|---|---|
 | **core** | `core/`: FastAPI API, worker, PostgreSQL schema and migrations, object storage, `contracts/` stewardship | everyone | §2–§17, §22, §25–§28 |
-| **algo** | `algo/`: Python package for onboarding scoring, score progression, XP and activity over all facts, lead fit, quick-pick, team formation, reserve ranking, mentor matching, abuse flags and community scan | core (in-process, via `contracts/algo.py`) | §4, §12, §14, §18, §25, §28 |
+| **algo** | `algo/`: Python package for onboarding scoring, score progression, XP and activity over all facts, quick-pick, team formation, mentor matching, abuse flags and community scan | core (in-process, via `contracts/algo.py`) | §4, §12, §14, §18, §25, §28 |
 | **parser** | `parser/`: standalone service for event discovery (all kinds), extraction, normalization, dedup, people lists and import | core (`/internal/*` HTTP) | §11, §19, §26 |
 | **bot** | `bot/`: Telegram bot for notification delivery, quick actions and account linking | core (`/api/v1/*` and `/internal/*` HTTP) | §6, §15, §20, §28 |
 | **frontend** | `web/`: SPA including the admin panel | core (`/api/v1/*` HTTP, generated client) | §3, §9, §12, §21, §25–§28 |
@@ -32,7 +32,7 @@ Rules:
 
 - Every section has numbered subsections, an **Endpoints** table and, where testable, a **Done when** list.
 - Endpoint tables have the columns `Method | Path | Who | Body → response`. The **Who** values are defined in §3.3.
-- A setting is written as its key with the default in parentheses, e.g. `review_hours` (48). All settings are in §24.
+- A setting is written as its key with the default in parentheses, e.g. `accept_hours` (24). All settings are in §24.
 - Notification types are in §15, admin alerts in §15.3, error codes in `hmm_contracts.common.ErrorCode`.
 
 ## Index

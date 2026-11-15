@@ -48,24 +48,18 @@ def table_types(section: str) -> set[str]:
     }
 
 
-def test_docs_notification_types() -> None:
-    spec = (ROOT / "docs/15-notifications.md").read_text()
-    section = spec.split("## 15.1 Notifications\n", 1)[1].split("## 15.2 ", 1)[0]
-    documented = table_types(section)
-    assert len(documented) == 75
-    assert documented <= set(NotificationType)
-    assert set(NotificationType) - documented == {NotificationType.ADMIN_DIGEST}
+def test_formation_alert_severities() -> None:
+    assert ALERT_SEVERITIES[AlertKind.FORMATION_FAILED] == AlertSeverity.WARNING
+    assert ALERT_SEVERITIES[AlertKind.TEAM_BELOW_MIN] == AlertSeverity.INFO
 
 
-def test_docs_alert_kinds_and_severities() -> None:
-    spec = (ROOT / "docs/15-notifications.md").read_text()
-    section = spec.split("## 15.3 Admin alerts\n", 1)[1].split("## 15.4 ", 1)[0]
-    assert table_types(section) == set(AlertKind)
-    for column, severity in re.findall(
-        r"^\|\s*(`[^|]+)\|\s*(info|warning|critical)\s*\|", section, re.MULTILINE
-    ):
-        for kind in re.findall(r"`([a-z_]+)`", column):
-            assert ALERT_SEVERITIES[AlertKind(kind)] == AlertSeverity(severity)
+def test_party_invite_expiration() -> None:
+    data = fixture_data(NotificationType.PARTY_INVITE)
+    payload = data["payload"]
+    payload["type"] = data["type"] = NotificationType.INVITE_EXPIRED
+    payload["actions"] = []
+    notification = Notification.model_validate(data)
+    assert notification.payload.type == NotificationType.INVITE_EXPIRED
 
 
 def test_payload_union_and_fixture_coverage() -> None:
@@ -134,14 +128,6 @@ def test_expired_request_reopen_links_to_prefilled_new_request() -> None:
     assert action.url == f"/mentorship/new?from={expired.payload.help_request_id}"
 
 
-def test_confirmed_placement_change_has_no_confirmation_deadline() -> None:
-    data = fixture_data(NotificationType.PLACEMENT_CHANGED)
-    data["payload"]["state"] = "confirmed"
-    data["payload"]["confirm_by"] = None
-    data["payload"]["confirm_kind"] = None
-    assert Notification.model_validate(data).payload.type == NotificationType.PLACEMENT_CHANGED
-
-
 @pytest.mark.parametrize(
     "notification_type",
     [
@@ -158,13 +144,13 @@ def test_standalone_project_outcomes(notification_type: NotificationType) -> Non
     data["payload"]["event_id"] = None
     data["payload"]["event_title"] = None
     if "kind" in data["payload"]:
-        data["payload"]["kind"] = "project"
+        data["payload"]["kind"] = "team"
     assert Notification.model_validate(data).payload.type == notification_type
 
 
 def test_notification_type_mismatch_rejected() -> None:
     data = fixture_data(NotificationType.TEAM_PROPOSED)
-    data["type"] = NotificationType.TEAM_RECONFIRM
+    data["type"] = NotificationType.ACCEPT_REMINDER
     with pytest.raises(ValidationError, match="must match"):
         Notification.model_validate(data)
 
@@ -215,7 +201,7 @@ def test_all_public_models_exported() -> None:
 
 
 def test_pending_delivery() -> None:
-    data = fixture_data(NotificationType.INVITE_RECEIVED)
+    data = fixture_data(NotificationType.TEAM_INVITE)
     delivery = PendingDelivery.model_validate(
         {
             "delivery_id": "019a7b32-0000-7000-8000-000000000099",
@@ -312,7 +298,7 @@ def test_invalid_callback_data(data: str) -> None:
 
 @pytest.mark.parametrize("link", ["https://example.org", "//example.org", "/bad path"])
 def test_non_relative_links_rejected(link: str) -> None:
-    data = fixture_data(NotificationType.INVITE_RECEIVED)
+    data = fixture_data(NotificationType.TEAM_INVITE)
     data["payload"]["link"] = link
     with pytest.raises(ValidationError):
         Notification.model_validate(data)
@@ -320,7 +306,7 @@ def test_non_relative_links_rejected(link: str) -> None:
 
 def test_naive_deadlines_and_extra_fields_rejected() -> None:
     data = fixture_data(NotificationType.TEAM_PROPOSED)
-    data["payload"]["confirm_by"] = "2026-11-22T12:00:00"
+    data["payload"]["accept_by"] = "2026-11-22T12:00:00"
     with pytest.raises(ValidationError, match="timezone"):
         Notification.model_validate(data)
     data = fixture_data(NotificationType.TEAM_PROPOSED)

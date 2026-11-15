@@ -27,7 +27,7 @@
 
 - `PUT /api/v1/me/availability {dnd_until: null | timestamp | "indefinite"}`.
 - While active, the member:
-  - is excluded from quick-pick, lead-fit candidates and mentor matching;
+  - is excluded from quick-pick and mentor matching;
   - cannot be invited or sent a direct help request (409 `user_dnd`).
 - Pending invites stay pending. The member's own enrolling and accepting still work, and an enrolled DND member is still placed by formation.
 

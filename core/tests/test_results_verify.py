@@ -70,7 +70,7 @@ async def queue(harness: Harness) -> Queue:
                 visibility="public",
                 status="shipped",
                 team_status="finished",
-                origin="claim",
+                origin="formation",
                 event_id=owner.id,
                 lead_user_id=lead.id,
             )

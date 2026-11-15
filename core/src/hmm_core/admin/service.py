@@ -108,7 +108,7 @@ async def dashboard(session: AsyncSession, now: datetime) -> AdminDashboard:
     )
     teams_without_lead = await session.scalar(
         select(func.count(models.Project.id)).where(
-            models.Project.team_status.in_(["forming", "review", "locked", "active"]),
+            models.Project.team_status.in_(["formed", "active"]),
             models.Project.lead_user_id.is_(None),
         )
     )
@@ -133,7 +133,7 @@ async def dashboard(session: AsyncSession, now: datetime) -> AdminDashboard:
                     models.ProjectMember.left_at.is_(None),
                 ),
             )
-            .where(models.Project.team_status.in_(["review", "locked", "active"]))
+            .where(models.Project.team_status.in_(["formed", "active"]))
             .group_by(
                 models.Project.id,
                 models.Project.seats_closed_at,
@@ -148,7 +148,7 @@ async def dashboard(session: AsyncSession, now: datetime) -> AdminDashboard:
     for team_status, seats_closed_at, min_override, max_override, target_override, size in rows:
         if size < (min_override or settings.team_size_default_min):
             teams_below_min += 1
-        if team_status == "locked" and seats_closed_at is None:
+        if team_status == "formed" and seats_closed_at is None:
             target = target_override or max_override or settings.team_size_default_max
             open_seats += max(0, target - size)
     results_to_verify = await session.scalar(

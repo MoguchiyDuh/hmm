@@ -6,7 +6,6 @@ from harness import Harness
 from hmm_algo.testing import FakeAlgorithm
 from hmm_contracts.algo import LLMConfig
 from hmm_contracts.common import DeliveryStatus, NotificationChannel
-from hmm_contracts.fixtures import load_events
 from hmm_core.models import (
     AlgoCache,
     Notification,
@@ -42,13 +41,9 @@ async def test_registered_task_runs_with_fake_algorithm(
 ) -> None:
     app = create_jobs_app(migrated_database)
     seen: list[str] = []
-    event = next(iter(load_events().values()))
 
     async def body(runtime: Runtime, user_id: str) -> None:
         assert isinstance(runtime.algorithm, FakeAlgorithm)
-        async with runtime.sessionmaker.begin() as session:
-            ctx = await runtime.algo_context(session)
-            await call_algo("lead_fit", runtime.algorithm.lead_fit(ctx, event, []))
         seen.append(user_id)
 
     bind(app, JobName.SCORE_ONBOARDING, body)
@@ -100,8 +95,6 @@ def test_schedules(migrated_database: str) -> None:
     assert {name: spec.cron for name, spec in JOBS.items() if spec.cron} == {
         "github_sync_all": "0 3 * * *",
         "recompute_all_members": "0 4 * * *",
-        "compute_lead_fits": "0 5 * * *",
-        "rank_reserve": "30 5 * * *",
         "scan_community": "0 2 * * *",
         "community_tick": "*/15 * * * *",
         "event_tick": "*/5 * * * *",

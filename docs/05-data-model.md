@@ -179,38 +179,38 @@ ongoing             starts_at <= now < ends_at
 ended               now >= ends_at
 ```
 
-The participation phase of a hackathon (`open → forming → review → locked → closed`) is stored separately in `event_formations` (§5.6). Enrollment rules are in §12.4.
+The participation phase of a hackathon (`open → forming → formed → closed`) is stored separately in `event_formations` (§5.6). Queue and party rules are in §12.4.
 
 ## 5.6 Formation, teams and projects
 
 ```text
 event_formations
   event_id pk fk,
-  phase open|forming|review|locked|closed,
+  phase open|forming|formed|closed,
   target_override int null, formation_at_override timestamptz null,   -- admin
-  formation_at timestamptz, review_ends_at timestamptz null,
-  rounds int not null default 0, last_run_id fk null
+  formation_at timestamptz, last_run_id fk null
 
 enrollments
-  id, event_id fk, user_id fk, preferred_area_id fk null, note text (≤ 1000),
+  id, event_id fk, user_id fk, party_id fk null,       -- ON DELETE SET NULL; party membership
+  preferred_area_id fk null, note text (≤ 1000),
   willing_to_lead bool not null default false,
   status active|placed|reserve|withdrawn|lapsed|expired,
-  source self|invite, reserve_rank int null, status_at
+  source self|invite, status_at
   -- partial unique (event_id, user_id) where status in ('active','placed','reserve')
+
+parties
+  id, event_id fk, owner_user_id fk, closed bool not null default false, created_at
+  -- created_at is the party's queue position (§12.4)
 
 projects                                    -- standalone projects and hackathon teams (§27)
   id, event_id fk null, name text, description_md text, goal text, links jsonb,
   visibility public|members, recruiting jsonb null {areas: [area_key], note},
-  lead_user_id fk null,                    -- null while a lead offer or succession is open (§12.8, §27.6)
+  lead_user_id fk null,                    -- null only for a project with no members
   status idea|active|shipped|paused|abandoned|disbanded|cancelled,   -- teams: §27.1
-  team_status forming|review|locked|active|finished|withdrawn|disbanded|cancelled null,   -- hackathon teams only
-  origin standalone|claim|formation|late_claim|admin,
-  ready_at timestamptz null,               -- lead pressed "ready for formation"
-  review_ends_at timestamptz null,         -- team-level: copied from the event for the main round, own value for late teams
-  formed_in_run_id fk null, locked_at,
-  seat_open_since timestamptz null,        -- oldest unfilled open seat (§12.7)
-  seats_closed_at timestamptz null,        -- lead marked the team complete: no autofill
-  last_lead_action_at, last_progress_at    -- idle detection (§27.4)
+  team_status formed|active|finished|withdrawn|disbanded|cancelled null,   -- hackathon teams only
+  origin standalone|formation|admin,
+  seats_closed_at timestamptz null,        -- lead closed the seats: no refills (§12.6)
+  last_progress_at                         -- idle detection (§27.4)
 
 project_areas
   project_id fk, area_id fk               -- pk(project_id, area_id)
@@ -218,45 +218,29 @@ project_areas
 project_members
   id, project_id fk, event_id fk (denormalized), user_id fk,
   role lead|member, area_id fk null, state proposed|confirmed, trust self|peer|trusted,
-  joined_via create|invite|claim|core_invite|join_request|formation|fill_invite|reserve_add|reserve_offer|swap|merge|admin,
-  proposal_reason text null, confirm_by timestamptz null,      -- set while state='proposed'
-  confirm_kind placement|reconfirm|presence null,              -- set while state='proposed' (§12.5, §12.7)
+  joined_via create|invite|join_request|formation|refill|admin,
+  accept_by timestamptz null,                                  -- set while state='proposed'
   is_team_row bool not null,                                   -- denormalized: project is a hackathon team
   joined_at, confirmed_at, left_at,
-  left_reason declined|lapsed|removed|left|swapped|merged|disbanded|banned|admin null
+  left_reason declined|lapsed|removed|left|disbanded|banned|admin null
   -- partial unique (event_id, user_id) where left_at is null and is_team_row
   -- partial unique (project_id) where role='lead' and left_at is null
 
 invites
-  id, project_id fk, event_id fk, user_id fk, invited_by fk null,   -- null = system
-  kind core|fill|project, message text, area_id fk null,
+  id, kind party|team, party_id fk null, project_id fk null, event_id fk null, user_id fk, invited_by fk,
+  message text, area_id fk null,
   status pending|accepted|declined|withdrawn|expired|closed, closed_reason, expires_at, responded_at
+  -- check exactly one of party_id, project_id is set
+  -- partial unique (project_id, user_id) where status='pending'
+  -- partial unique (party_id, user_id) where status='pending'
+
+join_requests                               -- standalone projects only (§27.3)
+  id, project_id fk, user_id fk, note text,
+  status pending|accepted|rejected|withdrawn|closed, responded_at
   -- partial unique (project_id, user_id) where status='pending'
 
-join_requests
-  id, project_id fk, event_id fk, user_id fk, note text,
-  status pending|accepted|rejected|withdrawn|closed, responded_at
-  -- partial unique (event_id, user_id) where status='pending'
-
-lead_offers
-  id, project_id fk, event_id fk, user_id fk, source formation|succession|transfer,
-  offered_by fk null,                      -- the lead for transfers, null = system
-  tier smallint, reason text,
-  status pending|accepted|declined|expired|cancelled|closed, expires_at, responded_at
-  -- partial unique (project_id) where status='pending'
-
-swap_requests
-  id, event_id fk, from_team_id fk, from_user_id fk, to_team_id fk, to_user_id fk, requested_by fk,
-  to_lead_accepted_at, from_user_accepted_at, to_user_accepted_at,
-  status pending|accepted|declined|expired|closed
-
-merge_proposals
-  id, event_id fk, run_id fk null, absorbed_team_id fk, target_team_id fk, proposed_by system|lead,
-  absorbed_accepted_at, target_accepted_at,
-  status pending|accepted|declined|expired|closed
-
 formation_runs
-  id, event_id fk, round int, kind main|late, status pending|running|applied|failed,
+  id, event_id fk, status pending|running|applied|failed,
   planner algo|fallback, input jsonb, output jsonb, validation_errors jsonb,
   algo_version, created_at, applied_at
 ```
@@ -306,10 +290,6 @@ review_reports
 ## 5.8 Algo outputs
 
 ```text
-lead_fits
-  event_id fk, user_id fk, fit numeric(3,2), reason text, algo_version, computed_at
-  pk(event_id, user_id)
-
 recommendation_sets
   id, subject_type project|help_request, subject_id uuid, input_hash text, status pending|ready|failed, error text,
   enrolled jsonb, others jsonb, algo_version, created_at, completed_at

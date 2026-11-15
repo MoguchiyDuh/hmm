@@ -299,7 +299,6 @@ async def test_deadline_scores_without_github_or_cv(harness: Harness) -> None:
     assert len(payload["changes"]) == 1
     args = {"user_id": str(member.id)}
     assert [job["args"] for job in await h.pending_jobs("recompute_member")] == [args]
-    assert [job["args"] for job in await h.pending_jobs("compute_lead_fits_for_member")] == [args]
     async with h.db() as session:
         review = await session.get(models.MemberReview, member.id)
         assert review is not None

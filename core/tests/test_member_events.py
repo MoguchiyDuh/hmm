@@ -118,7 +118,6 @@ async def test_create_member_event(harness: Harness) -> None:
         assert audit.action == "event_create"
         assert audit.actor_kind == "user"
         assert audit.actor_id == member.id
-    assert await h.pending_jobs("compute_lead_fits") == []
     assert await count(h, models.EventFormation) == 0
 
 

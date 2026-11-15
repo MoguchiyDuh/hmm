@@ -32,7 +32,7 @@ A batch has ≤ 50 items, each an `EventImport` (§19.3). Each item runs in its 
 8. **Cancel** (`status: cancelled` from the parser):
    - event → `cancelled`; `going` attendances → `cancelled`;
    - non-terminal teams → `cancelled`; live enrollments → `expired`;
-   - pending invites, join requests, swaps and merges → `closed`;
+   - pending party and team invites → `closed`;
    - formation phase → `closed`;
    - notify (`event_cancelled`); admin alert `event_cancelled_with_teams` if any teams existed.
 9. Team size changed and an existing team is now above the new max or below the new min → admin alert `team_size_conflict`. Nobody is removed automatically.
@@ -62,10 +62,10 @@ Parser support:
 ## 11.4 Catalog for members
 
 - Shows `published` events, and `cancelled` ones only to members who were involved.
-- Filters: `kind`, `phase`, `formation` (bool), `participation_phase` (`open`, `review`, `locked`), `area`, `format`, `q`, `from`, `to`, `mine` (going, attended, enrolled or on a team), `origin`.
+- Filters: `kind`, `phase`, `formation` (bool), `participation_phase` (`open`, `forming`, `formed`, `closed`), `area`, `format`, `q`, `from`, `to`, `mine` (going, attended, enrolled or on a team), `origin`.
 - `eligibility` is shown as text and never enforced (§4.4).
-- Detail: every field, the derived `phase`, areas with importance, difficulty with rationale, attendance counts and my attendance, members going; for formation events also the participation block from `GET /api/v1/events/{id}/formation` (§12.11) and my lead fit.
-- `allowed_actions`: `going`, `attended`, `enroll`, `withdraw`, `claim_lead`, `request_join`, `edit`, `cancel`.
+- Detail: every field, the derived `phase`, areas with importance, difficulty with rationale, attendance counts and my attendance, members going; for formation events also the participation block from `GET /api/v1/events/{id}/formation` (§12.10).
+- `allowed_actions`: `going`, `attended`, `enroll`, `withdraw`, `create_party`, `edit`, `cancel`.
 
 ## 11.5 Endpoints
 

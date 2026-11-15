@@ -168,13 +168,7 @@ async def create_project(
         status=ProjectStatus.IDEA.value,
         team_status=None,
         origin=ProjectOrigin.STANDALONE.value,
-        ready_at=None,
-        review_ends_at=None,
-        formed_in_run_id=None,
-        locked_at=None,
-        seat_open_since=None,
         seats_closed_at=None,
-        last_lead_action_at=now,
         last_progress_at=now,
     )
     session.add(project)
@@ -192,9 +186,6 @@ async def create_project(
             state=MemberState.CONFIRMED.value,
             trust=Trust.SELF.value,
             joined_via=JoinedVia.CREATE.value,
-            proposal_reason=None,
-            confirm_by=None,
-            confirm_kind=None,
             is_team_row=False,
             joined_at=now,
             confirmed_at=now,

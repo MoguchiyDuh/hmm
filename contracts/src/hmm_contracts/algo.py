@@ -26,7 +26,6 @@ from hmm_contracts.common import (
     FactType,
     FlagStatus,
     FlagSubjectType,
-    FormationKind,
     HelpRequestFormat,
     MemberRole,
     MemberState,
@@ -56,9 +55,9 @@ from hmm_contracts.common import (
     TeamStatus,
     TimeZoneName,
     Trust,
+    UnitId,
     UserId,
 )
-from hmm_contracts.formation import Bounds
 
 __all__ = [
     "AccountInfo",
@@ -74,7 +73,6 @@ __all__ = [
     "CommunityGraph",
     "ConfirmationEdge",
     "ConfirmationIn",
-    "Core",
     "Count",
     "EffectiveScore",
     "EnrolledMember",
@@ -87,10 +85,10 @@ __all__ = [
     "Flag",
     "FormationPlan",
     "FormationRequest",
+    "FormationUnit",
     "GithubRepo",
     "GithubSummary",
     "LLMConfig",
-    "LeadFit",
     "MemberEventSummary",
     "MemberHistory",
     "MemberMetrics",
@@ -112,8 +110,6 @@ __all__ = [
     "OnboardingRequest",
     "OnboardingScores",
     "PardonedFlag",
-    "PlannedMember",
-    "PlannedMerge",
     "PlannedTeam",
     "ProjectResultContext",
     "ProjectSnapshot",
@@ -124,7 +120,6 @@ __all__ = [
     "QuizQuestion",
     "QuizQuestionBase",
     "QuizSection",
-    "RankedMember",
     "RatingSummary",
     "Reason",
     "Rec",
@@ -133,7 +128,6 @@ __all__ = [
     "Recruiting",
     "ReleaseContext",
     "ReleaseContribution",
-    "ReserveRequest",
     "ReviewEdge",
     "ReviewIn",
     "ScaleConfig",
@@ -141,7 +135,6 @@ __all__ = [
     "ScoreWithReason",
     "SingleChoiceConfig",
     "SingleChoiceQuestion",
-    "TeamComposition",
     "TeamMemberSnapshot",
     "TextConfig",
     "TextQuestion",
@@ -166,13 +159,6 @@ type AnswerValue = str | list[str] | int | float
 
 class AlgoSettings(Contract):
     activity_window_days: int = Field(default=14, gt=0, description="Activity scoring window")
-    lead_fit_threshold: UnitScore = Field(default=0.6, description="Lead eligibility threshold")
-    viable_ratio: Annotated[float, Field(gt=0, le=1)] = Field(
-        default=0.75, description="Viable team size ratio"
-    )
-    core_ratio: Annotated[float, Field(gt=0, le=1)] = Field(
-        default=0.5, description="Claimed core size ratio"
-    )
     team_size_default_min: int = Field(default=2, ge=1, description="Default minimum team size")
     team_size_default_max: int = Field(default=5, ge=1, description="Default maximum team size")
     mentor_min_score: AreaScore = Field(default=6.0, description="Minimum mentoring score")
@@ -709,18 +695,11 @@ class MemberMetrics(Contract):
     flags: list[Flag]
 
 
-class LeadFit(Contract):
-    user_id: UserId
-    fit: UnitScore
-    reason: Reason
-
-
 class TeamMemberSnapshot(MemberSnapshot):
     role: MemberRole
     area: AreaKey | None
     state: MemberState
     willing_to_lead: bool
-    claimed_lead: bool
     enrolled_at: AwareDatetime
 
 
@@ -754,66 +733,27 @@ class Recommendations(Contract):
     others: list[Rec]
 
 
-class Core(Contract):
-    project_id: ProjectId
-    lead: TeamMemberSnapshot
-    members: list[TeamMemberSnapshot]
+class FormationUnit(Contract):
+    id: UnitId
+    members: list[EnrolledMember] = Field(min_length=1)
 
 
 class FormationRequest(Contract):
     hackathon: EventSnapshot
-    kind: FormationKind
     target: int = Field(ge=1)
-    viable: int = Field(ge=1)
+    min_size: int = Field(ge=1)
     max_size: int = Field(ge=1)
-    bounds: Bounds
-    cores: list[Core]
-    unplaced: list[EnrolledMember]
-    lead_fits: dict[UserId, LeadFit]
-
-
-class PlannedMember(Contract):
-    user_id: UserId
-    area: AreaKey | None
-    reason: Reason
+    units: list[FormationUnit]
 
 
 class PlannedTeam(Contract):
-    project_id: ProjectId | None
-    lead_user_id: UserId | None
-    members: list[PlannedMember]
-    reason: Reason
-
-
-class RankedMember(Contract):
-    user_id: UserId
-    rank: int = Field(ge=1)
-    reason: Reason
-
-
-class PlannedMerge(Contract):
-    absorbed_team_id: ProjectId
-    target_team_id: ProjectId
+    units: list[UnitId]
     reason: Reason
 
 
 class FormationPlan(Contract):
     teams: list[PlannedTeam]
-    reserve: list[RankedMember]
-    merges: list[PlannedMerge]
     summary: str = Field(min_length=1, pattern=r"\S")
-
-
-class TeamComposition(Contract):
-    project_id: ProjectId
-    members: list[TeamMemberSnapshot]
-    open_seats: Count
-
-
-class ReserveRequest(Contract):
-    hackathon: EventSnapshot
-    teams: list[TeamComposition]
-    reserve: list[EnrolledMember]
 
 
 class MentorMatchRequest(Contract):
@@ -902,17 +842,9 @@ class Algorithm(Protocol):
         self, ctx: AlgoContext, member: MemberHistory, areas: list[Area]
     ) -> MemberMetrics: ...
 
-    async def lead_fit(
-        self, ctx: AlgoContext, hackathon: EventSnapshot, candidates: list[MemberSnapshot]
-    ) -> list[LeadFit]: ...
-
     async def recommend(self, ctx: AlgoContext, request: RecommendRequest) -> Recommendations: ...
 
     async def form_teams(self, ctx: AlgoContext, request: FormationRequest) -> FormationPlan: ...
-
-    async def rank_reserve(
-        self, ctx: AlgoContext, request: ReserveRequest
-    ) -> list[RankedMember]: ...
 
     async def match_mentors(self, ctx: AlgoContext, request: MentorMatchRequest) -> list[Rec]: ...
 

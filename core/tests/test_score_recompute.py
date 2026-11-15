@@ -189,8 +189,6 @@ async def test_recompute_happy_path_and_noop(harness: Harness) -> None:
         ]
         assert awards[0].algo_version == "fake-1"
         assert awards[0].computed_at == h.now
-    pending = await h.pending_jobs("compute_lead_fits_for_member")
-    assert [row["args"] for row in pending] == [{"user_id": str(member.id)}]
     events_before = await count(h, models.AreaScoreEvent)
     notifications_before = await count(h, models.Notification)
     async with h.db() as session:
@@ -206,7 +204,6 @@ async def test_recompute_happy_path_and_noop(harness: Harness) -> None:
             minutes=5
         )
         assert list(await session.scalars(select(models.FactAward.created_at))) == award_ids
-    assert len(await h.pending_jobs("compute_lead_fits_for_member")) == 1
 
 
 async def test_recompute_replaces_awards(harness: Harness) -> None:
@@ -400,7 +397,6 @@ async def test_invalid_output_writes_nothing(harness: Harness) -> None:
     assert await count(h, models.MemberMetric) == 0
     assert await count(h, models.FactAward) == 0
     assert await count(h, models.AreaScoreEvent) == 0
-    assert await h.pending_jobs("compute_lead_fits_for_member") == []
 
 
 async def test_score_change_notifies(harness: Harness) -> None:

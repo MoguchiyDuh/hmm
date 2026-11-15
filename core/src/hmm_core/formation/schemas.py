@@ -1,271 +1,139 @@
+from datetime import datetime
 from enum import StrEnum
+from uuid import UUID
 
-from hmm_contracts.algo import FormationPlan, FormationRequest
-from hmm_contracts.common import (
-    AreaKey,
-    EnrollmentId,
-    EnrollmentSource,
-    EnrollmentStatus,
-    EventId,
-    FormationKind,
-    FormationPhase,
-    FormationPlanner,
-    FormationRunId,
-    FormationRunStatus,
-    MergeProposalId,
-    MergeProposalStatus,
-    MergeProposedBy,
-    Page,
-    ProjectId,
-    SwapRequestId,
-    SwapRequestStatus,
-    TeamStatus,
-    UserId,
-)
+from hmm_contracts.common import Contract, EnrollmentStatus, FormationPhase, InviteStatus, Page
+from hmm_contracts.formation import Packing
 from pydantic import AwareDatetime, Field, JsonValue
 
-from hmm_core.platform.schemas import (
-    ApiModel,
-    AreaScoreSummary,
-    EventRef,
-    Markdown,
-    Name,
-    Note,
-    ProjectRef,
-    ReasonBody,
-    UserRef,
-    WithAllowedActions,
-)
-from hmm_core.projects.schemas import ProjectMember
+from hmm_core.platform.schemas import ReasonBody
 
 
-class EnrollmentAction(StrEnum):
-    EDIT = "edit"
-    WITHDRAW = "withdraw"
-    INVITE = "invite"
-    ADD = "add"
+class CreateEnrollmentBody(Contract):
+    preferred_area_key: str | None = None
+    note: str | None = Field(default=None, max_length=1000)
+    willing_to_lead: bool = False
+
+
+class UpdateEnrollmentBody(Contract):
+    preferred_area_key: str | None = None
+    note: str | None = Field(default=None, max_length=1000)
+    willing_to_lead: bool | None = None
+
+
+class Enrollment(Contract):
+    id: UUID
+    event_id: UUID
+    user_id: UUID
+    party_id: UUID | None
+    preferred_area_id: UUID | None
+    note: str | None
+    willing_to_lead: bool
+    status: EnrollmentStatus
+    status_at: datetime
+
+
+class Member(Contract):
+    id: UUID
+    user_id: UUID
+    area_id: UUID | None
+    role: str
+    state: str
+    accept_by: datetime | None
+
+
+class Team(Contract):
+    id: UUID
+    name: str
+    lead_user_id: UUID | None
+    team_status: str | None
+    closed: bool
+    members: list[Member]
+
+
+class EnrollmentPage(Page[Enrollment]):
+    teams: list[Team] = Field(default_factory=list)
+
+
+class Invite(Contract):
+    id: UUID
+    event_id: UUID | None
+    party_id: UUID | None
+    project_id: UUID | None
+    user_id: UUID
+    invited_by: UUID | None
+    kind: str
+    status: InviteStatus
+    expires_at: datetime
+    responded_at: datetime | None
+
+
+class Party(Contract):
+    id: UUID
+    event_id: UUID
+    owner_user_id: UUID
+    closed: bool
+    created_at: datetime
+    members: list[Enrollment]
+    invites: list[Invite]
 
 
 class FormationAction(StrEnum):
     ENROLL = "enroll"
-    EDIT_ENROLLMENT = "edit_enrollment"
     WITHDRAW = "withdraw"
-    CLAIM_LEAD = "claim_lead"
-    EDIT = "edit"
-    RUN = "run"
-    CREATE_TEAM = "create_team"
-    REORDER_RESERVE = "reorder_reserve"
-
-
-class SwapAction(StrEnum):
+    UPDATE_ENROLLMENT = "update_enrollment"
+    CREATE_PARTY = "create_party"
     ACCEPT = "accept"
     DECLINE = "decline"
+    LEAVE = "leave"
 
 
-class MergeAction(StrEnum):
-    ACCEPT = "accept"
-    DECLINE = "decline"
-
-
-class Enrollment(WithAllowedActions[EnrollmentAction]):
-    id: EnrollmentId
-    event_id: EventId
-    event: EventRef
-    user: UserRef
-    preferred_area_key: AreaKey | None
-    note: str | None
-    willing_to_lead: bool
-    status: EnrollmentStatus
-    source: EnrollmentSource
-    reserve_rank: int | None = Field(ge=1)
-    status_at: AwareDatetime
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
-    top_scores: list[AreaScoreSummary]
-    team: ProjectRef | None
-
-
-class CreateEnrollmentBody(ApiModel):
-    preferred_area_key: AreaKey | None = None
-    note: Note | None = None
-    willing_to_lead: bool = False
-
-
-class UpdateEnrollmentBody(ApiModel):
-    preferred_area_key: AreaKey | None = None
-    note: Note | None = None
-    willing_to_lead: bool | None = None
-
-
-class LeadEligibility(ApiModel):
-    fit: float = Field(ge=0, le=1)
-    eligible: bool
-    reason: str
-    computed_at: AwareDatetime
-
-
-class LeadCandidate(LeadEligibility):
-    user: UserRef
-    willing_to_lead: bool
-    tier: int = Field(ge=1, le=4)
-    enrolled_at: AwareDatetime | None
-
-
-class FormationCounts(ApiModel):
-    enrollments: int = Field(ge=0)
-    active: int = Field(ge=0)
-    placed: int = Field(ge=0)
-    reserve: int = Field(ge=0)
-    cores: int = Field(ge=0)
-    core_members: int = Field(ge=0)
-    teams: int = Field(ge=0)
-    volunteers: int = Field(ge=0)
-
-
-class FormationProjection(ApiModel):
-    teams: int = Field(ge=0)
-    new_teams: int = Field(ge=0)
-    placed: int = Field(ge=0)
-    reserve: int = Field(ge=0)
-    undersized_cores: int = Field(ge=0)
-    team_sizes: list[int]
-    volunteers: int = Field(ge=0)
-
-
-class ParticipationState(ApiModel):
-    enrollment: Enrollment | None
-    team: ProjectRef | None
-    membership: ProjectMember | None
-    lead_fit: LeadEligibility | None
-
-
-class Formation(WithAllowedActions[FormationAction]):
-    event_id: EventId
+class Formation(Contract):
     phase: FormationPhase
-    target: int = Field(ge=1)
-    viable: int = Field(ge=1)
-    min_size: int = Field(ge=1)
-    max_size: int = Field(ge=1)
-    core_max: int = Field(ge=2)
-    target_override: int | None = Field(ge=1)
-    formation_at_override: AwareDatetime | None
-    formation_at: AwareDatetime
-    review_ends_at: AwareDatetime | None
-    team_deadline: AwareDatetime
-    reg_deadline: AwareDatetime
-    rounds: int = Field(ge=0)
-    last_run_id: FormationRunId | None
-    counts: FormationCounts
-    projection: FormationProjection
-    my_state: ParticipationState
+    target: int
+    min: int
+    max: int
+    formation_at: datetime
+    counts: dict[str, int]
+    projection: Packing
+    my_enrollment: Enrollment | None
+    my_team: Team | None
+    allowed_actions: list[FormationAction]
 
 
-class CreateTeamBody(ApiModel):
-    name: Name
-    description_md: Markdown | None = None
+class ClosedBody(ReasonBody):
+    closed: bool
 
 
-class AdminCreateTeamBody(ReasonBody):
-    lead_user_id: UserId
-    name: Name
+class InviteBody(ReasonBody):
+    user_id: UUID
 
 
-class DeclinePlacementBody(ApiModel):
-    withdraw: bool
+class TransferLeadBody(ReasonBody):
+    user_id: UUID
 
 
-class TransferLeadBody(ApiModel):
-    user_id: UserId
+class UpdateMemberBody(ReasonBody):
+    area_key: str | None
 
 
-class AddMemberBody(ApiModel):
-    user_id: UserId
-    area_key: AreaKey | None = None
-
-
-class AdminAddMemberBody(AddMemberBody):
-    reason: Note | None = None
-
-
-class UpdateMemberBody(ApiModel):
-    area_key: AreaKey | None
-
-
-class CreateSwapBody(ApiModel):
-    from_user_id: UserId
-    to_user_id: UserId
-
-
-class Swap(WithAllowedActions[SwapAction]):
-    id: SwapRequestId
-    event_id: EventId
-    from_team_id: ProjectId
-    from_user_id: UserId
-    to_team_id: ProjectId
-    to_user_id: UserId
-    requested_by: UserId
-    to_lead_accepted_at: AwareDatetime | None
-    from_user_accepted_at: AwareDatetime | None
-    to_user_accepted_at: AwareDatetime | None
-    status: SwapRequestStatus
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
-
-
-class CreateMergeBody(ApiModel):
-    target_team_id: ProjectId
-
-
-class Merge(WithAllowedActions[MergeAction]):
-    id: MergeProposalId
-    event_id: EventId
-    run_id: FormationRunId | None
-    absorbed_team_id: ProjectId
-    target_team_id: ProjectId
-    proposed_by: MergeProposedBy
-    absorbed_accepted_at: AwareDatetime | None
-    target_accepted_at: AwareDatetime | None
-    status: MergeProposalStatus
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
+class DeclinePlacementBody(ReasonBody):
+    withdraw: bool = False
 
 
 class UpdateFormationBody(ReasonBody):
-    target_override: int | None = Field(default=None, ge=1)
+    target_override: int | None = Field(default=None, ge=1, le=20)
     formation_at_override: AwareDatetime | None = None
 
 
-class FormationRun(ApiModel):
-    id: FormationRunId
-    event_id: EventId
-    round: int = Field(ge=1)
-    kind: FormationKind
-    status: FormationRunStatus
-    planner: FormationPlanner | None
-    input: FormationRequest | None
-    output: FormationPlan | None
-    validation_errors: list[JsonValue]
-    algo_version: str | None
-    created_at: AwareDatetime
-    applied_at: AwareDatetime | None
-
-
-class UpdateReserveOrderBody(ReasonBody):
-    user_ids: list[UserId] = Field(min_length=1)
-
-
-class MoveMemberBody(ReasonBody):
-    user_id: UserId
-    to_team_id: ProjectId
-
-
-class AssignLeadBody(ReasonBody):
-    user_id: UserId
-
-
-class UpdateTeamStatusBody(ReasonBody):
-    status: TeamStatus
-
-
-class EnrollmentPage(Page[Enrollment]):
-    pass
+class FormationRun(Contract):
+    id: UUID
+    event_id: UUID
+    status: str
+    planner: str
+    input: JsonValue
+    output: JsonValue | None
+    validation_errors: JsonValue | None
+    algo_version: str
+    created_at: datetime
+    applied_at: datetime | None

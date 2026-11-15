@@ -60,7 +60,7 @@ async def seed_team(
             visibility="public",
             status="active",
             team_status=team_status,
-            origin="claim",
+            origin="formation",
             event_id=event.id,
             lead_user_id=lead.id,
         )

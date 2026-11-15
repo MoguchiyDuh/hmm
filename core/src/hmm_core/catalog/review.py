@@ -67,7 +67,6 @@ async def publish_event(
     event.status = EventStatus.PUBLISHED.value
     event.review_reasons = []
     await formation.ensure_formation(session, event, now)
-    await catalog.enqueue_lead_fits(session, jobs, event)
     await record_audit(
         session,
         actor=actor.id,

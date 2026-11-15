@@ -32,11 +32,8 @@ class JobName(StrEnum):
     SCORE_ONBOARDING = "score_onboarding"
     RECOMPUTE_MEMBER = "recompute_member"
     RECOMPUTE_ALL_MEMBERS = "recompute_all_members"
-    COMPUTE_LEAD_FITS = "compute_lead_fits"
-    COMPUTE_LEAD_FITS_FOR_MEMBER = "compute_lead_fits_for_member"
     REFRESH_RECOMMENDATIONS = "refresh_recommendations"
     RUN_FORMATION = "run_formation"
-    RANK_RESERVE = "rank_reserve"
     MATCH_MENTORS = "match_mentors"
     SCAN_COMMUNITY = "scan_community"
     COMMUNITY_TICK = "community_tick"
@@ -58,6 +55,7 @@ JOB_MODULES: tuple[str, ...] = (
     "hmm_core.formation.jobs",
     "hmm_core.recommendations.jobs",
     "hmm_core.mentorship.jobs",
+    "hmm_core.formation.tick",
 )
 
 
@@ -84,19 +82,10 @@ JOBS: dict[JobName, JobSpec] = {
         lock="member:{user_id}", queueing_lock="recompute_member:{user_id}"
     ),
     JobName.RECOMPUTE_ALL_MEMBERS: singleton(JobName.RECOMPUTE_ALL_MEMBERS, "0 4 * * *"),
-    JobName.COMPUTE_LEAD_FITS: JobSpec(
-        lock="leadfit:{event_id}", queueing_lock="compute_lead_fits:{event_id}", cron="0 5 * * *"
-    ),
-    JobName.COMPUTE_LEAD_FITS_FOR_MEMBER: JobSpec(
-        queueing_lock="compute_lead_fits_for_member:{user_id}"
-    ),
     JobName.REFRESH_RECOMMENDATIONS: JobSpec(
         lock="rec:{project_id}", queueing_lock="refresh_recommendations:{project_id}"
     ),
     JobName.RUN_FORMATION: JobSpec(lock="formation:{event_id}"),
-    JobName.RANK_RESERVE: JobSpec(
-        lock="reserve:{event_id}", queueing_lock="rank_reserve:{event_id}", cron="30 5 * * *"
-    ),
     JobName.MATCH_MENTORS: JobSpec(
         lock="mentor:{request_id}", queueing_lock="match_mentors:{request_id}"
     ),

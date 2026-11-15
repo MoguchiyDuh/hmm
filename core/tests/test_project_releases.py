@@ -52,8 +52,7 @@ async def seed_project(
             lead_user_id=lead.id,
             status=status,
             team_status=team_status,
-            origin="standalone" if team_status is None else "claim",
-            last_lead_action_at=h.now,
+            origin="standalone" if team_status is None else "formation",
             last_progress_at=h.now,
         )
         session.add(project)
@@ -168,7 +167,6 @@ async def test_create_release(harness: Harness) -> None:
         assert project_row.status == "shipped"
         assert project_row.paused_reason is None
         assert project_row.last_progress_at == h.now
-        assert project_row.last_lead_action_at == h.now
         confirmations = list(
             await session.scalars(
                 select(models.Confirmation).where(
@@ -296,8 +294,7 @@ async def test_release_member_tenure(harness: Harness) -> None:
         proposal = await session.get(models.ProjectMember, by_user[proposed.id].id)
         assert proposal is not None
         proposal.state = "proposed"
-        proposal.confirm_by = h.now + timedelta(days=7)
-        proposal.confirm_kind = "placement"
+        proposal.accept_by = h.now + timedelta(days=7)
     path = f"/api/v1/projects/{project.id}/releases"
     h.advance(timedelta(hours=1))
     async with await h.client(lead) as client:

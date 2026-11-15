@@ -127,7 +127,7 @@ async def test_availability_leaves_pending_invites_untouched(harness: Harness) -
         invite = models.Invite(
             project_id=project.id,
             user_id=member.id,
-            kind=InviteKind.FILL.value,
+            kind=InviteKind.TEAM.value,
             status=InviteStatus.PENDING.value,
             expires_at=h.now + timedelta(days=1),
         )
@@ -168,7 +168,7 @@ async def test_notification_settings_defaults(harness: Harness) -> None:
         assert by_type[type.value]["telegram"] is False
     assert len(TELEGRAM_OFF_BY_DEFAULT) == 5
     assert by_type[NotificationType.TELEGRAM_LINK_BROKEN.value]["telegram"] is False
-    assert by_type[NotificationType.INVITE_RECEIVED.value]["telegram"] is True
+    assert by_type[NotificationType.TEAM_INVITE.value]["telegram"] is True
     assert items == default_items()
 
 
@@ -178,7 +178,7 @@ async def test_notification_settings_partial_update_and_overrides(harness: Harne
     body = {
         "items": [
             {"type": "score_changed", "web": False, "telegram": True},
-            {"type": "invite_received", "web": True, "telegram": False},
+            {"type": "team_invite", "web": True, "telegram": False},
         ]
     }
     async with await h.client(member) as c:
@@ -189,12 +189,12 @@ async def test_notification_settings_partial_update_and_overrides(harness: Harne
     for item in expected:
         if item["type"] == "score_changed":
             item.update(web=False, telegram=True)
-        if item["type"] == "invite_received":
+        if item["type"] == "team_invite":
             item.update(telegram=False)
     assert response.json()["items"] == expected
     assert await setting_rows(h, member) == {
         "score_changed": (False, True),
-        "invite_received": (True, False),
+        "team_invite": (True, False),
     }
 
 
@@ -218,7 +218,7 @@ async def test_notification_settings_are_per_actor(harness: Harness) -> None:
     h = harness
     first = await h.user()
     second = await h.user()
-    body = {"items": [{"type": "invite_received", "web": False, "telegram": False}]}
+    body = {"items": [{"type": "team_invite", "web": False, "telegram": False}]}
     async with await h.client(first) as c:
         response = await c.put("/api/v1/me/notification-settings", json=body)
     assert response.status_code == 200, response.text
@@ -227,19 +227,19 @@ async def test_notification_settings_are_per_actor(harness: Harness) -> None:
     assert response.status_code == 200, response.text
     assert response.json()["items"] == default_items()
     assert await setting_rows(h, second) == {}
-    assert await setting_rows(h, first) == {"invite_received": (False, False)}
+    assert await setting_rows(h, first) == {"team_invite": (False, False)}
 
 
 async def test_notification_settings_available_before_onboarding(harness: Harness) -> None:
     h = harness
     pending = await h.user(onboarded=False)
-    body = {"items": [{"type": "invite_received", "web": False, "telegram": True}]}
+    body = {"items": [{"type": "team_invite", "web": False, "telegram": True}]}
     async with await h.client(pending) as c:
         response = await c.get("/api/v1/me/notification-settings")
         assert response.status_code == 200, response.text
         response = await c.put("/api/v1/me/notification-settings", json=body)
     assert response.status_code == 200, response.text
-    assert await setting_rows(h, pending) == {"invite_received": (False, True)}
+    assert await setting_rows(h, pending) == {"team_invite": (False, True)}
 
 
 async def test_notification_settings_update_is_idempotent_and_side_effect_free(
@@ -250,8 +250,8 @@ async def test_notification_settings_update_is_idempotent_and_side_effect_free(
     body = {
         "items": [
             {"type": "score_changed", "web": False, "telegram": True},
-            {"type": "invite_received", "web": True, "telegram": True},
-            {"type": "invite_received", "web": False, "telegram": False},
+            {"type": "team_invite", "web": True, "telegram": True},
+            {"type": "team_invite", "web": False, "telegram": False},
         ]
     }
     async with await h.client(member) as c:
@@ -262,7 +262,7 @@ async def test_notification_settings_update_is_idempotent_and_side_effect_free(
     assert first.json() == second.json()
     assert await setting_rows(h, member) == {
         "score_changed": (False, True),
-        "invite_received": (False, False),
+        "team_invite": (False, False),
     }
     assert await h.pending_jobs() == []
     async with h.db() as session:

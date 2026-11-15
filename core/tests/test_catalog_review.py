@@ -145,7 +145,6 @@ async def test_publish_draft(harness: Harness) -> None:
     draft = await import_results(h, import_item(h, confidence=0.5))
     event_id = UUID(draft[0]["event_id"])
     assert await count(h, models.EventFormation) == 0
-    assert await h.pending_jobs("compute_lead_fits") == []
     response = await post(h, admin, f"{ADMIN_EVENTS}/{event_id}/publish", {"reason": "Looks right"})
     assert response.status_code == 200, response.text
     assert response.json()["status"] == "published"
@@ -155,7 +154,6 @@ async def test_publish_draft(harness: Harness) -> None:
             select(models.EventFormation.phase).where(models.EventFormation.event_id == event_id)
         )
     assert phase == "open"
-    assert len(await h.pending_jobs("compute_lead_fits")) == 1
     rows = await audits(h, "event_publish")
     assert len(rows) == 1
     assert isinstance(rows[0].before, dict)
@@ -166,7 +164,6 @@ async def test_publish_draft(harness: Harness) -> None:
     again = await post(h, admin, f"{ADMIN_EVENTS}/{event_id}/publish")
     assert again.status_code == 200, again.text
     assert len(await audits(h, "event_publish")) == 1
-    assert len(await h.pending_jobs("compute_lead_fits")) == 1
 
 
 async def test_keep_published_event(harness: Harness) -> None:
@@ -250,7 +247,7 @@ async def test_merge_guards(harness: Harness) -> None:
             links=[],
             visibility="public",
             status="active",
-            team_status="forming",
+            team_status="formed",
             origin="standalone",
             event_id=source,
         )

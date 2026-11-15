@@ -176,7 +176,6 @@ async def create_release(
         project.status = ProjectStatus.SHIPPED.value
     project.paused_reason = None
     project.last_progress_at = now
-    project.last_lead_action_at = now
     await session.flush()
     await _sync_recruiting(session, project, actor.id, now)
     await feed.record_project_shipped(session, project, release, actor.id, now)

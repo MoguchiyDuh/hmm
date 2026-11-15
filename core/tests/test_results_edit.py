@@ -56,14 +56,14 @@ async def team(harness: Harness) -> Team:
             visibility="public",
             status="active",
             team_status="active",
-            origin="claim",
+            origin="formation",
             event_id=event.id,
             lead_user_id=lead.id,
         )
         session.add(project)
         await session.flush()
         for user, role, via in (
-            (lead, "lead", "claim"),
+            (lead, "lead", "formation"),
             (a, "member", "formation"),
             (b, "member", "formation"),
         ):

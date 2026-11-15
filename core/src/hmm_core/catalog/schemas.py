@@ -24,7 +24,7 @@ from hmm_contracts.imports import Location, Prize
 from pydantic import AwareDatetime, Field, HttpUrl, JsonValue, model_validator
 
 from hmm_core.attendance.schemas import Attendance
-from hmm_core.formation.schemas import Formation, LeadEligibility
+from hmm_core.formation.schemas import Formation
 from hmm_core.platform.schemas import (
     ApiModel,
     AreaRef,
@@ -198,7 +198,6 @@ class EventDetail(EventSummary):
     sources: list[EventSource]
     members_going: list[UserRef]
     formation: Formation | None
-    my_lead_fit: LeadEligibility | None
     created_at: AwareDatetime
     updated_at: AwareDatetime
 

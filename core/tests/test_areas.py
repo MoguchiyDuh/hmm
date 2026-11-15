@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import psycopg
 import pytest
+from conftest import TRUNCATE_PUBLIC
 from harness import Harness
 from hmm_contracts.common import (
     SEED_AREA_KEYS,
@@ -49,6 +50,8 @@ def test_seed_migration(migrated_database: str) -> None:
         .render_as_string(hide_password=False)
     )
     try:
+        with psycopg.connect(conninfo) as connection:
+            connection.execute(TRUNCATE_PUBLIC)
         migrate("downgrade", "0001")
         migrate("upgrade", "head")
         with psycopg.connect(conninfo) as connection:

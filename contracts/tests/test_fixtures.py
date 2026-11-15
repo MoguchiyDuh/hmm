@@ -8,7 +8,7 @@ import hmm_contracts.fixtures as fixtures
 import pytest
 from hmm_contracts.algo import MemberSnapshot
 from hmm_contracts.common import SEED_AREA_KEYS, Contract
-from hmm_contracts.formation import placement_bounds
+from hmm_contracts.formation import Unit, pack
 
 
 @pytest.mark.parametrize(
@@ -33,28 +33,23 @@ def test_loaders_validate_sorted_fixtures(
     assert all(isinstance(case, Contract) for case in cases.values())
 
 
-def test_formation_bounds_and_expectations() -> None:
+def test_formation_packing_and_expectations() -> None:
     for case in fixtures.load_formation_cases().values():
         request = case.request
-        sizes = [1 + len(core.members) for core in request.cores]
-        assert request.bounds == placement_bounds(
-            len(request.unplaced), sizes, request.viable, request.target, request.max_size
-        )
-        assert len(case.expect.team_sizes) == request.bounds.teams
-        assert sum(case.expect.team_sizes) == sum(sizes) + request.bounds.placed
-        assert all(size <= request.max_size for size in case.expect.team_sizes)
-        assert (
-            sum(size < request.viable for size in case.expect.team_sizes)
-            == request.bounds.undersized_cores
-        )
-        assert case.expect.fixed_cores == {
-            core.project_id: [core.lead.user_id, *[member.user_id for member in core.members]]
-            for core in request.cores
-        }
-        assert case.expect.new_teams_with_volunteers == min(
-            request.bounds.new_teams,
-            sum(member.willing_to_lead for member in request.unplaced),
-        )
+        units = [
+            Unit(
+                id=unit.id,
+                size=len(unit.members),
+                queued_at=min(member.enrolled_at for member in unit.members),
+            )
+            for unit in request.units
+        ]
+        sizes = {unit.id: unit.size for unit in units}
+        result = pack(units, [], request.target, request.min_size, request.max_size)
+        assert case.expect.team_sizes == [
+            sum(sizes[unit_id] for unit_id in team) for team in result.new_teams
+        ]
+        assert case.expect.queued_people == sum(sizes[unit_id] for unit_id in result.queue)
 
 
 def assert_persona(member: MemberSnapshot, members: dict[UUID, MemberSnapshot]) -> None:
@@ -77,19 +72,11 @@ def test_formation_and_mentorship_share_personas() -> None:
     assert len(members) == len(fixtures.load_members())
     for case in fixtures.load_formation_cases().values():
         referenced: list[UUID] = []
-        for member in case.request.unplaced:
-            assert_persona(member, members)
-            referenced.append(member.user_id)
-        for core in case.request.cores:
-            for member in [core.lead, *core.members]:
+        for unit in case.request.units:
+            for member in unit.members:
                 assert_persona(member, members)
                 referenced.append(member.user_id)
         assert len(referenced) == len(set(referenced))
-        assert set(case.request.lead_fits) == {member.user_id for member in case.request.unplaced}
-        assert all(key == fit.user_id for key, fit in case.request.lead_fits.items())
-        assert all(
-            user_id in members for users in case.expect.fixed_cores.values() for user_id in users
-        )
     for case in fixtures.load_mentorship_cases().values():
         for member in [case.request.learner, *case.request.candidates]:
             assert_persona(member, members)

@@ -26,7 +26,7 @@ hmm/
 │   ├── src/hmm_contracts/
 │   │   ├── common.py       # ids, enums, AreaKey, Problem
 │   │   ├── algo.py         # Algorithm protocol + all I/O models
-│   │   ├── formation.py    # placement_bounds(): shared team-count arithmetic
+│   │   ├── formation.py    # pack(): queue → teams, never splitting a party
 │   │   ├── imports.py      # EventImport schema incl. people lists (parser → core)
 │   │   └── notifications.py# notification types + payload models
 │   └── fixtures/           # canonical JSON fixtures used by every group

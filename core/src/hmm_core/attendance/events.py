@@ -513,7 +513,6 @@ async def update_member_event(
     if not changed:
         await session.flush()
         return event
-    previous_dates = formation.event_dates(event)
     for field, (_, after) in changed.items():
         if field == "area_keys":
             await session.execute(
@@ -567,7 +566,7 @@ async def update_member_event(
         ]
         await catalog.notify_event_changed(session, event, changes, now)
     if {"starts_at", "ends_at"} & changed.keys():
-        await formation.dates_changed(session, jobs, event, previous_dates, now)
+        await formation.dates_changed(session, event, now)
     await session.flush()
     await session.refresh(event)
     return event

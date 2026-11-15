@@ -27,7 +27,6 @@ __all__ = [
     "AuditAction",
     "AuditEntityType",
     "AuditLogId",
-    "ConfirmKind",
     "ConfirmationFactType",
     "ConfirmationId",
     "ConfirmationSource",
@@ -56,7 +55,6 @@ __all__ = [
     "FlagId",
     "FlagStatus",
     "FlagSubjectType",
-    "FormationKind",
     "FormationPhase",
     "FormationPlanner",
     "FormationRunId",
@@ -73,9 +71,6 @@ __all__ = [
     "JoinRequestId",
     "JoinRequestStatus",
     "JoinedVia",
-    "LeadOfferId",
-    "LeadOfferSource",
-    "LeadOfferStatus",
     "LeftReason",
     "Locale",
     "MemberReviewStatus",
@@ -87,9 +82,6 @@ __all__ = [
     "MentorshipOutcome",
     "MentorshipSide",
     "MentorshipStatus",
-    "MergeProposalId",
-    "MergeProposalStatus",
-    "MergeProposedBy",
     "MilestoneId",
     "NotificationChannel",
     "NotificationId",
@@ -98,6 +90,7 @@ __all__ = [
     "OverrideEvidence",
     "Page",
     "ParserHeartbeatId",
+    "PartyId",
     "PlaceStatus",
     "Problem",
     "ProjectId",
@@ -129,11 +122,10 @@ __all__ = [
     "SourcePersonRole",
     "SubjectId",
     "SubmissionStatus",
-    "SwapRequestId",
-    "SwapRequestStatus",
     "TeamStatus",
     "TimeZoneName",
     "Trust",
+    "UnitId",
     "UserId",
     "ValidationIssue",
     "XpAdjustmentId",
@@ -160,9 +152,8 @@ type EnrollmentId = UUID
 type ProjectMemberId = UUID
 type InviteId = UUID
 type JoinRequestId = UUID
-type LeadOfferId = UUID
-type SwapRequestId = UUID
-type MergeProposalId = UUID
+type PartyId = UUID
+type UnitId = UUID
 type FormationRunId = UUID
 type ReleaseId = UUID
 type MilestoneId = UUID
@@ -403,8 +394,7 @@ class EventPhase(StrEnum):
 class FormationPhase(StrEnum):
     OPEN = "open"
     FORMING = "forming"
-    REVIEW = "review"
-    LOCKED = "locked"
+    FORMED = "formed"
     CLOSED = "closed"
 
 
@@ -438,9 +428,7 @@ class ProjectStatus(StrEnum):
 
 
 class TeamStatus(StrEnum):
-    FORMING = "forming"
-    REVIEW = "review"
-    LOCKED = "locked"
+    FORMED = "formed"
     ACTIVE = "active"
     FINISHED = "finished"
     WITHDRAWN = "withdrawn"
@@ -450,9 +438,7 @@ class TeamStatus(StrEnum):
 
 class ProjectOrigin(StrEnum):
     STANDALONE = "standalone"
-    CLAIM = "claim"
     FORMATION = "formation"
-    LATE_CLAIM = "late_claim"
     ADMIN = "admin"
 
 
@@ -469,22 +455,10 @@ class MemberState(StrEnum):
 class JoinedVia(StrEnum):
     CREATE = "create"
     INVITE = "invite"
-    CLAIM = "claim"
-    CORE_INVITE = "core_invite"
     JOIN_REQUEST = "join_request"
     FORMATION = "formation"
-    FILL_INVITE = "fill_invite"
-    RESERVE_ADD = "reserve_add"
-    RESERVE_OFFER = "reserve_offer"
-    SWAP = "swap"
-    MERGE = "merge"
+    REFILL = "refill"
     ADMIN = "admin"
-
-
-class ConfirmKind(StrEnum):
-    PLACEMENT = "placement"
-    RECONFIRM = "reconfirm"
-    PRESENCE = "presence"
 
 
 class LeftReason(StrEnum):
@@ -492,17 +466,14 @@ class LeftReason(StrEnum):
     LAPSED = "lapsed"
     REMOVED = "removed"
     LEFT = "left"
-    SWAPPED = "swapped"
-    MERGED = "merged"
     DISBANDED = "disbanded"
     BANNED = "banned"
     ADMIN = "admin"
 
 
 class InviteKind(StrEnum):
-    CORE = "core"
-    FILL = "fill"
-    PROJECT = "project"
+    PARTY = "party"
+    TEAM = "team"
 
 
 class InviteStatus(StrEnum):
@@ -520,47 +491,6 @@ class JoinRequestStatus(StrEnum):
     REJECTED = "rejected"
     WITHDRAWN = "withdrawn"
     CLOSED = "closed"
-
-
-class LeadOfferSource(StrEnum):
-    FORMATION = "formation"
-    SUCCESSION = "succession"
-    TRANSFER = "transfer"
-
-
-class LeadOfferStatus(StrEnum):
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    DECLINED = "declined"
-    EXPIRED = "expired"
-    CANCELLED = "cancelled"
-    CLOSED = "closed"
-
-
-class SwapRequestStatus(StrEnum):
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    DECLINED = "declined"
-    EXPIRED = "expired"
-    CLOSED = "closed"
-
-
-class MergeProposedBy(StrEnum):
-    SYSTEM = "system"
-    LEAD = "lead"
-
-
-class MergeProposalStatus(StrEnum):
-    PENDING = "pending"
-    ACCEPTED = "accepted"
-    DECLINED = "declined"
-    EXPIRED = "expired"
-    CLOSED = "closed"
-
-
-class FormationKind(StrEnum):
-    MAIN = "main"
-    LATE = "late"
 
 
 class FormationRunStatus(StrEnum):
@@ -818,7 +748,6 @@ class ErrorCode(StrEnum):
     CODE_EXPIRED = "code_expired"
     CODE_INVALID = "code_invalid"
     CONFIRMATION_WITHDRAW_CLOSED = "confirmation_withdraw_closed"
-    CORE_FULL = "core_full"
     ENROLLMENT_CLOSED = "enrollment_closed"
     FILE_TOO_LARGE = "file_too_large"
     FORBIDDEN = "forbidden"
@@ -828,12 +757,8 @@ class ErrorCode(StrEnum):
     INVALID_STATE = "invalid_state"
     JOIN_REQUEST_PENDING = "join_request_pending"
     LAST_ADMIN = "last_admin"
-    LEAD_FIT_PENDING = "lead_fit_pending"
-    LEAD_FIT_TOO_LOW = "lead_fit_too_low"
-    LEAD_NOT_SWAPPABLE = "lead_not_swappable"
     MENTEE_LIMIT_REACHED = "mentee_limit_reached"
     MENTOR_CAPACITY_REACHED = "mentor_capacity_reached"
-    MERGE_TOO_LARGE = "merge_too_large"
     METHOD_NOT_ALLOWED = "method_not_allowed"
     NOT_DRAFT = "not_draft"
     NOT_ENROLLED = "not_enrolled"
@@ -841,6 +766,8 @@ class ErrorCode(StrEnum):
     NOT_IMPLEMENTED = "not_implemented"
     ONBOARDING_REQUIRED = "onboarding_required"
     ORIGIN_MISMATCH = "origin_mismatch"
+    PARTY_FULL = "party_full"
+    PARTY_TOO_SMALL = "party_too_small"
     POSSIBLE_DUPLICATE = "possible_duplicate"
     PROJECT_FULL = "project_full"
     PROJECTS_LED_LIMIT = "projects_led_limit"
@@ -872,7 +799,6 @@ ERROR_STATUS: dict[ErrorCode, HTTPStatus] = {
     ErrorCode.CODE_EXPIRED: HTTPStatus.GONE,
     ErrorCode.CODE_INVALID: HTTPStatus.NOT_FOUND,
     ErrorCode.CONFIRMATION_WITHDRAW_CLOSED: HTTPStatus.CONFLICT,
-    ErrorCode.CORE_FULL: HTTPStatus.CONFLICT,
     ErrorCode.ENROLLMENT_CLOSED: HTTPStatus.CONFLICT,
     ErrorCode.FILE_TOO_LARGE: HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
     ErrorCode.FORBIDDEN: HTTPStatus.FORBIDDEN,
@@ -882,12 +808,8 @@ ERROR_STATUS: dict[ErrorCode, HTTPStatus] = {
     ErrorCode.INVALID_STATE: HTTPStatus.CONFLICT,
     ErrorCode.JOIN_REQUEST_PENDING: HTTPStatus.CONFLICT,
     ErrorCode.LAST_ADMIN: HTTPStatus.CONFLICT,
-    ErrorCode.LEAD_FIT_PENDING: HTTPStatus.SERVICE_UNAVAILABLE,
-    ErrorCode.LEAD_FIT_TOO_LOW: HTTPStatus.FORBIDDEN,
-    ErrorCode.LEAD_NOT_SWAPPABLE: HTTPStatus.CONFLICT,
     ErrorCode.MENTEE_LIMIT_REACHED: HTTPStatus.CONFLICT,
     ErrorCode.MENTOR_CAPACITY_REACHED: HTTPStatus.CONFLICT,
-    ErrorCode.MERGE_TOO_LARGE: HTTPStatus.CONFLICT,
     ErrorCode.METHOD_NOT_ALLOWED: HTTPStatus.METHOD_NOT_ALLOWED,
     ErrorCode.NOT_DRAFT: HTTPStatus.CONFLICT,
     ErrorCode.NOT_ENROLLED: HTTPStatus.CONFLICT,
@@ -895,6 +817,8 @@ ERROR_STATUS: dict[ErrorCode, HTTPStatus] = {
     ErrorCode.NOT_IMPLEMENTED: HTTPStatus.NOT_IMPLEMENTED,
     ErrorCode.ONBOARDING_REQUIRED: HTTPStatus.FORBIDDEN,
     ErrorCode.ORIGIN_MISMATCH: HTTPStatus.FORBIDDEN,
+    ErrorCode.PARTY_FULL: HTTPStatus.CONFLICT,
+    ErrorCode.PARTY_TOO_SMALL: HTTPStatus.CONFLICT,
     ErrorCode.POSSIBLE_DUPLICATE: HTTPStatus.CONFLICT,
     ErrorCode.PROJECT_FULL: HTTPStatus.CONFLICT,
     ErrorCode.PROJECTS_LED_LIMIT: HTTPStatus.CONFLICT,

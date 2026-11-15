@@ -179,7 +179,6 @@ async def team_candidates(
             willing_to_lead=bool(enrollments[row.user_id].willing_to_lead)
             if row.user_id in enrollments
             else False,
-            claimed_lead=row.user_id == project.lead_user_id,
             enrolled_at=enrollments[row.user_id].created_at
             if row.user_id in enrollments
             else row.joined_at,
@@ -187,17 +186,8 @@ async def team_candidates(
         for row in team_rows
         if row.user_id in snapshots
     ]
-    forming = project.team_status == TeamStatus.FORMING.value
-    status = EnrollmentStatus.ACTIVE if forming else EnrollmentStatus.RESERVE
-    order = (
-        (models.Enrollment.created_at, models.Enrollment.id)
-        if forming
-        else (
-            models.Enrollment.reserve_rank.asc().nulls_last(),
-            models.Enrollment.status_at,
-            models.Enrollment.id,
-        )
-    )
+    status = EnrollmentStatus.RESERVE
+    order = (models.Enrollment.status_at, models.Enrollment.id)
     rows = await session.execute(
         select(models.Enrollment, models.User)
         .join(models.User, models.User.id == models.Enrollment.user_id)

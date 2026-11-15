@@ -70,8 +70,7 @@ async def seed_project(
             lead_user_id=lead.id,
             status=status,
             team_status=team_status,
-            origin="standalone" if team_status is None else "claim",
-            last_lead_action_at=h.now,
+            origin="standalone" if team_status is None else "formation",
             last_progress_at=h.now,
         )
         session.add(project)
@@ -127,7 +126,6 @@ async def test_create_project(harness: Harness) -> None:
         project = await session.get(models.Project, body["id"])
         assert project is not None
         assert project.origin == "standalone"
-        assert project.last_lead_action_at == h.now
         assert project.last_progress_at == h.now
         assert (
             await session.scalar(
@@ -224,7 +222,7 @@ async def test_get_project_visibility(harness: Harness) -> None:
     event = await make_hackathon(h)
     public = await seed_project(h, a)
     hidden = await seed_project(h, a, members=[m], visibility="members", name="Secret")
-    team = await seed_project(h, a, event_id=event.id, team_status="forming", name="Team")
+    team = await seed_project(h, a, event_id=event.id, team_status="formed", name="Team")
     async with await h.client(b) as c:
         response = await c.get(f"/api/v1/projects/{public.id}")
         assert response.status_code == 200, response.text
@@ -268,7 +266,7 @@ async def test_list_projects_filters(harness: Harness) -> None:
         h,
         a,
         event_id=event.id,
-        team_status="forming",
+        team_status="formed",
         status="active",
         area_keys=("ml_ai",),
         name="Team",
@@ -327,7 +325,7 @@ async def test_list_my_projects(harness: Harness) -> None:
     event = await make_hackathon(h)
     own = await seed_project(h, a, name="Own")
     team = await seed_project(
-        h, b, members=[a], event_id=event.id, team_status="forming", name="Team"
+        h, b, members=[a], event_id=event.id, team_status="formed", name="Team"
     )
     await seed_project(h, b, name="Other")
     async with await h.client(a) as c:
@@ -339,7 +337,7 @@ async def test_list_my_projects(harness: Harness) -> None:
             assert item["view"] == "full"
             assert {"status", "visibility", "lead_user_id", "recruiting", "area_keys"} <= set(item)
             assert "members" not in item
-        response = await c.get("/api/v1/me/projects?status=forming")
+        response = await c.get("/api/v1/me/projects?status=formed")
         assert response.status_code == 200, response.text
         assert [item["id"] for item in response.json()] == [str(team.id)]
         response = await c.get("/api/v1/me/projects?status=active")
@@ -377,7 +375,6 @@ async def test_edit_project_fields(harness: Harness) -> None:
         assert body["links"] == ["https://example.com/y"]
         assert body["area_keys"] == ["ml_ai"]
         assert body["visibility"] == "members"
-        assert body["last_lead_action_at"] == h.now.isoformat().replace("+00:00", "Z")
         assert_problem(
             await c.patch(f"/api/v1/projects/{uuid4()}", json={}), 404, ErrorCode.NOT_FOUND
         )
@@ -423,7 +420,6 @@ async def test_edit_project_noop(harness: Harness) -> None:
     async with h.db() as session:
         row = await session.get(models.Project, project.id)
         assert row is not None
-        assert row.last_lead_action_at == project.last_lead_action_at
         assert row.updated_at == project.updated_at
     assert not [job for job in await h.pending_jobs() if job["status"] == "todo"]
 
@@ -434,7 +430,7 @@ async def test_project_recruiting(harness: Harness) -> None:
     a = await h.user()
     project = await seed_project(h, a)
     event = await make_hackathon(h)
-    team = await seed_project(h, a, event_id=event.id, team_status="forming")
+    team = await seed_project(h, a, event_id=event.id, team_status="formed")
     recruiting = {"areas": ["backend"], "note": "Need a backend dev"}
     async with await h.client(a) as c:
         response = await c.patch(f"/api/v1/projects/{project.id}", json={"recruiting": recruiting})
@@ -525,13 +521,11 @@ async def test_project_lifecycle_walk(harness: Harness) -> None:
             "start",
             "pause",
             "abandon",
-            "step_down",
             "transfer_lead",
         ]
         response = await c.post(f"/api/v1/projects/{project.id}/start")
         assert response.status_code == 200, response.text
         assert response.json()["status"] == "active"
-        assert response.json()["last_lead_action_at"] == h.now.isoformat().replace("+00:00", "Z")
         assert "start" not in response.json()["allowed_actions"]
         assert_problem(
             await c.post(f"/api/v1/projects/{project.id}/start"), 409, ErrorCode.INVALID_STATE
@@ -551,7 +545,7 @@ async def test_project_lifecycle_walk(harness: Harness) -> None:
         response = await c.post(f"/api/v1/projects/{project.id}/abandon")
         assert response.status_code == 200, response.text
         assert response.json()["status"] == "abandoned"
-        assert not {"start", "pause", "abandon", "continue", "step_down", "transfer_lead"} & set(
+        assert not {"start", "pause", "abandon", "continue", "transfer_lead"} & set(
             response.json()["allowed_actions"]
         )
         for transition in ("start", "pause", "abandon", "continue"):
@@ -585,7 +579,7 @@ async def test_continue_project(harness: Harness) -> None:
             assert response.status_code == 200, response.text
             assert "continue" in response.json()["allowed_actions"]
             assert "pause" not in response.json()["allowed_actions"]
-            assert {"transfer_lead", "step_down"} <= set(response.json()["allowed_actions"])
+            assert "transfer_lead" in response.json()["allowed_actions"]
             response = await c.post(f"/api/v1/projects/{row.id}/continue")
             assert response.status_code == 200, response.text
             assert response.json()["status"] == "active"
@@ -598,7 +592,7 @@ async def test_continue_project(harness: Harness) -> None:
         )
 
 
-@pytest.mark.parametrize("team_status", ["forming", "locked"])
+@pytest.mark.parametrize("team_status", ["formed", "formed"])
 async def test_project_team_lifecycle_guard(harness: Harness, team_status: str) -> None:
     h = harness
     await h.seed_areas()

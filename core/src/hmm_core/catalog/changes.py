@@ -18,11 +18,7 @@ from hmm_contracts.common import (
     EventStatus,
     FormationPhase,
     InviteStatus,
-    JoinRequestStatus,
-    LeadOfferStatus,
-    MergeProposalStatus,
     ProjectStatus,
-    SwapRequestStatus,
     TeamStatus,
 )
 from hmm_contracts.notifications import (
@@ -43,7 +39,6 @@ from hmm_core.catalog.events import (
     LOCKABLE_SKIP,
     TEAM_TERMINAL,
     EventAreaInput,
-    enqueue_lead_fits,
     load_event,
     resolve_areas,
 )
@@ -146,9 +141,7 @@ async def cancel_event(
     previous_status = event.status
     recipients = await event_recipients(session, event_id)
     cancellable_teams = [
-        TeamStatus.FORMING,
-        TeamStatus.REVIEW,
-        TeamStatus.LOCKED,
+        TeamStatus.FORMED,
         TeamStatus.ACTIVE,
     ]
     team_ids = list(
@@ -194,17 +187,7 @@ async def cancel_event(
         .where(models.Invite.event_id == event_id, models.Invite.status == InviteStatus.PENDING)
         .values(status=InviteStatus.CLOSED.value, closed_reason="event_cancelled")
     )
-    for model, pending, closed in (
-        (models.JoinRequest, JoinRequestStatus.PENDING.value, JoinRequestStatus.CLOSED.value),
-        (models.SwapRequest, SwapRequestStatus.PENDING.value, SwapRequestStatus.CLOSED.value),
-        (models.MergeProposal, MergeProposalStatus.PENDING.value, MergeProposalStatus.CLOSED.value),
-        (models.LeadOffer, LeadOfferStatus.PENDING.value, LeadOfferStatus.CLOSED.value),
-    ):
-        await session.execute(
-            update(model)
-            .where(model.event_id == event_id, model.status == pending)
-            .values(status=closed)
-        )
+    await formation.cancel_formation(session, event, now)
     await notify_event_cancelled(session, event, recipients, reason, now)
     if team_ids:
         await raise_alert(
@@ -369,7 +352,6 @@ async def update_event(
             before_values["areas"] = old_areas
     if not changes:
         return event
-    previous_dates = formation.event_dates(event)
     for field, value in changes.items():
         if field != "areas":
             setattr(event, field, value.value if isinstance(value, Enum) else value)
@@ -417,8 +399,6 @@ async def update_event(
     )
     if "formation_enabled" in changes and event.formation_enabled:
         await formation.ensure_formation(session, event, now)
-    if changes.keys() & {"formation_enabled", "areas"}:
-        await enqueue_lead_fits(session, jobs, event)
     notification_fields = changes.keys() & {
         "starts_at",
         "ends_at",
@@ -446,7 +426,7 @@ async def update_event(
             now,
         )
     if changes.keys() & {"starts_at", "ends_at", "registration_deadline"}:
-        await formation.dates_changed(session, jobs, event, previous_dates, now)
+        await formation.dates_changed(session, event, now)
     from hmm_core.recommendations import service as recommendations
 
     await recommendations.enqueue_event_refresh(session, jobs, event_id)

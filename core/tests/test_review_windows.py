@@ -233,8 +233,7 @@ async def test_release_participants_use_tenure_and_live_confirmed_members(
                     is_team_row=False,
                     joined_at=joined_at,
                     left_at=left_at,
-                    confirm_by=harness.now + timedelta(days=1) if state == "proposed" else None,
-                    confirm_kind="placement" if state == "proposed" else None,
+                    accept_by=harness.now + timedelta(days=1) if state == "proposed" else None,
                 )
             )
         await session.flush()

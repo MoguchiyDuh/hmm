@@ -54,7 +54,7 @@ Effects by outcome:
 - **Blind until close:** windowed reviews stay hidden from reviewees until the window closes, then are revealed together (`revealed_at`), and reviewees get a `review_received` digest.
 - **Instant:** host and speaker ratings have no window. They are visible immediately, but only as an aggregate (average and count) once there are ≥ 3; individual comments are shown without reviewer names.
 - Ratings are `1..10` with a comment ≤ 2000. Endorsements have no rating. One review per (window, reviewer, reviewee).
-- **Reputation** per context (`member`, `lead`, `mentor`, `host` including `speaker`): plain average of revealed, non-removed ratings, with counts, computed by core. Algo receives raw reviews for matching (lead fit, recommendations, mentor matching), **never** for XP.
+- **Reputation** per context (`member`, `lead`, `mentor`, `host` including `speaker`): plain average of revealed, non-removed ratings, with counts, computed by core. Algo receives raw reviews for matching (recommendations, mentor matching), **never** for XP.
 - **Reports:** any member can report a revealed review → admin alert `review_reported`. An admin may remove it (soft, with a reason; the reviewer gets `review_removed`). Algo may also mark reviews `to_check` (rating rings, §10.4).
 - Reminder `reviews_pending` 2 days before the window closes, to members who haven't submitted.
 

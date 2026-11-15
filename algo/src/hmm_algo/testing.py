@@ -12,7 +12,7 @@ from hmm_contracts.common import (
     Trust,
     UserId,
 )
-from hmm_contracts.formation import placement_bounds
+from hmm_contracts.formation import Unit, pack
 
 __all__ = ["FakeAlgorithm"]
 
@@ -24,25 +24,6 @@ def _score(member: a.MemberSnapshot, area: AreaKey) -> float:
 
 def _best_area(member: a.MemberSnapshot, areas: Iterable[AreaKey]) -> AreaKey | None:
     return min(areas, key=lambda area: (-_score(member, area), area), default=None)
-
-
-def _rank(members: Iterable[a.EnrolledMember]) -> list[a.RankedMember]:
-    ordered = sorted(members, key=lambda member: (member.enrolled_at, member.user_id))
-    return [
-        a.RankedMember(user_id=member.user_id, rank=index, reason="Earlier enrollment first")
-        for index, member in enumerate(ordered, 1)
-    ]
-
-
-def _lead_order(
-    ctx: a.AlgoContext, request: a.FormationRequest, member: a.EnrolledMember
-) -> tuple[int, float, UserId]:
-    fit = request.lead_fits.get(member.user_id)
-    value = fit.fit if fit is not None else 0.0
-    tier = 4
-    if member.willing_to_lead:
-        tier = 2 if value >= ctx.settings.lead_fit_threshold else 3
-    return tier, -value, member.user_id
 
 
 def _components(edges: list[tuple[UserId, UserId]]) -> list[set[UserId]]:
@@ -156,30 +137,6 @@ class FakeAlgorithm:
             flags=[],
         )
 
-    async def lead_fit(
-        self, ctx: a.AlgoContext, hackathon: a.EventSnapshot, candidates: list[a.MemberSnapshot]
-    ) -> list[a.LeadFit]:
-        areas = [area.area for area in hackathon.areas if area.importance == "primary"]
-        if not areas:
-            areas = [area.area for area in hackathon.areas]
-        result: list[a.LeadFit] = []
-        for member in sorted(candidates, key=lambda member: member.user_id):
-            strength = max((_score(member, area) for area in areas), default=0.0) / 10
-            experience = min(1.0, member.hackathons_finished / 5)
-            rating = member.reputation.get("lead")
-            reputation = rating.avg / 10 if rating is not None and rating.avg is not None else 0.0
-            fit = 0.6 * strength + 0.25 * experience + 0.15 * reputation
-            if strength <= 0.3:
-                fit = min(fit, 0.59)
-            result.append(
-                a.LeadFit(
-                    user_id=member.user_id,
-                    fit=fit,
-                    reason="Effective event-area strength, finished hackathons and lead reputation",
-                )
-            )
-        return result
-
     async def recommend(self, ctx: a.AlgoContext, request: a.RecommendRequest) -> a.Recommendations:
         areas = (
             request.project.recruiting.areas
@@ -209,101 +166,26 @@ class FakeAlgorithm:
         )
 
     async def form_teams(self, ctx: a.AlgoContext, request: a.FormationRequest) -> a.FormationPlan:
-        bounds = placement_bounds(
-            len(request.unplaced),
-            [1 + len(core.members) for core in request.cores],
-            request.viable,
+        packing = pack(
+            [
+                Unit(
+                    id=unit.id,
+                    size=len(unit.members),
+                    queued_at=min(member.enrolled_at for member in unit.members),
+                )
+                for unit in request.units
+            ],
+            [],
             request.target,
+            request.min_size,
             request.max_size,
         )
-        if request.bounds != bounds:
-            raise ValueError("Formation bounds do not match the given candidates and core sizes")
-        teams = [
-            a.PlannedTeam(
-                project_id=core.project_id,
-                lead_user_id=None,
-                members=[
-                    a.PlannedMember(
-                        user_id=member.user_id,
-                        area=member.area,
-                        reason="Preserves the claimed core",
-                    )
-                    for member in [core.lead, *core.members]
-                ],
-                reason="Claimed core remains intact",
-            )
-            for core in request.cores
-        ]
-        remaining = sorted(request.unplaced, key=lambda member: _lead_order(ctx, request, member))
-        placed = 0
-
-        def add(team: a.PlannedTeam) -> None:
-            nonlocal placed
-            member = remaining.pop(0)
-            area = member.preferred_area or _best_area(
-                member, [area.area for area in request.hackathon.areas]
-            )
-            team.members.append(
-                a.PlannedMember(
-                    user_id=member.user_id, area=area, reason="Fills a bounded team seat"
-                )
-            )
-            placed += 1
-
-        for team in sorted(teams, key=lambda team: (-len(team.members), team.project_id)):
-            while len(team.members) < request.viable and placed < bounds.placed:
-                add(team)
-        for _ in range(bounds.new_teams):
-            team = a.PlannedTeam(
-                project_id=None,
-                lead_user_id=remaining[0].user_id,
-                members=[],
-                reason="New viable team",
-            )
-            add(team)
-            teams.append(team)
-        for team in teams[len(request.cores) :]:
-            while len(team.members) < request.viable:
-                add(team)
-        while placed < bounds.placed:
-            team = min(
-                (team for team in teams if len(team.members) < request.max_size),
-                key=lambda team: len(team.members),
-            )
-            add(team)
-        merges: list[a.PlannedMerge] = []
-        for team in teams:
-            if len(team.members) >= request.viable or team.project_id is None:
-                continue
-            target = next(
-                (
-                    other
-                    for other in teams
-                    if other is not team
-                    and other.project_id is not None
-                    and len(other.members) + len(team.members) <= request.max_size
-                ),
-                None,
-            )
-            if target is not None and target.project_id is not None:
-                merges.append(
-                    a.PlannedMerge(
-                        absorbed_team_id=team.project_id,
-                        target_team_id=target.project_id,
-                        reason="Undersized cores can fit together without exceeding the maximum",
-                    )
-                )
         return a.FormationPlan(
-            teams=teams,
-            reserve=_rank(remaining),
-            merges=merges,
-            summary="Fill closest cores first, seed leads by tier, then balance bounded team sizes",
+            teams=[
+                a.PlannedTeam(units=units, reason="Queue packing") for units in packing.new_teams
+            ],
+            summary="Pack whole units into balanced teams",
         )
-
-    async def rank_reserve(
-        self, ctx: a.AlgoContext, request: a.ReserveRequest
-    ) -> list[a.RankedMember]:
-        return _rank(request.reserve)
 
     async def match_mentors(self, ctx: a.AlgoContext, request: a.MentorMatchRequest) -> list[a.Rec]:
         result: list[a.Rec] = []

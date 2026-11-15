@@ -43,7 +43,6 @@ from hmm_core.catalog.events import (
     EventAreaInput,
     EventInput,
     create_event,
-    enqueue_lead_fits,
     load_event,
     resolve_areas,
 )
@@ -224,9 +223,7 @@ async def create_imported_event(
     )
     await attach_source(session, event, item, digest, now)
     await sync_people(session, jobs, event, item, now)
-    if status == EventStatus.PUBLISHED:
-        await enqueue_lead_fits(session, jobs, event)
-    else:
+    if status != EventStatus.PUBLISHED:
         await raise_alert(
             session,
             AlertKind.IMPORT_REVIEW,
@@ -446,7 +443,6 @@ async def update_imported_event(
             review_reasons=[EventReviewReason(reason) for reason in event.review_reasons],
             ignored_fields=ignored,
         )
-    previous_dates = formation.event_dates(event)
     before = {field: getattr(event, field) for field in applied}
     areas_before = current
     unmapped_before = list(event.unmapped_areas)
@@ -504,9 +500,7 @@ async def update_imported_event(
             now,
         )
     if changed & DATE_FIELDS:
-        await formation.dates_changed(session, jobs, event, previous_dates, now)
-    if area_change:
-        await enqueue_lead_fits(session, jobs, event)
+        await formation.dates_changed(session, event, now)
     if changed & TEAM_FIELDS:
         conflicts = await team_size_conflict_count(session, event)
         if conflicts:

@@ -25,7 +25,7 @@ from pydantic import TypeAdapter
 from sqlalchemy import func, select
 
 NOTIFICATIONS = load_notifications()
-PAYLOAD = NOTIFICATIONS["invite_received"].payload
+PAYLOAD = NOTIFICATIONS["team_invite"].payload
 
 
 def test_channel_defaults() -> None:
@@ -48,7 +48,7 @@ async def test_channel_settings(harness: Harness) -> None:
             [
                 models.NotificationSetting(
                     user_id=user.id,
-                    type=NotificationType.INVITE_RECEIVED.value,
+                    type=NotificationType.TEAM_INVITE.value,
                     web=False,
                     telegram=True,
                 ),
@@ -66,7 +66,7 @@ async def test_channel_settings(harness: Harness) -> None:
                 ),
                 models.NotificationSetting(
                     user_id=other.id,
-                    type=NotificationType.INVITE_RECEIVED.value,
+                    type=NotificationType.TEAM_INVITE.value,
                     web=True,
                     telegram=False,
                 ),
@@ -74,12 +74,12 @@ async def test_channel_settings(harness: Harness) -> None:
         )
         settings = await channel_settings(session, user.id)
         assert set(settings) == set(NotificationType)
-        assert settings[NotificationType.INVITE_RECEIVED] == (False, True)
+        assert settings[NotificationType.TEAM_INVITE] == (False, True)
         assert settings[NotificationType.SCORE_CHANGED] == (True, True)
         assert settings[NotificationType.TELEGRAM_LINK_BROKEN] == (True, False)
         for type in NotificationType:
             if type not in {
-                NotificationType.INVITE_RECEIVED,
+                NotificationType.TEAM_INVITE,
                 NotificationType.SCORE_CHANGED,
                 NotificationType.TELEGRAM_LINK_BROKEN,
             }:
@@ -266,7 +266,7 @@ async def test_notify_many(harness: Harness, dedupe_key: str | None) -> None:
             )
 
 
-@pytest.mark.parametrize("kind", [AlertKind.TEAM_BELOW_MIN, AlertKind.ALGO_FAILURE])
+@pytest.mark.parametrize("kind", [AlertKind.FORMATION_FAILED, AlertKind.ALGO_FAILURE])
 async def test_raise_alert(harness: Harness, kind: AlertKind) -> None:
     h = harness
     admin = await h.admin()
@@ -290,7 +290,7 @@ async def test_raise_alert(harness: Harness, kind: AlertKind) -> None:
         assert row is not None
         assert row.type == kind.value
         assert row.severity == (
-            AlertSeverity.WARNING if kind == AlertKind.TEAM_BELOW_MIN else AlertSeverity.CRITICAL
+            AlertSeverity.WARNING if kind == AlertKind.FORMATION_FAILED else AlertSeverity.CRITICAL
         )
         assert row.status == AlertStatus.OPEN
         assert row.payload == {
@@ -366,7 +366,7 @@ async def test_raise_info_alert_without_notifications(harness: Harness) -> None:
         for _ in range(2):
             row = await raise_alert(
                 session,
-                AlertKind.FORMATION_UNDERSIZED,
+                AlertKind.TEAM_BELOW_MIN,
                 h.now,
                 title="Formation undersized",
                 message="Not enough members",
@@ -418,7 +418,7 @@ async def test_resolve_alerts(harness: Harness) -> None:
         for key in ["condition:one", "condition:other"]:
             row = await raise_alert(
                 session,
-                AlertKind.FORMATION_UNDERSIZED,
+                AlertKind.TEAM_BELOW_MIN,
                 h.now,
                 title="Formation undersized",
                 message="Not enough members",

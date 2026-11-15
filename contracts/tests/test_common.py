@@ -102,9 +102,9 @@ def test_problem_builds_type_and_round_trips(public_url: str) -> None:
 
 
 def test_problem_derives_status_and_title_from_code() -> None:
-    problem = Problem.build(public_url="https://hmm.example", code=ErrorCode.LEAD_FIT_TOO_LOW)
+    problem = Problem.build(public_url="https://hmm.example", code=ErrorCode.ONBOARDING_REQUIRED)
     assert problem.status == 403
-    assert problem.title == "Lead fit too low"
+    assert problem.title == "Onboarding required"
     assert type(problem.model_dump()["status"]) is int
 
 

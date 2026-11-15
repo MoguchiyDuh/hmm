@@ -1,4 +1,4 @@
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from hmm_contracts.common import (
@@ -54,7 +54,7 @@ async def list_events(
     phase: Annotated[EventPhase | None, Query()] = None,
     formation: Annotated[bool | None, Query()] = None,
     participation_phase: Annotated[
-        Literal[FormationPhase.OPEN, FormationPhase.REVIEW, FormationPhase.LOCKED] | None,
+        FormationPhase | None,
         Query(),
     ] = None,
     area: Annotated[AreaKey | None, Query()] = None,

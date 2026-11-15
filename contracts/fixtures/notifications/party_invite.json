@@ -1,0 +1,39 @@
+{
+  "id": "019a7b33-0000-7000-8000-000000000001",
+  "user_id": "019a7b32-0000-7000-8000-000000000001",
+  "type": "party_invite",
+  "payload": {
+    "type": "party_invite",
+    "link": "/parties/019a7b32-0000-7000-8000-000000000003",
+    "actions": [
+      {
+        "kind": "api",
+        "key": "invite_accept",
+        "entity_id": "019a7b32-0000-7000-8000-000000000004",
+        "label_key": "notifications.actions.invite_accept"
+      },
+      {
+        "kind": "api",
+        "key": "invite_decline",
+        "entity_id": "019a7b32-0000-7000-8000-000000000004",
+        "label_key": "notifications.actions.invite_decline"
+      }
+    ],
+    "event_id": "019a7b32-0000-7000-8000-000000000002",
+    "event_title": "Northern Lights Hackathon 2026",
+    "party_id": "019a7b32-0000-7000-8000-000000000003",
+    "invite_id": "019a7b32-0000-7000-8000-000000000004",
+    "kind": "party",
+    "actor": {
+      "user_id": "019a7b32-0000-7000-8000-000000000065",
+      "display_name": "Avery Chen"
+    },
+    "invitee": {
+      "user_id": "019a7b32-0000-7000-8000-000000000001",
+      "display_name": "Alex Morgan"
+    },
+    "expires_at": "2026-11-21T12:00:00Z"
+  },
+  "created_at": "2026-11-20T10:00:00Z",
+  "read_at": null
+}

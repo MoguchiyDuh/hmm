@@ -81,7 +81,7 @@ async def test_list_alerts_filters_paginates_and_exposes_actions(harness: Harnes
     async with h.db() as session:
         info = await raise_alert(
             session,
-            AlertKind.FORMATION_UNDERSIZED,
+            AlertKind.TEAM_BELOW_MIN,
             h.now,
             title="Undersized formation",
             message="Not enough members",

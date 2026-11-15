@@ -4,18 +4,13 @@ from typing import Annotated, Literal, Self
 
 from hmm_contracts.common import (
     AreaKey,
-    ConfirmKind,
     EventId,
-    FormationRunId,
     InviteId,
     InviteKind,
     InviteStatus,
     JoinedVia,
     JoinRequestId,
     JoinRequestStatus,
-    LeadOfferId,
-    LeadOfferSource,
-    LeadOfferStatus,
     LeftReason,
     MemberRole,
     MemberState,
@@ -68,31 +63,18 @@ class JoinRequestAction(StrEnum):
     WITHDRAW = "withdraw"
 
 
-class LeadOfferAction(StrEnum):
-    ACCEPT = "accept"
-    DECLINE = "decline"
-    CANCEL = "cancel"
-
-
 class ProjectAction(StrEnum):
     EDIT = "edit"
     INVITE = "invite"
     REQUEST_JOIN = "request_join"
     LEAVE = "leave"
     ADD_MEMBER = "add_member"
-    READY = "ready"
-    UNREADY = "unready"
-    CLAIM_LEAD = "claim_lead"
-    UNCLAIM = "unclaim"
     CLOSE_SEATS = "close_seats"
     REOPEN_SEATS = "reopen_seats"
-    SWAP = "swap"
-    MERGE = "merge"
     START = "start"
     PAUSE = "pause"
     ABANDON = "abandon"
     CONTINUE = "continue"
-    STEP_DOWN = "step_down"
     TRANSFER_LEAD = "transfer_lead"
     ADD_MILESTONE = "add_milestone"
     POST_UPDATE = "post_update"
@@ -149,9 +131,7 @@ class ProjectMember(WithAllowedActions[ProjectMemberAction]):
     state: MemberState
     trust: Trust
     joined_via: JoinedVia
-    proposal_reason: str | None
-    confirm_by: AwareDatetime | None
-    confirm_kind: ConfirmKind | None
+    accept_by: AwareDatetime | None
     is_team_row: bool
     joined_at: AwareDatetime
     confirmed_at: AwareDatetime | None
@@ -165,7 +145,7 @@ class CreateProjectInviteBody(ApiModel):
     area_key: AreaKey | None = None
 
 
-class Invite(WithAllowedActions[InviteAction]):
+class ProjectInvite(WithAllowedActions[InviteAction]):
     id: InviteId
     project_id: ProjectId
     project: ProjectRef
@@ -193,30 +173,10 @@ class JoinRequest(WithAllowedActions[JoinRequestAction]):
     id: JoinRequestId
     project_id: ProjectId
     project: ProjectRef
-    event_id: EventId | None
     user_id: UserId
     user: UserRef
     note: str
     status: JoinRequestStatus
-    responded_at: AwareDatetime | None
-    created_at: AwareDatetime
-    updated_at: AwareDatetime
-
-
-class LeadOffer(WithAllowedActions[LeadOfferAction]):
-    id: LeadOfferId
-    project_id: ProjectId
-    project: ProjectRef
-    event_id: EventId | None
-    user_id: UserId
-    user: UserRef
-    source: LeadOfferSource
-    offered_by: UserId | None
-    offerer: UserRef | None
-    tier: int | None = Field(ge=1, le=4)
-    reason: str
-    status: LeadOfferStatus
-    expires_at: AwareDatetime
     responded_at: AwareDatetime | None
     created_at: AwareDatetime
     updated_at: AwareDatetime
@@ -248,19 +208,12 @@ class Project(ProjectSummary):
     description_md: str
     goal: str
     links: list[HttpUrl]
-    ready_at: AwareDatetime | None
-    review_ends_at: AwareDatetime | None
-    formed_in_run_id: FormationRunId | None
-    locked_at: AwareDatetime | None
-    seat_open_since: AwareDatetime | None
     seats_closed_at: AwareDatetime | None
     open_seats: int | None = Field(ge=0)
-    last_lead_action_at: AwareDatetime | None
     last_progress_at: AwareDatetime | None
     members: list[ProjectMember]
-    pending_invites: list[Invite] | None
+    pending_invites: list[ProjectInvite] | None
     pending_join_requests: list[JoinRequest] | None
-    pending_lead_offer: LeadOffer | None
 
 
 type ProjectView = Annotated[Project | ProjectListing, Field(discriminator="view")]

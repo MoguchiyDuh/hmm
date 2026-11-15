@@ -34,43 +34,37 @@
 
 | Term | Meaning |
 |---|---|
-| **Enrollment** | A member's declared intent to join a hackathon through formation ("I'm going"), with an optional preferred area. |
-| **Lead claim** | An eligible member (lead fit ≥ `lead_fit_threshold`) claims to lead a team. Creates a team in `forming`. |
-| **Lead volunteer** | An enrolled member who ticked "I can lead if needed". Any fit; no core. Ranked above non-volunteers in the lead order. |
-| **Lead order** | Ranking used whenever the system picks a lead: claimed lead > volunteer with fit ≥ threshold > volunteer below threshold > anyone else (§12.8). |
-| **Lead offer** | A pending offer of the lead role to one member (formation, succession or transfer). Accepting is the only way to become lead, except a forced assignment. |
-| **Proposal** | A placement made by the system or a lead, or a re-confirmation request to someone already on a team (formation review, presence check). The member must confirm by `confirm_by`, or they are removed (`lapsed`). |
-| **Presence check** | "Still in for X?" sent to every team member shortly before `starts_at` (§12.7). Silence means removal. |
-| **Open seat** | A free slot on a team below target size `T`. The lead gets a head start to fill or close it; then the system offers it to the reserve (§12.7). |
-| **Core** | People a lead gathers before formation through invites and accepted join requests. At most `core_max` including the lead. |
-| **Formation round** | One algorithm run that packs every unplaced enrollment into complete teams around the cores, picks leads for new teams, and ranks leftovers into the reserve. The main round runs once; late rounds may follow (§12.7). |
-| **Review** | Window after formation: leads adjust rosters, and every team member (cores and claimed leads included) must confirm. |
-| **Lock** | End of a team's review; rosters are fixed for participation. Happens at the team's `review_ends_at`, which is never later than `team_deadline` (§12.2), so teams have time to register with the organizer. |
-| **Reserve** | Ranked list of enrolled members not on a team. First source for open seats and late teams. |
+| **Enrollment** | A member's place in a hackathon queue: status `active` before formation, `reserve` after, `placed` once on a team, with an optional preferred area, a note and "I can lead if needed". |
+| **Queue** | Enrollments waiting to be placed, ordered by `queued_at`. Formation fills teams from it, and refills keep drawing on it until `reg_deadline`. |
+| **Party** | Friends who queue together and are never split. **Open** (the queue adds people up to team size) or **closed** (the party is the whole team). Owned by one member, who invites, kicks and toggles `closed`. |
+| **Unit** | What packing places: a solo member or an open party, with its size and queue time. |
+| **Packing** | `pack()`: fills open teams, then builds new ones from the queue. Never splits a unit, never builds a team outside [`min`, `max`] (§12.3). |
+| **Placement** | A proposed seat on a team. The member accepts or declines by `accept_by`; silence removes them (`lapsed`) and the seat goes back to the queue. |
+| **Lead** | One member per team. Picked at placement by a fixed rule; transfer is immediate, and the role passes at once when it empties (§12.7). |
+| **Open seat** | A team below target size `T` with seats open. Refills fill it from the queue until `reg_deadline`; the lead may close the seats (§12.6). |
 | **Target size `T`** | Preferred team size. Default `team_size_max`; an admin may override it per hackathon. |
-| **Viable size `V`** | Smallest acceptable new team: `max(team_size_min, ceil(T × viable_ratio))`. |
-| **Lead fit** | Algo score 0–1 with a reason, per (member, hackathon). At or above `lead_fit_threshold` → may claim lead with one click. |
-| **Quick-pick** | Algo-ranked candidates for a team or project: enrolled or reserve members first, then everyone else to invite. |
+| **Reserve** | The queue after formation: enrollments waiting for an open seat or a new team. |
+| **Quick-pick** | Algo-ranked candidates for a project: reserve or enrolled members first, then everyone else to invite. |
 | **DND** | Do not disturb: hidden from quick-pick and mentor matching, cannot be invited. Own actions are still allowed. |
 
 Participation phases per hackathon:
 
 ```text
-open ──► forming ──► review ──► locked ──► closed
+open ──► forming ──► formed ──► closed
 ```
 
 ## 4.4 Global invariants
 
 1. At most one live enrollment per member per hackathon.
 2. A member is on at most one team per hackathon (proposed or confirmed).
-3. Team size (the lead counts, proposed members count) ≤ `max`. Core size ≤ `core_max` until formation.
-4. Teams are completed by a formation round, not one by one. Before formation only cores exist.
-5. Formation never splits a core and never removes a claimed lead. Only their own silence (an unanswered confirmation) or leaving does.
-6. Fewer complete teams beat more partial teams: formation maximizes placed members first, then minimizes the number of teams.
-7. Algorithms propose, people decide. Nobody is on a team, project or mentorship without an explicit action of their own. Silence on a proposal counts as a decline: the member is removed when `confirm_by` passes.
+3. A team's size is within [`min`, `max`] when a plan or refill creates it and never above `max`; a party is never split.
+4. The queue builds teams, not people acting one at a time: one formation run places everyone it can, and refills keep filling open seats until `reg_deadline`.
+5. Formation places at least as many people as `pack()`; an algo plan that places fewer is rejected (§12.5).
+6. Every unit appears once, whole, on one team or in the queue.
+7. Algorithms propose, people decide. Nobody is on a team, project or mentorship without an explicit action of their own. Silence on a placement counts as a decline: the member is removed when `accept_by` passes.
 8. Reviews do not affect XP. XP, activity, area scores and reputation are independent outputs.
 9. The system acts, admins get warned. No admin approval on the routine path. Admin queues exist only for low-confidence imports, items to check, results to verify and stuck states.
-10. Every team that reaches `locked` has a lead. The role is offered down the lead order and forced only as a last resort (§12.8).
+10. Every team has a lead from the moment it exists. When the lead leaves, declines, lapses or is banned, the role passes at once (§12.7).
 11. **Second-party rule.** XP needs someone else: a confirmation, a co-participant, a learner's outcome, or system evidence. Facts at trust level `self` earn activity and almost no XP.
 12. Anything marked "to check" earns nothing until an admin resolves it. Members are told only when they're punished.
 13. No eligibility guards. Event `eligibility` (age, student status, country) is informational text, and members may join teams in overlapping events. Members decide.

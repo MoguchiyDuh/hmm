@@ -41,9 +41,9 @@ def test_setting_value_validation_preserves_constraints() -> None:
         with pytest.raises(ValidationError):
             apply_setting(settings, key, value)
     with pytest.raises(ValidationError):
-        apply_setting(settings, SettingKey("lead_fit_threshold"), 1.1)
+        apply_setting(settings, SettingKey("import_auto_publish_confidence"), 1.1)
     with pytest.raises(ValidationError):
-        apply_setting(settings, SettingKey("confirm_reminder_hours"), [24, "6", 1])
+        apply_setting(settings, SettingKey("results_close_days"), 0)
     assert setting_value_schema(key)["minimum"] == 1
 
 
@@ -52,13 +52,11 @@ def test_setting_value_validation_preserves_constraints() -> None:
     [
         ("team_size_default_min", 9),
         ("team_size_default_max", 1),
-        ("formation_min_notice_hours", 100),
-        ("review_min_hours", 49),
-        ("presence_confirm_hours", 48),
+        ("formation_lead_hours", 0),
+        ("review_window_days", 0),
+        ("project_size_max", 0),
         ("results_due_days", 30),
-        ("confirm_reminder_hours", [1, 1, 24]),
-        ("confirm_reminder_hours", [1, 6, 24]),
-        ("confirm_reminder_hours", []),
+        ("results_close_days", 7),
     ],
 )
 def test_setting_rejects_inconsistent_combinations(key: str, value: JsonValue) -> None:

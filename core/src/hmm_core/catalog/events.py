@@ -23,7 +23,6 @@ from hmm_contracts.common import (
     EventReviewReason,
     EventStatus,
     FormationPhase,
-    JoinRequestStatus,
     TeamStatus,
 )
 from hmm_contracts.imports import Location, Prize
@@ -37,7 +36,6 @@ from hmm_core.catalog import schemas
 from hmm_core.formation import service as formation
 from hmm_core.platform.audit import record_audit
 from hmm_core.platform.errors import ProblemError
-from hmm_core.platform.jobs import JobName, defer_job
 from hmm_core.platform.pagination import CursorParams, apply_keyset, encode_cursor
 from hmm_core.platform.schemas import EventAction, UserRef
 from hmm_core.platform.settings import RuntimeSettings, load_settings
@@ -77,9 +75,7 @@ TEAM_FIELDS = frozenset({"team_size_min", "team_size_max"})
 
 
 NON_TERMINAL_TEAMS = (
-    TeamStatus.FORMING.value,
-    TeamStatus.REVIEW.value,
-    TeamStatus.LOCKED.value,
+    TeamStatus.FORMED.value,
     TeamStatus.ACTIVE.value,
 )
 
@@ -307,13 +303,6 @@ async def create_event(
     return event
 
 
-async def enqueue_lead_fits(
-    session: AsyncSession, jobs: procrastinate.App, event: models.Event
-) -> None:
-    if event.formation_enabled and event.status == EventStatus.PUBLISHED:
-        await defer_job(session, jobs, JobName.COMPUTE_LEAD_FITS, event_id=str(event.id))
-
-
 async def event_snapshot(session: AsyncSession, event_id: UUID) -> EventSnapshot:
     event = await load_event(session, event_id)
     rows = await session.execute(
@@ -355,8 +344,6 @@ class EventParticipation:
     attendance: models.EventAttendance | None
     enrollment: models.Enrollment | None
     on_team: bool
-    pending_join_request: bool
-    lead_fit: models.LeadFit | None
     phase: FormationPhase | None
     formation_at: datetime | None
 
@@ -399,23 +386,6 @@ async def participation_states(
             )
         )
     )
-    pending = set(
-        await session.scalars(
-            select(models.JoinRequest.event_id).where(
-                models.JoinRequest.event_id.in_(ids),
-                models.JoinRequest.user_id == actor.id,
-                models.JoinRequest.status == JoinRequestStatus.PENDING,
-            )
-        )
-    )
-    fits = {
-        fit.event_id: fit
-        for fit in await session.scalars(
-            select(models.LeadFit).where(
-                models.LeadFit.event_id.in_(ids), models.LeadFit.user_id == actor.id
-            )
-        )
-    }
     formations = {
         event_id: (FormationPhase(phase), formation_at)
         for event_id, phase, formation_at in await session.execute(
@@ -431,8 +401,6 @@ async def participation_states(
             attendance=attendances.get(event_id),
             enrollment=enrollments.get(event_id),
             on_team=event_id in on_team,
-            pending_join_request=event_id in pending,
-            lead_fit=fits.get(event_id),
             phase=formations[event_id][0] if event_id in formations else None,
             formation_at=formations[event_id][1] if event_id in formations else None,
         )
@@ -450,7 +418,7 @@ def event_actions(
     published = event.status == EventStatus.PUBLISHED
     admin = actor.is_admin
     reg_deadline = event.registration_deadline or event.starts_at
-    formation_open = state.phase == FormationPhase.OPEN
+    formation_open = state.phase in (FormationPhase.OPEN, FormationPhase.FORMED)
     attended_window = (
         event.starts_at <= now <= event.ends_at + timedelta(days=settings.attendance_claim_days)
     )
@@ -482,19 +450,8 @@ def event_actions(
             and state.enrollment.status in LIVE_ENROLLMENTS
         ):
             allowed.add(EventAction.WITHDRAW)
-        if (
-            now < (state.formation_at or reg_deadline)
-            and state.enrollment is not None
-            and state.enrollment.status == EnrollmentStatus.ACTIVE
-            and not state.pending_join_request
-        ):
-            allowed.add(EventAction.REQUEST_JOIN)
-        if (
-            now < reg_deadline
-            and state.lead_fit is not None
-            and float(state.lead_fit.fit) >= settings.lead_fit_threshold
-        ):
-            allowed.add(EventAction.CLAIM_LEAD)
+        if now < reg_deadline:
+            allowed.add(EventAction.CREATE_PARTY)
     return [action for action in EventAction if action in allowed]
 
 
@@ -668,9 +625,6 @@ async def event_detail(
         sources=sources,
         members_going=members_going,
         formation=formation_view,
-        my_lead_fit=formation.lead_eligibility(state.lead_fit, settings)
-        if event.formation_enabled
-        else None,
         created_at=event.created_at,
         updated_at=event.updated_at,
     )
@@ -692,7 +646,6 @@ async def create_manual_event(
         created_by=actor.id,
         now=now,
     )
-    await enqueue_lead_fits(session, jobs, event)
     await record_audit(
         session,
         actor=actor.id,

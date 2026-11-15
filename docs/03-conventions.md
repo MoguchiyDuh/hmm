@@ -35,10 +35,10 @@
 | 429 | Rate limited |
 | 500 | `internal_error` |
 | 501 | `not_implemented` (endpoint not built yet) |
-| 503 | Dependent data not ready yet (`lead_fit_pending`) |
+| 503 | Dependent data not ready yet |
 
 - Text limits unless a section says otherwise: names ≤ 100, titles ≤ 200, notes and reasons ≤ 1000 (trimmed, non-empty), markdown ≤ 5000, event descriptions ≤ 20000, ≤ 10 links.
-- Every mutable resource response includes `allowed_actions: string[]` computed for the current actor (e.g. `["invite","ready","unclaim"]`). Frontend and bot render buttons from it and never re-implement permission rules.
+- Every mutable resource response includes `allowed_actions: string[]` computed for the current actor (e.g. `["invite","close_seats","leave"]`). Frontend and bot render buttons from it and never re-implement permission rules.
 - OpenAPI is the source of truth for the frontend. Core commits `core/openapi.json` and CI checks it is current; `web` regenerates its client from it.
 
 ## 3.2 Authentication
@@ -65,7 +65,7 @@
 | member | User whose `onboarding_status` is `completed` or `reopened`. Otherwise 403 `onboarding_required`. |
 | admin | Web session of a user with `is_admin`. Onboarding is not required. |
 | bot / parser | Service token (§3.2). |
-| Resource roles | A member acting on a resource they hold a role in: **lead** (of that project or team), **team member** / **project member** (on its roster), **invitee**, **requester**, **learner**, **mentor**, **creator**, **offer author**, **confirmer**. Otherwise 403 `forbidden` or 404 if not visible. |
+| Resource roles | A member acting on a resource they hold a role in: **lead** (of that project or team), **team member** / **project member** (on its roster), **party owner** / **party member**, **invitee**, **requester**, **learner**, **mentor**, **creator**, **offer author**, **confirmer**. Otherwise 403 `forbidden` or 404 if not visible. |
 
 Rules:
 - Global flags on a user: `is_admin` and banned (`banned_at`).
@@ -76,7 +76,7 @@ Rules:
 
 ## 3.4 Consistency and concurrency
 
-- All participation mutations on a hackathon run in one transaction that first takes `SELECT ... FOR UPDATE` on the `events` row: enroll, withdraw, claim/unclaim, invites, join requests, placement confirm/decline, adds and removals, swaps, merges, leave, lead offers, transfer, step-down, formation apply, lock and admin roster operations. This serializes participation per hackathon and makes the invariants in §4.4 enforceable.
+- All participation mutations on a hackathon run in one transaction that first takes `SELECT ... FOR UPDATE` on the `events` row: enroll, update and withdraw, party create, invite, kick, open/closed, invite accept and decline, placement accept and decline, leave, seats, transfer lead, member areas, refills and formation apply, and admin roster operations. This serializes participation per hackathon and makes the invariants in §4.4 enforceable.
 - That lock is never held across an algo or network call: `run_formation` locks only to switch phase and to apply the plan (§12.5).
 - Standalone project mutations lock the `projects` row. Help request and mentorship mutations lock the help request row, plus the mentor's `users` row when capacity is checked.
 - Jobs are enqueued in the same transaction as the state change (procrastinate uses the same connection), so a rolled-back change emits no job.

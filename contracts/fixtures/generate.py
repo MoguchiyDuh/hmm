@@ -7,17 +7,15 @@ from uuid import UUID
 from hmm_contracts.algo import (
     Area,
     CommunityGraph,
-    Core,
     EnrolledMember,
     EventSnapshot,
     Fact,
     FormationRequest,
-    LeadFit,
+    FormationUnit,
     MemberHistory,
     MemberSnapshot,
     MentorMatchRequest,
     MentorshipEdge,
-    TeamMemberSnapshot,
 )
 from hmm_contracts.common import SEED_AREA_KEYS, Contract
 from hmm_contracts.fixtures import (
@@ -26,7 +24,7 @@ from hmm_contracts.fixtures import (
     MentorshipCase,
     VisibilityCase,
 )
-from hmm_contracts.formation import placement_bounds
+from hmm_contracts.formation import Unit, pack
 from hmm_contracts.notifications import (
     ALLOWED_ACTIONS,
     ActionKey,
@@ -688,185 +686,56 @@ def formations(
     people: list[MemberHistory], catalog: dict[str, EventSnapshot]
 ) -> dict[str, FormationCase]:
     definitions = [
-        (
-            "scenario_03_04",
-            "Steps 3-4: fourteen people, two intact claimed cores, two reserves",
-            "ml_hackathon",
-            [[0, 2], [1, 3]],
-            list(range(4, 14)),
-            {5},
-            [6, 6],
-            0,
-        ),
-        (
-            "scenario_13",
-            "Step 13: one claimed lead plus six enrollments; volunteer seeds the new team",
-            "small_hackathon",
-            [[2]],
-            [5, 6, 7, 8, 9, 10],
-            {5},
-            [4, 3],
-            1,
-        ),
-        (
-            "no_cores",
-            "No claims; qualified and below-threshold volunteers seed separate teams",
-            "ml_hackathon",
-            [],
-            list(range(12)),
-            {0, 5},
-            [6, 6],
-            2,
-        ),
-        (
-            "undersized_merge",
-            "Intact undersized cores require a merge proposal, not an applied merge",
-            "ml_hackathon",
-            [[0], [1]],
-            [2],
-            set(),
-            [2, 1],
-            0,
-        ),
-        (
-            "no_volunteers",
-            "A new team with no volunteers must offer the lead to tier 4",
-            "small_hackathon",
-            [],
-            [2, 6, 7, 9],
-            set(),
-            [4],
-            0,
-        ),
-        (
-            "many_volunteers",
-            "Spread volunteers before skill optimization; prefer tier 2 over tier 3",
-            "small_hackathon",
-            [],
-            list(range(12)),
-            {0, 1, 2, 4, 5, 8, 9},
-            [4, 4, 4],
-            3,
-        ),
-        (
-            "late_reserve",
-            "Late round considers only unoffered reserve members, not locked teams",
-            "small_hackathon",
-            [],
-            [2, 5, 6, 7, 8, 9, 10],
-            {5, 8},
-            [4, 3],
-            2,
-        ),
-        (
-            "stress_100",
-            "Exactly 100 unplaced members exercises the algorithm boundary, with all twelve areas",
-            "small_hackathon",
-            [],
-            list(range(100)),
-            set(range(0, 100, 4)),
-            [4] * 25,
-            25,
-        ),
+        ("seven_solos", [1] * 7),
+        ("eight_solos", [1] * 8),
+        ("eleven_solos", [1] * 11),
+        ("two_solos", [1, 1]),
+        ("two_parties_three", [3, 3]),
+        ("parties_three_two", [3, 2]),
+        ("party_four_solos", [4, 1, 1, 1, 1]),
+        ("parties_four_three_solo", [4, 3, 1]),
+        ("three_parties_two", [2, 2, 2]),
+        ("stress_100", [1] * 100),
     ]
     output: dict[str, FormationCase] = {}
-    for case_index, (
-        stem,
-        description,
-        event_key,
-        core_indices,
-        free,
-        volunteers,
-        sizes,
-        spread,
-    ) in enumerate(definitions):
-        event = catalog[event_key]
-        maximum = event.team_size_max or 5
-        viable = max(event.team_size_min or 2, (maximum * 3 + 3) // 4)
-        cores: list[Core] = []
-        for core_index, indices in enumerate(core_indices):
-            team: list[TeamMemberSnapshot] = []
-            for position, index in enumerate(indices):
-                team.append(
-                    TeamMemberSnapshot.model_validate(
-                        snapshot(people[index]).model_dump()
-                        | {
-                            "role": "lead" if position == 0 else "member",
-                            "area": area_key(index),
-                            "state": "confirmed",
-                            "willing_to_lead": False,
-                            "claimed_lead": position == 0,
-                            "enrolled_at": NOW - timedelta(days=5, minutes=-index),
-                        }
-                    )
-                )
-            cores.append(
-                Core(
-                    project_id=uid(4000 + case_index * 10 + core_index),
-                    lead=team[0],
-                    members=team[1:],
+    for case_index, (stem, sizes) in enumerate(definitions):
+        units: list[FormationUnit] = []
+        offset = 0
+        for index, size in enumerate(sizes):
+            units.append(
+                FormationUnit(
+                    id=uid(4000 + case_index * 100 + index),
+                    members=[enrolled(people[i], i, False) for i in range(offset, offset + size)],
                 )
             )
-        unplaced = [enrolled(people[index], index, index in volunteers) for index in free]
-        fits = {
-            user(index): LeadFit(
-                user_id=user(index),
-                fit=0.35
-                if index == 5
-                else 0.9
-                if index == 0
-                else 0.8
-                if index in (1, 2, 4, 8, 9)
-                else 0.5,
-                reason="Experienced primary-area contributor"
-                if index != 5
-                else "New to team delivery; willing to learn leadership",
-            )
-            for index in free
-        }
-        request = FormationRequest.model_validate(
-            {
-                "hackathon": event,
-                "kind": "late" if stem == "late_reserve" else "main",
-                "target": maximum,
-                "viable": viable,
-                "max_size": maximum,
-                "bounds": placement_bounds(
-                    len(free), [len(indices) for indices in core_indices], viable, maximum, maximum
-                ),
-                "cores": cores,
-                "unplaced": unplaced,
-                "lead_fits": fits,
-            }
+            offset += size
+        request = FormationRequest(
+            hackathon=catalog["small_hackathon"],
+            target=5,
+            min_size=3,
+            max_size=5,
+            units=units,
         )
-        coverage = stem in ("scenario_03_04", "scenario_13", "no_cores", "many_volunteers")
+        packing = pack(
+            [
+                Unit(id=unit.id, size=len(unit.members), queued_at=unit.members[0].enrolled_at)
+                for unit in units
+            ],
+            [],
+            5,
+            3,
+            5,
+        )
+        unit_sizes = {unit.id: len(unit.members) for unit in units}
         output[stem] = FormationCase.model_validate(
             {
-                "description": description,
+                "description": stem.replace("_", " "),
                 "request": request,
                 "expect": {
-                    "primary_coverage_per_team": {event.areas[0].area: 1} if coverage else {},
-                    "required_coverage_per_team": {"backend": 1, "frontend": 1}
-                    if stem in ("scenario_03_04", "no_cores")
-                    else {},
-                    "fixed_cores": {
-                        core.project_id: [
-                            core.lead.user_id,
-                            *[member.user_id for member in core.members],
-                        ]
-                        for core in cores
-                    },
-                    "new_teams_with_volunteers": spread,
-                    "team_sizes": sizes,
-                    "new_team_lead_tiers": [4]
-                    if stem == "no_volunteers"
-                    else [3]
-                    if stem == "scenario_13"
-                    else [2, 3]
-                    if stem == "no_cores"
-                    else [],
-                    "merge_proposal_required": stem == "undersized_merge",
-                    "pair_beginners_with_specialists": stem != "undersized_merge",
+                    "team_sizes": [
+                        sum(unit_sizes[unit_id] for unit_id in team) for team in packing.new_teams
+                    ],
+                    "queued_people": sum(unit_sizes[unit_id] for unit_id in packing.queue),
                 },
             }
         )
@@ -1446,28 +1315,15 @@ def generate_notifications(destination: Path) -> None:
         ActionKey.INVITE_DECLINE: "invite_id",
         ActionKey.JOIN_REQUEST_ACCEPT: "join_request_id",
         ActionKey.JOIN_REQUEST_REJECT: "join_request_id",
-        ActionKey.PLACEMENT_CONFIRM: "project_id",
+        ActionKey.PLACEMENT_ACCEPT: "project_id",
         ActionKey.PLACEMENT_DECLINE: "project_id",
-        ActionKey.PROJECT_LEAVE: "project_id",
-        ActionKey.LEAD_OFFER_ACCEPT: "lead_offer_id",
-        ActionKey.LEAD_OFFER_DECLINE: "lead_offer_id",
         ActionKey.EVENT_ENROLL: "event_id",
-        ActionKey.SWAP_ACCEPT: "swap_request_id",
-        ActionKey.SWAP_DECLINE: "swap_request_id",
-        ActionKey.MERGE_ACCEPT: "merge_proposal_id",
-        ActionKey.MERGE_DECLINE: "merge_proposal_id",
-        ActionKey.LEAD_STEP_DOWN: "project_id",
-        ActionKey.PROJECT_CLAIM_LEAD: "project_id",
         ActionKey.HELP_OFFER_ACCEPT: "help_offer_id",
         ActionKey.HELP_REQUEST_DECLINE: "help_request_id",
         ActionKey.HELP_REQUEST_OPEN: "help_request_id",
         ActionKey.MENTORSHIP_ACKNOWLEDGE: "mentorship_id",
     }
     link_labels = {
-        NotificationType.FORMATION_READY: ("open_team",),
-        NotificationType.REVIEW_ENDING: ("open_team",),
-        NotificationType.SEAT_OPENED: ("open_team",),
-        NotificationType.LEAD_OPPORTUNITY: ("claim_lead",),
         NotificationType.LEAD_ASSIGNED: ("transfer",),
         NotificationType.ATTENDANCE_CONFIRM_DIGEST: ("confirm_attendees",),
         NotificationType.PROJECT_IDLE: ("open_project",),

@@ -36,8 +36,7 @@ async def seed_project(
             lead_user_id=lead.id,
             status=status,
             team_status=team_status,
-            origin="standalone" if team_status is None else "claim",
-            last_lead_action_at=h.now,
+            origin="standalone" if team_status is None else "formation",
             last_progress_at=h.now,
         )
         session.add(project)
@@ -231,7 +230,7 @@ async def test_milestone_automatic_start(harness: Harness) -> None:
         session.add(event)
         await session.flush()
         event_id = event.id
-    team = await seed_project(h, lead, members=[member], event_id=event_id, team_status="forming")
+    team = await seed_project(h, lead, members=[member], event_id=event_id, team_status="formed")
     h.advance(timedelta(hours=1))
     async with await h.client(member) as client:
         for project in (idea, team):

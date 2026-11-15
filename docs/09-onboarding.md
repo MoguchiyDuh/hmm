@@ -77,7 +77,7 @@ Core implements the evaluator once in Python, and the frontend implements the sa
 1. `not_started` → the user opens `/onboarding` and gets the published definition; the first save sets `in_progress`.
 2. Drafts autosave (`PUT answers`, partial allowed). A draft made against an older version moves to the current published version when it is loaded or saved, keeping answers whose question keys still exist.
 3. `submit` validates against the current published version: core recomputes visibility, drops answers to hidden questions, and checks that every visible required question is answered with a valid value. Otherwise 422 with per-question errors.
-4. On success: the submission becomes `submitted`, the user `completed`, and `score_onboarding(user)` is enqueued (§9.1 wait rule). Its output is written to `area_scores.calculated` with score events; then `recompute_member` and `compute_lead_fits_for_member` are enqueued. A member review is opened (§9.5).
+4. On success: the submission becomes `submitted`, the user `completed`, and `score_onboarding(user)` is enqueued (§9.1 wait rule). Its output is written to `area_scores.calculated` with score events; then `recompute_member` is enqueued. A member review is opened (§9.5).
 5. Retake only through an admin `reopen`: status becomes `reopened`, the user gets `onboarding_reopened`, and sees the **current** published version with previous answers pre-filled where question keys match.
    - The user keeps full member access until they resubmit; reopen is not a lock.
    - Resubmitting replaces the onboarding baseline and reopens the member review. Admin overrides are untouched.

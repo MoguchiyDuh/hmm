@@ -61,7 +61,7 @@ async def team(
     event: models.Event,
     lead: models.User,
     *members: models.User,
-    team_status: str = "forming",
+    team_status: str = "formed",
 ) -> models.Project:
     async with h.db() as session:
         project = models.Project(
@@ -74,10 +74,10 @@ async def team(
             recruiting=None,
             lead_user_id=lead.id,
             status=ProjectStatus.ACTIVE.value
-            if team_status in {"locked", "active", "finished"}
+            if team_status in {"active", "finished"}
             else ProjectStatus.IDEA.value,
             team_status=team_status,
-            origin=ProjectOrigin.CLAIM.value,
+            origin=ProjectOrigin.FORMATION.value,
         )
         session.add(project)
         await session.flush()
@@ -90,7 +90,7 @@ async def team(
                     role="lead" if user is lead else "member",
                     state="confirmed",
                     trust="self",
-                    joined_via="claim",
+                    joined_via="formation",
                     is_team_row=True,
                     joined_at=h.now,
                 )
@@ -143,7 +143,7 @@ async def standalone(
             lead_user_id=lead.id,
             status=ProjectStatus.IDEA.value,
             team_status=None,
-            origin=ProjectOrigin.CLAIM.value,
+            origin=ProjectOrigin.FORMATION.value,
         )
         session.add(project)
         await session.flush()
@@ -329,8 +329,8 @@ async def test_refresh_end_to_end(harness: Harness) -> None:
     h = harness
     project, event, lead = await forming(h)
     async with h.db() as session:
-        await enroll(session, event, await h.user())
-        await enroll(session, event, await h.user())
+        await enroll(session, event, await h.user(), "reserve")
+        await enroll(session, event, await h.user(), "reserve")
     read = f"/api/v1/projects/{project.id}/recommendations"
     async with await h.client(lead) as c:
         assert (await c.post(url(project.id))).status_code == 202
@@ -342,7 +342,7 @@ async def test_refresh_end_to_end(harness: Harness) -> None:
         assert len(body["enrolled"]) == 2
         late = await h.user()
         async with h.db() as session:
-            await enroll(session, event, late)
+            await enroll(session, event, late, "reserve")
         assert (await c.get(read)).json()["stale"] is True
         h.advance(timedelta(minutes=1))
         assert (await c.post(url(project.id))).status_code == 202

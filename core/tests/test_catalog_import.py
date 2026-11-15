@@ -136,8 +136,6 @@ async def test_import_creates_published_event(harness: Harness) -> None:
     item = EventImport.model_validate(import_item(h))
     assert sources[0].payload_hash == catalog.payload_hash(item)
     assert await count(h, models.EventFormation, models.EventFormation.event_id == event_id) == 1
-    jobs = await h.pending_jobs("compute_lead_fits")
-    assert [job["args"] for job in jobs] == [{"event_id": str(event_id)}]
 
 
 async def test_import_contract_fixtures(harness: Harness) -> None:
@@ -572,7 +570,6 @@ async def test_import_replaces_areas(harness: Harness) -> None:
             "after": [["backend", "primary", 2], ["design", "nice", None]],
         }
     }
-    assert len(await h.pending_jobs("compute_lead_fits")) == 1
     await admin_patch(h, event_id, {"areas": [{"key": "data", "importance": "primary"}]})
     assert "areas" in [lock[0] for lock in await lock_rows(h, event_id)]
     async with h.engine.begin() as connection:
@@ -584,7 +581,6 @@ async def test_import_replaces_areas(harness: Harness) -> None:
     async with h.db() as session:
         current = await catalog.current_areas(session, UUID(event_id))
     assert current == [("data", "primary", None)]
-    assert await h.pending_jobs("compute_lead_fits") == []
 
 
 async def test_import_unmapped_areas_reason(harness: Harness) -> None:
@@ -622,7 +618,7 @@ async def test_import_change_notifications(harness: Harness) -> None:
     attendee = await h.user()
     member = await h.user()
     await add_going(h, event_id, attendee)
-    await add_team(h, event_id, [member], TeamStatus.FORMING)
+    await add_team(h, event_id, [member], TeamStatus.FORMED)
     async with h.db() as session:
         formation_at = await session.scalar(
             select(models.EventFormation.formation_at).where(
@@ -666,7 +662,7 @@ async def test_import_team_size_conflict(harness: Harness) -> None:
     created = await import_results(h, import_item(h))
     event_id = created[0]["event_id"]
     members = [await h.user() for _ in range(5)]
-    await add_team(h, event_id, members, TeamStatus.FORMING)
+    await add_team(h, event_id, members, TeamStatus.FORMED)
     results = await import_results(h, import_item(h, team_size_max=4))
     assert results[0]["result"] == "updated"
     async with h.db() as session:
@@ -696,7 +692,7 @@ async def test_import_parser_cancellation(harness: Harness) -> None:
     event_id = created[0]["event_id"]
     attendee = await h.user()
     await add_going(h, event_id, attendee)
-    team_id = await add_team(h, event_id, [], TeamStatus.FORMING)
+    team_id = await add_team(h, event_id, [], TeamStatus.FORMED)
     results = await import_results(h, import_item(h, status="cancelled"))
     assert results[0]["result"] == "updated"
     async with h.db() as session:

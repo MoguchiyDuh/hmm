@@ -230,7 +230,7 @@ async def test_dashboard_formation_and_teams(harness: Harness) -> None:
     h = harness
     async with h.db() as session:
         events: list[models.Event] = []
-        phases = ["open", "review", "locked", "locked"]
+        phases = ["open", "forming", "formed", "formed"]
         for index, phase in enumerate(phases):
             event = await add_event(session, h.now, f"event-{index}", minimum=3, maximum=5)
             events.append(event)
@@ -242,9 +242,9 @@ async def test_dashboard_formation_and_teams(harness: Harness) -> None:
                     target_override=4,
                 )
             )
-    await add_team(h, events[0], "review", 2, lead=False, departed=True)
-    await add_team(h, events[1], "locked", 3)
-    await add_team(h, events[2], "locked", 3, seats_closed=True)
+    await add_team(h, events[0], "formed", 2, lead=False, departed=True)
+    await add_team(h, events[1], "formed", 3)
+    await add_team(h, events[2], "formed", 3, seats_closed=True)
     await add_team(h, events[3], "finished", 1, lead=False)
     dashboard = await get_dashboard(h)
     assert dashboard.hackathons_by_phase == {
@@ -252,20 +252,19 @@ async def test_dashboard_formation_and_teams(harness: Harness) -> None:
     }
     assert dashboard.teams_below_min == 1
     assert dashboard.teams_without_lead == 1
-    assert dashboard.open_seats == 1
+    assert dashboard.open_seats == 3
 
 
 @pytest.mark.parametrize(
     "status,size,minimum,maximum,target,below_min,open_seats,without_lead",
     [
-        ("forming", 0, 3, 5, None, 0, 0, 1),
-        ("review", 0, 3, 5, None, 1, 0, 1),
+        ("formed", 0, 3, 5, None, 1, 5, 1),
         ("active", 2, 3, 5, None, 1, 0, 1),
-        ("locked", 2, 3, 5, None, 1, 3, 1),
-        ("locked", 6, 3, 5, 4, 0, 0, 1),
-        ("locked", 3, None, None, None, 1, 3, 1),
-        ("locked", 4, None, 5, None, 0, 1, 1),
-        ("locked", 4, None, 5, 7, 0, 3, 1),
+        ("formed", 2, 3, 5, None, 1, 3, 1),
+        ("formed", 6, 3, 5, 4, 0, 0, 1),
+        ("formed", 3, None, None, None, 1, 3, 1),
+        ("formed", 4, None, 5, None, 0, 1, 1),
+        ("formed", 4, None, 5, 7, 0, 3, 1),
         ("finished", 1, 3, 5, None, 0, 0, 0),
     ],
 )
@@ -294,7 +293,7 @@ async def test_dashboard_team_sizing(
             session.add(
                 models.EventFormation(
                     event_id=event.id,
-                    phase="locked",
+                    phase="formed",
                     formation_at=h.now,
                     target_override=target,
                 )

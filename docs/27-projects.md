@@ -17,17 +17,17 @@ idea ──start──► active ──ship──► shipped ──continue─�
 | `idea` | Created, maybe recruiting, nothing done yet. Gives no points. |
 | `active` | Work is happening. Updates and milestones earn activity. |
 | `shipped` | At least one release exists. Releases earn XP for confirmed contributors. Any new release moves an `active` project back to `shipped`. |
-| `paused` | No lead, or paused by the lead or by idle detection. No points accrue. |
+| `paused` | Paused by the lead or by idle detection. No points accrue. |
 | `abandoned` | Closed without a result. Past activity stays; no XP. |
 | `disbanded` | Hackathon team disbanded, or any project disbanded by an admin. |
 | `cancelled` | Hackathon team of a cancelled event. |
 
-Hackathon teams follow their `team_status` (§12.9):
+Hackathon teams follow their `team_status` (§12.8):
 
 | `team_status` | Project `status` |
 |---|---|
-| `forming`, `review` | `idea` |
-| `locked`, `active` | `active` |
+| `formed` | `idea` |
+| `active` | `active` |
 | `finished`, `withdrawn` | Set by the result (§13.1): `shipped` or `abandoned`; an auto-closed team is `abandoned` |
 | `disbanded` | `disbanded` |
 | `cancelled` | `cancelled` |
@@ -44,12 +44,12 @@ After the result, the lead can **continue** the team as a regular project (`acti
 
 ## 27.3 Members
 
-- **Invite** (lead → any onboarded, non-DND, non-banned member): the invitee must accept. Reuses `invites` with `kind = project`; expires after `invite_ttl_days` (7).
-- **Join request** (member → project with `recruiting` set): the lead accepts or rejects. Reuses `join_requests`.
+- **Invite** (lead → any onboarded, non-DND, non-banned member): the invitee must accept. Reuses `invites` with `kind = team` and `project_id` set; expires after `invite_ttl_days` (7).
+- **Join request** (member → project with `recruiting` set): the lead accepts or rejects. Reuses `join_requests`; standalone projects only.
 - **Recruiting:** `recruiting {areas: [area_key], note}` or null. While set, the project appears in the feed (`project_recruiting`) and the lead gets quick-pick (`recommend` with the project as context, §14).
 - **Leave:** any member, anytime. A leaving lead triggers succession (§27.6).
 - **Remove:** the lead removes a member with an optional reason. A removed member's earlier confirmed contributions stay.
-- Hackathon teams follow §12 for membership until `starts_at`. From `starts_at` until the result is submitted (or the team auto-closes, §13.1), adding and removing members is admin-only; members may still leave. This section applies only after that.
+- Hackathon teams follow §12 for membership until `starts_at`. From `starts_at` until the result is submitted (or the team auto-closes, §13.1), adding a member is admin-only and removing one withdraws their enrollment; members may still leave. This section applies only after that.
 
 ## 27.4 Plan and updates
 
@@ -68,9 +68,9 @@ After the result, the lead can **continue** the team as a regular project (`acti
 
 ## 27.6 Lead role (standalone)
 
-- **Transfer:** the lead offers the role to a member, who must accept (`lead_offers`, `source = transfer`). Works as in §12.8, but the offer expires after 7 days.
-- **Lead leaves or steps down:** their own pending transfer offer is cancelled, and offers go to members in order of confirmed contributions, then tenure, each lasting `project_lead_offer_days` (3) (`project_lead_offer`). If nobody accepts, the project becomes `paused` without a lead, members get `project_lead_claimable`, and any project member can claim the lead role while it's paused (first come).
-- Hackathon teams keep §12.8 until the result is submitted or the team auto-closes (§13.1), then follow this section.
+- **Transfer:** the lead sets another confirmed member as lead; it takes effect at once (`projects_led_max` applies to the target).
+- **Lead leaves or steps down:** the role passes at once to the earliest-joined confirmed member (§12.7). A project without members becomes `paused` without a lead.
+- Hackathon teams keep §12.7 until the result is submitted or the team auto-closes (§13.1), then follow this section.
 
 ## 27.7 Endpoints
 
@@ -85,11 +85,10 @@ After the result, the lead can **continue** the team as a regular project (`acti
 | POST | `/api/v1/projects/{id}/pause` | lead | – |
 | POST | `/api/v1/projects/{id}/abandon` | lead | – |
 | POST | `/api/v1/projects/{id}/continue` | lead | – |
-| POST | `/api/v1/projects/{id}/invites` | lead | Same endpoint as §12.11; `kind = project` for standalone projects |
+| POST | `/api/v1/projects/{id}/invites` | lead | Same endpoint as §12.10; `kind = team` for standalone projects |
 | POST | `/api/v1/projects/{id}/join-requests` | member | `{note}`; project must have `recruiting` set |
 | DELETE | `/api/v1/projects/{id}/members/{user_id}` | lead | `{reason?}` |
 | POST | `/api/v1/projects/{id}/leave` | project member | – |
-| POST | `/api/v1/projects/{id}/claim-lead` | project member of a `paused` leaderless project | – |
 | GET | `/api/v1/projects/{id}/milestones` | member | Milestones |
 | POST | `/api/v1/projects/{id}/milestones` | project member | `{title, description?, due_on?, position}` |
 | PATCH | `/api/v1/projects/{id}/milestones/{mid}` | project member | Milestone fields, `done` |
@@ -98,9 +97,9 @@ After the result, the lead can **continue** the team as a regular project (`acti
 | POST | `/api/v1/projects/{id}/updates` | project member | `{body_md, links?}` |
 | POST | `/api/v1/projects/{id}/releases` | lead | `{title, notes_md, repo_url?, demo_url?, writeup_url?, contributions: [{user_id, contributed, area_key?}]}` |
 | GET | `/api/v1/projects/{id}/releases` | member | Releases |
-| GET | `/api/v1/projects/{id}/recommendations` | lead | §14.7 |
+| GET | `/api/v1/projects/{id}/recommendations` | lead | §14.5 |
 
-Transfer, lead offers, ready, swaps, merges and the other team-only endpoints are in §12.11.
+Placement accept/decline, seats, transfer lead, kick and the other team-only endpoints are in §12.10.
 
 ## 27.8 Done when
 

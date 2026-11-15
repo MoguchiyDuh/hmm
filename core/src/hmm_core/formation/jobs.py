@@ -1,184 +1,28 @@
 from uuid import UUID
 
-from hmm_contracts.common import EventStatus, FormationKind, FormationPhase
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from hmm_core import models
-from hmm_core.catalog import service as catalog
-from hmm_core.formation import service
-from hmm_core.identity.service import ONBOARDED
-from hmm_core.platform.algo import call_algo
-from hmm_core.platform.errors import ProblemError
-from hmm_core.platform.jobs import JobName, Runtime, defer_job, job
-from hmm_core.scores.snapshot import build_member_snapshots
-
-
-async def _refresh_event(
-    runtime: Runtime,
-    session: AsyncSession,
-    event: models.Event,
-    user_ids: set[UUID] | None = None,
-) -> None:
-    now = runtime.clock.now()
-    formation = await session.get(models.EventFormation, event.id)
-    if formation is None or FormationPhase(formation.phase) not in service.LEAD_FIT_PHASES:
-        return None
-    candidates = await service.lead_fit_candidates(session, event.id, now)
-    ids = [user.id for user in candidates if user_ids is None or user.id in user_ids]
-    if not ids:
-        return None
-    snapshots = await build_member_snapshots(session, ids, now)
-    members = [snapshots[user_id] for user_id in ids if user_id in snapshots]
-    if not members:
-        return None
-    snapshot = await catalog.event_snapshot(session, event.id)
-    ctx = await runtime.algo_context(session)
-    fits = await call_algo("lead_fit", runtime.algorithm.lead_fit(ctx, snapshot, members))
-    await service.store_lead_fits(
-        session,
-        event.id,
-        service.validated_lead_fits({member.user_id for member in members}, fits),
-        runtime.algorithm.version,
-        now,
-    )
-    return None
-
-
-@job(JobName.COMPUTE_LEAD_FITS)
-async def compute_lead_fits(runtime: Runtime, event_id: str | None = None) -> None:
-    async with runtime.sessionmaker.begin() as session:
-        if event_id is None:
-            for event in await service.lead_fit_events(session):
-                await defer_job(
-                    session, runtime.jobs, JobName.COMPUTE_LEAD_FITS, event_id=str(event.id)
-                )
-            return None
-        event = await catalog.load_event(session, UUID(event_id))
-        if event.status != EventStatus.PUBLISHED.value or not event.formation_enabled:
-            return None
-        await _refresh_event(runtime, session, event)
-    return None
-
-
-@job(JobName.COMPUTE_LEAD_FITS_FOR_MEMBER)
-async def compute_lead_fits_for_member(runtime: Runtime, user_id: str) -> None:
-    async with runtime.sessionmaker.begin() as session:
-        user = await session.get(models.User, UUID(user_id))
-        if (
-            user is None
-            or user.onboarding_status not in ONBOARDED
-            or user.banned_at is not None
-            or service.dnd_active(user, runtime.clock.now())
-        ):
-            return None
-        for event in await service.lead_fit_events_for_member(session, user.id):
-            await _refresh_event(runtime, session, event, {user.id})
-    return None
+from hmm_core.formation.runs import apply_run, fail_run, plan_formation, start_run
+from hmm_core.platform.jobs import JobName, Runtime, job
 
 
 @job(JobName.RUN_FORMATION)
-async def run_formation(
-    runtime: Runtime,
-    event_id: str,
-    kind: str = FormationKind.MAIN.value,
-    run_id: str | None = None,
-) -> None:
-    now = runtime.clock.now()
-    run_id_value: UUID | None = UUID(run_id) if run_id is not None else None
+async def run_formation(runtime: Runtime, event_id: str, run_id: str | None = None) -> None:
+    event_uuid = UUID(event_id)
+    run_uuid = UUID(run_id) if run_id else None
     try:
-        if run_id_value is None:
-            async with runtime.sessionmaker.begin() as session:
-                try:
-                    opened, _ = await service.open_formation_run(
-                        session, UUID(event_id), FormationKind(kind), runtime.algorithm.version, now
-                    )
-                except ProblemError:
-                    return None
-                run_id_value = opened.id
         async with runtime.sessionmaker.begin() as session:
-            started = await service.start_formation_run(
-                session,
-                UUID(event_id),
-                FormationKind(kind),
-                run_id_value,
-                runtime.algorithm.version,
-                now,
+            started = await start_run(
+                session, event_uuid, runtime.algorithm.version, runtime.clock.now(), run_uuid
             )
             if started is None:
                 return None
-            started_run, request = started
-            run_id_value = started_run.id
-        outcome = await service.plan_formation(runtime, request)
+            row, request, units, baseline = started
+            run_uuid = row.id
+        packing, errors, output = await plan_formation(runtime, request, units, baseline)
         async with runtime.sessionmaker.begin() as session:
-            current = await session.get(models.FormationRun, run_id_value)
-            if current is None:
-                return None
-            if outcome.plan is None:
-                await service.fail_formation_run(
-                    session, run_id_value, outcome, runtime.clock.now()
-                )
-                return None
-            await service.apply_plan(
-                session,
-                runtime.jobs,
-                current,
-                request,
-                outcome.plan,
-                outcome.attempts,
-                outcome.planner,
-                runtime.algorithm.version,
-                runtime.clock.now(),
-            )
-        return None
-    except Exception as error:
-        if run_id_value is None:
-            raise
-        async with runtime.sessionmaker.begin() as session:
-            await service.fail_formation_run(
-                session, run_id_value, service.failure_outcome(error), runtime.clock.now()
-            )
-        runtime.log.warning("Formation run %s failed", run_id_value, exc_info=error)
-        return None
-
-
-@job(JobName.RANK_RESERVE)
-async def rank_reserve(runtime: Runtime, event_id: str | None = None) -> None:
-    now = runtime.clock.now()
-    if event_id is None:
-        async with runtime.sessionmaker.begin() as session:
-            for target in await service.reserve_ranking_events(session):
-                await defer_job(session, runtime.jobs, JobName.RANK_RESERVE, event_id=str(target))
-        return None
-    try:
-        async with runtime.sessionmaker.begin() as session:
-            event = await session.get(models.Event, UUID(event_id))
-            if (
-                event is None
-                or not event.formation_enabled
-                or event.status != EventStatus.PUBLISHED.value
-            ):
-                return None
-            formation = await session.get(models.EventFormation, event.id)
-            if formation is None or FormationPhase(formation.phase) not in (
-                FormationPhase.REVIEW,
-                FormationPhase.LOCKED,
-            ):
-                return None
-            request = await service.build_reserve_request(session, event, formation, now)
-            if request is None:
-                return None
-            ctx = await runtime.algo_context(session)
-        ranked = await call_algo("rank_reserve", runtime.algorithm.rank_reserve(ctx, request))
-        async with runtime.sessionmaker.begin() as session:
-            await service.apply_reserve_ranking(
-                session,
-                UUID(event_id),
-                service.validated_reserve_ranking(
-                    [member.user_id for member in request.reserve], ranked
-                ),
+            await apply_run(
+                session, event_uuid, run_uuid, packing, errors, output, runtime.clock.now()
             )
     except Exception as error:
-        runtime.log.warning("Rank reserve failed for %s", event_id, exc_info=error)
         async with runtime.sessionmaker.begin() as session:
-            await service.apply_reserve_ranking(session, UUID(event_id), None)
-    return None
+            await fail_run(session, event_uuid, run_uuid, error, runtime.clock.now())
+        runtime.log.warning("Formation failed for %s", event_id, exc_info=error)

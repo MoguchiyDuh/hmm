@@ -8,9 +8,9 @@
     "actions": [
       {
         "kind": "api",
-        "key": "placement_confirm",
+        "key": "placement_accept",
         "entity_id": "019a7b32-0000-7000-8000-000000000003",
-        "label_key": "notifications.actions.placement_confirm"
+        "label_key": "notifications.actions.placement_accept"
       },
       {
         "kind": "api",
@@ -24,7 +24,7 @@
     "project_id": "019a7b32-0000-7000-8000-000000000003",
     "team_name": "Aurora Builders",
     "project_member_id": "019a7b32-0000-7000-8000-000000000006",
-    "confirm_by": "2026-11-22T12:00:00Z",
+    "accept_by": "2026-11-22T12:00:00Z",
     "timezone": "Europe/Helsinki",
     "members": [
       {

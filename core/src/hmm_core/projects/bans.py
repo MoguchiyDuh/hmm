@@ -19,7 +19,7 @@ async def remove_user_from_standalone_projects(
     actor_kind: ActorKind,
     now: datetime,
 ) -> None:
-    from hmm_core.formation import service as formation
+    from hmm_core.projects.succession import standalone_lead_succession
 
     user = await session.get(models.User, user_id)
     if user is None:
@@ -61,8 +61,6 @@ async def remove_user_from_standalone_projects(
         member.left_reason = LeftReason.BANNED.value
         if was_lead:
             project.lead_user_id = None
-            project.last_lead_action_at = now
-        await formation.close_pending_lead_offers(session, project.id, now)
         if was_lead:
             await record_audit(
                 session,
@@ -76,15 +74,11 @@ async def remove_user_from_standalone_projects(
                 reason="banned",
             )
         if project.lead_user_id is None:
-            await formation.start_succession(
+            await standalone_lead_succession(
                 session,
                 project,
-                None,
                 now,
                 exclude={user_id},
-                reason="The banned lead left the project"
-                if was_lead
-                else "The offered member was banned",
             )
         await session.flush()
         await session.refresh(project)

@@ -65,7 +65,7 @@ async def team(
     event: models.Event,
     lead: models.User,
     *members: models.User,
-    team_status: str = "forming",
+    team_status: str = "formed",
 ) -> models.Project:
     async with h.db() as session:
         project = models.Project(
@@ -78,10 +78,10 @@ async def team(
             recruiting=None,
             lead_user_id=lead.id,
             status=ProjectStatus.ACTIVE.value
-            if team_status == "locked"
+            if team_status == "active"
             else ProjectStatus.IDEA.value,
             team_status=team_status,
-            origin=ProjectOrigin.CLAIM.value,
+            origin=ProjectOrigin.FORMATION.value,
         )
         session.add(project)
         await session.flush()
@@ -94,7 +94,7 @@ async def team(
                     role="lead" if user is lead else "member",
                     state="confirmed",
                     trust="self",
-                    joined_via="claim",
+                    joined_via="formation",
                     is_team_row=True,
                     joined_at=h.now,
                 )
@@ -147,7 +147,7 @@ async def standalone(
             lead_user_id=lead.id,
             status=ProjectStatus.IDEA.value,
             team_status=None,
-            origin=ProjectOrigin.CLAIM.value,
+            origin=ProjectOrigin.FORMATION.value,
         )
         session.add(project)
         await session.flush()
@@ -184,7 +184,7 @@ async def invite(h: Harness, project: models.Project, user: models.User) -> None
                 event_id=project.event_id,
                 user_id=user.id,
                 invited_by=project.lead_user_id,
-                kind=InviteKind.CORE.value if project.event_id else InviteKind.PROJECT.value,
+                kind=InviteKind.TEAM.value,
                 status=InviteStatus.PENDING.value,
                 expires_at=h.now + timedelta(days=3),
             )
@@ -210,9 +210,8 @@ def test_recommendation_refreshable() -> None:
     def project(team_status: str | None, recruiting: Any = None) -> models.Project:
         return models.Project(team_status=team_status, recruiting=recruiting)
 
-    for status in ("forming", "review", "locked"):
-        assert service.recommendation_refreshable(project(status))
-    for status in ("active", "finished", "disbanded"):
+    assert service.recommendation_refreshable(project("formed"))
+    for status in ("forming", "active", "finished", "disbanded"):
         assert not service.recommendation_refreshable(project(status))
     assert service.recommendation_refreshable(project(None, {"areas": ["backend"], "note": ""}))
     assert not service.recommendation_refreshable(project(None))
@@ -240,12 +239,13 @@ async def test_team_forming_context(harness: Harness) -> None:
             session,
             event,
             a,
+            "reserve",
             willing_to_lead=True,
             note="pick me",
             preferred_area_id=areas["backend"].id,
         )
         await enroll(session, event, b)
-        await enroll(session, event, c, "reserve", reserve_rank=1)
+        await enroll(session, event, c, "reserve")
         await enroll(session, event, d)
         await enroll(session, event, g)
         await enroll(session, event, newbie)
@@ -255,19 +255,17 @@ async def test_team_forming_context(harness: Harness) -> None:
     assert [m.user_id for m in request.team] == [lead.id, member.id]
     head = request.team[0]
     assert head.role == "lead"
-    assert head.claimed_lead is True
     assert head.state == "confirmed"
     assert head.willing_to_lead is True
     assert head.enrolled_at is not None
-    assert request.team[1].claimed_lead is False
     assert request.team[1].enrolled_at == h.now
-    assert [m.user_id for m in request.enrolled] == [a.id]
+    assert [m.user_id for m in request.enrolled] == [a.id, c.id]
     assert request.enrolled[0].willing_to_lead is True
     assert request.enrolled[0].note == "pick me"
     assert request.enrolled[0].preferred_area == "backend"
-    assert [m.user_id for m in request.others] == [c.id, f.id]
-    assert context.enrolled_ids == {a.id}
-    assert context.others_ids == {c.id, f.id}
+    assert [m.user_id for m in request.others] == [f.id]
+    assert context.enrolled_ids == {a.id, c.id}
+    assert context.others_ids == {f.id}
     assert request.event is not None
     assert request.event.id == event.id
     assert request.project.areas == []
@@ -278,23 +276,22 @@ async def test_team_forming_context(harness: Harness) -> None:
     assert (await context_of(h, project)).request.project.areas == ["backend"]
 
 
-async def test_team_review_and_locked_context(harness: Harness) -> None:
+async def test_team_formed_context(harness: Harness) -> None:
     h = harness
     await h.seed_areas()
-    for team_status in ("review", "locked"):
-        event = await make_hackathon(h)
-        lead = await h.user()
-        x = await h.user()
-        a = await h.user()
-        project = await team(h, event, lead, team_status=team_status)
-        async with h.db() as session:
-            await enroll(session, event, x, "reserve", reserve_rank=1)
-            await enroll(session, event, a)
-        request = (await context_of(h, project)).request
-        assert [m.user_id for m in request.enrolled] == [x.id]
-        assert a.id in {m.user_id for m in request.others}
-        assert x.id not in {m.user_id for m in request.others}
-        assert request.team[0].user_id == lead.id
+    event = await make_hackathon(h)
+    lead = await h.user()
+    x = await h.user()
+    a = await h.user()
+    project = await team(h, event, lead)
+    async with h.db() as session:
+        await enroll(session, event, x, "reserve")
+        await enroll(session, event, a)
+    request = (await context_of(h, project)).request
+    assert [m.user_id for m in request.enrolled] == [x.id]
+    assert a.id in {m.user_id for m in request.others}
+    assert x.id not in {m.user_id for m in request.others}
+    assert request.team[0].user_id == lead.id
 
 
 async def test_standalone_context(harness: Harness) -> None:

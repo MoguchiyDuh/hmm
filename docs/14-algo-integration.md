@@ -2,47 +2,36 @@
 
 Core builds snapshots, calls algo in the worker, validates outputs, stores and serves them. Algo behavior is in §18.
 
-## 14.1 Lead fit
-
-- Stored per (hackathon, user) in `lead_fits`. `eligible = fit ≥ lead_fit_threshold`.
-- `compute_lead_fits(hackathon)`: candidates are onboarded, non-banned, non-DND members who aren't on a team for the hackathon. Triggered on publish and on area changes, and nightly for hackathons in `open` or `locked`.
-- `compute_lead_fits_for_member(user)`: the same for one member, after that member's metrics change or when a claim finds no fit (§12.4).
-
-## 14.2 Quick-pick
+## 14.1 Quick-pick
 
 One `recommendation_sets` row per computation. `input_hash` covers the roster, candidate ids, candidate metric versions, hackathon revision and algo version.
 
 | Context | `enrolled` candidates | `others` candidates |
 |---|---|---|
-| Team `forming` (core building) | `active` enrollments | everyone else eligible |
-| Team `review` / `locked` (filling) | reserve | everyone else eligible |
+| Hackathon team `formed`, before `reg_deadline` | `reserve` enrollments | everyone else eligible |
 | Standalone project with `recruiting` set | members who sent a join request | everyone else eligible |
 
 "Everyone else eligible" means onboarded, not banned, not DND, not already on this project (or on a team for this hackathon), and not already invited.
 
-- `refresh_recommendations(project)` is enqueued when the project, its `recruiting`, the enrollments or reserve, or the event change. It's debounced with procrastinate `queueing_lock = project_id`. A matching `input_hash` → no-op.
+- `refresh_recommendations(project)` is enqueued when the project, its `recruiting`, its roster or seats, the event queue or the event change. It's debounced with procrastinate `queueing_lock = project_id`. A matching `input_hash` → no-op.
 - Validation: every returned `user_id` is in its candidate set; scores are clamped; reasons are non-empty. Bad items are dropped and logged. An exception → set `failed`, alert `algo_failure` (deduped hourly).
 
-## 14.3 Formation
+## 14.2 Formation
 
-`run_formation` (§12.5) calls `form_teams`. Core validates the hard constraints and falls back to its deterministic planner on failure. Both the algo plan and the fallback plan are stored in `formation_runs` for inspection.
+`run_formation` (§12.5) calls `form_teams`. Core validates the plan (§12.5) and falls back to `hmm_contracts.formation.pack()` on failure. Both plans are stored in `formation_runs` for inspection. Refills after formation use `pack()` only (§12.6).
 
-## 14.4 Reserve ranking
-
-`rank_reserve(hackathon)` runs after formation, on every reserve change and nightly while `locked`. It calls algo `rank_reserve` and writes `enrollments.reserve_rank`. On failure it keeps the previous order and appends new entries by enrollment time.
-
-## 14.5 Mentor matching
+## 14.3 Mentor matching
 
 - `match_mentors(request)` runs when a help request opens (or turns from direct to open).
 - Candidates: onboarded, non-banned, non-DND members with free mentor capacity, without a `mentoring` restriction, other than the learner. Mentor offers in the area are flagged in the input.
 - Core notifies the top `mentor_notify_top_n` (5) and stores the set in `recommendation_sets` (`subject_type = help_request`), so the learner sees "suggested mentors" and can send a direct request.
 - Failure → no notifications; the request still shows in the feed; alert `algo_failure`.
 
-## 14.6 Community scan
+## 14.4 Community scan
 
 Nightly `scan_community` sends algo the confirmation graph (who confirmed whom, where), mentorship pairs, review pairs and member-created events from the last 180 days. Returned flags go to the to-check queue (§10.4).
 
-## 14.7 Endpoints
+## 14.5 Endpoints
 
 | Method | Path | Who | Body → response |
 |---|---|---|---|

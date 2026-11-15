@@ -824,8 +824,7 @@ async def test_ineligible_facts_fail_without_confirmations(harness: Harness) -> 
         member = await session.get(models.ProjectMember, members[1].id)
         assert member is not None
         member.state = "proposed"
-        member.confirm_by = h.now + timedelta(days=1)
-        member.confirm_kind = "placement"
+        member.accept_by = h.now + timedelta(days=1)
         for fact_type, fact_id in (
             (ATTENDANCE, attendance[1].id),
             (PROJECT_MEMBER, member.id),

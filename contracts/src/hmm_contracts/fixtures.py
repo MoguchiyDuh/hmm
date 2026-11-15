@@ -13,7 +13,6 @@ from hmm_contracts.algo import (
     MentorshipEdge,
 )
 from hmm_contracts.common import (
-    AreaKey,
     Contract,
     MentorshipKind,
     OnboardingStatus,
@@ -52,14 +51,8 @@ __all__ = [
 
 
 class FormationExpect(Contract):
-    primary_coverage_per_team: dict[AreaKey, int] = Field(default_factory=dict)
-    required_coverage_per_team: dict[AreaKey, int] = Field(default_factory=dict)
-    fixed_cores: dict[ProjectId, list[UserId]] = Field(default_factory=dict)
-    new_teams_with_volunteers: int = Field(ge=0)
-    new_team_lead_tiers: list[int] = Field(default_factory=list)
     team_sizes: list[int]
-    merge_proposal_required: bool = False
-    pair_beginners_with_specialists: bool = True
+    queued_people: int = Field(ge=0)
 
 
 class FormationCase(Contract):

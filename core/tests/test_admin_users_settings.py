@@ -104,7 +104,7 @@ async def test_admin_audit_setting_and_filters(harness: Harness) -> None:
     target = await h.user()
     async with await h.client(actor) as client:
         response = await client.put(
-            f"{SETTINGS}/review_hours", json={"value": 60, "reason": "tune"}
+            f"{SETTINGS}/accept_hours", json={"value": 60, "reason": "tune"}
         )
         assert response.status_code == 200, response.text
         response = await client.get(AUDIT)
@@ -117,8 +117,8 @@ async def test_admin_audit_setting_and_filters(harness: Harness) -> None:
         assert setting_entry["actor_kind"] == "admin"
         assert setting_entry["action"] == "setting_set"
         assert setting_entry["entity_type"] == "setting"
-        assert setting_entry["entity_id"] == "review_hours"
-        assert setting_entry["before"] == 48
+        assert setting_entry["entity_id"] == "accept_hours"
+        assert setting_entry["before"] == 24
         assert setting_entry["after"] == 60
         assert setting_entry["reason"] == "tune"
         async with h.db() as session:
@@ -172,7 +172,7 @@ async def test_admin_audit_setting_and_filters(harness: Harness) -> None:
             await client.get(AUDIT, params={"cursor": "malformed"}), 400, ErrorCode.BAD_REQUEST
         )
         assert_problem(
-            await client.get(AUDIT, params={"entity_id": "review_hours"}),
+            await client.get(AUDIT, params={"entity_id": "project_idle_days"}),
             422,
             ErrorCode.VALIDATION_ERROR,
         )
@@ -197,13 +197,13 @@ async def test_admin_settings_list_and_update(harness: Harness) -> None:
             assert item["allowed_actions"] == ["edit"]
         for value in [60, 72]:
             response = await client.put(
-                f"{SETTINGS}/review_hours", json={"value": value, "reason": "tune"}
+                f"{SETTINGS}/accept_hours", json={"value": value, "reason": "tune"}
             )
             assert response.status_code == 200, response.text
             setting = response.json()
-            assert setting["key"] == "review_hours"
+            assert setting["key"] == "accept_hours"
             assert setting["value"] == value
-            assert setting["default"] == 48
+            assert setting["default"] == 24
             assert setting["description"]
             assert setting["value_schema"] == {
                 "exclusiveMinimum": 0,
@@ -215,7 +215,7 @@ async def test_admin_settings_list_and_update(harness: Harness) -> None:
             response = await client.get(SETTINGS)
             assert response.status_code == 200, response.text
             assert (
-                next(item for item in response.json() if item["key"] == "review_hours") == setting
+                next(item for item in response.json() if item["key"] == "accept_hours") == setting
             )
     async with h.db() as session:
         rows = list(await session.scalars(select(models.Setting)))
@@ -226,7 +226,7 @@ async def test_admin_settings_list_and_update(harness: Harness) -> None:
             await session.scalars(select(models.AuditLog).order_by(models.AuditLog.created_at))
         )
         assert [(entry.before, entry.after, entry.reason) for entry in audit] == [
-            (48, 60, "tune"),
+            (24, 60, "tune"),
             (60, 72, "tune"),
         ]
 
@@ -234,11 +234,11 @@ async def test_admin_settings_list_and_update(harness: Harness) -> None:
 @pytest.mark.parametrize(
     "key,value",
     [
-        ("review_hours", "not-an-int"),
-        ("review_hours", True),
-        ("review_hours", 60.0),
-        ("review_hours", 0),
-        ("review_min_hours", 72),
+        ("accept_hours", "not-an-int"),
+        ("accept_hours", True),
+        ("accept_hours", 60.0),
+        ("accept_hours", 0),
+        ("results_due_days", 72),
         ("unknown", 60),
     ],
 )
@@ -258,24 +258,24 @@ async def test_admin_settings_invalid_update_preserves_stored_values(harness: Ha
     h = harness
     actor = await h.admin()
     async with await h.client(actor) as client:
-        response = await client.put(f"{SETTINGS}/review_hours", json={"value": 60})
+        response = await client.put(f"{SETTINGS}/accept_hours", json={"value": 60})
         assert response.status_code == 200, response.text
         stored = response.json()
         assert_problem(
-            await client.put(f"{SETTINGS}/review_min_hours", json={"value": 72}),
+            await client.put(f"{SETTINGS}/results_due_days", json={"value": 72}),
             422,
             ErrorCode.VALIDATION_ERROR,
         )
         assert_problem(
-            await client.put(f"{SETTINGS}/review_hours", json={"value": 1}),
+            await client.put(f"{SETTINGS}/accept_hours", json={"value": 0}),
             422,
             ErrorCode.VALIDATION_ERROR,
         )
         response = await client.get(SETTINGS)
         assert response.status_code == 200, response.text
-        assert next(item for item in response.json() if item["key"] == "review_hours") == stored
+        assert next(item for item in response.json() if item["key"] == "accept_hours") == stored
     async with h.db() as session:
-        assert (await load_settings(session)).review_hours == 60
+        assert (await load_settings(session)).accept_hours == 60
         assert await session.scalar(select(func.count()).select_from(models.Setting)) == 1
         assert await session.scalar(select(func.count()).select_from(models.AuditLog)) == 1
 
@@ -306,7 +306,7 @@ async def test_admin_settings_normalizes_numeric_value(harness: Harness) -> None
         ("GET", USERS),
         ("GET", AUDIT),
         ("GET", SETTINGS),
-        ("PUT", f"{SETTINGS}/review_hours"),
+        ("PUT", f"{SETTINGS}/accept_hours"),
     ],
 )
 async def test_admin_users_settings_access(harness: Harness, method: str, path: str) -> None:

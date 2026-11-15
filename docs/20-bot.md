@@ -24,9 +24,9 @@ Config: `BOT_TOKEN`, `CORE_URL`, `BOT_SERVICE_TOKEN`, `PUBLIC_URL` (for web link
 | Command | Calls | Output |
 |---|---|---|
 | `/events` | `GET /api/v1/events?phase=registration_open&limit=10` | list with inline buttons: Details, Going / Enroll |
-| `/event <id>` | `GET /api/v1/events/{id}` | card with participation phase, projection and formation date + buttons from `allowed_actions` (Enroll / Withdraw / Lead a team) + web link |
+| `/event <id>` | `GET /api/v1/events/{id}` | card with participation phase, live projection and formation date + buttons from `allowed_actions` (Enroll / Withdraw / Party) + web link |
 | `/enroll <id>` | `POST /api/v1/events/{id}/enroll` | confirmation or error text from problem `code` |
-| `/team` | `GET /api/v1/me/projects` | current teams with pending actions (confirm placement, re-confirmation or presence check with deadline, accept/decline lead offer, accept swap) as buttons |
+| `/team` | `GET /api/v1/me/projects` | current teams with pending actions (accept or decline a placement before `accept_by`) as buttons |
 | `/invites` | `GET /api/v1/me/invites?status=pending` | list with Accept/Decline |
 | `/ask` `<area> <topic>` | `POST /api/v1/help-requests` | creates a help request (goal asked as a follow-up message) |
 | `/requests` | `GET /api/v1/help-requests?status=open&area=<my mentor areas>` | open help requests I could take, with Help buttons |

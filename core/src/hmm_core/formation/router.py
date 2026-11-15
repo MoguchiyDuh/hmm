@@ -1,648 +1,235 @@
 from typing import Annotated, cast
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
-from hmm_contracts.common import (
-    EnrollmentStatus,
-    ErrorCode,
-    EventId,
-    InviteId,
-    InviteStatus,
-    JoinRequestId,
-    LeadOfferId,
-    LeadOfferStatus,
-    MergeProposalId,
-    ProjectId,
-    SwapRequestId,
-    UserId,
-)
+from fastapi import APIRouter, Depends, Query, Request, Response
+from hmm_contracts.common import EnrollmentStatus, ErrorCode, InviteStatus
 
-from hmm_core.formation import service
-from hmm_core.formation.schemas import (
-    AddMemberBody,
-    AdminAddMemberBody,
-    AdminCreateTeamBody,
-    AssignLeadBody,
-    CreateEnrollmentBody,
-    CreateMergeBody,
-    CreateSwapBody,
-    CreateTeamBody,
-    DeclinePlacementBody,
-    Enrollment,
-    EnrollmentPage,
-    Formation,
-    FormationRun,
-    LeadCandidate,
-    LeadEligibility,
-    Merge,
-    MoveMemberBody,
-    Swap,
-    TransferLeadBody,
-    UpdateEnrollmentBody,
-    UpdateFormationBody,
-    UpdateMemberBody,
-    UpdateReserveOrderBody,
-    UpdateTeamStatusBody,
-)
+from hmm_core.formation import schemas, service
 from hmm_core.platform.clock import CurrentClock
 from hmm_core.platform.db import Session
-from hmm_core.platform.errors import (
-    PROBLEM_RESPONSES,
-    ProblemError,
-    not_implemented,
-    problem_response,
-)
+from hmm_core.platform.errors import PROBLEM_RESPONSES, ProblemError, problem_response
 from hmm_core.platform.pagination import CursorParams
 from hmm_core.platform.schemas import ReasonBody
 from hmm_core.platform.security import AdminAuth, MemberAuth
-from hmm_core.projects.schemas import Invite, JoinRequest, LeadOffer, Project, ProjectMember
 
 router = APIRouter(tags=["formation"], responses=PROBLEM_RESPONSES)
 internal = APIRouter(tags=["formation"], responses=PROBLEM_RESPONSES)
 
 
-@router.get(
-    "/events/{id}/formation", status_code=status.HTTP_200_OK, summary="Get participation state"
-)
+@router.get("/events/{id}/formation")
 async def get_formation(
-    id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Formation:
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> schemas.Formation:
     event = await service.formation_event(session, id, actor)
-    formation = await service.formation_participation(session, event, actor, clock.now())
-    if formation is None:
+    view = await service.formation_participation(session, event, actor, clock.now())
+    if view is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
-    return formation
+    return view
 
 
-@router.post(
-    "/events/{id}/enroll", status_code=status.HTTP_201_CREATED, summary="Enroll in an event"
-)
+@router.post("/events/{id}/enroll", status_code=201)
 async def enroll(
-    id: EventId,
-    body: CreateEnrollmentBody,
+    id: UUID,
+    body: schemas.CreateEnrollmentBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
     clock: CurrentClock,
-    response: Response,
-) -> Enrollment:
-    enrollment, changed = await service.enroll(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
-    if not changed:
-        response.status_code = status.HTTP_200_OK
-    return (await service.enrollment_views(session, [enrollment], actor, clock.now()))[0]
+) -> schemas.Enrollment:
+    return await service.enroll(session, id, body, actor, clock.now())
 
 
-@router.patch("/events/{id}/enroll", status_code=status.HTTP_200_OK, summary="Edit enrollment")
+@router.patch("/events/{id}/enroll")
 async def update_enrollment(
-    id: EventId,
-    body: UpdateEnrollmentBody,
+    id: UUID,
+    body: schemas.UpdateEnrollmentBody,
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-) -> Enrollment:
-    row = await service.update_enrollment(session, id, body, actor, clock.now())
-    return (await service.enrollment_views(session, [row], actor, clock.now()))[0]
+) -> schemas.Enrollment:
+    return await service.update_enrollment(session, id, body, actor, clock.now())
 
 
-@router.delete(
-    "/events/{id}/enroll", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw enrollment"
-)
+@router.delete("/events/{id}/enroll", status_code=204)
 async def withdraw_enrollment(
-    id: EventId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Response:
-    await service.withdraw_enrollment(session, request.app.state.jobs, id, actor, clock.now())
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    await service.withdraw_enrollment(session, id, actor, clock.now())
+    return Response(status_code=204)
 
 
-@router.get(
-    "/events/{id}/enrollments", status_code=status.HTTP_200_OK, summary="List enrolled members"
-)
+@router.get("/events/{id}/enrollments")
 async def list_enrollments(
-    id: EventId,
-    actor: MemberAuth,
-    pagination: Annotated[CursorParams, Depends()],
-    session: Session,
-    clock: CurrentClock,
-) -> EnrollmentPage:
-    return await service.list_enrollments(session, id, actor, pagination, clock.now())
+    id: UUID, actor: MemberAuth, session: Session, params: Annotated[CursorParams, Depends()]
+) -> schemas.EnrollmentPage:
+    return await service.list_enrollments(session, id, actor, params)
 
 
-@router.get("/events/{id}/reserve", status_code=status.HTTP_200_OK, summary="List ranked reserve")
-async def list_reserve(
-    id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> list[Enrollment]:
-    return await service.list_reserve(session, id, actor, clock.now())
+@router.get("/me/enrollments")
+async def my_enrollments(
+    actor: MemberAuth, session: Session, status: Annotated[EnrollmentStatus | None, Query()] = None
+) -> list[schemas.Enrollment]:
+    return await service.my_enrollments(session, actor, status)
 
 
-@router.get("/me/enrollments", status_code=status.HTTP_200_OK, summary="List my enrollments")
-async def list_my_enrollments(
-    actor: MemberAuth,
-    session: Session,
-    clock: CurrentClock,
-    status: Annotated[EnrollmentStatus | None, Query()] = None,
-) -> list[Enrollment]:
-    return await service.list_my_enrollments(session, actor, status, clock.now())
+@router.post("/events/{id}/party", status_code=201)
+async def create_party(
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> schemas.Party:
+    return await service.create_party(session, id, actor, clock.now())
 
 
-@router.get("/events/{id}/lead-fit/me", status_code=status.HTTP_200_OK, summary="Get my lead fit")
-async def get_my_lead_fit(id: EventId, actor: MemberAuth, session: Session) -> LeadEligibility:
-    return await service.my_lead_fit(session, id, actor)
+@router.get("/parties/{id}")
+async def get_party(id: UUID, actor: MemberAuth, session: Session) -> schemas.Party:
+    return await service.get_party(session, id, actor)
 
 
-@router.post(
-    "/events/{id}/projects", status_code=status.HTTP_201_CREATED, summary="Claim a team lead role"
-)
-async def claim_lead(
-    id: EventId,
-    body: CreateTeamBody,
-    actor: MemberAuth,
-    session: Session,
-    request: Request,
-    clock: CurrentClock,
-) -> Project:
-    project = await service.claim_lead(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
-    if project is None:
-        return cast(
-            Project,
-            problem_response(request, ErrorCode.LEAD_FIT_PENDING, "Lead fit is being computed"),
-        )
-    return await service.team_view(session, project, actor, clock.now())
+@router.patch("/parties/{id}")
+async def update_party(
+    id: UUID, body: schemas.ClosedBody, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> schemas.Party:
+    return await service.update_party(session, id, body, actor, clock.now())
 
 
-@router.post("/projects/{id}/ready", status_code=status.HTTP_200_OK, summary="Mark a core ready")
-async def mark_ready(
-    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Project:
-    project = await service.set_ready(session, id, actor, clock.now(), ready=True)
-    return await service.team_view(session, project, actor, clock.now())
+@router.post("/parties/{id}/invites", status_code=201)
+async def create_party_invite(
+    id: UUID, body: schemas.InviteBody, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> schemas.Invite:
+    return await service.create_party_invite(session, id, body, actor, clock.now())
 
 
-@router.delete(
-    "/projects/{id}/ready", status_code=status.HTTP_204_NO_CONTENT, summary="Clear core readiness"
-)
-async def clear_ready(
-    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+@router.post("/parties/{id}/leave", status_code=204)
+async def leave_party(
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Response:
-    await service.set_ready(session, id, actor, clock.now(), ready=False)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    await service.leave_party(session, id, actor, clock.now())
+    return Response(status_code=204)
 
 
-@router.post(
-    "/projects/{id}/unclaim", status_code=status.HTTP_200_OK, summary="Unclaim and disband a core"
-)
-async def unclaim_lead(
-    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
-) -> Project:
-    project = await service.unclaim(session, request.app.state.jobs, id, actor, clock.now())
-    return await service.team_view(session, project, actor, clock.now())
-
-
-@router.post(
-    "/projects/{id}/seats/close", status_code=status.HTTP_200_OK, summary="Close open team seats"
-)
-async def close_seats(
-    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Project:
-    project = await service.close_seats(session, id, actor, clock.now())
-    return await service.team_view(session, project, actor, clock.now())
-
-
-@router.delete(
-    "/projects/{id}/seats/close",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Reopen team seats",
-)
-async def reopen_seats(
-    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
+@router.delete("/parties/{id}/members/{user_id}", status_code=204)
+async def kick_party_member(
+    id: UUID, user_id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Response:
-    await service.reopen_seats(session, id, actor, clock.now())
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    await service.kick_party_member(session, id, user_id, actor, clock.now())
+    return Response(status_code=204)
 
 
-@router.get(
-    "/projects/{id}/join-requests",
-    status_code=status.HTTP_200_OK,
-    summary="List team join requests",
-)
-async def list_join_requests(
-    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> list[JoinRequest]:
-    return await service.list_join_requests(session, id, actor)
+@router.get("/me/invites")
+async def my_invites(
+    actor: MemberAuth, session: Session, status: Annotated[InviteStatus | None, Query()] = None
+) -> list[schemas.Invite]:
+    return await service.my_invites(session, actor, status)
 
 
-@router.delete(
-    "/join-requests/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw a join request"
-)
-async def withdraw_join_request(
-    id: JoinRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Response:
-    await service.withdraw_join_request(session, id, actor, clock.now())
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/projects/{id}/placement/accept")
+async def accept_placement(
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+) -> schemas.Team:
+    result = await service.accept_placement(session, id, actor, clock.now())
+    if isinstance(result, ProblemError):
+        return cast(schemas.Team, problem_response(request, result.code, result.detail))
+    return result
 
 
-@router.post(
-    "/join-requests/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept a join request"
-)
-async def accept_join_request(
-    id: JoinRequestId,
-    actor: MemberAuth,
-    session: Session,
-    request: Request,
-    clock: CurrentClock,
-) -> JoinRequest:
-    row = await service.accept_join_request(session, request.app.state.jobs, id, actor, clock.now())
-    return (await service.join_request_views(session, [row], actor))[0]
-
-
-@router.post(
-    "/join-requests/{id}/reject", status_code=status.HTTP_200_OK, summary="Reject a join request"
-)
-async def reject_join_request(
-    id: JoinRequestId,
-    actor: MemberAuth,
-    session: Session,
-    request: Request,
-    clock: CurrentClock,
-) -> JoinRequest:
-    row = await service.reject_join_request(session, id, actor, clock.now())
-    return (await service.join_request_views(session, [row], actor))[0]
-
-
-@router.get("/projects/{id}/invites", status_code=status.HTTP_200_OK, summary="List team invites")
-async def list_invites(
-    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> list[Invite]:
-    return await service.list_invites(session, id, actor)
-
-
-@router.delete(
-    "/invites/{id}", status_code=status.HTTP_204_NO_CONTENT, summary="Withdraw an invite"
-)
-async def withdraw_invite(
-    id: InviteId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Response:
-    await service.withdraw_invite(session, id, actor, clock.now())
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.get("/me/invites", status_code=status.HTTP_200_OK, summary="List my invites")
-async def list_my_invites(
-    actor: MemberAuth,
-    session: Session,
-    clock: CurrentClock,
-    status: Annotated[InviteStatus | None, Query()] = None,
-) -> list[Invite]:
-    return await service.list_my_invites(session, status, actor)
-
-
-@router.post("/invites/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept an invite")
-async def accept_invite(
-    id: InviteId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
-) -> Invite:
-    invite = await service.accept_invite(session, request.app.state.jobs, id, actor, clock.now())
-    return (await service.invite_views(session, [invite], actor))[0]
-
-
-@router.post("/invites/{id}/decline", status_code=status.HTTP_200_OK, summary="Decline an invite")
-async def decline_invite(
-    id: InviteId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Invite:
-    invite = await service.decline_invite(session, id, actor, clock.now())
-    return (await service.invite_views(session, [invite], actor))[0]
-
-
-@router.post(
-    "/projects/{id}/placement/confirm",
-    status_code=status.HTTP_200_OK,
-    summary="Confirm placement or presence",
-)
-async def confirm_placement(
-    id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> ProjectMember:
-    project, member = await service.confirm_placement(session, id, actor, clock.now())
-    return await service.team_member_view(session, project, member, actor)
-
-
-@router.post(
-    "/projects/{id}/placement/decline",
-    status_code=status.HTTP_200_OK,
-    summary="Decline placement or presence",
-)
+@router.post("/projects/{id}/placement/decline")
 async def decline_placement(
-    id: ProjectId,
-    body: DeclinePlacementBody,
+    id: UUID,
+    body: schemas.DeclinePlacementBody,
     actor: MemberAuth,
     session: Session,
+    clock: CurrentClock,
     request: Request,
-    clock: CurrentClock,
-) -> Enrollment:
-    row = await service.decline_placement(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
-    return (await service.enrollment_views(session, [row], actor, clock.now()))[0]
+) -> schemas.Team:
+    result = await service.decline_placement(session, id, body, actor, clock.now())
+    if isinstance(result, ProblemError):
+        return cast(schemas.Team, problem_response(request, result.code, result.detail))
+    return result
 
 
-@router.get("/me/lead-offers", status_code=status.HTTP_200_OK, summary="List my lead offers")
-async def list_my_lead_offers(
-    actor: MemberAuth,
-    session: Session,
-    clock: CurrentClock,
-    status: Annotated[LeadOfferStatus | None, Query()] = None,
-) -> list[LeadOffer]:
-    return await service.my_lead_offers(session, actor, status)
+@router.patch("/projects/{id}/seats")
+async def set_seats(
+    id: UUID, body: schemas.ClosedBody, actor: MemberAuth, session: Session, clock: CurrentClock
+) -> schemas.Team:
+    return await service.set_seats(session, id, body, actor, clock.now())
 
 
-@router.post(
-    "/lead-offers/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept a lead role"
-)
-async def accept_lead_offer(
-    id: LeadOfferId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
-) -> LeadOffer:
-    offer = await service.accept_lead_offer(session, request.app.state.jobs, id, actor, clock.now())
-    if isinstance(offer, ProblemError):
-        return cast(LeadOffer, problem_response(request, offer.code, offer.detail))
-    return await service.lead_offer_response(session, offer, actor)
-
-
-@router.post(
-    "/lead-offers/{id}/decline", status_code=status.HTTP_200_OK, summary="Decline a lead role"
-)
-async def decline_lead_offer(
-    id: LeadOfferId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
-) -> LeadOffer:
-    offer = await service.decline_lead_offer(session, id, actor, clock.now())
-    if isinstance(offer, ProblemError):
-        return cast(LeadOffer, problem_response(request, offer.code, offer.detail))
-    return await service.lead_offer_response(session, offer, actor)
-
-
-@router.delete(
-    "/lead-offers/{id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Cancel a lead transfer offer",
-)
-async def cancel_lead_offer(
-    id: LeadOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Response:
-    await service.cancel_lead_offer(session, id, actor, clock.now())
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
-
-@router.post(
-    "/projects/{id}/transfer-lead",
-    status_code=status.HTTP_201_CREATED,
-    summary="Offer lead transfer",
-)
-async def transfer_lead(
-    id: ProjectId,
-    body: TransferLeadBody,
-    actor: MemberAuth,
-    session: Session,
-    request: Request,
-    clock: CurrentClock,
-) -> LeadOffer:
-    offer = await service.transfer_lead(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
-    return await service.lead_offer_response(session, offer, actor)
-
-
-@router.post(
-    "/projects/{id}/lead/step-down", status_code=status.HTTP_200_OK, summary="Step down as lead"
-)
-async def step_down(
-    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
-) -> Project:
-    project = await service.step_down(session, request.app.state.jobs, id, actor, clock.now())
-    return await service.team_view(session, project, actor, clock.now())
-
-
-@router.post(
-    "/projects/{id}/members",
-    status_code=status.HTTP_201_CREATED,
-    summary="Propose a reserve member",
-)
-async def add_reserve_member(
-    id: ProjectId,
-    body: AddMemberBody,
-    actor: MemberAuth,
-    session: Session,
-    request: Request,
-    clock: CurrentClock,
-) -> ProjectMember:
-    project, member = await service.add_reserve_member(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
-    return await service.team_member_view(session, project, member, actor)
-
-
-@router.patch(
-    "/projects/{id}/members/{user_id}",
-    status_code=status.HTTP_200_OK,
-    summary="Assign a member area",
-)
+@router.patch("/projects/{id}/members/{user_id}")
 async def update_member_area(
-    id: ProjectId,
-    user_id: UserId,
-    body: UpdateMemberBody,
+    id: UUID,
+    user_id: UUID,
+    body: schemas.UpdateMemberBody,
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-) -> ProjectMember:
-    project, member = await service.update_member_area(
-        session, id, user_id, body, actor, clock.now()
-    )
-    return await service.team_member_view(session, project, member, actor)
+) -> schemas.Team:
+    return await service.update_member_area(session, id, user_id, body, actor, clock.now())
 
 
-@router.post(
-    "/projects/{id}/swaps", status_code=status.HTTP_201_CREATED, summary="Propose a member swap"
-)
-async def create_swap(
-    id: ProjectId, body: CreateSwapBody, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Swap:
-    swap = await service.create_swap(session, id, body, actor, clock.now())
-    return await service.swap_view(session, swap, actor, clock.now())
-
-
-@router.post("/swaps/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept a member swap")
-async def accept_swap(
-    id: SwapRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
-) -> Swap:
-    swap = await service.accept_swap(session, request.app.state.jobs, id, actor, clock.now())
-    if isinstance(swap, ProblemError):
-        return cast(Swap, problem_response(request, swap.code, swap.detail))
-    return await service.swap_view(session, swap, actor, clock.now())
-
-
-@router.post("/swaps/{id}/decline", status_code=status.HTTP_200_OK, summary="Decline a member swap")
-async def decline_swap(
-    id: SwapRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Swap:
-    swap = await service.decline_swap(session, id, actor, clock.now())
-    return await service.swap_view(session, swap, actor, clock.now())
-
-
-@router.post(
-    "/projects/{id}/merges", status_code=status.HTTP_201_CREATED, summary="Propose a team merge"
-)
-async def create_merge(
-    id: ProjectId, body: CreateMergeBody, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Merge:
-    merge = await service.create_merge(session, id, body, actor, clock.now())
-    return await service.merge_view(session, merge, actor, clock.now())
-
-
-@router.post("/merges/{id}/accept", status_code=status.HTTP_200_OK, summary="Accept a team merge")
-async def accept_merge(
-    id: MergeProposalId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
-) -> Merge:
-    merge = await service.accept_merge(session, request.app.state.jobs, id, actor, clock.now())
-    if isinstance(merge, ProblemError):
-        return cast(Merge, problem_response(request, merge.code, merge.detail))
-    return await service.merge_view(session, merge, actor, clock.now())
-
-
-@router.post("/merges/{id}/decline", status_code=status.HTTP_200_OK, summary="Decline a team merge")
-async def decline_merge(
-    id: MergeProposalId, actor: MemberAuth, session: Session, clock: CurrentClock
-) -> Merge:
-    merge = await service.decline_merge(session, id, actor, clock.now())
-    return await service.merge_view(session, merge, actor, clock.now())
-
-
-@router.patch(
-    "/admin/events/{id}/formation",
-    status_code=status.HTTP_200_OK,
-    summary="Override formation settings",
-)
+@router.patch("/admin/events/{id}/formation")
 async def update_formation(
-    id: EventId, body: UpdateFormationBody, actor: AdminAuth, session: Session, clock: CurrentClock
-) -> Formation:
+    id: UUID,
+    body: schemas.UpdateFormationBody,
+    actor: AdminAuth,
+    session: Session,
+    clock: CurrentClock,
+) -> schemas.Formation:
     return await service.update_formation(session, id, body, actor, clock.now())
 
 
-@router.post(
-    "/admin/events/{id}/formation/run",
-    status_code=status.HTTP_202_ACCEPTED,
-    summary="Enqueue formation",
-)
-async def run_formation(
-    id: EventId,
+@router.post("/admin/events/{id}/formation/run", status_code=202)
+async def request_formation_run(
+    id: UUID,
     actor: AdminAuth,
     session: Session,
-    request: Request,
     clock: CurrentClock,
+    request: Request,
     body: ReasonBody | None = None,
-) -> FormationRun:
-    run = await service.request_formation_run(
+) -> schemas.FormationRun:
+    return await service.request_formation_run(
         session, request.app.state.jobs, id, body, actor, clock.now()
     )
-    return service.formation_run_view(run)
 
 
-@router.get(
-    "/admin/events/{id}/formation/runs",
-    status_code=status.HTTP_200_OK,
-    summary="Inspect formation runs",
-)
+@router.get("/admin/events/{id}/formation/runs")
 async def list_formation_runs(
-    id: EventId, actor: AdminAuth, session: Session
-) -> list[FormationRun]:
+    id: UUID, actor: AdminAuth, session: Session
+) -> list[schemas.FormationRun]:
     return await service.list_formation_runs(session, id, actor)
 
 
-@router.get(
-    "/admin/events/{id}/lead-candidates",
-    status_code=status.HTTP_200_OK,
-    summary="List lead candidates",
-)
-async def list_lead_candidates(
-    id: EventId, actor: AdminAuth, session: Session
-) -> list[LeadCandidate]:
-    return await service.list_lead_candidates(session, id)
+@router.post("/admin/projects/{id}/members")
+async def admin_add_member(
+    id: UUID, body: schemas.InviteBody, actor: AdminAuth, session: Session, clock: CurrentClock
+) -> schemas.Team:
+    return await service.admin_add_member(session, id, body, actor, clock.now())
 
 
-@router.post(
-    "/admin/events/{id}/projects",
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a team with an assigned lead",
-)
-async def admin_create_team(id: EventId, body: AdminCreateTeamBody, actor: AdminAuth) -> Project:
-    not_implemented()
-
-
-@router.put(
-    "/admin/events/{id}/reserve/order",
-    status_code=status.HTTP_200_OK,
-    summary="Reorder the reserve",
-)
-async def update_reserve_order(
-    id: EventId,
-    body: UpdateReserveOrderBody,
+@router.delete("/admin/projects/{id}/members/{user_id}")
+async def admin_remove_member(
+    id: UUID,
+    user_id: UUID,
     actor: AdminAuth,
     session: Session,
-    request: Request,
     clock: CurrentClock,
-) -> list[Enrollment]:
-    return await service.update_reserve_order(
-        session, request.app.state.jobs, id, body, actor, clock.now()
+    body: ReasonBody | None = None,
+) -> schemas.Team:
+    return await service.admin_remove_member(
+        session, id, user_id, actor, clock.now(), body.reason if body else None
     )
 
 
-@router.post(
-    "/admin/projects/{id}/members", status_code=status.HTTP_201_CREATED, summary="Add a team member"
-)
-async def admin_add_member(
-    id: ProjectId, body: AdminAddMemberBody, actor: AdminAuth
-) -> ProjectMember:
-    not_implemented()
-
-
-@router.delete(
-    "/admin/projects/{id}/members/{user_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Remove a team member",
-)
-async def admin_remove_member(
-    id: ProjectId,
-    user_id: UserId,
+@router.put("/admin/projects/{id}/lead")
+async def admin_set_lead(
+    id: UUID,
+    body: schemas.TransferLeadBody,
     actor: AdminAuth,
-    reason: Annotated[str | None, Query()] = None,
-) -> Response:
-    not_implemented()
+    session: Session,
+    clock: CurrentClock,
+) -> schemas.Team:
+    return await service.admin_set_lead(session, id, body, actor, clock.now())
 
 
-@router.post(
-    "/admin/projects/{id}/move",
-    status_code=status.HTTP_200_OK,
-    summary="Move a member to another team",
-)
-async def admin_move_member(id: ProjectId, body: MoveMemberBody, actor: AdminAuth) -> ProjectMember:
-    not_implemented()
-
-
-@router.put(
-    "/admin/projects/{id}/lead", status_code=status.HTTP_200_OK, summary="Assign the team lead"
-)
-async def admin_assign_lead(id: ProjectId, body: AssignLeadBody, actor: AdminAuth) -> Project:
-    not_implemented()
-
-
-@router.post(
-    "/admin/projects/{id}/disband", status_code=status.HTTP_200_OK, summary="Disband a team"
-)
-async def admin_disband_team(id: ProjectId, body: ReasonBody, actor: AdminAuth) -> Project:
-    not_implemented()
-
-
-@router.post(
-    "/admin/projects/{id}/status", status_code=status.HTTP_200_OK, summary="Override team status"
-)
-async def admin_update_team_status(
-    id: ProjectId, body: UpdateTeamStatusBody, actor: AdminAuth
-) -> Project:
-    not_implemented()
+@router.post("/admin/projects/{id}/disband")
+async def admin_disband(
+    id: UUID, body: ReasonBody, actor: AdminAuth, session: Session, clock: CurrentClock
+) -> schemas.Team:
+    return await service.admin_disband(session, id, body, actor, clock.now())

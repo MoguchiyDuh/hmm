@@ -15,7 +15,7 @@
 - Outside its window, setting a status → 409 `attendance_window_closed`.
 - A `going` that is never turned into `attended` simply expires at `ends_at + attendance_claim_days`, with no penalty.
 - **Hackathons:**
-  - enrolling sets `going`; withdrawing the enrollment sets it to `cancelled` if it is still `going`;
+  - enrolling sets `going`; an enrollment that ends `withdrawn`, `lapsed` or `expired` sets it to `cancelled` if it is still `going`, while going back to the queue (`reserve`) keeps it;
   - a `finished` team result sets `attended` with a system confirmation for every participant (`participants = true`, §13.1);
   - members can attend a hackathon without enrolling, e.g. with an outside team.
 

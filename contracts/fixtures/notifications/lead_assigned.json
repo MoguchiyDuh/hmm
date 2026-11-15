@@ -7,21 +7,16 @@
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [
       {
-        "kind": "api",
-        "key": "lead_step_down",
-        "entity_id": "019a7b32-0000-7000-8000-000000000003",
-        "label_key": "notifications.actions.lead_step_down"
-      },
-      {
         "kind": "link",
         "label_key": "notifications.actions.transfer",
         "url": "/projects/019a7b32-0000-7000-8000-000000000003"
       }
     ],
+    "project_id": "019a7b32-0000-7000-8000-000000000003",
+    "project_name": "Aurora Builders",
+    "team_name": "Aurora Builders",
     "event_id": "019a7b32-0000-7000-8000-000000000002",
     "event_title": "Northern Lights Hackathon 2026",
-    "project_id": "019a7b32-0000-7000-8000-000000000003",
-    "team_name": "Aurora Builders",
     "lead": {
       "user_id": "019a7b32-0000-7000-8000-000000000066",
       "display_name": "Maya Patel"

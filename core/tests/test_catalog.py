@@ -26,17 +26,11 @@ from hmm_contracts.common import (
     InviteKind,
     InviteStatus,
     JoinedVia,
-    JoinRequestStatus,
-    LeadOfferSource,
-    LeadOfferStatus,
     MemberRole,
     MemberState,
-    MergeProposalStatus,
-    MergeProposedBy,
     ProjectOrigin,
     ProjectStatus,
     ProjectVisibility,
-    SwapRequestStatus,
     TeamStatus,
     Trust,
 )
@@ -47,7 +41,6 @@ from hmm_core.catalog import service as catalog
 from hmm_core.formation import service as formation
 from hmm_core.platform.errors import ProblemError
 from hmm_core.platform.jobs import JOBS, REGISTRY, JobName
-from hmm_core.platform.settings import RuntimeSettings
 from pydantic import JsonValue
 from sqlalchemy import select, update
 from test_api_skeleton import assert_problem
@@ -85,9 +78,7 @@ async def test_create_published_event(harness: Harness) -> None:
         schedule = await session.get(models.EventFormation, event_id)
         assert schedule is not None
         assert schedule.phase == FormationPhase.OPEN
-        assert schedule.formation_at == stored.starts_at - timedelta(hours=120)
-        assert schedule.review_ends_at == schedule.formation_at + timedelta(hours=48)
-    assert await h.pending_jobs("compute_lead_fits") == []
+        assert schedule.formation_at == stored.starts_at - timedelta(hours=72)
 
 
 async def test_short_notice_formation(harness: Harness) -> None:
@@ -101,15 +92,9 @@ async def test_short_notice_formation(harness: Harness) -> None:
             created_by=None,
             now=h.now,
         )
-        timing = formation.formation_timing(event, RuntimeSettings(), h.now)
-        assert timing.reg_deadline == event.starts_at
-        assert timing.team_deadline == h.now + timedelta(hours=47)
-        assert timing.formation_at == h.now + timedelta(hours=24)
-        assert timing.review_ends_at == h.now + timedelta(hours=47)
         schedule = await session.get(models.EventFormation, event.id)
         assert schedule is not None
-        assert schedule.formation_at == timing.formation_at
-        assert schedule.review_ends_at == timing.review_ends_at
+        assert schedule.formation_at == h.now + timedelta(hours=1)
 
 
 @pytest.mark.parametrize(
@@ -277,12 +262,12 @@ async def test_draft_formation_created_later(harness: Harness) -> None:
         schedule = await formation.ensure_formation(session, event, h.now)
         assert schedule is not None
         assert schedule.phase == "open"
-        original = (schedule.formation_at, schedule.review_ends_at)
+        original = schedule.formation_at
         event.starts_at += timedelta(days=5)
         event.ends_at += timedelta(days=5)
         existing = await formation.ensure_formation(session, event, h.now + timedelta(days=1))
         assert existing is schedule
-        assert (existing.formation_at, existing.review_ends_at) == original
+        assert existing.formation_at == original
 
 
 async def test_event_snapshot(harness: Harness) -> None:
@@ -352,44 +337,6 @@ async def test_event_snapshot(harness: Harness) -> None:
     assert error.value.code == ErrorCode.NOT_FOUND
 
 
-async def test_enqueue_lead_fits(harness: Harness) -> None:
-    h = harness
-    async with h.db() as session:
-        published = await catalog.create_event(
-            session,
-            event_input(h),
-            origin=EventOrigin.MANUAL,
-            status=EventStatus.PUBLISHED,
-            created_by=None,
-            now=h.now,
-        )
-        draft = await catalog.create_event(
-            session,
-            event_input(h),
-            origin=EventOrigin.MANUAL,
-            status=EventStatus.DRAFT,
-            created_by=None,
-            now=h.now,
-        )
-        disabled = await catalog.create_event(
-            session,
-            replace(event_input(h), formation_enabled=False),
-            origin=EventOrigin.MANUAL,
-            status=EventStatus.PUBLISHED,
-            created_by=None,
-            now=h.now,
-        )
-        await catalog.enqueue_lead_fits(session, h.jobs, draft)
-        await catalog.enqueue_lead_fits(session, h.jobs, disabled)
-    assert await h.pending_jobs("compute_lead_fits") == []
-    async with h.db() as session:
-        await catalog.enqueue_lead_fits(session, h.jobs, published)
-    jobs = await h.pending_jobs("compute_lead_fits")
-    assert len(jobs) == 1
-    assert jobs[0]["status"] == "todo"
-    assert jobs[0]["args"] == {"event_id": str(published.id)}
-
-
 def event_body(h: Harness) -> dict[str, JsonValue]:
     return {
         "kind": "hackathon",
@@ -440,11 +387,10 @@ async def test_admin_create_event_detail(harness: Harness) -> None:
     assert body["my_attendance"] is None
     assert body["sources"] == []
     assert body["members_going"] == []
-    assert body["my_lead_fit"] is None
     assert body["formation"]["target"] == 5
-    assert body["formation"]["viable"] == 4
-    assert body["formation"]["core_max"] == 3
-    assert body["formation"]["allowed_actions"] == ["enroll", "edit", "run"]
+    assert body["formation"]["min"] == 2
+    assert body["formation"]["max"] == 5
+    assert body["formation"]["allowed_actions"] == ["enroll", "create_party"]
     assert "cancel" in body["allowed_actions"]
     for field in (
         "summary",
@@ -462,9 +408,6 @@ async def test_admin_create_event_detail(harness: Harness) -> None:
     assert body["location"] == {"country": None, "city": "Berlin", "address": None}
     assert body["prize"] == {"amount": 1000.0, "currency": "EUR", "description": None}
     assert body["difficulty"] == 6.3
-    jobs = await h.pending_jobs("compute_lead_fits")
-    assert len(jobs) == 1
-    assert jobs[0]["args"] == {"event_id": body["id"]}
     async with h.db() as session:
         audits = (await session.scalars(select(models.AuditLog))).all()
         assert len(audits) == 1
@@ -507,7 +450,6 @@ async def test_admin_create_event_errors(harness: Harness) -> None:
                 status,
                 code,
             )
-    assert len(await h.pending_jobs("compute_lead_fits")) == 1
     async with h.db() as session:
         assert len((await session.scalars(select(models.Event))).all()) == 1
         assert len((await session.scalars(select(models.AuditLog))).all()) == 1
@@ -548,7 +490,7 @@ async def test_member_event_detail_actions(harness: Harness) -> None:
         assert response.status_code == 200, response.text
         body = response.json()
         assert body["my_attendance"] is None
-        assert body["allowed_actions"] == ["going", "enroll"]
+        assert body["allowed_actions"] == ["going", "enroll", "create_party"]
         async with h.db() as session:
             session.add(
                 models.Enrollment(
@@ -561,26 +503,7 @@ async def test_member_event_detail_actions(harness: Harness) -> None:
             )
         response = await client.get(f"/api/v1/events/{event.id}")
         assert response.status_code == 200, response.text
-        assert response.json()["allowed_actions"] == ["going", "withdraw", "request_join"]
-        assert response.json()["my_lead_fit"] is None
-        async with h.db() as session:
-            session.add(
-                models.LeadFit(
-                    event_id=event.id,
-                    user_id=member.id,
-                    fit=Decimal("0.90"),
-                    reason="Experienced lead",
-                    algo_version="test",
-                    computed_at=h.now,
-                )
-            )
-        response = await client.get(f"/api/v1/events/{event.id}")
-        assert response.status_code == 200, response.text
-        body = response.json()
-        assert body["allowed_actions"] == ["going", "withdraw", "claim_lead", "request_join"]
-        assert body["my_lead_fit"]["eligible"] is True
-        assert body["my_lead_fit"]["fit"] == 0.9
-        assert body["formation"]["my_state"]["lead_fit"] == body["my_lead_fit"]
+        assert response.json()["allowed_actions"] == ["going", "withdraw", "create_party"]
     h.advance(timedelta(days=30))
     async with await h.client(member) as client:
         response = await client.get(f"/api/v1/events/{event.id}")
@@ -713,35 +636,17 @@ async def test_event_detail_formation_block(harness: Harness, kind: EventKind) -
     if kind == EventKind.CONFERENCE:
         assert body["formation"] is None
         assert body["participation_phase"] is None
-        assert body["my_lead_fit"] is None
     else:
         assert body["participation_phase"] == "open"
-        assert body["formation"]["counts"] == {
-            "enrollments": 0,
-            "active": 0,
-            "placed": 0,
-            "reserve": 0,
-            "cores": 0,
-            "core_members": 0,
-            "teams": 0,
-            "volunteers": 0,
-        }
+        assert body["formation"]["counts"] == {"queued": 0, "parties": 0, "teams": 0}
         assert body["formation"]["projection"] == {
-            "teams": 0,
-            "new_teams": 0,
-            "placed": 0,
-            "reserve": 0,
-            "undersized_cores": 0,
-            "team_sizes": [],
-            "volunteers": 0,
+            "fills": {},
+            "new_teams": [],
+            "queue": [],
         }
-        assert body["formation"]["my_state"] == {
-            "enrollment": None,
-            "team": None,
-            "membership": None,
-            "lead_fit": None,
-        }
-        assert body["formation"]["allowed_actions"] == ["enroll"]
+        assert body["formation"]["my_enrollment"] is None
+        assert body["formation"]["my_team"] is None
+        assert body["formation"]["allowed_actions"] == ["enroll", "create_party"]
 
 
 @pytest.fixture
@@ -797,7 +702,7 @@ async def catalog_events(harness: Harness) -> dict[str, models.Event]:
             )
         schedule = await session.get(models.EventFormation, events["contest"].id)
         assert schedule is not None
-        schedule.phase = FormationPhase.REVIEW
+        schedule.phase = FormationPhase.FORMED
     return events
 
 
@@ -823,7 +728,7 @@ async def test_catalog_list_visibility_and_summaries(
         assert "attended" not in item["allowed_actions"]
     contest, conference, hackathon = body["items"]
     assert contest["areas"] == []
-    assert contest["participation_phase"] == "review"
+    assert contest["participation_phase"] == "formed"
     assert conference["areas"] == []
     assert conference["participation_phase"] is None
     assert hackathon["areas"] == [
@@ -882,7 +787,7 @@ async def test_catalog_list_filters(
             ({"q": "_"}, "hackathon"),
             ({"q": "\\"}, "hackathon"),
             ({"participation_phase": "open"}, "hackathon"),
-            ({"participation_phase": "review"}, "contest"),
+            ({"participation_phase": "formed"}, "contest"),
             ({"phase": "registration_open"}, "hackathon"),
             ({"phase": "registration_closed"}, "conference"),
             ({"phase": "upcoming"}, "contest"),
@@ -893,7 +798,7 @@ async def test_catalog_list_filters(
                 str(catalog_events[expected].id)
             ], query
         for query in (
-            {"participation_phase": "locked"},
+            {"participation_phase": "forming"},
             {"phase": "ended"},
             {"q": "does not exist"},
         ):
@@ -1009,7 +914,7 @@ async def test_catalog_list_mine(
             links=[],
             visibility=ProjectVisibility.PUBLIC,
             status=ProjectStatus.ACTIVE,
-            team_status=TeamStatus.FORMING,
+            team_status=TeamStatus.FORMED,
             origin=ProjectOrigin.ADMIN,
         )
         session.add(project)
@@ -1155,7 +1060,7 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
             created_by=admin.id,
             now=h.now,
         )
-    forming = await catalog_team(h, event, member, TeamStatus.FORMING)
+    forming = await catalog_team(h, event, member, TeamStatus.FORMED)
     finished = await catalog_team(h, event, None, TeamStatus.FINISHED)
     async with h.db() as session:
         for user, status in (
@@ -1193,56 +1098,13 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
                 project_id=forming.id,
                 event_id=event.id,
                 user_id=attendee.id,
-                kind=InviteKind.CORE,
+                kind=InviteKind.TEAM,
                 status=status,
                 expires_at=h.now + timedelta(days=1),
             )
             for status in (InviteStatus.PENDING, InviteStatus.ACCEPTED)
         ]
-        requests = [
-            models.JoinRequest(
-                project_id=forming.id,
-                event_id=event.id,
-                user_id=enrolled.id,
-                status=status,
-            )
-            for status in (JoinRequestStatus.PENDING, JoinRequestStatus.ACCEPTED)
-        ]
-        swaps = [
-            models.SwapRequest(
-                event_id=event.id,
-                from_team_id=forming.id,
-                from_user_id=member.id,
-                to_team_id=finished.id,
-                to_user_id=attendee.id,
-                requested_by=member.id,
-                status=status,
-            )
-            for status in (SwapRequestStatus.PENDING, SwapRequestStatus.DECLINED)
-        ]
-        merges = [
-            models.MergeProposal(
-                event_id=event.id,
-                absorbed_team_id=forming.id,
-                target_team_id=finished.id,
-                proposed_by=MergeProposedBy.SYSTEM,
-                status=status,
-            )
-            for status in (MergeProposalStatus.PENDING, MergeProposalStatus.DECLINED)
-        ]
-        offers = [
-            models.LeadOffer(
-                project_id=forming.id,
-                event_id=event.id,
-                user_id=enrolled.id,
-                source=LeadOfferSource.SUCCESSION,
-                reason="Lead needed",
-                status=status,
-                expires_at=h.now + timedelta(days=1),
-            )
-            for status in (LeadOfferStatus.PENDING, LeadOfferStatus.ACCEPTED)
-        ]
-        session.add_all([*invites, *requests, *swaps, *merges, *offers])
+        session.add_all(invites)
         await session.flush()
         assert await catalog.event_recipients(session, event.id) == sorted(
             [attendee.id, enrolled.id, member.id], key=str
@@ -1279,10 +1141,6 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
             assert schedule is not None and schedule.phase == FormationPhase.CLOSED
             for model, pending, terminal, terminal_status in (
                 (models.Invite, invites[0], invites[1], InviteStatus.ACCEPTED),
-                (models.JoinRequest, requests[0], requests[1], JoinRequestStatus.ACCEPTED),
-                (models.SwapRequest, swaps[0], swaps[1], SwapRequestStatus.DECLINED),
-                (models.MergeProposal, merges[0], merges[1], MergeProposalStatus.DECLINED),
-                (models.LeadOffer, offers[0], offers[1], LeadOfferStatus.ACCEPTED),
             ):
                 rows = {row.id: row for row in await session.scalars(select(model))}
                 assert rows[pending.id].status == "closed"
@@ -1514,7 +1372,7 @@ async def test_notify_event_changed(harness: Harness) -> None:
                 status_at=h.now,
             )
         )
-    await catalog_team(h, event, member, TeamStatus.FORMING)
+    await catalog_team(h, event, member, TeamStatus.FORMED)
     changes = [
         NotificationChange(
             field="starts_at",
@@ -1664,8 +1522,6 @@ async def test_admin_patch_areas(harness: Harness, editable_event: models.Event)
                 }
             }
             revision_id = revisions[0].id
-        jobs = await h.pending_jobs("compute_lead_fits")
-        assert len(jobs) == 1 and jobs[0]["args"] == {"event_id": str(event.id)}
         assert_problem(
             await client.patch(
                 f"/api/v1/admin/events/{event.id}",
@@ -1802,7 +1658,6 @@ async def test_patch_event_idempotency(harness: Harness, editable_event: models.
         assert list(await session.scalars(select(models.AuditLog))) == []
         assert list(await session.scalars(select(models.Notification))) == []
         assert (await catalog.load_event(session, event.id)).updated_at == event.updated_at
-    assert await h.pending_jobs("compute_lead_fits") == []
 
 
 @pytest.mark.parametrize("blocker", ["enrollment", "team", "single_member"])
@@ -1834,7 +1689,7 @@ async def test_patch_event_formation_guards(harness: Harness, blocker: str) -> N
                 )
             )
     if blocker == "team":
-        await catalog_team(h, event, None, TeamStatus.FORMING)
+        await catalog_team(h, event, None, TeamStatus.FORMED)
     async with await h.client(admin) as client:
         assert_problem(
             await client.patch(
@@ -1870,11 +1725,9 @@ async def test_patch_event_enable_and_disable_formation(harness: Harness) -> Non
         async with h.db() as session:
             schedule = await session.get(models.EventFormation, event.id)
             assert schedule is not None
-            original = (schedule.phase, schedule.formation_at, schedule.review_ends_at)
+            original = (schedule.phase, schedule.formation_at)
             lock = await session.get(models.EventFieldLock, (event.id, "formation_enabled"))
             assert lock is not None and lock.locked_by == admin.id
-        jobs = await h.pending_jobs("compute_lead_fits")
-        assert len(jobs) == 1 and jobs[0]["args"] == {"event_id": str(event.id)}
         response = await client.patch(
             f"/api/v1/admin/events/{event.id}", json={"formation_enabled": False}
         )
@@ -1883,8 +1736,7 @@ async def test_patch_event_enable_and_disable_formation(harness: Harness) -> Non
     async with h.db() as session:
         schedule = await session.get(models.EventFormation, event.id)
         assert schedule is not None
-        assert (schedule.phase, schedule.formation_at, schedule.review_ends_at) == original
-    assert len(await h.pending_jobs("compute_lead_fits")) == 1
+        assert (schedule.phase, schedule.formation_at) == original
 
 
 @pytest.mark.parametrize("team_status", [TeamStatus.DISBANDED, TeamStatus.CANCELLED])
@@ -1946,7 +1798,7 @@ async def test_patch_event_notifications_and_date_hook(
                 status_at=h.now,
             )
         )
-    await catalog_team(h, event, member, TeamStatus.FORMING)
+    await catalog_team(h, event, member, TeamStatus.FORMED)
     new_start = event.starts_at + timedelta(days=1)
     with patch.object(formation, "dates_changed", wraps=formation.dates_changed) as hook:
         async with await h.client(admin) as client:
@@ -1956,7 +1808,7 @@ async def test_patch_event_notifications_and_date_hook(
             assert response.status_code == 200, response.text
             hook.assert_awaited_once()
             assert hook.await_args is not None
-            assert hook.await_args.args[3] == formation.event_dates(event)
+            assert hook.await_args.args[1].id == event.id
             async with h.db() as session:
                 notifications = list(await session.scalars(select(models.Notification)))
                 assert len(notifications) == 2
@@ -2144,7 +1996,7 @@ async def listing_project(
     name: str,
     lead: models.User | None,
     members: tuple[models.User, ...] = (),
-    team_status: TeamStatus | None = TeamStatus.FORMING,
+    team_status: TeamStatus | None = TeamStatus.FORMED,
     visibility: ProjectVisibility = ProjectVisibility.PUBLIC,
     area_keys: tuple[str, ...] = (),
     **fields: object,
@@ -2234,9 +2086,9 @@ async def test_list_event_projects_full_views(harness: Harness) -> None:
     assert team_view["members"][0]["role"] == "lead"
     assert team_view["members"][0]["user"]["display_name"] == lead.display_name
     assert team_view["area_keys"] == ["backend", "design"]
-    assert team_view["open_seats"] is None
+    assert team_view["open_seats"] == 2
     assert team_view["status"] == "active"
-    assert team_view["team_status"] == "forming"
+    assert team_view["team_status"] == "formed"
     assert team_view["links"] == ["https://example.com/repo"]
     assert team_view["allowed_actions"] == []
     assert team_view["pending_invites"] is None
@@ -2290,8 +2142,8 @@ async def test_list_event_projects_pending_items(harness: Harness) -> None:
     await h.seed_areas(("backend",))
     event = await published_event(h)
     lead, member, outsider = await h.user(), await h.user(), await h.user()
-    invitee, requester, heir = await h.user(), await h.user(), await h.user()
-    team = await listing_project(h, event, name="Team", lead=lead, members=(member, heir))
+    invitee = await h.user()
+    team = await listing_project(h, event, name="Team", lead=lead, members=(member,))
     async with h.db() as session:
         backend = await session.scalar(select(models.Area).where(models.Area.key == "backend"))
         assert backend is not None
@@ -2302,7 +2154,7 @@ async def test_list_event_projects_pending_items(harness: Harness) -> None:
                     event_id=event.id,
                     user_id=invitee.id,
                     invited_by=lead.id,
-                    kind=InviteKind.FILL,
+                    kind=InviteKind.TEAM,
                     status=InviteStatus.PENDING,
                     area_id=backend.id,
                     expires_at=h.now + timedelta(days=1),
@@ -2311,26 +2163,9 @@ async def test_list_event_projects_pending_items(harness: Harness) -> None:
                     project_id=team.id,
                     event_id=event.id,
                     user_id=outsider.id,
-                    kind=InviteKind.FILL,
+                    kind=InviteKind.TEAM,
                     status=InviteStatus.DECLINED,
                     expires_at=h.now + timedelta(days=1),
-                ),
-                models.JoinRequest(
-                    project_id=team.id,
-                    event_id=event.id,
-                    user_id=requester.id,
-                    note="Let me in",
-                    status=JoinRequestStatus.PENDING,
-                ),
-                models.LeadOffer(
-                    project_id=team.id,
-                    event_id=event.id,
-                    user_id=heir.id,
-                    offered_by=lead.id,
-                    source=LeadOfferSource.TRANSFER,
-                    reason="Take over",
-                    status=LeadOfferStatus.PENDING,
-                    expires_at=h.now + timedelta(days=3),
                 ),
             ]
         )
@@ -2346,12 +2181,9 @@ async def test_list_event_projects_pending_items(harness: Harness) -> None:
         "id": str(team.id),
         "name": "Team",
         "event_id": str(event.id),
-        "team_status": "forming",
+        "team_status": "formed",
     }
-    [request] = item["pending_join_requests"]
-    assert request["user_id"] == str(requester.id) and request["note"] == "Let me in"
-    assert item["pending_lead_offer"]["user_id"] == str(heir.id)
-    assert item["pending_lead_offer"]["offerer"]["id"] == str(lead.id)
+    assert item["pending_join_requests"] == []
     assert "transfer_lead" in item["allowed_actions"]
     for user in (member, outsider):
         async with await h.client(user) as client:
@@ -2359,7 +2191,6 @@ async def test_list_event_projects_pending_items(harness: Harness) -> None:
         assert item["view"] == "full"
         assert item["pending_invites"] is None
         assert item["pending_join_requests"] is None
-        assert item["pending_lead_offer"] is None
 
 
 async def test_list_event_projects_open_seats(harness: Harness) -> None:
@@ -2373,7 +2204,7 @@ async def test_list_event_projects_open_seats(harness: Harness) -> None:
         name="Alpha",
         lead=lead,
         members=tuple(members[:2]),
-        team_status=TeamStatus.LOCKED,
+        team_status=TeamStatus.FORMED,
     )
     closed_team = await listing_project(
         h,
@@ -2381,7 +2212,7 @@ async def test_list_event_projects_open_seats(harness: Harness) -> None:
         name="Beta",
         lead=other_lead,
         members=tuple(members[2:]),
-        team_status=TeamStatus.LOCKED,
+        team_status=TeamStatus.FORMED,
         seats_closed_at=h.now,
     )
     async with await h.client(lead) as client:

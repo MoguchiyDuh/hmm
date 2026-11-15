@@ -8,7 +8,6 @@ from uuid import UUID
 import pytest
 from hmm_contracts import algo as a
 from hmm_contracts.common import Contract, FactType
-from hmm_contracts.formation import Bounds
 from pydantic import ValidationError
 
 NOW = datetime(2026, 11, 12, tzinfo=UTC)
@@ -420,7 +419,6 @@ def models() -> list[Contract]:
         fact_awards=[award],
         flags=[flag],
     )
-    fit = make(a.LeadFit, user_id=USER, fit=0.8, reason=REASON)
     team_member = make(
         a.TeamMemberSnapshot,
         **member.model_dump(),
@@ -428,7 +426,6 @@ def models() -> list[Contract]:
         area="backend",
         state="confirmed",
         willing_to_lead=True,
-        claimed_lead=True,
         enrolled_at=NOW,
     )
     enrolled = make(
@@ -458,33 +455,17 @@ def models() -> list[Contract]:
         suggested_area="backend",
     )
     make(a.Recommendations, enrolled=[rec], others=[])
-    core = make(a.Core, project_id=PROJECT, lead=team_member, members=[])
-    bounds = Bounds(teams=1, new_teams=0, placed=1, reserve=0, undersized_cores=0)
+    unit = make(a.FormationUnit, id=USER, members=[enrolled])
     make(
         a.FormationRequest,
         hackathon=event,
-        kind="main",
         target=5,
-        viable=4,
+        min_size=4,
         max_size=5,
-        bounds=bounds,
-        cores=[core],
-        unplaced=[enrolled],
-        lead_fits={USER: fit},
+        units=[unit],
     )
-    planned = make(a.PlannedMember, user_id=USER, area="backend", reason=REASON)
-    team = make(
-        a.PlannedTeam, project_id=PROJECT, lead_user_id=None, members=[planned], reason=REASON
-    )
-    ranked = make(a.RankedMember, user_id=OTHER, rank=1, reason=REASON)
-    merge = make(
-        a.PlannedMerge, absorbed_team_id=UUID(int=30), target_team_id=PROJECT, reason=REASON
-    )
-    make(
-        a.FormationPlan, teams=[team], reserve=[ranked], merges=[merge], summary="One balanced team"
-    )
-    composition = make(a.TeamComposition, project_id=PROJECT, members=[team_member], open_seats=3)
-    make(a.ReserveRequest, hackathon=event, teams=[composition], reserve=[enrolled])
+    team = make(a.PlannedTeam, units=[unit.id], reason=REASON)
+    make(a.FormationPlan, teams=[team], summary="One balanced team")
     make(
         a.MentorMatchRequest,
         area=area,
@@ -588,11 +569,6 @@ def test_structural_algorithm(models: list[Contract]) -> None:
         ) -> a.MemberMetrics:
             return find(a.MemberMetrics)
 
-        async def lead_fit(
-            self, ctx: a.AlgoContext, hackathon: a.EventSnapshot, candidates: list[a.MemberSnapshot]
-        ) -> list[a.LeadFit]:
-            return [find(a.LeadFit)]
-
         async def recommend(
             self, ctx: a.AlgoContext, request: a.RecommendRequest
         ) -> a.Recommendations:
@@ -602,11 +578,6 @@ def test_structural_algorithm(models: list[Contract]) -> None:
             self, ctx: a.AlgoContext, request: a.FormationRequest
         ) -> a.FormationPlan:
             return find(a.FormationPlan)
-
-        async def rank_reserve(
-            self, ctx: a.AlgoContext, request: a.ReserveRequest
-        ) -> list[a.RankedMember]:
-            return [find(a.RankedMember)]
 
         async def match_mentors(
             self, ctx: a.AlgoContext, request: a.MentorMatchRequest
@@ -628,7 +599,7 @@ def test_structural_algorithm(models: list[Contract]) -> None:
         (a.EventSnapshot, "team_size_min"),
         (a.EventSnapshot, "team_size_max"),
         (a.FormationRequest, "target"),
-        (a.FormationRequest, "viable"),
+        (a.FormationRequest, "min_size"),
         (a.FormationRequest, "max_size"),
     ],
 )
@@ -708,9 +679,7 @@ def test_invalid_area_score(value: float) -> None:
 
 
 @pytest.mark.parametrize("value", [-0.1, 1.5, float("nan"), float("inf")])
-def test_invalid_fit_and_recommendation(value: float) -> None:
-    with pytest.raises(ValidationError):
-        a.LeadFit(user_id=USER, fit=value, reason=REASON)
+def test_invalid_recommendation(value: float) -> None:
     with pytest.raises(ValidationError):
         a.Rec(user_id=USER, score=value, reasons=[REASON], tags=[], suggested_area=None)
 

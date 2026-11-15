@@ -6,10 +6,11 @@
     "type": "invite_declined",
     "link": "/projects/019a7b32-0000-7000-8000-000000000003",
     "actions": [],
+    "invite_id": "019a7b32-0000-7000-8000-000000000004",
+    "kind": "team",
+    "party_id": null,
     "project_id": "019a7b32-0000-7000-8000-000000000003",
     "project_name": "Aurora Builders",
-    "invite_id": "019a7b32-0000-7000-8000-000000000004",
-    "kind": "core",
     "actor": {
       "user_id": "019a7b32-0000-7000-8000-000000000065",
       "display_name": "Avery Chen"

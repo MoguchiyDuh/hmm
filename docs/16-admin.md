@@ -2,7 +2,7 @@
 
 ## 16.1 Scope
 
-Admins never approve enrollments, lead claims, placements, events, projects, mentorships, confirmations, activity or new members; those paths don't exist. Admin work is limited to the exception queues:
+Admins never approve enrollments, placements, events, projects, mentorships, confirmations, activity or new members; those paths don't exist. Admin work is limited to the exception queues:
 - new-member review, non-blocking (§9.5);
 - import review (§11.3);
 - results to verify (§13.1);
@@ -15,7 +15,7 @@ Admin capabilities beyond the module-specific ones in other sections:
 
 | Method | Path | Who | Body → response |
 |---|---|---|---|
-| GET | `/api/v1/admin/dashboard` | admin | Counts: open alerts by type, pending member reviews, import review queue (incl. member-event duplicates), to-check items, active restrictions, hackathons by participation phase, teams without a lead, teams below `min`, open seats, results to verify, open help requests without offers, parser last heartbeat, job failures in the last 24 h |
+| GET | `/api/v1/admin/dashboard` | admin | Counts: open alerts by type, pending member reviews, import review queue (incl. member-event duplicates), to-check items, active restrictions, hackathons by formation phase, teams below `min`, teams with open seats, results to verify, open help requests without offers, parser last heartbeat, job failures in the last 24 h |
 | GET | `/api/v1/admin/users?q=&banned=&admin=&cursor=` | admin | Users |
 | PATCH | `/api/v1/admin/users/{id}` | admin | `{is_admin?, display_name?, about_md?, reason?}` (§6.3) |
 | POST | `/api/v1/admin/users/{id}/ban` | admin | `{reason}` (§6.4) |

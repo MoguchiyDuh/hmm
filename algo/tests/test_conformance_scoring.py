@@ -112,21 +112,6 @@ async def test_conformance_member_metrics(
     assert all(flag.subject_id in subjects for flag in result.flags)
 
 
-@pytest.mark.parametrize("event", EVENTS.values(), ids=EVENTS)
-async def test_conformance_lead_fits(
-    algorithm: a.Algorithm, ctx: a.AlgoContext, event: a.EventSnapshot
-) -> None:
-    candidates: list[a.MemberSnapshot] = list(MEMBERS.values())
-    result = await algorithm.lead_fit(ctx, event, candidates)
-    assert result == await algorithm.lead_fit(ctx, event, candidates)
-    assert {fit.user_id for fit in result} <= {member.user_id for member in candidates}
-    assert len(result) == len({fit.user_id for fit in result})
-    for fit in result:
-        assert_valid(fit)
-        assert 0 <= fit.fit <= 1
-        assert fit.reason.strip()
-
-
 @pytest.mark.parametrize("name", load_formation_cases())
 async def test_conformance_recommendations(
     algorithm: a.Algorithm, ctx: a.AlgoContext, name: str
@@ -141,14 +126,14 @@ async def test_conformance_recommendations(
         recruiting=None,
         event_id=formation.hackathon.id,
         status="active",
-        team_status="forming",
+        team_status="formed",
         links=[],
     )
     request = a.RecommendRequest(
         event=formation.hackathon,
         project=project,
-        team=[member for core in formation.cores for member in [core.lead, *core.members]],
-        enrolled=formation.unplaced,
+        team=[],
+        enrolled=[member for unit in formation.units for member in unit.members],
         others=list(MEMBERS.values())[-10:],
         limit_enrolled=3,
         limit_others=2,

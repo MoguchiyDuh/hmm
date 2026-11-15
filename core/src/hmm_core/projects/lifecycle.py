@@ -52,7 +52,6 @@ async def _transition(
         raise ProblemError(ErrorCode.INVALID_STATE, message)
     project.status = target.value
     project.paused_reason = PAUSE_MANUAL if target == ProjectStatus.PAUSED else None
-    project.last_lead_action_at = now
     await session.flush()
     await session.refresh(project)
     if notify_members:
@@ -201,7 +200,6 @@ async def update_project(
             changed = True
     if not changed:
         return await project_response(session, project.id, actor, now)
-    project.last_lead_action_at = now
     await session.flush()
     await session.refresh(project)
     if became_members:

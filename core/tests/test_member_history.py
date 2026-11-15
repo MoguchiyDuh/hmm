@@ -18,7 +18,6 @@ from hmm_contracts.common import (
     AttendanceRole,
     AttendanceStatus,
     ConfirmationSource,
-    ConfirmKind,
     ErrorCode,
     EventFormat,
     FactType,
@@ -413,8 +412,7 @@ async def test_project_facts(harness: Harness) -> None:
                     proposed.id,
                     h.now,
                     state=MemberState.PROPOSED,
-                    confirm_by=h.now + timedelta(days=1),
-                    confirm_kind=ConfirmKind.PLACEMENT,
+                    accept_by=h.now + timedelta(days=1),
                 ),
                 member_row(
                     team.id,

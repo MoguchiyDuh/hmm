@@ -1,15 +1,13 @@
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from uuid import UUID
 
 from hmm_contracts.common import (
     ErrorCode,
     InviteStatus,
     JoinRequestStatus,
-    LeadOfferSource,
-    LeadOfferStatus,
     MemberRole,
     MemberState,
     ProjectStatus,
@@ -26,7 +24,7 @@ from hmm_core.platform.schemas import ProjectRef, UserRef
 from hmm_core.platform.settings import RuntimeSettings, load_settings
 from hmm_core.projects import schemas
 
-OPEN_TEAMS = frozenset({TeamStatus.FORMING, TeamStatus.REVIEW})
+OPEN_TEAMS = frozenset({TeamStatus.FORMED})
 
 
 POST_RESULT_TEAM_STATUSES: frozenset[str] = frozenset(
@@ -42,9 +40,6 @@ TERMINAL_TEAM_STATUSES: frozenset[str] = frozenset(
         TeamStatus.CANCELLED.value,
     }
 )
-
-
-STANDALONE_TRANSFER_TTL = timedelta(days=7)
 
 
 LEAD_CLOSED_TEAM_STATUSES: frozenset[str] = frozenset(
@@ -128,7 +123,7 @@ def member_actions(
     if (
         is_lead
         and other_confirmed
-        and (not member.is_team_row or project.team_status == TeamStatus.REVIEW)
+        and (not member.is_team_row or project.team_status == TeamStatus.FORMED)
     ):
         allowed.add(schemas.ProjectMemberAction.REMOVE)
     if actor.is_admin:
@@ -156,9 +151,7 @@ def project_member(
             "state": member.state,
             "trust": member.trust,
             "joined_via": member.joined_via,
-            "proposal_reason": member.proposal_reason,
-            "confirm_by": member.confirm_by,
-            "confirm_kind": member.confirm_kind,
+            "accept_by": member.accept_by,
             "is_team_row": member.is_team_row,
             "joined_at": member.joined_at,
             "confirmed_at": member.confirmed_at,
@@ -184,27 +177,15 @@ def project_actions(
     if is_member:
         allowed.add(schemas.ProjectAction.LEAVE)
     if is_lead:
-        if project.team_status == TeamStatus.FORMING:
-            allowed |= {
-                schemas.ProjectAction.ADD_MEMBER,
-                schemas.ProjectAction.READY
-                if project.ready_at is None
-                else schemas.ProjectAction.UNREADY,
-                schemas.ProjectAction.UNCLAIM,
-            }
-        if project.team_status == TeamStatus.LOCKED:
+        if project.team_status == TeamStatus.FORMED:
             if project.seats_closed_at is None and len(members) >= minimum:
                 allowed.add(schemas.ProjectAction.CLOSE_SEATS)
             if project.seats_closed_at is not None:
                 allowed.add(schemas.ProjectAction.REOPEN_SEATS)
         if project.team_status in OPEN_TEAMS:
             allowed.add(schemas.ProjectAction.INVITE)
-        if project.team_status == TeamStatus.REVIEW:
-            allowed |= {schemas.ProjectAction.SWAP, schemas.ProjectAction.MERGE}
         if not lead_changes_closed(project):
-            allowed |= {schemas.ProjectAction.TRANSFER_LEAD, schemas.ProjectAction.STEP_DOWN}
-    if is_member and project.lead_user_id is None and project.status == ProjectStatus.PAUSED:
-        allowed.add(schemas.ProjectAction.CLAIM_LEAD)
+            allowed.add(schemas.ProjectAction.TRANSFER_LEAD)
     if is_lead and lifecycle_open(project):
         if project.status in (ProjectStatus.IDEA.value, ProjectStatus.PAUSED.value):
             allowed.add(schemas.ProjectAction.START)
@@ -218,7 +199,7 @@ def project_actions(
             allowed.add(schemas.ProjectAction.ABANDON)
         if project.status == ProjectStatus.SHIPPED.value:
             allowed.add(schemas.ProjectAction.CONTINUE)
-        if project.team_status is None:
+        if project.team_status is None or project.team_status in POST_RESULT_TEAM_STATUSES:
             allowed.add(schemas.ProjectAction.INVITE)
     if (
         not is_member
@@ -242,7 +223,7 @@ def project_actions(
 
 
 def open_seats(project: models.Project, *, members: int, target: int) -> int | None:
-    if project.team_status != TeamStatus.LOCKED:
+    if project.team_status != TeamStatus.FORMED:
         return None
     return max(0, target - members)
 
@@ -254,7 +235,7 @@ def invite_view(
     users: dict[UUID, models.User],
     area_keys: dict[UUID, str],
     actor: models.User,
-) -> schemas.Invite:
+) -> schemas.ProjectInvite:
     inviter = users.get(invite.invited_by) if invite.invited_by is not None else None
     allowed: set[schemas.InviteAction] = set()
     if invite.status == InviteStatus.PENDING:
@@ -262,7 +243,7 @@ def invite_view(
             allowed.add(schemas.InviteAction.WITHDRAW)
         if actor.id == invite.user_id:
             allowed |= {schemas.InviteAction.ACCEPT, schemas.InviteAction.DECLINE}
-    return schemas.Invite.model_validate(
+    return schemas.ProjectInvite.model_validate(
         {
             "id": invite.id,
             "project_id": invite.project_id,
@@ -304,7 +285,6 @@ def join_request_view(
             "id": request.id,
             "project_id": request.project_id,
             "project": project_ref(project),
-            "event_id": request.event_id,
             "user_id": request.user_id,
             "user": user_ref(users[request.user_id]),
             "note": request.note or "",
@@ -319,48 +299,6 @@ def join_request_view(
     )
 
 
-def lead_offer_view(
-    project: models.Project,
-    offer: models.LeadOffer,
-    *,
-    users: dict[UUID, models.User],
-    actor: models.User,
-) -> schemas.LeadOffer:
-    offerer = users.get(offer.offered_by) if offer.offered_by is not None else None
-    pending = offer.status == LeadOfferStatus.PENDING.value
-    allowed: set[schemas.LeadOfferAction] = set()
-    if pending and actor.id == offer.user_id:
-        allowed |= {schemas.LeadOfferAction.ACCEPT, schemas.LeadOfferAction.DECLINE}
-    if (
-        pending
-        and offer.source == LeadOfferSource.TRANSFER.value
-        and offer.offered_by == actor.id
-        and project.lead_user_id == actor.id
-    ):
-        allowed.add(schemas.LeadOfferAction.CANCEL)
-    return schemas.LeadOffer.model_validate(
-        {
-            "id": offer.id,
-            "project_id": offer.project_id,
-            "project": project_ref(project),
-            "event_id": offer.event_id,
-            "user_id": offer.user_id,
-            "user": user_ref(users[offer.user_id]),
-            "source": offer.source,
-            "offered_by": offer.offered_by,
-            "offerer": user_ref(offerer) if offerer is not None else None,
-            "tier": offer.tier,
-            "reason": offer.reason,
-            "status": offer.status,
-            "expires_at": offer.expires_at,
-            "responded_at": offer.responded_at,
-            "created_at": offer.created_at,
-            "updated_at": offer.updated_at,
-            "allowed_actions": [action for action in schemas.LeadOfferAction if action in allowed],
-        }
-    )
-
-
 def project_detail(
     project: models.Project,
     *,
@@ -370,9 +308,8 @@ def project_detail(
     formation: models.EventFormation | None,
     actor: models.User,
     include_pending: bool,
-    invites: list[schemas.Invite],
+    invites: list[schemas.ProjectInvite],
     join_requests: list[schemas.JoinRequest],
-    lead_offer: schemas.LeadOffer | None,
 ) -> schemas.Project:
     target = (
         formation.target_override
@@ -401,19 +338,12 @@ def project_detail(
             "links": [HttpUrl(str(link)) for link in project.links]
             if isinstance(project.links, list)
             else [],
-            "ready_at": project.ready_at,
-            "review_ends_at": project.review_ends_at,
-            "formed_in_run_id": project.formed_in_run_id,
-            "locked_at": project.locked_at,
-            "seat_open_since": project.seat_open_since,
             "seats_closed_at": project.seats_closed_at,
             "open_seats": open_seats(project, members=len(members), target=target),
-            "last_lead_action_at": project.last_lead_action_at,
             "last_progress_at": project.last_progress_at,
             "members": [project_member(project, row, actor) for row in members],
             "pending_invites": invites if include_pending else None,
             "pending_join_requests": join_requests if include_pending else None,
-            "pending_lead_offer": lead_offer if include_pending else None,
             "allowed_actions": project_actions(
                 project, members=members, minimum=team_size.minimum, actor=actor
             ),
@@ -466,7 +396,6 @@ async def project_views(
     }
     invites: defaultdict[UUID, list[models.Invite]] = defaultdict(list)
     join_requests: defaultdict[UUID, list[models.JoinRequest]] = defaultdict(list)
-    lead_offers: dict[UUID, models.LeadOffer] = {}
     users: dict[UUID, models.User] = {}
     invite_areas: dict[UUID, str] = {}
     if pending:
@@ -478,7 +407,8 @@ async def project_views(
             )
             .order_by(models.Invite.created_at, models.Invite.id)
         ):
-            invites[invite.project_id].append(invite)
+            if invite.project_id is not None:
+                invites[invite.project_id].append(invite)
         for request in await session.scalars(
             select(models.JoinRequest)
             .where(
@@ -488,19 +418,10 @@ async def project_views(
             .order_by(models.JoinRequest.created_at, models.JoinRequest.id)
         ):
             join_requests[request.project_id].append(request)
-        for offer in await session.scalars(
-            select(models.LeadOffer).where(
-                models.LeadOffer.project_id.in_(pending),
-                models.LeadOffer.status == LeadOfferStatus.PENDING,
-            )
-        ):
-            lead_offers[offer.project_id] = offer
         user_ids = (
             {invite.user_id for rows in invites.values() for invite in rows}
             | {invite.invited_by for rows in invites.values() for invite in rows}
             | {request.user_id for rows in join_requests.values() for request in rows}
-            | {offer.user_id for offer in lead_offers.values()}
-            | {offer.offered_by for offer in lead_offers.values()}
         ) - {None}
         if user_ids:
             users = {
@@ -552,7 +473,6 @@ async def project_views(
         is_team = project.team_status is not None and project.event_id is not None
         event = events.get(project.event_id) if is_team and project.event_id else None
         formation = formations.get(project.event_id) if is_team and project.event_id else None
-        offer = lead_offers.get(project.id)
         views.append(
             project_detail(
                 project,
@@ -570,9 +490,6 @@ async def project_views(
                     join_request_view(project, request, users=users, actor=actor)
                     for request in join_requests[project.id]
                 ],
-                lead_offer=lead_offer_view(project, offer, users=users, actor=actor)
-                if offer is not None
-                else None,
             )
         )
     return views

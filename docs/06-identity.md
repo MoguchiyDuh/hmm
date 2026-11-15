@@ -32,12 +32,13 @@ Covers GitHub sign-in, sessions, admin bootstrap, bans, Telegram linking and ser
 `POST /api/v1/admin/users/{id}/ban {reason}`. Banning an admin → 409 `invalid_state`; revoke admin first. A ban:
 
 - sets `banned_at` and `ban_reason` and deletes all sessions (§3.3); the Telegram link stays;
-- withdraws live enrollments, pending invites, join requests, help requests, help offers and mentor offers;
+- withdraws live enrollments and closes pending party and team invites; the user leaves their party;
+- withdraws help requests, help offers and mentor offers;
 - cancels active mentorships with no outcome; the other side keeps their activity;
 - makes the user's confirmations `ignored`;
 - removes the user from standalone projects (a banned lead leaves with succession per §27.6);
-- removes the user from teams in `forming`, `review` or `locked` (a banned lead leaves with succession per §12.8, and alerts `team_below_min` or `forced_lead` fire as applicable);
-- keeps the user on `active` teams for history and raises admin alert `banned_member_in_active_team`.
+- removes the user from hackathon teams in `formed`; the lead role passes at once (§12.7);
+- keeps the user on `active` (and later) teams for history — if they lead one, the role passes at once (§12.7) — and raises admin alert `banned_member_in_active_team`.
 
 `POST /api/v1/admin/users/{id}/unban` clears `banned_at` and `ban_reason`.
 

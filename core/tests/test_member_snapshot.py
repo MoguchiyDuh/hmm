@@ -6,7 +6,6 @@ import pytest
 from harness import Harness
 from hmm_contracts.algo import EffectiveScore, MentorOffer
 from hmm_contracts.common import (
-    ConfirmKind,
     CvTextStatus,
     ErrorCode,
     GithubSnapshotStatus,
@@ -350,8 +349,7 @@ async def test_snapshot_project_counts(harness: Harness) -> None:
                     joined_via=JoinedVia.INVITE,
                     is_team_row=False,
                     joined_at=h.now,
-                    confirm_by=h.now + timedelta(days=1),
-                    confirm_kind=ConfirmKind.PLACEMENT,
+                    accept_by=h.now + timedelta(days=1),
                 ),
             ]
         )
