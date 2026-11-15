@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -17,6 +18,8 @@ from hmm.parser.normalize import EUROPE
 
 MAX_ERRORS_PER_SOURCE = 20
 GONE_STATUSES = frozenset({404, 410})
+TITLE_PARTS = re.compile(r"\s*\|\s*|\s+[-\u2013\u2014]\s+|:\s+")
+MIN_PART_WORDS = 2
 DEDUPE_WINDOW = timedelta(days=1)
 MERGED_FIELDS: tuple[str, ...] = (
     "summary",
@@ -178,9 +181,15 @@ def merge(leader: EventImport, follower: EventImport) -> EventImport:
     return leader.model_copy(update=update) if update else leader
 
 
-def identity(item: EventImport) -> tuple[str, str | None]:
+def identities(item: EventImport) -> list[tuple[str, str | None]]:
     country = item.location.country if item.location is not None else None
-    return normalize_title(item.title), country
+    titles = [normalize_title(item.title)]
+    parts = TITLE_PARTS.split(item.title)
+    if len(parts) > 1:
+        titles.extend(
+            text for text in map(normalize_title, parts) if len(text.split()) >= MIN_PART_WORDS
+        )
+    return [(title, country) for title in dict.fromkeys(titles) if title]
 
 
 def dedupe(runs: Iterable[SourceRun]) -> tuple[list[EventImport], int]:
@@ -192,19 +201,27 @@ def dedupe(runs: Iterable[SourceRun]) -> tuple[list[EventImport], int]:
     buckets: dict[tuple[str, str | None], list[int]] = {}
     merged = 0
     for _, item in ranked:
-        key = identity(item)
-        for index in buckets.get(key, []):
-            leader = leaders[index]
-            if (
-                prefix(leader) != prefix(item)
-                and abs(leader.starts_at - item.starts_at) <= DEDUPE_WINDOW
-            ):
-                leaders[index] = merge(leader, item)
-                merged += 1
-                break
-        else:
-            buckets.setdefault(key, []).append(len(leaders))
+        keys = identities(item)
+        match = next(
+            (
+                index
+                for key in keys
+                for index in buckets.get(key, [])
+                if prefix(leaders[index]) != prefix(item)
+                and abs(leaders[index].starts_at - item.starts_at) <= DEDUPE_WINDOW
+            ),
+            None,
+        )
+        if match is None:
+            match = len(leaders)
             leaders.append(item)
+        else:
+            leaders[match] = merge(leaders[match], item)
+            merged += 1
+        for key in keys:
+            bucket = buckets.setdefault(key, [])
+            if match not in bucket:
+                bucket.append(match)
     leaders.sort(key=lambda item: (item.starts_at, item.source.source_id))
     return leaders, merged
 

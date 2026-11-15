@@ -7,7 +7,7 @@ import pytest
 from parser_support import NOW, Router, no_sleep, public_resolve, run_source
 
 from hmm.catalog.import_schema import EventImport
-from hmm.common import EventFormat
+from hmm.common import EventFormat, EventKind
 from hmm.parser.base import ADAPTERS, create_adapter, load_adapters
 from hmm.parser.config import (
     DEFAULT_SOURCES,
@@ -18,7 +18,7 @@ from hmm.parser.config import (
     source_from_table,
 )
 from hmm.parser.fetch import Fetcher, FetchError
-from hmm.parser.normalize import money, summary_of, team_size
+from hmm.parser.normalize import guess_kind, money, summary_of, team_size
 from hmm.parser.pipeline import SourceRun, dedupe, relevant
 from hmm.parser.sources.devpost import listing_dates
 from hmm.parser.sources.hackathonist import parse_when
@@ -469,3 +469,32 @@ def test_prosemirror_to_markdown() -> None:
         "## Agenda\n\nJoin **us** [here](https://x.example/)  \nline\n\n- one\n- two\n\n1. first"
     )
     assert summary_of(to_markdown(doc)) == "Join us here line"
+
+
+def test_dedupe_matches_prefixed_titles() -> None:
+    start = datetime(2026, 11, 7, tzinfo=UTC)
+    hub = item("hub:1", "Gara\u017ea | Frontier Hackathon", start, location={"country": "RS"})
+    listed = item("list:1", "Frontier Hackathon", start, location={"country": "RS"})
+    third = item("third:1", "Frontier Hackathon 2026", start, location={"country": "RS"})
+    talk = item("talk:1", "DevFest 2026: Conference", start, location={"country": "RS"})
+    lone = item("lone:1", "Conference", start, location={"country": "RS"})
+    items, merged = dedupe(
+        [
+            run_of("hub", 60, hub),
+            run_of("list", 50, listed),
+            run_of("third", 40, third),
+            run_of("talk", 50, talk),
+            run_of("lone", 40, lone),
+        ]
+    )
+    assert merged == 2
+    assert sorted(entry.source.source_id for entry in items) == ["hub:1", "lone:1", "talk:1"]
+
+
+def test_guess_kind_prefers_a_trailing_kind_segment() -> None:
+    conference = guess_kind("DevFest 2026: GameJam - Conference", [], EventKind.MEETUP)
+    assert conference == EventKind.CONFERENCE
+    hackathon = guess_kind("DevFest 2026: GameJam - Hackathon", [], EventKind.MEETUP)
+    assert hackathon == EventKind.HACKATHON
+    assert guess_kind("GameJam Europe 2026", [], EventKind.MEETUP) == EventKind.CONTEST
+    assert guess_kind("Rust Belgrade: Workshops", [], EventKind.MEETUP) == EventKind.WORKSHOP

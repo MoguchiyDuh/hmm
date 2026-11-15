@@ -78,7 +78,9 @@ Package `hmm.parser`. Sources are configured in `src/hmm/parser/sources.toml` (o
 
 **Relevance.** An item is kept when `ends_at ≥ now - lookback_days`, and either its country is in `countries` (Europe when empty) or it is online/hybrid and `include_online` is set.
 
-**Dedupe.** Items from different instances with the same normalized title (§11.2), the same country and starts within 1 day are merged: the item from the instance with the higher `priority` (then higher `confidence`) leads, missing fields are filled from the follower, and the follower is dropped. No `match_hint` is sent.
+**Dedupe.** Items from different instances with the same normalized title (§11.2), the same country and starts within 1 day are merged. Besides the full title, each part of a title split on `|`, ` - `/` – `/` — ` and `: ` with at least two words is a match key, so "Garaža | Frontier Hackathon" matches "Frontier Hackathon". On a merge the item from the instance with the higher `priority` (then higher `confidence`) leads, missing fields are filled from the follower, and the follower is dropped. No `match_hint` is sent.
+
+**Kind.** Adapters with `guess_kind` (and `luma`) take the kind from a keyword map over title and tags, first match in map order (hackathon, contest terms such as game jam and CTF, workshop, course, conference, meetup). A trailing title segment that is only a kind word wins over the map: "DevFest 2026: GameJam - Conference" is a conference.
 
 **Areas.** Known area keys only (`list_areas`; the dry run uses the seed keys), from a keyword map over tags and titles. First match is `primary`, the rest `nice`.
 

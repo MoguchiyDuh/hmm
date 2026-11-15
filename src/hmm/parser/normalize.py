@@ -528,6 +528,10 @@ def map_areas(
 
 
 def guess_kind(title: str, terms: Iterable[str], default: EventKind) -> EventKind:
+    tail = re.split(r"\s[-\u2013\u2014|]\s|:\s", title)[-1].strip().casefold()
+    for term, kind in KIND_TERMS:
+        if tail == term or tail == f"{term}s":
+            return kind
     text = " ".join([title, *terms]).casefold()
     for term, kind in KIND_TERMS:
         if re.search(rf"(?<![a-zа-я]){re.escape(term)}", text):
