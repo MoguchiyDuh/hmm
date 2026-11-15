@@ -1,5 +1,4 @@
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import cast
@@ -64,12 +63,6 @@ async def load_area(session: AsyncSession, key: str) -> models.Area:
     if area.archived_at is not None:
         raise ProblemError(ErrorCode.INVALID_STATE, "Area is archived")
     return area
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class AreaScoreView:
-    area: models.Area
-    score: models.AreaScore
 
 
 def member_area_score(
@@ -227,9 +220,9 @@ async def set_score_override(
     value: float,
     reason: str,
     evidence: OverrideEvidence,
-    actor: UUID,
+    actor: models.User,
     now: datetime,
-) -> AreaScoreView:
+) -> schemas.MemberAreaScore:
     target = await lock_user(session, user_id)
     if target.onboarding_status not in ONBOARDED:
         raise ProblemError(ErrorCode.NOT_FOUND)
@@ -249,10 +242,10 @@ async def set_score_override(
         and row.override_reason == reason
         and row.override_evidence == evidence.value
     ):
-        return AreaScoreView(area=area, score=row)
+        return member_area_score(area, row, actor=actor)
     previous_override = float(before) if row.override is not None else None
     row.override = after
-    row.override_by = actor
+    row.override_by = actor.id
     row.override_reason = reason
     row.override_evidence = evidence.value
     row.override_at = now
@@ -266,7 +259,7 @@ async def set_score_override(
                 new_effective=after,
                 reason=reason,
                 algo_version=None,
-                actor_id=actor,
+                actor_id=actor.id,
             )
         )
         settings = await load_settings(session)
@@ -290,7 +283,7 @@ async def set_score_override(
             )
     await record_audit(
         session,
-        actor=actor,
+        actor=actor.id,
         actor_kind=ActorKind.ADMIN,
         action=AuditAction.SCORE_OVERRIDE_SET,
         entity_type=AuditEntityType.AREA_SCORE,
@@ -308,7 +301,7 @@ async def set_score_override(
         reason=reason,
     )
     await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(user_id))
-    return AreaScoreView(area=area, score=row)
+    return member_area_score(area, row, actor=actor)
 
 
 async def remove_score_override(
@@ -317,9 +310,9 @@ async def remove_score_override(
     user_id: UUID,
     area_key: str,
     reason: str | None,
-    actor: UUID,
+    actor: models.User,
     now: datetime,
-) -> AreaScoreView:
+) -> schemas.MemberAreaScore:
     target = await lock_user(session, user_id)
     if target.onboarding_status not in ONBOARDED:
         raise ProblemError(ErrorCode.NOT_FOUND)
@@ -332,7 +325,7 @@ async def remove_score_override(
     if row is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
     if row.override is None:
-        return AreaScoreView(area=area, score=row)
+        return member_area_score(area, row, actor=actor)
     before = row.override
     after = row.calculated
     event_reason = reason or row.override_reason or "Override removed"
@@ -350,7 +343,7 @@ async def remove_score_override(
             new_effective=after,
             reason=event_reason,
             algo_version=None,
-            actor_id=actor,
+            actor_id=actor.id,
         )
     )
     settings = await load_settings(session)
@@ -374,7 +367,7 @@ async def remove_score_override(
         )
     await record_audit(
         session,
-        actor=actor,
+        actor=actor.id,
         actor_kind=ActorKind.ADMIN,
         action=AuditAction.SCORE_OVERRIDE_REMOVE,
         entity_type=AuditEntityType.AREA_SCORE,
@@ -388,7 +381,7 @@ async def remove_score_override(
         reason=reason,
     )
     await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(user_id))
-    return AreaScoreView(area=area, score=row)
+    return member_area_score(area, row, actor=actor)
 
 
 ACTIVITY_WINDOW_DAYS = 365

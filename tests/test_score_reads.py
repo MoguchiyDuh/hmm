@@ -81,7 +81,7 @@ async def test_override_score_visibility(harness: Harness, who: str) -> None:
             9.0,
             "interview result",
             OverrideEvidence.INTERVIEW,
-            admin.id,
+            admin,
             h.now,
         )
     actor = {"owner": member, "admin": admin, "other": other}[who]

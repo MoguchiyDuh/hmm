@@ -144,7 +144,7 @@ async def set_score_override(
     clock: CurrentClock,
     jobs: Jobs,
 ) -> MemberAreaScore:
-    view = await service.set_score_override(
+    return await service.set_score_override(
         session,
         jobs,
         id,
@@ -152,10 +152,9 @@ async def set_score_override(
         body.value,
         body.reason,
         body.evidence,
-        actor.id,
+        actor,
         clock.now(),
     )
-    return service.member_area_score(view.area, view.score, actor=actor)
 
 
 @router.delete(
@@ -172,16 +171,15 @@ async def remove_score_override(
     jobs: Jobs,
     body: ReasonBody | None = None,
 ) -> MemberAreaScore:
-    view = await service.remove_score_override(
+    return await service.remove_score_override(
         session,
         jobs,
         id,
         area_key,
         body.reason if body is not None else None,
-        actor.id,
+        actor,
         clock.now(),
     )
-    return service.member_area_score(view.area, view.score, actor=actor)
 
 
 @router.post(
