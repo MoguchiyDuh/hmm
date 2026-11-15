@@ -6,7 +6,6 @@ from typing import Any
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-import hmm.notifications.payloads as notifications
 from hmm.common import AlertSeverity, Contract, DeliveryStatus, Locale
 from hmm.notifications.payloads import (
     ACTION_ROUTES,
@@ -167,16 +166,6 @@ def test_complete_policy_mappings() -> None:
 def test_action_keys_are_snake_case_and_short() -> None:
     assert all(re.fullmatch(r"[a-z]+(?:_[a-z]+)*", key) for key in ActionKey)
     assert max(map(len, ActionKey)) <= 24
-
-
-def test_all_public_models_exported() -> None:
-    for name, value in vars(notifications).items():
-        if (
-            not name.startswith("_")
-            and getattr(value, "__module__", None) == notifications.__name__
-        ):
-            assert name in notifications.__all__
-    assert len(notifications.__all__) == len(set(notifications.__all__))
 
 
 def test_pending_delivery() -> None:

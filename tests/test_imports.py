@@ -343,10 +343,8 @@ def test_heartbeat_rejects_negative_counts(heartbeat_payload: dict[str, Any], fi
 
 
 def test_public_models_inherit_contract() -> None:
-    assert len(imports.__all__) == len(set(imports.__all__))
-    for name in imports.__all__:
-        value = getattr(imports, name)
-        if isinstance(value, type):
+    for value in vars(imports).values():
+        if isinstance(value, type) and value.__module__ == imports.__name__:
             assert issubclass(value, Contract)
             assert value.model_config["frozen"]
             assert value.model_config["extra"] == "forbid"

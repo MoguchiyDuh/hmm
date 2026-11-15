@@ -14,8 +14,6 @@ from hmm.common import (
     UserId,
 )
 
-__all__ = ["FakeAlgorithm"]
-
 
 def _score(member: a.MemberSnapshot, area: AreaKey) -> float:
     score = member.area_scores.get(area)

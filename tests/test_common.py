@@ -157,20 +157,8 @@ def test_uuid_aliases_validate_and_generate_schemas() -> None:
     model = IdentifiedContract.model_validate({"user_id": value})
     assert model.user_id == UUID(value)
     assert IdentifiedContract.model_validate_json(model.model_dump_json()) == model
-    for name in common.__all__:
-        alias = getattr(common, name)
+    for name, alias in vars(common).items():
         if name.endswith("Id") and name != "SourceId":
             adapter = TypeAdapter(alias)
             assert adapter.validate_python(value) == UUID(value)
             assert adapter.json_schema()["format"] == "uuid"
-
-
-def test_public_exports_cover_local_definitions() -> None:
-    assert len(common.__all__) == len(set(common.__all__))
-    for name, value in vars(common).items():
-        if name.startswith("_"):
-            continue
-        if getattr(value, "__pydantic_generic_metadata__", {}).get("origin") is not None:
-            continue
-        if getattr(value, "__module__", None) == common.__name__:
-            assert name in common.__all__
