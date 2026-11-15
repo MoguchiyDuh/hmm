@@ -9,10 +9,10 @@ from hmm.notifications.payloads import (
     AttendanceConfirmationCandidate,
     AttendanceConfirmDigestPayload,
     ContributionsConfirmDigestPayload,
-    NotificationPerson,
     NotificationType,
 )
 from hmm.notifications.service import notify
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 
 
@@ -140,7 +140,7 @@ async def send_contributions_digest(session: AsyncSession, release_id: UUID, now
         project_name=project.name,
         release_id=release.id,
         release_title=release.title,
-        lead=NotificationPerson(user_id=lead.id, display_name=lead.display_name),
+        lead=notification_person(lead),
         project_member_id=lead_member.id,
     )
     created = 0

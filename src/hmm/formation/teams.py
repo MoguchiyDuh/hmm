@@ -16,7 +16,6 @@ from hmm.formation.common import (
     locked_team,
     members,
     membership_row,
-    notification_person,
     pick_lead,
     queue_units,
     reg_deadline,
@@ -32,6 +31,7 @@ from hmm.notifications.payloads import (
 )
 from hmm.notifications.service import notify, notify_many, resolve_alerts
 from hmm.platform.errors import ProblemError
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 
 

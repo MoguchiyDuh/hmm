@@ -21,7 +21,7 @@ from hmm.common import (
 )
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
-from hmm.platform.schemas import ProjectRef, UserRef
+from hmm.platform.schemas import ProjectRef, user_ref
 from hmm.platform.settings import RuntimeSettings, load_settings
 from hmm.projects import schemas
 
@@ -67,10 +67,6 @@ class MemberRow:
     member: models.ProjectMember
     user: models.User
     area_key: str | None
-
-
-def user_ref(user: models.User) -> UserRef:
-    return UserRef(id=user.id, display_name=user.display_name, avatar_url=user.avatar_url)
 
 
 def project_ref(project: models.Project) -> ProjectRef:

@@ -29,15 +29,11 @@ from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.pagination import CursorParams, keyset_rows
-from hmm.platform.schemas import UserRef
+from hmm.platform.schemas import user_ref
 from hmm.results import schemas
 from hmm.results.schemas import Review, ReviewAction, ReviewRatingSummary
 from hmm.results.windows import subject_details, window_participants
 from hmm.scores.reputation import reputation_summary
-
-
-def user_ref(user: models.User) -> UserRef:
-    return UserRef(id=user.id, display_name=user.display_name, avatar_url=user.avatar_url)
 
 
 def build_review(

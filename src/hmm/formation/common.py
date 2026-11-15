@@ -15,7 +15,6 @@ from hmm.common import (
     TeamStatus,
 )
 from hmm.formation import schemas
-from hmm.notifications.payloads import NotificationPerson
 from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
@@ -374,10 +373,6 @@ async def team_view(session: AsyncSession, project: models.Project) -> schemas.T
         closed=project.seats_closed_at is not None,
         members=[schemas.Member.model_validate(row, from_attributes=True) for row in rows],
     )
-
-
-def notification_person(user: models.User) -> NotificationPerson:
-    return NotificationPerson(user_id=user.id, display_name=user.display_name)
 
 
 async def audit(

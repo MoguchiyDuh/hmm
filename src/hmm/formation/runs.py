@@ -26,7 +26,6 @@ from hmm.formation.common import (
     formation_time,
     locked_formation_event,
     members,
-    notification_person,
     participation_event,
     pick_lead,
     queue_units,
@@ -46,7 +45,7 @@ from hmm.platform.algo import call_algo
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, Runtime, defer_job
-from hmm.platform.schemas import ReasonBody
+from hmm.platform.schemas import ReasonBody, notification_person
 from hmm.platform.settings import load_settings
 
 

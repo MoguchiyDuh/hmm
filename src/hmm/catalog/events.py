@@ -38,7 +38,7 @@ from hmm.formation import queue as formation_queue
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.pagination import CursorParams, keyset_rows
-from hmm.platform.schemas import EventAction, UserRef
+from hmm.platform.schemas import EventAction, user_ref
 from hmm.platform.settings import RuntimeSettings, load_settings
 from hmm.projects import views as projects_views
 from hmm.projects.schemas import ProjectView
@@ -595,7 +595,7 @@ async def event_detail(
         )
     ]
     members_going = [
-        UserRef(id=user.id, display_name=user.display_name, avatar_url=user.avatar_url)
+        user_ref(user)
         for user in await session.scalars(
             select(models.User)
             .join(models.EventAttendance, models.EventAttendance.user_id == models.User.id)

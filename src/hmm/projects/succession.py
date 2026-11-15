@@ -13,9 +13,10 @@ from hmm.common import (
     MemberState,
     ProjectStatus,
 )
-from hmm.notifications.payloads import LeadAssignedPayload, NotificationPerson
+from hmm.notifications.payloads import LeadAssignedPayload
 from hmm.notifications.service import notify
 from hmm.platform.audit import record_audit
+from hmm.platform.schemas import notification_person
 
 
 async def assign_project_lead(
@@ -48,7 +49,7 @@ async def assign_project_lead(
                 project_id=project.id,
                 project_name=project.name,
                 team_name=project.name,
-                lead=NotificationPerson(user_id=user.id, display_name=user.display_name),
+                lead=notification_person(user),
                 reason="Project lead assigned",
             ),
             now,

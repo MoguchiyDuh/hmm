@@ -19,7 +19,7 @@ from hmm.common import (
 from hmm.feed import confirmations
 from hmm.platform.db import get_or_404
 from hmm.platform.jobs import JobName, defer_job
-from hmm.platform.schemas import EventRef, UserRef
+from hmm.platform.schemas import EventRef, user_ref
 from hmm.platform.settings import load_settings
 
 
@@ -48,7 +48,7 @@ def attendance_view(
             ends_at=event.ends_at,
             timezone=event.timezone,
         ),
-        user=UserRef(id=owner.id, display_name=owner.display_name, avatar_url=owner.avatar_url),
+        user=user_ref(owner),
         status=AttendanceStatus(attendance.status),
         role=AttendanceRole(attendance.role),
         proof_links=TypeAdapter(list[HttpUrl]).validate_python(attendance.proof_links),

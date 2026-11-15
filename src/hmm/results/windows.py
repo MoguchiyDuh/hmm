@@ -21,7 +21,6 @@ from hmm.common import (
 )
 from hmm.notifications.payloads import (
     LinkAction,
-    NotificationPerson,
     ReviewReceivedPayload,
     ReviewsOpenPayload,
     ReviewsPendingPayload,
@@ -30,6 +29,7 @@ from hmm.notifications.service import notify
 from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 
 REVIEW_ACTION_LABEL = "notifications.actions.review"
@@ -168,7 +168,7 @@ async def open_review_window(
     )
     users = await session.scalars(select(models.User).where(models.User.id.in_(list(participants))))
     people = tuple(
-        NotificationPerson(user_id=user.id, display_name=user.display_name)
+        notification_person(user)
         for user in sorted(users, key=lambda user: (user.display_name, str(user.id)))
     )
     for user_id in participants:
@@ -219,7 +219,7 @@ async def send_review_reminders(session: AsyncSession, now: datetime) -> int:
             select(models.User).where(models.User.id.in_(list(participants)))
         )
         people = tuple(
-            NotificationPerson(user_id=user.id, display_name=user.display_name)
+            notification_person(user)
             for user in sorted(users, key=lambda user: (user.display_name, str(user.id)))
         )
         title, link = await subject_details(

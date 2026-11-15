@@ -6,10 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.common import ActorKind, AuditAction, AuditEntityType, LeftReason
-from hmm.notifications.payloads import NotificationPerson, ProjectMemberLeftPayload
+from hmm.notifications.payloads import ProjectMemberLeftPayload
 from hmm.notifications.service import notify_many
 from hmm.platform.audit import record_audit
 from hmm.platform.db import locked
+from hmm.platform.schemas import notification_person
 from hmm.projects.common import project_member_ids
 
 
@@ -87,7 +88,7 @@ async def remove_user_from_standalone_projects(
                     link=f"/projects/{project.id}",
                     project_id=project.id,
                     project_name=project.name,
-                    member=NotificationPerson(user_id=user.id, display_name=user.display_name),
+                    member=notification_person(user),
                     member_count=len(remaining),
                 ),
                 now,

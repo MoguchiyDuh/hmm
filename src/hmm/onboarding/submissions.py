@@ -21,7 +21,7 @@ from hmm.common import (
     SubmissionStatus,
 )
 from hmm.identity.service import lock_user
-from hmm.notifications.payloads import NotificationPerson, OnboardingReopenedPayload
+from hmm.notifications.payloads import OnboardingReopenedPayload
 from hmm.notifications.service import notify
 from hmm.onboarding import schemas
 from hmm.onboarding.answers import known_answers, submission_answers, validate_values
@@ -31,6 +31,7 @@ from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
+from hmm.platform.schemas import notification_person
 
 EDITABLE = frozenset(
     {OnboardingStatus.NOT_STARTED, OnboardingStatus.IN_PROGRESS, OnboardingStatus.REOPENED}
@@ -330,7 +331,7 @@ async def reopen_onboarding(
         user_id,
         OnboardingReopenedPayload(
             link="/onboarding",
-            actor=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+            actor=notification_person(actor),
             reason=reason,
         ),
         now,

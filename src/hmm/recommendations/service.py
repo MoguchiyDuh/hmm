@@ -40,7 +40,7 @@ from hmm.identity.service import ONBOARDED, dnd_active
 from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
-from hmm.platform.schemas import UserRef
+from hmm.platform.schemas import user_ref
 from hmm.recommendations import schemas
 from hmm.scores.snapshot import build_member_snapshots
 
@@ -424,11 +424,7 @@ async def project_recommendations(
         return [
             schemas.Recommendation(
                 **rec.model_dump(),
-                profile=UserRef(
-                    id=users[rec.user_id].id,
-                    display_name=users[rec.user_id].display_name,
-                    avatar_url=users[rec.user_id].avatar_url,
-                ),
+                profile=user_ref(users[rec.user_id]),
             )
             for rec in recs
             if rec.user_id in users
@@ -711,9 +707,7 @@ async def list_suggested_mentors(
         schemas.Recommendation.model_validate(
             {
                 **rec.model_dump(),
-                "profile": UserRef(
-                    id=user.id, display_name=user.display_name, avatar_url=user.avatar_url
-                ),
+                "profile": user_ref(user),
             }
         )
         for rec in recs

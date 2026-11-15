@@ -17,11 +17,11 @@ from hmm.common import (
     RestrictionKind,
 )
 from hmm.identity.service import ONBOARDED
-from hmm.mentorship import views
 from hmm.notifications.payloads import AlertKind, HelpRequestMatchPayload, LinkAction
 from hmm.notifications.service import notify, raise_alert
 from hmm.platform.algo import call_algo
 from hmm.platform.jobs import JobName, Runtime, job
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 from hmm.recommendations import service as recommendations
 from hmm.scores.snapshot import build_member_snapshots
@@ -202,7 +202,7 @@ async def match_mentors(runtime: Runtime, request_id: str) -> None:
                 rec.user_id,
                 HelpRequestMatchPayload(
                     help_request_id=request.id,
-                    learner=views.notification_person(learner),
+                    learner=notification_person(learner),
                     area_key=area.key,
                     area_name=area.name,
                     topic=request.topic,

@@ -15,11 +15,12 @@ from hmm.common import (
     ProjectStatus,
     ReviewWindowSubjectType,
 )
-from hmm.notifications.payloads import NotificationPerson, ProjectReleasedPayload
+from hmm.notifications.payloads import ProjectReleasedPayload
 from hmm.notifications.service import notify_many
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
+from hmm.platform.schemas import notification_person
 from hmm.projects import schemas
 from hmm.projects.common import visible_project
 from hmm.projects.lifecycle import (
@@ -191,7 +192,7 @@ async def create_release(
             project_name=project.name,
             release_id=release.id,
             release_title=release.title,
-            actor=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+            actor=notification_person(actor),
             notes_md=release.notes_md,
             repo_url=release.repo_url,
             demo_url=release.demo_url,

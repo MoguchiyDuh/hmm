@@ -13,6 +13,8 @@ from hmm.common import (
     TimeZoneName,
     UserId,
 )
+from hmm.identity.models import User
+from hmm.notifications.payloads import NotificationPerson
 
 type ScoreValue = Annotated[float, Field(ge=0, le=10, allow_inf_nan=False)]
 type Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
@@ -80,3 +82,11 @@ class ProjectRef(ApiModel):
 
 class ReasonBody(ApiModel):
     reason: Note | None = None
+
+
+def user_ref(user: User) -> UserRef:
+    return UserRef(id=user.id, display_name=user.display_name, avatar_url=user.avatar_url)
+
+
+def notification_person(user: User) -> NotificationPerson:
+    return NotificationPerson(user_id=user.id, display_name=user.display_name)

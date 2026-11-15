@@ -12,12 +12,12 @@ from hmm.notifications.payloads import (
     ApiAction,
     JoinRequestAcceptedPayload,
     JoinRequestRejectedPayload,
-    NotificationPerson,
     ProjectJoinRequestReceivedPayload,
 )
 from hmm.notifications.service import notify
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
+from hmm.platform.schemas import notification_person
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
 from hmm.projects.invites import add_member, eligible_invitee
@@ -75,7 +75,7 @@ async def create_join_request(
             project_id=project.id,
             project_name=project.name,
             join_request_id=row.id,
-            requester=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+            requester=notification_person(actor),
             note=body.note,
             actions=(
                 ApiAction(key=ActionKey.JOIN_REQUEST_ACCEPT, entity_id=row.id, label_key="accept"),
@@ -146,8 +146,8 @@ async def respond_join_request(
                 project_id=project.id,
                 project_name=project.name,
                 join_request_id=row.id,
-                requester=NotificationPerson(user_id=user.id, display_name=user.display_name),
-                lead=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+                requester=notification_person(user),
+                lead=notification_person(actor),
             ),
             now,
             dedupe_key=f"join_request_{action}:{row.id}",

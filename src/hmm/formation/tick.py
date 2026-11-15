@@ -10,7 +10,6 @@ from hmm.formation.common import (
     formation_sizes,
     locked_formation_event,
     members,
-    notification_person,
     queue_units,
     reg_deadline,
 )
@@ -25,6 +24,7 @@ from hmm.notifications.payloads import (
 )
 from hmm.notifications.service import notify, notify_many, raise_alert, resolve_alerts
 from hmm.platform.jobs import JobName, Runtime, defer_job
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 
 

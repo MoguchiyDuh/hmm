@@ -25,6 +25,7 @@ from hmm.platform.db import locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.pagination import CursorParams, keyset_rows
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 
 LIVE_STATUSES = (HelpRequestStatus.OPEN.value, HelpRequestStatus.DIRECT.value)
@@ -102,7 +103,7 @@ async def create_help_request(
             target.id,
             HelpRequestDirectPayload(
                 help_request_id=request.id,
-                learner=views.notification_person(learner),
+                learner=notification_person(learner),
                 area_key=area.key,
                 area_name=area.name,
                 topic=request.topic,
@@ -215,7 +216,7 @@ async def close_pending_offers(
     }
     area = await session.get(models.Area, request.area_id)
     assert area is not None
-    learner = views.notification_person(users[request.learner_id])
+    learner = notification_person(users[request.learner_id])
     for offer in offers:
         offer.status = HelpOfferStatus.CLOSED.value
         await notify(
@@ -225,7 +226,7 @@ async def close_pending_offers(
                 help_request_id=request.id,
                 help_offer_id=offer.id,
                 learner=learner,
-                mentor=views.notification_person(users[offer.mentor_id]),
+                mentor=notification_person(users[offer.mentor_id]),
                 message=offer.message,
                 area_key=area.key,
                 area_name=area.name,
@@ -255,7 +256,7 @@ async def expire_request(session: AsyncSession, request: models.HelpRequest, now
         request.learner_id,
         HelpRequestExpiredPayload(
             help_request_id=request.id,
-            learner=views.notification_person(learner),
+            learner=notification_person(learner),
             area_key=area.key,
             area_name=area.name,
             topic=request.topic,
@@ -354,7 +355,7 @@ async def decline_help_request(
         request.learner_id,
         HelpRequestDeclinedPayload(
             help_request_id=request.id,
-            learner=views.notification_person(learner),
+            learner=notification_person(learner),
             area_key=area.key,
             area_name=area.name,
             topic=request.topic,

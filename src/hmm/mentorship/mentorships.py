@@ -30,6 +30,7 @@ from hmm.notifications.service import notify
 from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
+from hmm.platform.schemas import notification_person
 from hmm.results.windows import mentorship_review_participants, open_review_window
 
 CLOSE_PROPOSAL_WINDOW = timedelta(days=7)
@@ -208,8 +209,8 @@ async def finalize_close(
                 actions=actions,
                 mentorship_id=mentorship.id,
                 help_request_id=request.id,
-                mentor=views.notification_person(mentor),
-                learner=views.notification_person(learner),
+                mentor=notification_person(mentor),
+                learner=notification_person(learner),
                 area_key=area.key,
                 area_name=area.name,
                 topic=request.topic,
@@ -289,8 +290,8 @@ async def propose_close(
             ),
             mentorship_id=mentorship.id,
             help_request_id=request.id,
-            mentor=views.notification_person(mentor),
-            learner=views.notification_person(learner),
+            mentor=notification_person(mentor),
+            learner=notification_person(learner),
             area_key=area.key,
             area_name=area.name,
             topic=request.topic,

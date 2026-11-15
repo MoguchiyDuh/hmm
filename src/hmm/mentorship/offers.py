@@ -34,6 +34,7 @@ from hmm.notifications.payloads import (
 from hmm.notifications.service import notify
 from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 from hmm.scores.reputation import reputation_summaries
 from hmm.scores.restrictions import require_unrestricted
@@ -104,8 +105,8 @@ async def create_help_offer(
         HelpOfferReceivedPayload(
             help_request_id=request.id,
             help_offer_id=offer.id,
-            learner=views.notification_person(learner),
-            mentor=views.notification_person(actor),
+            learner=notification_person(learner),
+            mentor=notification_person(actor),
             message=offer.message,
             area_key=area.key,
             area_name=area.name,
@@ -209,8 +210,8 @@ async def accept_help_offer(
             help_request_id=request.id,
             help_offer_id=offer.id,
             mentorship_id=mentorship.id,
-            learner=views.notification_person(learner),
-            mentor=views.notification_person(mentor),
+            learner=notification_person(learner),
+            mentor=notification_person(mentor),
             message=offer.message,
             area_key=area.key,
             area_name=area.name,

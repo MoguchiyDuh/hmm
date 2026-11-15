@@ -18,6 +18,7 @@ from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
 from hmm.platform.pagination import CursorParams
+from hmm.platform.schemas import user_ref
 from hmm.platform.security import AdminAuth, MemberAuth
 from hmm.results import reviews, submissions, verification
 from hmm.results.schemas import (
@@ -140,7 +141,7 @@ async def list_pending_reviews(
             subject_title=row.subject_title,
             opens_at=row.window.opens_at,
             closes_at=row.window.closes_at,
-            to_review=[reviews.user_ref(user) for user in row.to_review],
+            to_review=[user_ref(user) for user in row.to_review],
             submitted=[
                 reviews.build_review(review, actor, [ReviewAction.EDIT]) for review in row.submitted
             ],

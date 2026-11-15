@@ -13,7 +13,6 @@ from hmm.formation.common import (
     live_enrollment_row,
     locked_team,
     members,
-    notification_person,
     participation_event,
     queue_open,
     reg_deadline,
@@ -37,6 +36,7 @@ from hmm.notifications.payloads import (
 from hmm.notifications.service import notify, notify_many, resolve_alerts
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 
 

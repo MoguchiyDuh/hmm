@@ -17,22 +17,13 @@ from hmm.common import (
     Trust,
 )
 from hmm.mentorship import schemas
-from hmm.notifications.payloads import NotificationPerson
-from hmm.platform.schemas import UserRef
+from hmm.platform.schemas import user_ref
 from hmm.platform.settings import RuntimeSettings, load_settings
 from hmm.scores.reputation import empty_reputation, reputation_summaries
 
 DIRECT_OPEN_AFTER = timedelta(days=3)
 
 LIVE_REQUEST = frozenset({HelpRequestStatus.OPEN, HelpRequestStatus.DIRECT})
-
-
-def user_ref(user: models.User) -> UserRef:
-    return UserRef(id=user.id, display_name=user.display_name, avatar_url=user.avatar_url)
-
-
-def notification_person(user: models.User) -> NotificationPerson:
-    return NotificationPerson(user_id=user.id, display_name=user.display_name)
 
 
 def effective_score(row: models.AreaScore | None) -> float:

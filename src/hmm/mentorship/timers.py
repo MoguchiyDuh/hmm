@@ -13,13 +13,13 @@ from hmm.common import (
     MentorshipKind,
     MentorshipStatus,
 )
-from hmm.mentorship import views
 from hmm.mentorship.mentorships import CLOSE_PROPOSAL_WINDOW, finalize_close
 from hmm.notifications.payloads import LinkAction, MentorshipIdlePayload, MentorshipStalledPayload
 from hmm.notifications.service import notify
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 
 IDLE_WARNING = timedelta(days=4)
@@ -74,8 +74,8 @@ async def send_idle_warnings(
             actions=_check_in_action(mentorship),
             mentorship_id=mentorship.id,
             help_request_id=request.id,
-            mentor=views.notification_person(mentor),
-            learner=views.notification_person(learner),
+            mentor=notification_person(mentor),
+            learner=notification_person(learner),
             area_key=area.key,
             area_name=area.name,
             topic=request.topic,
@@ -128,8 +128,8 @@ async def stall_mentorships(
             actions=_check_in_action(mentorship),
             mentorship_id=mentorship.id,
             help_request_id=request.id,
-            mentor=views.notification_person(mentor),
-            learner=views.notification_person(learner),
+            mentor=notification_person(mentor),
+            learner=notification_person(learner),
             area_key=area.key,
             area_name=area.name,
             topic=request.topic,

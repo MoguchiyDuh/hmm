@@ -14,7 +14,7 @@ from hmm.common import (
     ErrorCode,
     MemberReviewStatus,
 )
-from hmm.notifications.payloads import NotificationPerson, ScoreChange, ScoresReviewedPayload
+from hmm.notifications.payloads import ScoreChange, ScoresReviewedPayload
 from hmm.notifications.service import notify
 from hmm.onboarding import schemas
 from hmm.onboarding.schemas import MemberReviewAction
@@ -23,7 +23,7 @@ from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.pagination import CursorParams, keyset_page
-from hmm.platform.schemas import UserRef
+from hmm.platform.schemas import notification_person, user_ref
 from hmm.platform.storage import ObjectStore
 from hmm.profiles import service as profiles
 from hmm.profiles.github import github_summary
@@ -54,7 +54,7 @@ async def member_review_view(
 ) -> schemas.MemberReview:
     user = await get_or_404(session, models.User, review.user_id)
     return schemas.MemberReview(
-        user=UserRef(id=user.id, display_name=user.display_name, avatar_url=user.avatar_url),
+        user=user_ref(user),
         status=MemberReviewStatus(review.status),
         opened_at=review.opened_at,
         reviewed_by=review.reviewed_by,
@@ -208,7 +208,7 @@ async def complete_member_review(
         user_id,
         ScoresReviewedPayload(
             link=f"/users/{user_id}",
-            reviewer=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+            reviewer=notification_person(actor),
             changes=changes,
         ),
         now,

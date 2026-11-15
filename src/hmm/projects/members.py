@@ -17,7 +17,6 @@ from hmm.common import (
 )
 from hmm.formation.schemas import DeclinePlacementBody
 from hmm.notifications.payloads import (
-    NotificationPerson,
     ProjectMemberLeftPayload,
     ProjectMemberRemovedPayload,
 )
@@ -25,7 +24,7 @@ from hmm.notifications.service import notify, notify_many
 from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
-from hmm.platform.schemas import ReasonBody
+from hmm.platform.schemas import ReasonBody, notification_person
 from hmm.platform.settings import load_settings
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
@@ -85,8 +84,8 @@ async def remove_project_member(
                 link=f"/projects/{project.id}",
                 project_id=project.id,
                 project_name=project.name,
-                member=NotificationPerson(user_id=removed.id, display_name=removed.display_name),
-                actor=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+                member=notification_person(removed),
+                actor=notification_person(actor),
                 reason=body.reason if body is not None else None,
             ),
             now,
@@ -160,7 +159,7 @@ async def leave_project(
             link=f"/projects/{project.id}",
             project_id=project.id,
             project_name=project.name,
-            member=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+            member=notification_person(actor),
             member_count=len(remaining),
         ),
         now,

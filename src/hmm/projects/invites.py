@@ -17,6 +17,7 @@ from hmm.notifications.payloads import (
 from hmm.notifications.service import notify, notify_many
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
+from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
@@ -67,7 +68,7 @@ async def add_member(
                 link=f"/projects/{project.id}",
                 project_id=project.id,
                 project_name=project.name,
-                member=NotificationPerson(user_id=user.id, display_name=user.display_name),
+                member=notification_person(user),
                 member_count=len(ids) + 1,
             ),
             now,
@@ -146,7 +147,7 @@ async def create_invite(
             project_id=project.id,
             project_name=project.name,
             invite_id=row.id,
-            actor=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+            actor=notification_person(actor),
             message=body.message,
             area_key=body.area_key,
             expires_at=row.expires_at,
@@ -202,7 +203,7 @@ async def respond_invite(
                     if inviter is not None
                     else actor.display_name,
                 ),
-                invitee=NotificationPerson(user_id=actor.id, display_name=actor.display_name),
+                invitee=notification_person(actor),
                 expires_at=row.expires_at,
             ),
             now,
