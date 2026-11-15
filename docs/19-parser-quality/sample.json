@@ -1,0 +1,2599 @@
+{
+ "run_id": "parser-20261115T223000-c89be11e",
+ "labeled_at": "2026-11-15",
+ "labeled_by": "AI agents (4 labelers + 1 reviewer), not human-verified",
+ "sample": "60 imported items, stratified by source, random order from setseed(0.42); plus the 3 items the LLM step rejected (n 61-63)",
+ "entries": [
+  {
+   "n": 1,
+   "parser": {
+    "source_id": "bbicc:bbicc-2027",
+    "parser_accepted": true,
+    "title": "BBICC 2027: Belgrade Business International Case Competition",
+    "kind": "contest",
+    "format": "offline",
+    "starts_at": "2027-03-07T00:00:00+01:00",
+    "ends_at": "2027-03-13T23:59:59+01:00",
+    "timezone": "Europe/Belgrade",
+    "location": {
+     "city": "Belgrade",
+     "address": null,
+     "country": "RS"
+    },
+    "team_size_min": 4,
+    "team_size_max": 4,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://bbicc.fon.bg.ac.rs/bbicc-2027/"
+    ],
+    "summary": "The 12th Belgrade Business International Case Competition takes place 7–13 March 2027 in Belgrade, with three real-world cases for undergraduate teams."
+   },
+   "label": {
+    "checked_url": "https://bbicc.fon.bg.ac.rs/bbicc-2027/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": false,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "ok",
+    "page_dates": "7-13 March 2027, Belgrade",
+    "page_team_size": "four undergraduate students per team (FAQ)",
+    "notes": "Business case competition for undergraduate business students; no tech build/learn focus"
+   },
+   "override": {
+    "relevant": true,
+    "reason": "Case competitions are in scope (§19.1); the labeling rule asked for a tech focus."
+   }
+  },
+  {
+   "n": 2,
+   "parser": {
+    "source_id": "confs-tech:vibekode-munich@2027-06-21",
+    "parser_accepted": true,
+    "title": "VibeKode Munich",
+    "kind": "conference",
+    "format": "hybrid",
+    "starts_at": "2027-06-21T00:00:00+02:00",
+    "ends_at": "2027-06-25T23:59:59+02:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": "Munich",
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://vibekode.it/munich",
+     "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/general.json"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://vibekode.it/munich",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "June 21 - 25, 2027 | Munich or online (Expo June 22-23)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 3,
+   "parser": {
+    "source_id": "confs-tech:techex-global@2027-02-03",
+    "parser_accepted": true,
+    "title": "TechEx Global",
+    "kind": "conference",
+    "format": "offline",
+    "starts_at": "2027-02-03T00:00:00Z",
+    "ends_at": "2027-02-04T23:59:59Z",
+    "timezone": "Europe/London",
+    "location": {
+     "city": "London",
+     "address": null,
+     "country": "GB"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://techexevent.com/global",
+     "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/data.json"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://techexevent.com/global",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "3-4 February, 2027 | Olympia, London",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 4,
+   "parser": {
+    "source_id": "confs-tech:gophercon-europe@2027-06-14",
+    "parser_accepted": true,
+    "title": "GopherCon Europe",
+    "kind": "conference",
+    "format": "offline",
+    "starts_at": "2027-06-14T00:00:00+02:00",
+    "ends_at": "2027-06-17T23:59:59+02:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": "Berlin",
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://www.gophercon.eu/",
+     "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/data.json"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://www.gophercon.eu/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "14-17 June 2027, Berlin (Mon 14 workshops/hacking, Tue 15 - Thu 17 talks)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 5,
+   "parser": {
+    "source_id": "confs-tech:lambda-world@2026-10-29",
+    "parser_accepted": true,
+    "title": "Lambda World",
+    "kind": "conference",
+    "format": "offline",
+    "starts_at": "2026-10-29T00:00:00+01:00",
+    "ends_at": "2026-10-30T23:59:59+01:00",
+    "timezone": "Europe/Madrid",
+    "location": {
+     "city": "Malaga",
+     "address": null,
+     "country": "ES"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://www.lambda.world/",
+     "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2026/general.json"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://www.lambda.world/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "29-30 October 2026, Torremolinos, Malaga",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 6,
+   "parser": {
+    "source_id": "confs-tech:eurostar-conference@2027-05-11",
+    "parser_accepted": true,
+    "title": "EuroSTAR Conference",
+    "kind": "conference",
+    "format": "offline",
+    "starts_at": "2027-05-11T00:00:00+02:00",
+    "ends_at": "2027-05-14T23:59:59+02:00",
+    "timezone": "Europe/Copenhagen",
+    "location": {
+     "city": "Copenhagen",
+     "address": null,
+     "country": "DK"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://conference.eurostarsoftwaretesting.com/",
+     "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/testing.json"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://conference.eurostarsoftwaretesting.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "11-14 May 2027, Bella Center, Copenhagen",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 7,
+   "parser": {
+    "source_id": "confs-tech:mountain-camp@2027-03-02",
+    "parser_accepted": true,
+    "title": "Mountain Camp",
+    "kind": "conference",
+    "format": "offline",
+    "starts_at": "2027-03-02T00:00:00+01:00",
+    "ends_at": "2027-03-04T23:59:59+01:00",
+    "timezone": "Europe/Zurich",
+    "location": {
+     "city": "Davos",
+     "address": null,
+     "country": "CH"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://drupalmountaincamp.ch/",
+     "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/data.json"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://drupalmountaincamp.ch/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "March 2-4, 2027 (pre-conference Feb 27 - Mar 1)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 8,
+   "parser": {
+    "source_id": "confs-tech:jchampions-conference@2027-01-21",
+    "parser_accepted": true,
+    "title": "JChampions Conference",
+    "kind": "conference",
+    "format": "online",
+    "starts_at": "2027-01-21T00:00:00Z",
+    "ends_at": "2027-01-26T23:59:59Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://jchampionsconf.com/",
+     "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/java.json"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://jchampionsconf.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "Thur 1/21/2027, Fri 1/22, Mon 1/25, Tues 1/26/2027, 9:00-17:00 EST each day",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 9,
+   "parser": {
+    "source_id": "confs-tech:appdevcon@2027-03-16",
+    "parser_accepted": true,
+    "title": "Appdevcon",
+    "kind": "conference",
+    "format": "offline",
+    "starts_at": "2027-03-16T00:00:00+01:00",
+    "ends_at": "2027-03-18T23:59:59+01:00",
+    "timezone": "Europe/Amsterdam",
+    "location": {
+     "city": "Amsterdam",
+     "address": null,
+     "country": "NL"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://appdevcon.nl/",
+     "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/android.json"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://appdevcon.nl/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "16-18 March 2027, Amsterdam",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 10,
+   "parser": {
+    "source_id": "confs-tech:it-security-summit-munich@2027-12-06",
+    "parser_accepted": true,
+    "title": "IT Security Summit Munich",
+    "kind": "conference",
+    "format": "hybrid",
+    "starts_at": "2027-12-06T00:00:00+01:00",
+    "ends_at": "2027-12-10T23:59:59+01:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": "Munich",
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://it-security-summit.com/munich",
+     "https://raw.githubusercontent.com/tech-conferences/conference-data/main/conferences/2027/security.json"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://it-security-summit.com/munich",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": false,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "November 30 - December 4, 2026 | Munich or online; '2027 Dates soon'",
+    "page_team_size": "",
+    "notes": "Site still shows the 2026 edition (30 Nov-4 Dec 2026) and says 2027 dates coming; Dec 6-10 2027 appears only in conference-data JSON."
+   }
+  },
+  {
+   "n": 11,
+   "parser": {
+    "source_id": "ctftime:3467",
+    "parser_accepted": true,
+    "title": "InIt CTF",
+    "kind": "contest",
+    "format": "online",
+    "starts_at": "2026-11-14T15:30:00Z",
+    "ends_at": "2026-11-14T23:30:00Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": 4,
+    "inferred_fields": [],
+    "urls": [
+     "https://ctftime.org/event/3467/",
+     "https://hackersinindia.com/init-ctf"
+    ],
+    "summary": "InIt CTF is HII's (Hackers in India) beginner-focused Capture The Flag event, free and open to participants across India and internationally. 8 hours, Jeopardy-style, solo or teams of up to 4, across Web, Crypto, Forensics, OSINT, and Misc — mostly easy/medium with a couple of harder challenges for "
+   },
+   "label": {
+    "checked_url": "https://ctftime.org/event/3467/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "ok",
+    "page_dates": "Sat, 14 Nov. 2026, 15:30 UTC - 23:30 UTC",
+    "page_team_size": "solo or teams of up to 4",
+    "notes": ""
+   }
+  },
+  {
+   "n": 12,
+   "parser": {
+    "source_id": "ctftime:3471",
+    "parser_accepted": true,
+    "title": "SOLAR CTF 2026",
+    "kind": "contest",
+    "format": "online",
+    "starts_at": "2026-10-17T09:00:00Z",
+    "ends_at": "2026-10-18T09:00:00Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": 5,
+    "inferred_fields": [],
+    "urls": [
+     "https://ctftime.org/event/3471/",
+     "https://solarctf.ru/"
+    ],
+    "summary": "Registration for SolarCTF is open ☀️ Solar’s first student cybersecurity competition is your chance to test your skills in practice, build a team, and compete for prizes."
+   },
+   "label": {
+    "checked_url": "https://ctftime.org/event/3471/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "ok",
+    "page_dates": "Sat 17 Oct 2026 09:00 UTC - Sun 18 Oct 2026 09:00 UTC (12:00 MSK start/end)",
+    "page_team_size": "Teams of up to 5 people",
+    "notes": ""
+   }
+  },
+  {
+   "n": 13,
+   "parser": {
+    "source_id": "ctftime:3331",
+    "parser_accepted": true,
+    "title": "PINK+ CTF 2026",
+    "kind": "contest",
+    "format": "online",
+    "starts_at": "2026-11-06T12:00:00Z",
+    "ends_at": "2026-11-09T12:00:00Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://ctftime.org/event/3331/",
+     "https://ctf.pink.bayern/"
+    ],
+    "summary": "The first iteration of PINK+ CTF. Explore a variety of hand crafted challenges with a focus on steganography!"
+   },
+   "label": {
+    "checked_url": "https://ctftime.org/event/3331/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "Fri 06 Nov 2026 12:00 UTC - Mon 09 Nov 2026 12:00 UTC, On-line",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 14,
+   "parser": {
+    "source_id": "ctftime:3464",
+    "parser_accepted": true,
+    "title": "h4ckc0n 2026",
+    "kind": "contest",
+    "format": "online",
+    "starts_at": "2026-11-14T15:30:00Z",
+    "ends_at": "2026-11-15T15:30:00Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://ctftime.org/event/3464/",
+     "http://h4ckc0n.centralindia.cloudapp.azure.com/"
+    ],
+    "summary": "h4ckc0n is a 24-hour international Jeopardy-style Capture The Flag competition."
+   },
+   "label": {
+    "checked_url": "https://ctftime.org/event/3464/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "Sat 14 Nov 2026 15:30 UTC - Sun 15 Nov 2026 15:30 UTC",
+    "page_team_size": "Team-based: Yes (no size limit)",
+    "notes": ""
+   }
+  },
+  {
+   "n": 15,
+   "parser": {
+    "source_id": "ctftime:3418",
+    "parser_accepted": true,
+    "title": "HKCERT CTF 2026 (Qualifying Round)",
+    "kind": "contest",
+    "format": "online",
+    "starts_at": "2026-11-06T10:00:00Z",
+    "ends_at": "2026-11-07T10:00:00Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://ctftime.org/event/3418/",
+     "https://ctf.hkcert.org/"
+    ],
+    "summary": "HKCERT Capture The Flag 2026,” organised by the Hong Kong Computer Emergency Response Team Coordination Centre (HKCERT), the Hong Kong Productivity Council (HKPC) and the Digital Policy Office of HKSAR, is now in its sixth edition. It is one of the largest cybersecurity competitions in Hong Kong, fe"
+   },
+   "label": {
+    "checked_url": "https://ctftime.org/event/3418/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "Fri, 06 Nov. 2026, 10:00 UTC - Sat, 07 Nov. 2026, 10:00 UTC",
+    "page_team_size": "",
+    "notes": "qualifying round online, final round onsite HK; page states no team size limit"
+   }
+  },
+  {
+   "n": 16,
+   "parser": {
+    "source_id": "dev-events:asc0ssri",
+    "parser_accepted": true,
+    "title": "IT Security Summit London",
+    "kind": "conference",
+    "format": "hybrid",
+    "starts_at": "2027-06-07T00:00:00+01:00",
+    "ends_at": "2027-06-11T23:59:59+01:00",
+    "timezone": "Europe/London",
+    "location": {
+     "city": "London",
+     "address": null,
+     "country": "GB"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://dev.events/conferences/it-security-summit-london-asc0ssri"
+    ],
+    "summary": "Cybersecurity / InfoSec conference in London, United Kingdom and Online"
+   },
+   "label": {
+    "checked_url": "https://it-security-summit.com/london",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "June 7 - 11, 2027, London or online (expo June 8-9)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 17,
+   "parser": {
+    "source_id": "dev-events:lt81zyfa",
+    "parser_accepted": true,
+    "title": "DevOpsCon Munich 2026",
+    "kind": "conference",
+    "format": "hybrid",
+    "starts_at": "2026-11-30T00:00:00+01:00",
+    "ends_at": "2026-12-04T23:59:59+01:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": "Munich",
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://dev.events/conferences/dev-ops-con-munich-2026-lt81zyfa"
+    ],
+    "summary": "DevOps conference in Munich, Germany and Online"
+   },
+   "label": {
+    "checked_url": "https://devopscon.io/munich/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "November 30 - December 4, 2026, Munich",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 18,
+   "parser": {
+    "source_id": "dev-events:i4q5xbf3",
+    "parser_accepted": true,
+    "title": "BASTA! Fall 2027",
+    "kind": "conference",
+    "format": "hybrid",
+    "starts_at": "2027-09-28T00:00:00+02:00",
+    "ends_at": "2027-10-01T23:59:59+02:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": "Mainz",
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://dev.events/conferences/basta-fall-2027-i4q5xbf3"
+    ],
+    "summary": ".NET conference in Mainz, Germany and Online"
+   },
+   "label": {
+    "checked_url": "https://dev.events/conferences/basta-fall-2027-i4q5xbf3",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Sep 28 - Oct 1 2027, Mainz, Germany and Online (JSON-LD startDate/endDate)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 19,
+   "parser": {
+    "source_id": "dev-events:iuhcbbwe",
+    "parser_accepted": true,
+    "title": "GenAI Summit EU 2027",
+    "kind": "conference",
+    "format": "hybrid",
+    "starts_at": "2027-04-13T00:00:00+02:00",
+    "ends_at": "2027-04-14T23:59:59+02:00",
+    "timezone": "Europe/Madrid",
+    "location": {
+     "city": "Valencia",
+     "address": null,
+     "country": "ES"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://dev.events/conferences/gen-ai-summit-eu-2027-iuhcbbwe"
+    ],
+    "summary": "Artificial Intelligence (AI) conference in Valencia, Spain and Online"
+   },
+   "label": {
+    "checked_url": "https://dev.events/conferences/gen-ai-summit-eu-2027-iuhcbbwe",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "2027-04-13 to 2027-04-14 (JSON-LD startDate/endDate)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 20,
+   "parser": {
+    "source_id": "dev-events:0aklemfv",
+    "parser_accepted": true,
+    "title": "RoboCon 2027 Online",
+    "kind": "conference",
+    "format": "hybrid",
+    "starts_at": "2027-03-08T00:00:00+02:00",
+    "ends_at": "2027-03-12T23:59:59+02:00",
+    "timezone": "Europe/Helsinki",
+    "location": {
+     "city": "Helsinki",
+     "address": null,
+     "country": "FI"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://dev.events/conferences/robo-con-2027-online-0aklemfv"
+    ],
+    "summary": "Testing / QA conference in Helsinki, Finland and Online"
+   },
+   "label": {
+    "checked_url": "https://robocon.io/2027",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Helsinki 8-12 March 2027; online worldwide 7-9 April 2027",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 21,
+   "parser": {
+    "source_id": "dev-events:hqjzolfj",
+    "parser_accepted": true,
+    "title": "AI Coding Summit - Berlin Edition",
+    "kind": "conference",
+    "format": "hybrid",
+    "starts_at": "2026-12-04T00:00:00+01:00",
+    "ends_at": "2026-12-07T23:59:59+01:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": "Berlin",
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://dev.events/conferences/ai-coding-summit-berlin-edition-hqjzolfj"
+    ],
+    "summary": "Artificial Intelligence (AI) conference in Berlin, Germany and Online"
+   },
+   "label": {
+    "checked_url": "https://aicodingsummit.com/berlin",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Berlin & Online, December 4 & 7, 2026",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 22,
+   "parser": {
+    "source_id": "devpost:31956",
+    "parser_accepted": true,
+    "title": "Build Day 2",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-11-28T04:00:00-05:00",
+    "ends_at": "2026-11-28T14:00:00-05:00",
+    "timezone": "Europe/London",
+    "location": {
+     "city": "Durham",
+     "address": "Durham, UK",
+     "country": "GB"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://build-day.devpost.com/",
+     "https://build-day.devpost.com/register"
+    ],
+    "summary": "Build Day is a 12 hour hackathon at Durham University for people who have never been to one. At 9:30am we release a problem set written by investors/VC and operators the things people who fund startups for a living actually want built. Teams choose a problem from that list and have until 7pm to b"
+   },
+   "label": {
+    "checked_url": "https://build-day.devpost.com/details/dates",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "missed",
+    "page_dates": "Saturday 28 November 2026, Durham, 9am-10pm; submissions Nov 28 9:00am-7:00pm GMT",
+    "page_team_size": "Teams are two to four people",
+    "notes": "Page states teams of two to four; parser has no team size."
+   }
+  },
+  {
+   "n": 23,
+   "parser": {
+    "source_id": "devpost:31882",
+    "parser_accepted": true,
+    "title": "CSAIC Hack-AI-Thon",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2026-11-20T00:00:00-05:00",
+    "ends_at": "2026-11-24T13:30:00-05:00",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "registration_deadline"
+    ],
+    "urls": [
+     "https://csaic-hackaithon.devpost.com/",
+     "https://csaic-hackaithon.devpost.com/register"
+    ],
+    "summary": "CSAIC Hack-AI-Thon is a five-day online AI hackathon for school students across India. Teams of 1-3 build AI-powered projects that tackle real problems in one of three tracks. Use any language, framework, model or API you like. AI coding assistants are allowed, as long as you mention them in your"
+   },
+   "label": {
+    "checked_url": "https://csaic-hackaithon.devpost.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "missed",
+    "page_dates": "Nov 20 - 25, 2026; deadline 2026-11-24 13:30 EST",
+    "page_team_size": "Teams of 1-3",
+    "notes": "page states teams of 1-3, parser has no team limit"
+   }
+  },
+  {
+   "n": 24,
+   "parser": {
+    "source_id": "devpost:31495",
+    "parser_accepted": true,
+    "title": "IceHacks",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2026-11-08T22:00:00-05:00",
+    "ends_at": "2026-11-15T21:00:00-05:00",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "registration_deadline"
+    ],
+    "urls": [
+     "https://icehacks.devpost.com/",
+     "https://icehacks.devpost.com/register"
+    ],
+    "summary": "IceHacks doesn't award any cash prizes. All prizes are sponsor credits, subscriptions, scholarships, and other non-cash rewards. ❄️ IceHacks 2026 Build something cool. From anywhere. A virtual hackathon for student builders, creative thinkers, and first-time hackers. This November, CodeStarters b"
+   },
+   "label": {
+    "checked_url": "https://icehacks.devpost.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "missed",
+    "page_dates": "Hacking Nov 8, 7:00 PM PT - Nov 15, 6:00 PM PT 2026 (event Nov 8-17)",
+    "page_team_size": "Teams can have 1 to 4 members",
+    "notes": "page states 1-4 member teams; parser has no team size"
+   }
+  },
+  {
+   "n": 25,
+   "parser": {
+    "source_id": "devpost:31644",
+    "parser_accepted": true,
+    "title": "Reddit’s Game of the Day Hackathon",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2026-11-11T15:00:00-05:00",
+    "ends_at": "2026-12-08T21:00:00-05:00",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "registration_deadline"
+    ],
+    "urls": [
+     "https://redditgameofday2026.devpost.com/"
+    ],
+    "summary": "Overview Reddit is hosting a virtual hackathon from November 11th to December 8th . We’re offering developers $35,000 in prizes for games built to delight users with daily play. The challenge : create a new daily game for the users of Reddit using our Developer Platform . Developers should use De"
+   },
+   "label": {
+    "checked_url": "https://redditgameofday2026.devpost.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "Nov 11 - Dec 8, 2026; deadline Dec 8, 2026 6:00pm PST",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 26,
+   "parser": {
+    "source_id": "devpost:30819",
+    "parser_accepted": true,
+    "title": "United Hacks V8",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2027-01-08T00:00:00-05:00",
+    "ends_at": "2027-01-10T12:00:00-05:00",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "registration_deadline"
+    ],
+    "urls": [
+     "https://unitedhacksv8.devpost.com/",
+     "https://unitedhacksv8.devpost.com/register"
+    ],
+    "summary": "Important Dates: Opening Ceremony: January 8th, 2027 at 7:00pm EST Submissions Due: January 10th, 2027 at 12:00pm EST Closing Ceremony: January 10th, 2027 at 8:00 PM EST The link to the live streams will be posted in our discord server. How To Register: Sign up on this devpost. Join Our discord ,"
+   },
+   "label": {
+    "checked_url": "https://unitedhacksv8.devpost.com/details/dates",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "Jan 8 - 10, 2027; submissions Jan 08 12:00am - Jan 10 12:00pm EST",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 27,
+   "parser": {
+    "source_id": "devpost:32061",
+    "parser_accepted": true,
+    "title": "Peninsula Innovation Hackathon",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2026-11-10T00:00:00-05:00",
+    "ends_at": "2026-12-10T17:00:00-05:00",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "registration_deadline"
+    ],
+    "urls": [
+     "https://peninsula-innovation-hackathon.devpost.com/",
+     "https://peninsula-innovation-hackathon.devpost.com/register"
+    ],
+    "summary": "Start with something you notice on an ordinary day. A confusing bus transfer. A game you wish existed. A community space that could be easier to find. Peninsula Innovation Hackathon is an online student event inspired by the places and people of the Bay Area Peninsula. Bring a problem from your o"
+   },
+   "label": {
+    "checked_url": "https://peninsula-innovation-hackathon.devpost.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "Deadline: Dec 10, 2026 @ 5:00pm EST (start 2026-11-10 in page JSON-LD)",
+    "page_team_size": "",
+    "notes": "visible page shows only the deadline; start date comes from the page's own JSON-LD and matches"
+   }
+  },
+  {
+   "n": 28,
+   "parser": {
+    "source_id": "devpost:32057",
+    "parser_accepted": true,
+    "title": "Ryze Hacks 2026",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2026-12-10T03:00:00-05:00",
+    "ends_at": "2026-12-18T02:45:00-05:00",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "registration_deadline"
+    ],
+    "urls": [
+     "https://ryzehacks.devpost.com/",
+     "https://ryzehacks.devpost.com/register"
+    ],
+    "summary": "About the challenge Ryze Hacks 2026 is a free, 8-day online hackathon built by students, for students. Hosted by the team behind Ryze , a student web app for focus, study and wellbeing, it brings together student builders from around the world to create tools that help students learn better and f"
+   },
+   "label": {
+    "checked_url": "https://ryzehacks.devpost.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "missed",
+    "page_dates": "Dec 10 - 17, 2026 (8-day online hackathon)",
+    "page_team_size": "teams of up to 4",
+    "notes": "page states teams of up to 4; parser has none. End 2026-12-18T02:45-05 = Dec 17 23:45 PT, still Dec 17 PDT-style"
+   }
+  },
+  {
+   "n": 29,
+   "parser": {
+    "source_id": "devpost:31737",
+    "parser_accepted": true,
+    "title": "HackWithAditya",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2026-10-16T04:30:00-04:00",
+    "ends_at": "2026-11-25T13:15:00-05:00",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "registration_deadline"
+    ],
+    "urls": [
+     "https://hackwithaditya.devpost.com/",
+     "https://hackwithaditya.devpost.com/register"
+    ],
+    "summary": "48-Hour National-Level Hackathon | ₹5,00,000 Prize Pool Organized by Aditya University, Andhra Pradesh In Association with Oracle Academy In Collaboration with OpenAI Student Collective All You Need to Know About HackWithAditya 2026 Got a working prototype? Ready to take it to the next level? Hac"
+   },
+   "label": {
+    "checked_url": "https://hackwithaditya.devpost.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "missed",
+    "page_dates": "opened Oct 16, 2026; deadline Nov 25, 2026 11:45pm IST",
+    "page_team_size": "Team required: 4 to 6 members (min 4)",
+    "notes": "Page states teams of 4-6 members, parser has no team size; final 48h round is on-site at Aditya University"
+   }
+  },
+  {
+   "n": 30,
+   "parser": {
+    "source_id": "devpost:31796",
+    "parser_accepted": true,
+    "title": "SafeSpace Hacks",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2026-10-17T20:15:00-04:00",
+    "ends_at": "2026-11-22T17:00:00-05:00",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "registration_deadline"
+    ],
+    "urls": [
+     "https://safespace-hacks.devpost.com/",
+     "https://safespace-hacks.devpost.com/register"
+    ],
+    "summary": "What would feel safer if you built it differently? The message you hesitate to click. The account settings nobody understands. The confusing emergency checklist. The community report that never reaches the right person. Small moments of uncertainty are everywhere—and they are full of opportunitie"
+   },
+   "label": {
+    "checked_url": "https://safespace-hacks.devpost.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "Build: October 17-November 22, 2026; submit by Nov 22 5:00 PM ET",
+    "page_team_size": "solo or as a team (no limit)",
+    "notes": ""
+   }
+  },
+  {
+   "n": 31,
+   "parser": {
+    "source_id": "gdg-rs:google-gdg-belgrade-presents-devfest-in-the-cloud",
+    "parser_accepted": true,
+    "title": "DevFest in the Cloud",
+    "kind": "conference",
+    "format": "offline",
+    "starts_at": "2026-12-12T10:00:00+01:00",
+    "ends_at": "2026-12-12T16:45:00+01:00",
+    "timezone": "Europe/Belgrade",
+    "location": {
+     "city": "Belgrade",
+     "address": "Faculty of Organizational Sciences, 154 Jove Ilića",
+     "country": "RS"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://gdg.community.dev/events/details/google-gdg-belgrade-presents-devfest-in-the-cloud/"
+    ],
+    "summary": "Your code works on your laptop. Now what?"
+   },
+   "label": {
+    "checked_url": "https://gdg.community.dev/events/details/google-gdg-belgrade-presents-devfest-in-the-cloud/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Saturday, December 12, 2026, 10:00 AM - 4:45 PM (CET)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 32,
+   "parser": {
+    "source_id": "gdg-rs:google-gdg-on-campus-university-of-belgrade-belgrade-serbia-presents-devfest-2026-gamejam-conference",
+    "parser_accepted": true,
+    "title": "DevFest 2026: GameJam - Conference",
+    "kind": "conference",
+    "format": "offline",
+    "starts_at": "2026-12-03T20:00:00+01:00",
+    "ends_at": "2026-12-04T18:00:00+01:00",
+    "timezone": "Europe/Belgrade",
+    "location": {
+     "city": "Belgrade",
+     "address": "Veljka Dugosevica 54",
+     "country": "RS"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://gdg.community.dev/events/details/google-gdg-on-campus-university-of-belgrade-belgrade-serbia-presents-devfest-2026-gamejam-conference/"
+    ],
+    "summary": "DevFest 2026 GameJam Conference equips developers, designers, and engineers with cutting-edge knowledge for a 48-hour game challenge. Attendees explore Google technologies and game design techniques through expert sessions, mastering skills from gameplay mechanics to effective pitching. This event t"
+   },
+   "label": {
+    "checked_url": "https://gdg.community.dev/events/details/google-gdg-on-campus-university-of-belgrade-belgrade-serbia-presents-devfest-2026-gamejam-conference/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Dec 3, 8:00 PM - Dec 4, 6:00 PM (CET) 2026",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 33,
+   "parser": {
+    "source_id": "hackalendar:robotics-ai-hacklab-berlin-2026",
+    "parser_accepted": true,
+    "title": "ROBOTICS X AI - HACKLAB",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-11-21T08:00:00Z",
+    "ends_at": "2026-11-22T18:00:00Z",
+    "timezone": "Europe/Paris",
+    "location": {
+     "city": "Berlin",
+     "address": "CIC Berlin",
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://hackalendar.com/e/robotics-ai-hacklab-berlin-2026",
+     "https://lu.ma/h0mcaqio"
+    ],
+    "summary": "Robotics & AI are evolving at breakneck speed, but most people are still watching from the sidelines. HackLab #2 is a high-intensity 48 hrs hackathon session for builders, engineers, startup founders, and reasearchers who want to stop reading about the future and start building it. While the world d"
+   },
+   "label": {
+    "checked_url": "https://lu.ma/h0mcaqio",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Nov 21, 2026 09:00 - Nov 22, 19:00 CET (08:00-18:00Z)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 34,
+   "parser": {
+    "source_id": "hackalendar:european-ai-championship-paris-kremlin-bicetre-2026",
+    "parser_accepted": true,
+    "title": "European AI Championship Paris",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-11-20T18:00:00Z",
+    "ends_at": "2026-11-22T17:30:00Z",
+    "timezone": "Europe/Paris",
+    "location": {
+     "city": "Le Kremlin-Bicêtre",
+     "address": "24 Rue Pasteur",
+     "country": "FR"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://hackalendar.com/e/european-ai-championship-paris-kremlin-bicetre-2026",
+     "https://lu.ma/iwlbokns"
+    ],
+    "summary": "🇪🇺 The European AI Championship Paris The European AI Championship comes to Paris. 24 hours. 200 hackers. €10,000 in cash prizes. The European AI Championship Paris is the Paris regional stage of the European AI Championship, the European cyber and AI competition led by CISPA Helmholtz Center for In"
+   },
+   "label": {
+    "checked_url": "https://lu.ma/iwlbokns",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "missed",
+    "page_dates": "Fri 20 - Sun 22 Nov 2026, intro Fri 19:00; hacking Sat noon - Sun noon; end 16:00 Sun",
+    "page_team_size": "Teams: 3 to 4",
+    "notes": "Luma start/end equal parser values; hackalendar text says event ends 16:00 CET Sunday (parser 18:30). Teams 3-4 stated, parser none."
+   }
+  },
+  {
+   "n": 35,
+   "parser": {
+    "source_id": "hackalendar:arctic-express-hackathon-espoo-2026",
+    "parser_accepted": true,
+    "title": "Arctic Express Hackathon",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-12-03T06:00:00Z",
+    "ends_at": "2026-12-06T17:00:00Z",
+    "timezone": "Europe/Helsinki",
+    "location": {
+     "city": "Espoo",
+     "address": "Espoo, Finland",
+     "country": "FI"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://hackalendar.com/e/arctic-express-hackathon-espoo-2026",
+     "https://lu.ma/ppxp9k0p"
+    ],
+    "summary": "NS27 Arctic Express"
+   },
+   "label": {
+    "checked_url": "https://hackalendar.com/e/arctic-express-hackathon-espoo-2026",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "missed",
+    "page_dates": "Thu 3 - Sun 6 December 2026, from 08:00 EET (lu.ma: 3 Dec 08:00 - 6 Dec 19:00 +02:00)",
+    "page_team_size": "Teams of 3-4",
+    "notes": "page states teams of 3-4, parser has no team limit"
+   }
+  },
+  {
+   "n": 36,
+   "parser": {
+    "source_id": "hackathonhub:f79863c9-423a-456d-bfa7-3771ab4a113a",
+    "parser_accepted": true,
+    "title": "Cambridge EduX Hackathon 2026",
+    "kind": "hackathon",
+    "format": "hybrid",
+    "starts_at": "2026-11-13T14:00:00Z",
+    "ends_at": "2026-11-13T17:00:00Z",
+    "timezone": "Europe/London",
+    "location": {
+     "city": "Cambridge",
+     "address": "Cambridge, UK",
+     "country": "GB"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/cambridge-edux-hackathon-2026-cambridge-2026",
+     "https://luma.com/6sv64tnt"
+    ],
+    "summary": "The Cambridge EduX Hackathon 2026 is a seven-day interdisciplinary innovation sprint dedicated to the future of education. Participants work in teams supported by specialized workshops and mentoring to transform ideas into practical concepts and prototypes. The event kicks off with an opening day in"
+   },
+   "label": {
+    "checked_url": "https://luma.com/6sv64tnt",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": false,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "missed",
+    "page_dates": "13-20 November 2026 (7-day sprint; opening day 13 Nov 14:00-17:00 GMT)",
+    "page_team_size": "Team size should be 2-5 people",
+    "notes": "parser ends Nov 13 but page runs 13-20 Nov; page states 2-5 person teams, parser none"
+   }
+  },
+  {
+   "n": 37,
+   "parser": {
+    "source_id": "hackathonhub:fcbe83b8-99c2-46dd-aef9-29e2478da58e",
+    "parser_accepted": true,
+    "title": "Hackathon Geopark Kras - Carso",
+    "kind": "hackathon",
+    "format": "hybrid",
+    "starts_at": "2026-10-26T00:00:00+01:00",
+    "ends_at": "2026-10-30T23:59:59+01:00",
+    "timezone": "Europe/Ljubljana",
+    "location": {
+     "city": "Sežana",
+     "address": "Inkubator Sežana",
+     "country": "SI"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/hackathon-geopark-kras-carso-sezana-2026",
+     "https://www.ita-slo.eu/en/news-and-events/news/hackathon-geopark-kras-carso"
+    ],
+    "summary": "The Geopark Kras-Carso Hackathon invites young people, job seekers, entrepreneurs, and NGOs to develop innovative solutions for the cross-border Geopark region. During this four-day innovation marathon, participants will be supported by mentors and work in interdisciplinary teams. The best ideas wil"
+   },
+   "label": {
+    "checked_url": "https://www.ita-slo.eu/en/news-and-events/news/hackathon-geopark-kras-carso",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": false,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "missed",
+    "page_dates": "26-30 October 2026 (warm-up 26, idea development 27-29, final 30)",
+    "page_team_size": "Register your team of up to five members",
+    "notes": "Cross-border sustainability/entrepreneurship hackathon for young people, job seekers, NGOs; ideas and business models, no tech build focus. Max 5 per team"
+   }
+  },
+  {
+   "n": 38,
+   "parser": {
+    "source_id": "hackathonhub:f249cba9-b9b5-4d28-bd28-ddd0e0da4ec4",
+    "parser_accepted": true,
+    "title": "NASA Space Apps Challenge Piraeus 2026",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-11-14T00:00:00+02:00",
+    "ends_at": "2026-11-15T23:59:59+02:00",
+    "timezone": "Europe/Athens",
+    "location": {
+     "city": "Piraeus",
+     "address": null,
+     "country": "GR"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at",
+     "areas"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/nasa-space-apps-challenge-piraeus-2026-piraeus-2026",
+     "https://www.spaceappschallenge.org/2026/local-events/piraeus/"
+    ],
+    "summary": "The NASA International Space Apps Challenge is a global hackathon where participants use NASA and partner data to tackle real-world challenges related to space and Earth. Teams collaborate over a weekend to develop innovative solutions in fields such as science, technology, data, and design. The loc"
+   },
+   "label": {
+    "checked_url": "https://hackathonhub.eu/events/nasa-space-apps-challenge-piraeus-2026-piraeus-2026.md",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "2026-11-14 - 2026-11-15, Piraeus, GR, onsite",
+    "page_team_size": "Teams (no size limit stated)",
+    "notes": ""
+   }
+  },
+  {
+   "n": 39,
+   "parser": {
+    "source_id": "hackathonhub:a8526a60-9da5-48fe-97f6-78728678f95a",
+    "parser_accepted": true,
+    "title": "EUDIS Defence Hackathon 2026",
+    "kind": "hackathon",
+    "format": "hybrid",
+    "starts_at": "2026-10-15T00:00:00+02:00",
+    "ends_at": "2026-10-17T23:59:59+02:00",
+    "timezone": "Europe/Rome",
+    "location": {
+     "city": "Soave",
+     "address": null,
+     "country": "IT"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/eudis-defence-hackathon-2026-soave-2026",
+     "https://eudis-hackathon.eu/"
+    ],
+    "summary": "The EUDIS Defence Hackathon 2026 fosters innovation in the defense sector by bringing together European minds to solve challenges related to defense, cybersecurity, and resilience. Participants work on autonomous systems, secure communications, and advanced aerospace technologies. The aim is to stre"
+   },
+   "label": {
+    "checked_url": "https://eudis-hackathon.eu/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "15-17 October, 2026",
+    "page_team_size": "",
+    "notes": "multi-country editions blending online and in-person; Soave IT is one local edition"
+   }
+  },
+  {
+   "n": 40,
+   "parser": {
+    "source_id": "hackathonhub:3d231aa2-e9a1-4884-904c-23b2df0d9961",
+    "parser_accepted": true,
+    "title": "Arcade Game Jam",
+    "kind": "contest",
+    "format": "offline",
+    "starts_at": "2026-10-16T00:00:00+03:00",
+    "ends_at": "2026-10-18T23:59:59+03:00",
+    "timezone": "Europe/Bucharest",
+    "location": {
+     "city": "Cluj-Napoca",
+     "address": "Founders Hive, Strada 13 Septembrie 12a, 400394 Cluj-Napoca",
+     "country": "RO"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/arcade-game-jam-cluj-napoca-2026",
+     "https://luma.com/q8by929z"
+    ],
+    "summary": "The Arcade Game Jam is an event where participants develop games for two arcade machines. The created games must be web exports and can be made using any game engine. The finished arcade machines will be used at events to showcase the community-developed games."
+   },
+   "label": {
+    "checked_url": "https://luma.com/q8by929z",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Oct 16, 2026 18:00 - Oct 18, 2026 18:00 EEST (hub lists dates only)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 41,
+   "parser": {
+    "source_id": "hackathonhub:0ee16a2a-c73a-47be-9ab5-4ddafbc7489c",
+    "parser_accepted": true,
+    "title": "Startup Weekend Iasi",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-10-16T17:30:00Z",
+    "ends_at": "2026-10-18T23:59:59+03:00",
+    "timezone": "Europe/Bucharest",
+    "location": {
+     "city": "Iași",
+     "address": null,
+     "country": "RO"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "ends_at"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/startup-weekend-iasi-ia-i-2026",
+     "https://startupweekendromania.com/iasi"
+    ],
+    "summary": "Startup Weekend Iasi is an intense 54-hour hackathon where participants progress from idea to prototype of a startup. Developers, designers, and future founders collaborate to create a Minimum Viable Product (MVP) and validate their ideas. The event promotes teamwork, mentoring, and presenting devel"
+   },
+   "label": {
+    "checked_url": "https://startupweekendromania.com/iasi",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": false,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Next event: 17-18 October 2026, Fab Central Iasi",
+    "page_team_size": "",
+    "notes": "Page says 17-18 Oct; parser starts 16 Oct 20:30 EEST and agenda lists Saturday-Sunday only"
+   }
+  },
+  {
+   "n": 42,
+   "parser": {
+    "source_id": "hackathonhub:429520f0-006a-4ab2-8075-43e711757a0b",
+    "parser_accepted": true,
+    "title": "CINECA Open Hackathon",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2026-12-02T00:00:00+01:00",
+    "ends_at": "2026-12-17T23:59:59+01:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": null,
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/cineca-open-hackathon-tbc-2026",
+     "https://www.openhackathons.org/s/siteevent/a0CUP00003NdHta2AF/se000459"
+    ],
+    "summary": "This hybrid Open Hackathon is hosted by CINECA in collaboration with NVIDIA and the OpenACC organization. It focuses on assisting researchers, engineers, and startups in porting, accelerating, and optimizing their applications on modern computing architectures, including CPUs, GPUs, and QPUs. Partic"
+   },
+   "label": {
+    "checked_url": "https://hackathonhub.eu/events/cineca-open-hackathon-tbc-2026.md",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "2026-12-02 - 2026-12-17, format online",
+    "page_team_size": "",
+    "notes": "Body text calls it a hybrid Open Hackathon while the entry says online; parser also set country DE for an online event."
+   }
+  },
+  {
+   "n": 43,
+   "parser": {
+    "source_id": "hackathonhub:5724460c-f6fd-4962-829e-f5bc5415a741",
+    "parser_accepted": true,
+    "title": "Engage 2 Hackathon",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-10-20T12:00:00Z",
+    "ends_at": "2026-10-21T14:00:00Z",
+    "timezone": "Europe/Zagreb",
+    "location": {
+     "city": "Zagreb",
+     "address": "iNova Hotel, Zagreb, Croatia",
+     "country": "HR"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/engage-2-hackathon-zagreb-2026",
+     "https://wikiengagektn.com/hackathons/"
+    ],
+    "summary": "This hackathon is jointly organized by Engage 2 and the AWARE project to solve complex operational problems in Air Traffic Management (ATM) through rapid prototyping and collaborative coding. Participants can expect a 24-hour coding session, where they will utilize data for a predictive task in the "
+   },
+   "label": {
+    "checked_url": "https://hackathonhub.eu/events/engage-2-hackathon-zagreb-2026.md",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "2026-10-20 12:00 - 2026-10-21 14:00 UTC",
+    "page_team_size": "",
+    "notes": "organiser site (wikiengagektn.com) blocked by Cloudflare; used hackathonhub event page"
+   }
+  },
+  {
+   "n": 44,
+   "parser": {
+    "source_id": "hackathonhub:f3ecb6b2-4b3e-4b9f-8c89-9daec6c0db71",
+    "parser_accepted": true,
+    "title": "KVA HACKATHON: AI BRAIN FOR INDUSTRY",
+    "kind": "hackathon",
+    "format": "hybrid",
+    "starts_at": "2026-11-14T10:30:00Z",
+    "ends_at": "2026-11-14T18:30:00Z",
+    "timezone": "Europe/Rome",
+    "location": {
+     "city": "Turin",
+     "address": "Via Sant'Antonino 17B",
+     "country": "IT"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/kva-hackathon-ai-brain-for-industry-turin-2026",
+     "https://luma.com/1j93mxmc"
+    ],
+    "summary": "The KVA Hackathon is a hybrid event in Turin where teams will work on an AI brain for deep-tech industries. Participants are challenged to solve a real-world problem in applied AI by developing ontological structures, shared memories, or custom AI brains. The winning team will receive €1,500 and fre"
+   },
+   "label": {
+    "checked_url": "https://luma.com/1j93mxmc",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": false,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Sat 14 Nov 2026, 09:30-18:30 CET",
+    "page_team_size": "",
+    "notes": "date matches but parser times (10:30Z-18:30Z) are 2h later than page 08:30Z-17:30Z (9:30-18:30 CET)"
+   }
+  },
+  {
+   "n": 45,
+   "parser": {
+    "source_id": "hackathonhub:de3024d0-3861-4d85-bace-ab9276b66f30",
+    "parser_accepted": true,
+    "title": "NASA Space Apps Challenge Heilbronn 2026",
+    "kind": "hackathon",
+    "format": "hybrid",
+    "starts_at": "2026-11-14T00:00:00+01:00",
+    "ends_at": "2026-11-15T23:59:59+01:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": "Heilbronn",
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at",
+     "areas"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/nasa-space-apps-challenge-heilbronn-2026-heilbronn-2026",
+     "https://www.spaceappschallenge.org/2026/local-events/heilbronn/"
+    ],
+    "summary": "The NASA International Space Apps Challenge is a global hackathon where participants use NASA and partner data to tackle real-world challenges related to space and Earth. Teams collaborate over a weekend to develop innovative solutions in fields such as science, technology, data, and design. The loc"
+   },
+   "label": {
+    "checked_url": "https://www.spaceappschallenge.org/2026/local-events/heilbronn/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "November 14-15, 2026, Heilbronn (Virtual & In-Person)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 46,
+   "parser": {
+    "source_id": "hackathonhub:50ae2fcb-3464-49c1-9dd1-b2e1d86f2d35",
+    "parser_accepted": true,
+    "title": "AI-Native Chip Design Challenge",
+    "kind": "contest",
+    "format": "hybrid",
+    "starts_at": "2026-12-14T01:00:00Z",
+    "ends_at": "2026-12-15T00:59:00Z",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": "Leipzig",
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/ai-native-chip-design-challenge-leipzig-2026",
+     "https://www.sprind.org/en/actions/challenges/ai-native-chip-design"
+    ],
+    "summary": "This innovation challenge aims to drastically shorten the chip design process from years to weeks using Artificial Intelligence. Participants will develop highly efficient, AI-specific chip designs intended to set new benchmarks in compute power, energy efficiency, and scalability. The project is su"
+   },
+   "label": {
+    "checked_url": "https://www.sprind.org/en/actions/challenges/ai-native-chip-design",
+    "verifiable": true,
+    "is_event": false,
+    "relevant": false,
+    "kind_ok": null,
+    "dates_ok": null,
+    "format_ok": null,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "applications until November 30, 2026, 11:00 CET; 20-month, 2-stage funded programme",
+    "page_team_size": "",
+    "notes": "Organiser page is a funding challenge call (20-month programme), not a dated 14-15 Dec event; hybrid/Leipzig dates exist only in aggregator metadata."
+   }
+  },
+  {
+   "n": 47,
+   "parser": {
+    "source_id": "hackathonhub:c1233e81-38d0-41e1-b13f-daa5ed47fdbd",
+    "parser_accepted": true,
+    "title": "Competition \"Built on IT – Construction Professions with a Future\" 2027",
+    "kind": "contest",
+    "format": "online",
+    "starts_at": "2026-03-25T00:00:00+01:00",
+    "ends_at": "2026-10-25T23:59:59+01:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "city": null,
+     "address": null,
+     "country": "DE"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/competition-built-on-it-construction-professions-with-a-future-2026",
+     "https://www.aufitgebaut.de/der-wettbewerb/jetzt-anmelden/"
+    ],
+    "summary": "This competition seeks innovative digital solutions for the construction industry, recognizing top talents in the field. It provides a platform for young professionals to showcase their work to a broad audience and build valuable connections. Submissions are evaluated by an expert jury based on crit"
+   },
+   "label": {
+    "checked_url": "https://www.aufitgebaut.de/der-wettbewerb/jetzt-anmelden/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": false,
+    "format_ok": null,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "Anmeldebeginn 25.03.2026 00:00 - Anmeldeschluss 02.11.2026 23:59",
+    "page_team_size": "Teamarbeit erlaubt: Ja",
+    "notes": "parser end 25 Oct 2026, registration actually closes 2 Nov 2026; page states no participation format"
+   }
+  },
+  {
+   "n": 48,
+   "parser": {
+    "source_id": "hackathonist:b87648066bd6-20261106",
+    "parser_accepted": true,
+    "title": "Rivian Hakaton",
+    "kind": "hackathon",
+    "format": "hybrid",
+    "starts_at": "2026-11-06T00:00:00+01:00",
+    "ends_at": "2026-11-07T23:59:59+01:00",
+    "timezone": "Europe/Belgrade",
+    "location": {
+     "city": null,
+     "address": "Rivian HQ",
+     "country": "RS"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at",
+     "location.country"
+    ],
+    "urls": [
+     "https://raw.githubusercontent.com/zsevic/hackathonist/gh-pages/README.md",
+     "https://bne.rs/"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://bne.rs/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "6-7. novembra 2026 (24h online + 12h live at Rivian)",
+    "page_team_size": "",
+    "notes": "page names no country (RS inferred from Serbian BNE/ETF site); no schedule times given"
+   }
+  },
+  {
+   "n": 49,
+   "parser": {
+    "source_id": "icpc:9592:41850",
+    "parser_accepted": true,
+    "title": "The 2026 ICPC Southwestern Europe Regional Contest — Villeurbanne",
+    "kind": "contest",
+    "format": "offline",
+    "starts_at": "2026-12-18T00:00:00+01:00",
+    "ends_at": "2026-12-20T23:59:59+01:00",
+    "timezone": "Europe/Paris",
+    "location": {
+     "city": "Villeurbanne",
+     "address": "SWERC 2026 - Lyon site, France",
+     "country": "FR"
+    },
+    "team_size_min": 3,
+    "team_size_max": 3,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at",
+     "team_size_min",
+     "team_size_max"
+    ],
+    "urls": [
+     "https://icpc.global/regionals/finder/swerc"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://swerc.eu/2026/lyon/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "ok",
+    "page_dates": "Friday 18/12 - Sunday 20/12/2026, INSA Lyon",
+    "page_team_size": "teams of three contestants (3 per team)",
+    "notes": ""
+   }
+  },
+  {
+   "n": 50,
+   "parser": {
+    "source_id": "icpc:9592:41857",
+    "parser_accepted": true,
+    "title": "The 2026 ICPC Southwestern Europe Regional Contest — Barcelona",
+    "kind": "contest",
+    "format": "offline",
+    "starts_at": "2026-12-18T00:00:00+01:00",
+    "ends_at": "2026-12-20T23:59:59+01:00",
+    "timezone": "Europe/Madrid",
+    "location": {
+     "city": "Barcelona",
+     "address": "Universitat Politècnica de Catalunya - BarcelonaTech\nUPC, Campus Diagonal Nord, Edifici Omega\nJordi Girona, 1-3\nE-08034 Barcelona",
+     "country": "ES"
+    },
+    "team_size_min": 3,
+    "team_size_max": 3,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at",
+     "team_size_min",
+     "team_size_max"
+    ],
+    "urls": [
+     "https://icpc.global/regionals/finder/swerc"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://swerc.eu/2026/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "ok",
+    "page_dates": "December 18 to 20, 2026",
+    "page_team_size": "teams of three students",
+    "notes": ""
+   }
+  },
+  {
+   "n": 51,
+   "parser": {
+    "source_id": "kaggle:179751",
+    "parser_accepted": true,
+    "title": "Soccer Feature Design Hackathon",
+    "kind": "hackathon",
+    "format": "online",
+    "starts_at": "2026-11-10T17:01:56.370000Z",
+    "ends_at": "2027-02-17T23:59:00Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": 5,
+    "inferred_fields": [],
+    "urls": [
+     "https://www.kaggle.com/competitions/soccer-feature-design-hackathon"
+    ],
+    "summary": "Turning Play-by-Play From Two Data Providers Into New Performance Attributes"
+   },
+   "label": {
+    "checked_url": "https://www.kaggle.com/api/i/competitions.CompetitionService/GetCompetition?competitionName=soccer-feature-design-hackathon",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "ok",
+    "page_dates": "enabled 2026-11-10T17:01Z, deadline 2027-02-17T23:59Z",
+    "page_team_size": "maxTeamSize 5",
+    "notes": "web page is JS-only; facts taken from Kaggle's own competition API for this slug"
+   }
+  },
+  {
+   "n": 52,
+   "parser": {
+    "source_id": "kaggle:153956",
+    "parser_accepted": true,
+    "title": "2026 IEEE Big Data-Traffic Flow Bench",
+    "kind": "contest",
+    "format": "online",
+    "starts_at": "2026-09-04T19:30:51.537000Z",
+    "ends_at": "2026-11-07T06:55:00Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": 4,
+    "inferred_fields": [],
+    "urls": [
+     "https://www.kaggle.com/competitions/2026-ieee-big-data-traffic-flow-bench"
+    ],
+    "summary": "Reconstruct masked freeway states, forecast queues, respect the physics, and recover the demand"
+   },
+   "label": {
+    "checked_url": "https://www.kaggle.com/competitions/2026-ieee-big-data-traffic-flow-bench/overview",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "ok",
+    "page_dates": "Sep 4, 2026 - Nov 7, 2026 (final submissions early Nov 7 UTC; report Nov 10)",
+    "page_team_size": "Maximum team size 4 (Kaggle sidebar, not machine-readable)",
+    "notes": "Kaggle timeline/team sidebar is JS-only; dates cross-checked via text mirror and third-party listing (Sep 4-Nov 7), team max 4 unconfirmed"
+   }
+  },
+  {
+   "n": 53,
+   "parser": {
+    "source_id": "kaggle:143678",
+    "parser_accepted": true,
+    "title": "Solar Filament Segmentation Challenge 2026",
+    "kind": "contest",
+    "format": "online",
+    "starts_at": "2026-07-08T18:29:04.320000Z",
+    "ends_at": "2026-11-16T11:59:59Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": 10,
+    "inferred_fields": [],
+    "urls": [
+     "https://www.kaggle.com/competitions/filament-segmentation-2026"
+    ],
+    "summary": "Automatic Segmentation of Solar Filaments using Computer Vision algorithms (with or without fitting) from GONG's H-Alpha Observations"
+   },
+   "label": {
+    "checked_url": "https://www.kaggle.com/competitions/filament-segmentation-2026/overview",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": false,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "launched July 10, 2026; deadline Nov 15, 2026 11:59pm CDT",
+    "page_team_size": "",
+    "notes": "Page: launched Jul 10, deadline Nov 15 11:59pm CDT; parser has Jul 8 - Nov 16 11:59Z. Max team size (parser 10) not shown on readable page"
+   }
+  },
+  {
+   "n": 54,
+   "parser": {
+    "source_id": "kaggle:157652",
+    "parser_accepted": true,
+    "title": "RailSanya 2027 Problem Solving Competition",
+    "kind": "contest",
+    "format": "online",
+    "starts_at": "2026-11-03T07:04:54.373000Z",
+    "ends_at": "2027-02-27T11:59:59Z",
+    "timezone": null,
+    "location": null,
+    "team_size_min": null,
+    "team_size_max": 5,
+    "inferred_fields": [],
+    "urls": [
+     "https://www.kaggle.com/competitions/rail-sanya-2027-problem-solving-competition"
+    ],
+    "summary": "High-Speed Railway Train Rescheduling Problem Under Unexpected Emergency Scenarios"
+   },
+   "label": {
+    "checked_url": "https://www.kaggle.com/api/i/competitions.CompetitionService/GetCompetition?competitionId=157652",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": null,
+    "team_size": "ok",
+    "page_dates": "dateEnabled 2026-11-03T07:04:54Z, deadline 2027-02-27T11:59:59Z",
+    "page_team_size": "maxTeamSize 5",
+    "notes": ""
+   }
+  },
+  {
+   "n": 55,
+   "parser": {
+    "source_id": "luma-rs:evt-o9DNH6twxVs8voS",
+    "parser_accepted": true,
+    "title": "AI Salon Belgrade powered by Wonderful",
+    "kind": "meetup",
+    "format": "offline",
+    "starts_at": "2026-11-26T17:00:00Z",
+    "ends_at": "2026-11-26T19:00:00Z",
+    "timezone": "Europe/Belgrade",
+    "location": {
+     "city": "Belgrade",
+     "address": "Belgrade, Serbia",
+     "country": "RS"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://api.lu.ma/calendar/get-items",
+     "https://luma.com/AI-Salon-Belgrade-November-2026"
+    ],
+    "summary": "AiSalon je globalna zajednica koja okuplja AI osnivače i developere, investitore i partnere radi povezivanja i saradnje."
+   },
+   "label": {
+    "checked_url": "https://luma.com/AI-Salon-Belgrade-November-2026",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "2026-11-26 18:00 - 20:00 CET (start_at/end_at in page JSON)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 56,
+   "parser": {
+    "source_id": "luma-rs:evt-arv3ZeIzFzwk491",
+    "parser_accepted": true,
+    "title": "Garaža Meetup w/ HeyData: AI and the Next Generation of Compliance",
+    "kind": "meetup",
+    "format": "offline",
+    "starts_at": "2026-10-20T16:00:00Z",
+    "ends_at": "2026-10-20T18:00:00Z",
+    "timezone": "Europe/Belgrade",
+    "location": {
+     "city": "Belgrade",
+     "address": null,
+     "country": "RS"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://api.lu.ma/calendar/get-items",
+     "https://luma.com/yk92u440"
+    ],
+    "summary": "Join us in Garaža for a conversation with Miloš Djurdjević, Co-Founder and Co-CEO of heyData, and Martin Bastius, Co-Founder and Chief Legal Officer. Tihomir Bajić, General Partner at Fifth Quarter Ventures, will moderate the conversation."
+   },
+   "label": {
+    "checked_url": "https://luma.com/yk92u440",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": false,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Oct 20, 2026 18:00-20:00 CEST/Belgrade (16:00-18:00Z)",
+    "page_team_size": "",
+    "notes": "founder/legal fireside chat on AI compliance, not a build/learn tech event for developers"
+   }
+  },
+  {
+   "n": 57,
+   "parser": {
+    "source_id": "luma-rs:evt-AmARtBfQH8yTRQT",
+    "parser_accepted": true,
+    "title": "AI Salon Belgrade",
+    "kind": "meetup",
+    "format": "offline",
+    "starts_at": "2026-10-20T16:00:00Z",
+    "ends_at": "2026-10-20T18:00:00Z",
+    "timezone": "Europe/Belgrade",
+    "location": {
+     "city": "Belgrade",
+     "address": "Belgrade, Serbia",
+     "country": "RS"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://api.lu.ma/calendar/get-items",
+     "https://luma.com/AI-Salon-Belgrade-October-2026"
+    ],
+    "summary": "AiSalon je globalna zajednica koja okuplja AI osnivače i developere, investitore i partnere kako bi se povezali i sarađivali."
+   },
+   "label": {
+    "checked_url": "https://luma.com/AI-Salon-Belgrade-October-2026",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Tuesday, 20 October 2026, 18:00-20:00 Belgrade",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 58,
+   "parser": {
+    "source_id": "mlh:01a0035a-106a-17c8-bf3b-5998c92c6f77",
+    "parser_accepted": true,
+    "title": "IKU Womxn in STEM Hackathon",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-10-17T13:00:00Z",
+    "ends_at": "2026-10-18T20:00:00Z",
+    "timezone": "Europe/London",
+    "location": {
+     "city": "London",
+     "address": "London, London",
+     "country": "GB"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://www.mlh.com/events/iku-womxn-in-stem-hackathon",
+     "https://ikuwomxninstemhackathon.co.uk/"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://ikuwomxninstemhackathon.co.uk/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": false,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "17 Oct 2026 09:00 registration (hacking 11:00) - 18 Oct 2026 16:00 event ends",
+    "page_team_size": "",
+    "notes": "Official site runs 09:00-16:00 local (BST); parser 14:00-21:00 local, copied from the MLH listing."
+   }
+  },
+  {
+   "n": 59,
+   "parser": {
+    "source_id": "mlh:01a0f9ce-2aec-1d0e-a9c8-f5b4213b0d1b",
+    "parser_accepted": true,
+    "title": "HackTheBurgh",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-11-07T14:00:00Z",
+    "ends_at": "2026-11-08T20:00:00Z",
+    "timezone": "Europe/London",
+    "location": {
+     "city": "Edinburgh",
+     "address": "Edinburgh, Edinburgh",
+     "country": "GB"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://www.mlh.com/events/hacktheburgh-9f",
+     "https://hacktheburgh.com/"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://hacktheburgh.com/",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": false,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "missed",
+    "page_dates": "7th-8th November 2026, Start 09:00 (Sat) - End 17:00 (Sun)",
+    "page_team_size": "Up to 4",
+    "notes": "parser 14:00Z-20:00Z = 14:00-20:00 London vs page 09:00-17:00; page team size up to 4 not captured"
+   }
+  },
+  {
+   "n": 60,
+   "parser": {
+    "source_id": "mlh:01a0eeb9-5924-af9e-cdc9-e95db9dced9e",
+    "parser_accepted": true,
+    "title": "Since AI Hackathon",
+    "kind": "hackathon",
+    "format": "offline",
+    "starts_at": "2026-11-06T21:00:00Z",
+    "ends_at": "2026-11-08T21:00:00Z",
+    "timezone": "Europe/Helsinki",
+    "location": {
+     "city": "Turku",
+     "address": "Turku, Varsinais-Suomi",
+     "country": "FI"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone"
+    ],
+    "urls": [
+     "https://www.mlh.com/events/since-ai-hackathon",
+     "https://sinceai.ai/"
+    ],
+    "summary": ""
+   },
+   "label": {
+    "checked_url": "https://www.mlh.com/events/since-ai-hackathon",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": true,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Fri Nov 6 9:00 PM - Sun Nov 8 9:00 PM UTC 2026 (23:00 EET)",
+    "page_team_size": "",
+    "notes": ""
+   }
+  },
+  {
+   "n": 61,
+   "parser": {
+    "source_id": "hackathonhub:c5ee5212-0ab3-49ab-b748-fcb697c1a451",
+    "parser_accepted": false,
+    "title": "One Health Innovation Bootcamp 2026",
+    "kind": "contest",
+    "format": "hybrid",
+    "starts_at": "2026-08-08T00:00:00+03:00",
+    "ends_at": "2026-10-29T23:59:59+02:00",
+    "timezone": "Europe/Bucharest",
+    "location": {
+     "country": "RO",
+     "city": "Timișoara"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/one-health-innovation-bootcamp-2026-timi-oara-2026",
+     "https://1health.ro/innovation-bootcamp-2026/"
+    ],
+    "summary": "The 1Health Innovation Bootcamp 2026 targets researchers and early-stage startups in food and crops, aiming to translate their research into business models. This two-month program focuses on company creation and venturing, supporting teams in refining their business models and preparing for investo"
+   },
+   "label": {
+    "checked_url": "https://1health.ro/innovation-bootcamp-2026/",
+    "verifiable": true,
+    "is_event": false,
+    "relevant": false,
+    "kind_ok": null,
+    "dates_ok": null,
+    "format_ok": null,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "sessions Sep 2 - Oct 23, 2026; Grand Demo Day Oct 27-29, 2026",
+    "page_team_size": "minimum 3 team members",
+    "notes": "Cohort program page (applications closed), not one event; food/agri startup incubation, business focus, no tech build/learn"
+   }
+  },
+  {
+   "n": 62,
+   "parser": {
+    "source_id": "luma-rs:evt-22xY3VCXEXei2rN",
+    "parser_accepted": false,
+    "title": "Revenue Day Belgrade #5",
+    "kind": "meetup",
+    "format": "offline",
+    "starts_at": "2026-11-12T16:00:00Z",
+    "ends_at": "2026-11-12T20:00:00Z",
+    "timezone": "Europe/Belgrade",
+    "location": {
+     "country": "RS",
+     "city": "Belgrade",
+     "address": "Tenderly, Milutina Milankovića 7dj, Beograd 11070, Serbia"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [],
+    "urls": [
+     "https://api.lu.ma/calendar/get-items",
+     "https://luma.com/revenue-day-bg-5"
+    ],
+    "summary": "📣 SaaStanak Revenue Day #5 Belgrade"
+   },
+   "label": {
+    "checked_url": "https://luma.com/revenue-day-bg-5",
+    "verifiable": true,
+    "is_event": true,
+    "relevant": false,
+    "kind_ok": true,
+    "dates_ok": true,
+    "format_ok": true,
+    "country_ok": true,
+    "team_size": "na",
+    "page_dates": "Thu Nov 12, 2026, 17:00-21:00 CET (start_at 16:00Z, end_at 20:00Z)",
+    "page_team_size": "",
+    "notes": "SaaS customer-success / revenue meetup for business people; no developer/build/learn focus."
+   }
+  },
+  {
+   "n": 63,
+   "parser": {
+    "source_id": "hackathonhub:e3f33b13-683d-4452-805d-3f384c45d642",
+    "parser_accepted": false,
+    "title": "Engineering Microbial Consortia Challenge",
+    "kind": "contest",
+    "format": "hybrid",
+    "starts_at": "2026-12-04T00:00:00+01:00",
+    "ends_at": "2030-02-04T23:59:59+01:00",
+    "timezone": "Europe/Berlin",
+    "location": {
+     "country": "DE",
+     "city": "Leipzig"
+    },
+    "team_size_min": null,
+    "team_size_max": null,
+    "inferred_fields": [
+     "timezone",
+     "starts_at",
+     "ends_at"
+    ],
+    "urls": [
+     "https://hackathonhub.eu/events/engineering-microbial-consortia-challenge-leipzig-2026",
+     "https://www.sprind.org/taten/challenges/engineering-microbial-consortia"
+    ],
+    "summary": "This SPRIND Challenge seeks innovative ideas to control microbial consortia using AI, aiming to replace fossil resources in chemistry and transform waste streams into usable materials. The goal is to develop robust and circular biomanufacturing processes for sustainable chemicals and materials. The "
+   },
+   "label": {
+    "checked_url": "https://www.sprind.org/taten/challenges/engineering-microbial-consortia",
+    "verifiable": true,
+    "is_event": false,
+    "relevant": false,
+    "kind_ok": null,
+    "dates_ok": false,
+    "format_ok": null,
+    "country_ok": null,
+    "team_size": "na",
+    "page_dates": "applications until 16 Nov 2026 11:00 CET; 38 months across 3 stages",
+    "page_team_size": "",
+    "notes": "multi-year biotech R&D funding challenge, not a scheduled event or dev event; Dec 2026-Feb 2030 window not on page"
+   }
+  }
+ ]
+}

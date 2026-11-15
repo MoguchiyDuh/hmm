@@ -68,7 +68,7 @@ Missing facts → `None`, never invented. `people` only lists identities publish
 
 ## 19.6 Implementation
 
-Package `hmm.parser`. Sources are configured in `src/hmm/parser/sources.toml` (override with `PARSER_SOURCES`, §22.2); adapters live in `hmm/parser/sources/` and register themselves by name. Design and per-source notes: [19-parser-sources.md](19-parser-sources.md).
+Package `hmm.parser`. Sources are configured in `src/hmm/parser/sources.toml` (override with `PARSER_SOURCES`, §22.2); adapters live in `hmm/parser/sources/` and register themselves by name. Design and per-source notes: [19-parser-sources.md](19-parser-sources.md). Measured accuracy: [19-parser-quality.md](19-parser-quality.md).
 
 **Run.** `parser_run` (every 30 min, singleton, §17.2) loads the TOML, skips disabled instances and instances with a missing `secret_env` variable, and picks the due ones: never run, or `now - last_started_at ≥ interval` (5 min slack for cron jitter). Due instances run concurrently, each within its `budget`; a failing instance only adds to the run's errors. Items pass the relevance filter, are deduped, then imported in batches of 50. Per-instance state (`parser_source_states`: last start, finish, success, error, counts) and one heartbeat (§11.2) are written every run, including runs with nothing due.
 
