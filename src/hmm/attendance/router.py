@@ -20,7 +20,6 @@ from hmm.platform.pagination import CursorParams
 from hmm.platform.security import MemberAuth
 
 router = APIRouter(tags=["attendance"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["attendance"], responses=PROBLEM_RESPONSES)
 
 
 @router.put(

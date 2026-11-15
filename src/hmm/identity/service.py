@@ -76,45 +76,6 @@ async def account_state(session: AsyncSession, actor: models.User, now: datetime
     )
 
 
-def require_service_token(token: str | None, configured: str | None) -> None:
-    if not configured or token is None:
-        raise ProblemError(ErrorCode.UNAUTHENTICATED)
-    if not hmac.compare_digest(token.encode(), configured.encode()):
-        raise ProblemError(ErrorCode.UNAUTHENTICATED)
-
-
-async def resolve_telegram_user(session: AsyncSession, telegram_user_id: str | None) -> models.User:
-    if telegram_user_id is None:
-        raise ProblemError(ErrorCode.TELEGRAM_NOT_LINKED)
-    try:
-        identity = int(telegram_user_id)
-    except ValueError as error:
-        raise ProblemError(ErrorCode.TELEGRAM_NOT_LINKED) from error
-    if not -(2**63) <= identity < 2**63:
-        raise ProblemError(ErrorCode.TELEGRAM_NOT_LINKED)
-    user_id = await session.scalar(
-        select(models.TelegramLink.user_id).where(models.TelegramLink.telegram_user_id == identity)
-    )
-    if user_id is None:
-        raise ProblemError(ErrorCode.TELEGRAM_NOT_LINKED)
-    actor = await lock_user(session, user_id)
-    link = await session.scalar(
-        select(models.TelegramLink)
-        .where(
-            models.TelegramLink.user_id == user_id,
-            models.TelegramLink.telegram_user_id == identity,
-        )
-        .with_for_update()
-    )
-    if link is None:
-        raise ProblemError(ErrorCode.TELEGRAM_NOT_LINKED)
-    if actor.banned_at is not None:
-        raise ProblemError(ErrorCode.BANNED)
-    link.broken_at = None
-    await session.flush()
-    return actor
-
-
 async def create_telegram_code(
     session: AsyncSession, user_id: UUID, now: datetime
 ) -> models.TelegramLinkCode:

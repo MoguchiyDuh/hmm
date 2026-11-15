@@ -19,8 +19,6 @@ class Config(Contract):
     s3_secret_key: str | None = None
     s3_bucket: str | None = None
     session_secret: str | None = None
-    bot_service_token: str | None = None
-    parser_service_token: str | None = None
     telegram_bot_username: str | None = None
     admin_github_logins: frozenset[str] = frozenset()
     algorithm: str | None = None
@@ -59,8 +57,6 @@ class Config(Contract):
             s3_secret_key=env.get("S3_SECRET_KEY") or None,
             s3_bucket=env.get("S3_BUCKET") or None,
             session_secret=env.get("SESSION_SECRET") or None,
-            bot_service_token=env.get("BOT_SERVICE_TOKEN") or None,
-            parser_service_token=env.get("PARSER_SERVICE_TOKEN") or None,
             telegram_bot_username=env.get("TELEGRAM_BOT_USERNAME") or None,
             admin_github_logins=frozenset(env.get("ADMIN_GITHUB_LOGINS", "").split(",")),
             algorithm=env.get("ALGORITHM") or None,

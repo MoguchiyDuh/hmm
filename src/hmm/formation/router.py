@@ -13,7 +13,6 @@ from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import AdminAuth, MemberAuth
 
 router = APIRouter(tags=["formation"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["formation"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/events/{id}/formation")

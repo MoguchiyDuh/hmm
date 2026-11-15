@@ -26,7 +26,6 @@ from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import AdminAuth, UserAuth
 
 router = APIRouter(tags=["onboarding"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["onboarding"], responses=PROBLEM_RESPONSES)
 
 
 @router.get(

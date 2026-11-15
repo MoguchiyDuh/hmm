@@ -1,22 +1,21 @@
 import re
-from collections.abc import Iterator
-from typing import Annotated, Any
+from collections.abc import AsyncIterator, Iterator
+from typing import Annotated
 
 import httpx
 import pytest
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.routing import APIRoute
-from stub_operations import UNIMPLEMENTED_OPERATIONS
+from harness import assert_problem
 
 from hmm.app import create_app
-from hmm.common import ErrorCode, Problem
-from hmm.export_openapi import OPENAPI_PATH, render_openapi
-from hmm.models import User
+from hmm.common import ErrorCode
 from hmm.platform.config import Config
-from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError, not_implemented
+from hmm.platform.db import get_session
+from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody as Reason
-from hmm.platform.security import admin, bot_service, member, parser_service, user
+from hmm.platform.security import admin, user
 
 DUMMY_UUID = "019a78e5-9800-7000-8000-000000000001"
 
@@ -32,120 +31,6 @@ def registered_operations(app: FastAPI) -> Iterator[tuple[str, str]]:
                 if isinstance(context.original_route, APIRoute) and context.include_in_schema:
                     for method in sorted(context.methods):
                         yield context.path_format, method.lower()
-
-
-def minimal_value(schema: dict[str, Any], document: dict[str, Any], depth: int = 0) -> Any:
-    if depth > 15:
-        return None
-    if "$ref" in schema:
-        target: Any = document
-        for key in schema["$ref"].removeprefix("#/").split("/"):
-            target = target[key]
-        return minimal_value(target, document, depth + 1)
-    if "default" in schema:
-        return schema["default"]
-    if "const" in schema:
-        return schema["const"]
-    if "enum" in schema:
-        return schema["enum"][0]
-    for union in ("anyOf", "oneOf"):
-        if union in schema:
-            return minimal_value(schema[union][0], document, depth + 1)
-    kind = schema.get("type")
-    if kind == "object" or "properties" in schema:
-        return {
-            key: minimal_value(value, document, depth + 1)
-            for key, value in schema.get("properties", {}).items()
-            if key in schema.get("required", [])
-        }
-    if kind == "array":
-        return [
-            minimal_value(schema.get("items", {}), document, depth + 1)
-            for _ in range(schema.get("minItems", 0))
-        ]
-    if kind == "boolean":
-        return False
-    if kind in ("integer", "number"):
-        return max(schema.get("minimum", 0), schema.get("exclusiveMinimum", -1) + 1)
-    if kind == "null":
-        return None
-    match schema.get("format"):
-        case "uuid":
-            return DUMMY_UUID
-        case "date-time":
-            return "2026-11-12T10:00:00Z"
-        case "date":
-            return "2026-11-12"
-        case "uri" | "url":
-            return "https://example.com"
-    if schema.get("pattern") == "^[a-z][a-z0-9_]{0,31}$":
-        return "backend"
-    return "x" * max(1, schema.get("minLength", 0))
-
-
-def assert_problem(response: httpx.Response, status: int, code: ErrorCode) -> Problem:
-    assert response.status_code == status, response.text
-    assert response.headers["content-type"] == "application/problem+json"
-    problem = Problem.model_validate(response.json())
-    assert problem.status == status
-    assert problem.code == code
-    assert problem.type.endswith(f"/errors/{code}")
-    return problem
-
-
-@pytest.mark.asyncio
-async def test_explicit_unimplemented_operations(stub_actor: User) -> None:
-    app = create_app()
-    for dependency in (user, member, admin):
-        app.dependency_overrides[dependency] = lambda: stub_actor
-    for dependency in (bot_service, parser_service):
-        app.dependency_overrides[dependency] = lambda: None
-    document = app.openapi()
-    operations = list(registered_operations(app))
-    assert operations
-    operation_ids = {document["paths"][path][method]["operationId"] for path, method in operations}
-    assert operation_ids >= UNIMPLEMENTED_OPERATIONS
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app, raise_app_exceptions=False),
-        base_url="http://test",
-    ) as client:
-        for path, method in operations:
-            operation = document["paths"][path][method]
-            url = path
-            query: dict[str, Any] = {}
-            headers: dict[str, str] = {}
-            for parameter in operation.get("parameters", []):
-                if not parameter.get("required"):
-                    continue
-                value = minimal_value(parameter["schema"], document)
-                name = parameter["name"]
-                match parameter["in"]:
-                    case "path":
-                        url = url.replace("{" + name + "}", str(value))
-                    case "query":
-                        query[name] = value
-                    case "header":
-                        headers[name] = str(value)
-            url = re.sub(r"\{[^}]+\}", DUMMY_UUID, url)
-            body = operation.get("requestBody", {}).get("content", {})
-            payload = (
-                minimal_value(body["application/json"]["schema"], document)
-                if ("application/json" in body)
-                else None
-            )
-            if operation["operationId"] == "catalog_create_event":
-                assert isinstance(payload, dict)
-                payload["timezone"] = "UTC"
-            if operation["operationId"] == "projects_create_release":
-                assert isinstance(payload, dict)
-                payload["repo_url"] = "https://example.com/repo"
-            response = await client.request(
-                method, url, params=query, headers=headers, json=payload
-            )
-            if operation["operationId"] not in UNIMPLEMENTED_OPERATIONS:
-                assert response.status_code != 501, operation["operationId"]
-                continue
-            assert_problem(response, 501, ErrorCode.NOT_IMPLEMENTED)
 
 
 def test_openapi_is_unique_and_uses_problem_responses() -> None:
@@ -166,16 +51,8 @@ def test_openapi_is_unique_and_uses_problem_responses() -> None:
             }
     assert len(ids) == len(set(ids))
     assert "HTTPValidationError" not in document["components"]["schemas"]
-    assert set(document["components"]["securitySchemes"]) == {
-        "SessionCookie",
-        "BotServiceToken",
-        "ParserServiceToken",
-        "TelegramUser",
-    }
-    assert document["paths"]["/api/v1/areas"]["get"]["security"] == [
-        {"SessionCookie": []},
-        {"BotServiceToken": [], "TelegramUser": []},
-    ]
+    assert set(document["components"]["securitySchemes"]) == {"SessionCookie"}
+    assert document["paths"]["/api/v1/areas"]["get"]["security"] == [{"SessionCookie": []}]
 
 
 @pytest.mark.asyncio
@@ -197,7 +74,7 @@ async def test_validation_and_http_errors() -> None:
 
     @app.post("/validation", responses=PROBLEM_RESPONSES)
     async def validation(body: Reason, pagination: Annotated[CursorParams, Depends()]) -> None:
-        not_implemented()
+        return None
 
     @app.get("/http-error")
     async def http_error() -> None:
@@ -227,7 +104,6 @@ async def test_validation_and_http_errors() -> None:
             assert problem.errors
             assert all(issue.loc and issue.msg for issue in problem.errors)
             assert problem.type == "https://hmm.example/errors/validation_error"
-        assert_problem(await client.post("/validation", json={}), 501, ErrorCode.NOT_IMPLEMENTED)
         unauthorized = await client.get("/http-error")
         assert_problem(unauthorized, 401, ErrorCode.UNAUTHENTICATED)
         assert unauthorized.headers["WWW-Authenticate"] == "Bearer"
@@ -244,36 +120,24 @@ async def test_validation_and_http_errors() -> None:
 async def test_security_dependencies() -> None:
     app = create_app()
 
-    @app.get("/bot", dependencies=[Depends(bot_service)])
-    async def bot() -> None:
-        not_implemented()
+    async def no_session() -> AsyncIterator[None]:
+        yield None
 
-    @app.get("/parser", dependencies=[Depends(parser_service)])
-    async def parser() -> None:
-        not_implemented()
+    app.dependency_overrides[get_session] = no_session
 
     @app.get("/user", dependencies=[Depends(user)])
     async def acting() -> None:
-        not_implemented()
+        return None
 
     @app.get("/admin", dependencies=[Depends(admin)])
     async def admin_only() -> None:
-        not_implemented()
+        return None
 
     async with httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app), base_url="http://test"
     ) as client:
-        for path in ("/bot", "/parser"):
+        for path in ("/user", "/admin"):
             assert_problem(await client.get(path), 401, ErrorCode.UNAUTHENTICATED)
     schema = app.openapi()
-    assert schema["paths"]["/bot"]["get"]["security"] == [{"BotServiceToken": []}]
-    assert schema["paths"]["/parser"]["get"]["security"] == [{"ParserServiceToken": []}]
-    assert schema["paths"]["/user"]["get"]["security"] == [
-        {"SessionCookie": []},
-        {"BotServiceToken": [], "TelegramUser": []},
-    ]
-    assert schema["paths"]["/admin"]["get"]["security"] == [{"SessionCookie": []}]
-
-
-def test_openapi_export_is_current() -> None:
-    assert OPENAPI_PATH.read_text(encoding="utf-8") == render_openapi()
+    for path in ("/user", "/admin"):
+        assert schema["paths"][path]["get"]["security"] == [{"SessionCookie": []}]

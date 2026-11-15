@@ -41,7 +41,6 @@ from hmm.results.schemas import (
 )
 
 router = APIRouter(tags=["results"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["results"], responses=PROBLEM_RESPONSES)
 
 
 @router.post(

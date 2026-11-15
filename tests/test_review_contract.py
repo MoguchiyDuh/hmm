@@ -1,19 +1,14 @@
 import re
 from typing import Any
-from uuid import UUID
 
-import httpx
 import pytest
 from pydantic import TypeAdapter, ValidationError
-from stub_operations import UNIMPLEMENTED_OPERATIONS
 
 from hmm.app import create_app
 from hmm.attendance.schemas import CreateMemberEventBody, UpdateMemberEventBody
 from hmm.catalog.schemas import EventSummary
 from hmm.common import Page, TimeZoneName
-from hmm.models import User
 from hmm.notifications.payloads import ACTION_ROUTES, ActionKey
-from hmm.platform.security import member, user
 
 
 def test_openapi_security_ranges_names_and_project_views() -> None:
@@ -22,16 +17,11 @@ def test_openapi_security_ranges_names_and_project_views() -> None:
     assert all(not re.search(r"[_-]", name) for name in document["components"]["schemas"])
     assert "HTTPValidationError" not in document["components"]["schemas"]
     assert "ValidationError" not in document["components"]["schemas"]
-    for path, operations in document["paths"].items():
+    for operations in document["paths"].values():
         for operation in operations.values():
             assert "422" not in operation["responses"]
-            if path.startswith("/api/v1/admin/"):
+            if "security" in operation:
                 assert operation["security"] == [{"SessionCookie": []}]
-            elif not path.startswith("/api/v1/internal/") and "security" in operation:
-                assert operation["security"] == [
-                    {"SessionCookie": []},
-                    {"BotServiceToken": [], "TelegramUser": []},
-                ]
     response = document["paths"]["/api/v1/projects/{id}"]["get"]["responses"]["200"]
     schema = response["content"]["application/json"]["schema"]
     schema = document["components"]["schemas"][schema["$ref"].rsplit("/", 1)[1]]
@@ -44,28 +34,13 @@ def test_openapi_security_ranges_names_and_project_views() -> None:
     assert items["discriminator"]["propertyName"] == "view"
 
 
-@pytest.mark.asyncio
-async def test_action_routes_exist_and_fixed_bodies_are_callable(stub_actor: User) -> None:
-    app = create_app()
-    for dependency in (user, member):
-        app.dependency_overrides[dependency] = lambda: stub_actor
-    document = app.openapi()
+def test_action_routes_exist() -> None:
+    document = create_app().openapi()
     assert set(ACTION_ROUTES) == set(ActionKey)
     assert len({(route.method, route.path) for route in ACTION_ROUTES.values()}) == len(ActionKey)
-    async with httpx.AsyncClient(
-        transport=httpx.ASGITransport(app=app), base_url="http://test"
-    ) as client:
-        for route in ACTION_ROUTES.values():
-            operation = document["paths"][route.path][route.method.lower()]
-            assert operation["security"] == [
-                {"SessionCookie": []},
-                {"BotServiceToken": [], "TelegramUser": []},
-            ]
-            if operation["operationId"] not in UNIMPLEMENTED_OPERATIONS:
-                continue
-            path = route.path.format(id=UUID("019a7b32-0000-7000-8000-000000000001"))
-            response = await client.request(route.method, path, json=route.body)
-            assert response.status_code == 501, response.text
+    for route in ACTION_ROUTES.values():
+        operation = document["paths"][route.path][route.method.lower()]
+        assert operation["security"] == [{"SessionCookie": []}]
 
 
 def test_timezone_type_and_member_event_defaults() -> None:
@@ -92,7 +67,4 @@ def test_direct_help_request_decline_has_no_body_and_returns_help_request() -> N
     assert operation["responses"]["200"]["content"]["application/json"]["schema"] == {
         "$ref": "#/components/schemas/HelpRequest"
     }
-    assert operation["security"] == [
-        {"SessionCookie": []},
-        {"BotServiceToken": [], "TelegramUser": []},
-    ]
+    assert operation["security"] == [{"SessionCookie": []}]

@@ -2,10 +2,9 @@ from datetime import timedelta
 from uuid import UUID
 
 import pytest
-from harness import Harness
+from harness import Harness, assert_problem
 from pydantic import JsonValue
 from sqlalchemy import func, select
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.common import ActorKind, AuditAction, AuditEntityType, ErrorCode
@@ -313,16 +312,10 @@ async def test_admin_settings_normalizes_numeric_value(harness: Harness) -> None
 async def test_admin_users_settings_access(harness: Harness, method: str, path: str) -> None:
     h = harness
     member = await h.user()
-    actor = await h.admin()
-    telegram_id = await h.link_telegram(actor)
     body = {"value": 60} if method == "PUT" else None
     async with await h.client(member) as client:
         assert_problem(await client.request(method, path, json=body), 403, ErrorCode.FORBIDDEN)
     async with h.anonymous() as client:
-        assert_problem(
-            await client.request(method, path, json=body), 401, ErrorCode.UNAUTHENTICATED
-        )
-    async with h.bot(telegram_id) as client:
         assert_problem(
             await client.request(method, path, json=body), 401, ErrorCode.UNAUTHENTICATED
         )

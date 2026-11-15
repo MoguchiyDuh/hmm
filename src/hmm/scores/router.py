@@ -45,7 +45,6 @@ from hmm.scores.schemas import (
 from hmm.scores.snapshot import build_member_snapshot
 
 router = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["scores"], responses=PROBLEM_RESPONSES)
 
 
 @router.get(

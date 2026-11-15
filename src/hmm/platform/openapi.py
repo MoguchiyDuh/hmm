@@ -5,19 +5,10 @@ from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 from fastapi.routing import APIRoute
 
-from hmm.platform.security import SECURITY_SCHEMES
-
-USER_SECURITY = [{"SessionCookie": []}, {"BotServiceToken": [], "TelegramUser": []}]
-
 
 def operation_id(route: APIRoute) -> str:
     tag = str(route.tags[0]) if route.tags else "system"
     return re.sub(r"[^a-z0-9_]+", "_", f"{tag}_{route.name}".lower()).strip("_")
-
-
-def normalize_security(operation: dict[str, Any]) -> None:
-    if {"TelegramUser": []} in operation.get("security", []):
-        operation["security"] = USER_SECURITY
 
 
 def drop_plain_json_errors(operation: dict[str, Any]) -> None:
@@ -34,9 +25,7 @@ def build_openapi(app: FastAPI) -> dict[str, Any]:
         routes=app.routes,
         separate_input_output_schemas=app.separate_input_output_schemas,
     )
-    schema.setdefault("components", {}).setdefault("securitySchemes", {}).update(SECURITY_SCHEMES)
     for path in schema["paths"].values():
         for operation in path.values():
-            normalize_security(operation)
             drop_plain_json_errors(operation)
     return schema

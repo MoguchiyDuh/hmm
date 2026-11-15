@@ -6,9 +6,8 @@ from typing import Any
 
 import httpx
 import pytest
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import text, update
-from test_api_skeleton import assert_problem
 
 from hmm.common import ErrorCode, GithubSnapshotStatus
 from hmm.identity import service as identity

@@ -1,28 +1,28 @@
 import asyncio
-import hmac
 import re
 import secrets
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
-from unittest.mock import patch
 from urllib.parse import parse_qs
 
 import httpx
 import pytest
 from fastapi import FastAPI
+from harness import assert_problem
 from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine
-from test_api_skeleton import assert_problem
 
 from hmm.app import create_app
 from hmm.common import ActorKind, AuditAction, ErrorCode, OnboardingStatus
+from hmm.identity import service as identity
 from hmm.identity.github import TOKEN_URL, USER_URL
-from hmm.identity.service import hash_token, pkce_challenge, require_service_token
+from hmm.identity.service import hash_token, pkce_challenge
 from hmm.models import AuditLog, TelegramLink, TelegramLinkCode, User, UserSession
 from hmm.platform.clock import FixedClock
 from hmm.platform.config import Config
 from hmm.platform.db import create_sessionmaker
+from hmm.platform.errors import ProblemError
 
 PUBLIC_URL = "https://hmm.test"
 NOW = datetime(2026, 11, 13, 9, 0, tzinfo=UTC)
@@ -77,8 +77,6 @@ async def app(
             github_client_secret="client-secret",
             session_secret="session-secret",
             admin_github_logins=frozenset({"Boss", "deputy"}),
-            bot_service_token="bot-token",
-            parser_service_token="parser-token",
             telegram_bot_username="hmm_test_bot",
         )
     )
@@ -289,10 +287,7 @@ async def test_logout_revokes_immediately_and_checks_origin(
         assert (await second.get("/api/v1/me")).status_code == 200
         assert (await second.post("/api/v1/auth/logout-all")).status_code == 204
         assert_problem(await third.get("/api/v1/me"), 401, ErrorCode.UNAUTHENTICATED)
-        bot = {"Authorization": "Bearer bot"}
-        assert_problem(await third.get("/api/v1/me", headers=bot), 400, ErrorCode.BAD_REQUEST)
         third.cookies.clear()
-        assert_problem(await third.get("/api/v1/me", headers=bot), 401, ErrorCode.UNAUTHENTICATED)
         assert_problem(await third.get("/api/v1/me"), 401, ErrorCode.UNAUTHENTICATED)
 
 
@@ -392,193 +387,44 @@ async def test_member_gate(app: FastAPI, github: FakeGithub, engine: AsyncEngine
         ]
 
 
-def bot_headers(telegram_user_id: int | None = None) -> dict[str, str]:
-    headers = {"Authorization": "Bearer bot-token"}
-    if telegram_user_id is not None:
-        headers["X-Telegram-User-Id"] = str(telegram_user_id)
-    return headers
+async def link(
+    engine: AsyncEngine,
+    code: str,
+    telegram_user_id: int = 123,
+    username: str | None = None,
+    now: datetime = NOW,
+) -> User:
+    async with create_sessionmaker(engine).begin() as session:
+        return await identity.link_telegram(
+            session, code, telegram_user_id, telegram_user_id, username, now
+        )
+
+
+async def unlink(engine: AsyncEngine, telegram_user_id: int = 123) -> None:
+    async with create_sessionmaker(engine).begin() as session:
+        await identity.unlink_telegram_account(session, telegram_user_id)
 
 
 async def link_account(
-    web: httpx.AsyncClient, bot: httpx.AsyncClient, telegram_user_id: int = 123
-) -> httpx.Response:
+    web: httpx.AsyncClient,
+    engine: AsyncEngine,
+    telegram_user_id: int = 123,
+    now: datetime = NOW,
+) -> User:
     response = await web.post("/api/v1/me/telegram/link-code")
     assert response.status_code == 201, response.text
-    return await bot.post(
-        "/api/v1/internal/telegram/link",
-        headers=bot_headers(),
-        json={
-            "code": response.json()["code"],
-            "telegram_user_id": telegram_user_id,
-            "chat_id": telegram_user_id,
-            "username": "octo_tg",
-        },
-    )
+    return await link(engine, response.json()["code"], telegram_user_id, "octo_tg", now)
 
 
-def test_service_config_from_env() -> None:
-    config = Config.from_env(
-        {
-            "BOT_SERVICE_TOKEN": "bot-secret",
-            "PARSER_SERVICE_TOKEN": "parser-secret",
-            "TELEGRAM_BOT_USERNAME": "hmm_bot",
-        }
-    )
-    assert config.bot_service_token == "bot-secret"
-    assert config.parser_service_token == "parser-secret"
+def test_telegram_bot_username_from_env() -> None:
+    config = Config.from_env({"TELEGRAM_BOT_USERNAME": "hmm_bot"})
     assert config.telegram_bot_username == "hmm_bot"
-    for env in ({}, {"BOT_SERVICE_TOKEN": "", "PARSER_SERVICE_TOKEN": ""}):
-        config = Config.from_env(env)
-        assert config.bot_service_token is None
-        assert config.parser_service_token is None
-
-
-@pytest.mark.parametrize(
-    ("path", "valid_token", "other_token"),
-    [
-        ("/api/v1/internal/notifications/pending", "bot-token", "parser-token"),
-        ("/api/v1/internal/areas", "parser-token", "bot-token"),
-    ],
-)
-async def test_service_tokens_are_scoped(
-    app: FastAPI, path: str, valid_token: str, other_token: str
-) -> None:
-    async with browser(app) as client:
-        for authorization in (
-            None,
-            "Bearer wrong",
-            f"Bearer {other_token}",
-            "Basic secret",
-            "Bearer",
-        ):
-            headers = {"Authorization": authorization} if authorization else {}
-            assert_problem(await client.get(path, headers=headers), 401, ErrorCode.UNAUTHENTICATED)
-        response = await client.get(
-            path,
-            headers={"Authorization": f"Bearer {valid_token}"},
-            params={"wait": 0} if path.endswith("/pending") else None,
-        )
-        assert response.status_code == 200, response.text
-
-
-@pytest.mark.parametrize("configured", [None, ""])
-async def test_unconfigured_service_tokens_fail(app: FastAPI, configured: str | None) -> None:
-    config: Config = app.state.config
-    app.state.config = config.model_copy(
-        update={"bot_service_token": configured, "parser_service_token": configured}
-    )
-    async with browser(app) as client:
-        for path, token in (
-            ("/api/v1/internal/notifications/pending?wait=0", "bot-token"),
-            ("/api/v1/internal/areas", "parser-token"),
-            ("/api/v1/me", "bot-token"),
-        ):
-            assert_problem(
-                await client.get(path, headers={"Authorization": f"Bearer {token}"}),
-                401,
-                ErrorCode.UNAUTHENTICATED,
-            )
-
-
-async def test_service_token_comparisons_use_hmac(app: FastAPI) -> None:
-    async with browser(app) as client:
-        with patch(
-            "hmm.identity.service.hmac.compare_digest", wraps=hmac.compare_digest
-        ) as compare:
-            for path, configured in (
-                ("/api/v1/internal/notifications/pending?wait=0", "bot-token"),
-                ("/api/v1/internal/areas", "parser-token"),
-                ("/api/v1/me", "bot-token"),
-            ):
-                for token in (configured, "wrong"):
-                    await client.get(path, headers={"Authorization": f"Bearer {token}"})
-                    compare.assert_called_with(token.encode(), configured.encode())
-            assert compare.call_count == 6
-            require_service_token("секрет", "секрет")
-            compare.assert_called_with("секрет".encode(), "секрет".encode())
-
-
-@pytest.mark.parametrize(
-    "telegram_user_id", [None, "999", "invalid", str(2**63), str(-(2**63) - 1)]
-)
-async def test_bot_unlinked_or_missing_identity(app: FastAPI, telegram_user_id: str | None) -> None:
-    headers = bot_headers()
-    if telegram_user_id is not None:
-        headers["X-Telegram-User-Id"] = telegram_user_id
-    async with browser(app) as client:
-        assert_problem(
-            await client.get("/api/v1/me", headers=headers), 401, ErrorCode.TELEGRAM_NOT_LINKED
-        )
-        headers["Authorization"] = "Bearer parser-token"
-        assert_problem(
-            await client.get("/api/v1/me", headers=headers), 401, ErrorCode.UNAUTHENTICATED
-        )
-
-
-async def test_bot_resolves_user_and_clears_broken_link(
-    app: FastAPI, github: FakeGithub, engine: AsyncEngine
-) -> None:
-    async with browser(app) as web, browser(app) as bot:
-        await sign_in(web, github, 1, "boss")
-        linked = await link_account(web, bot)
-        assert linked.status_code == 200, linked.text
-        actor = await user_by_login(engine, "boss")
-        assert linked.json() == {"user_id": str(actor.id), "display_name": "boss"}
-        async with engine.begin() as connection:
-            await connection.execute(update(TelegramLink).values(broken_at=NOW))
-        bot.headers.pop("Origin")
-        response = await bot.get("/api/v1/me", headers=bot_headers(123))
-        assert response.status_code == 200, response.text
-        assert response.json()["id"] == str(actor.id)
-        assert response.json()["telegram"]["broken_at"] is None
-        assert "unlink_telegram" in response.json()["allowed_actions"]
-        assert (await scalar(engine, select(TelegramLink))).broken_at is None
-        assert_problem(
-            await bot.get("/api/v1/areas", headers=bot_headers(123)),
-            403,
-            ErrorCode.ONBOARDING_REQUIRED,
-        )
-        assert_problem(
-            await bot.get("/api/v1/admin/users", headers=bot_headers(123)),
-            401,
-            ErrorCode.UNAUTHENTICATED,
-        )
-        async with engine.begin() as connection:
-            await connection.execute(
-                update(User).values(onboarding_status=OnboardingStatus.COMPLETED)
-            )
-        assert (await bot.get("/api/v1/areas", headers=bot_headers(123))).status_code == 200
-        response = await bot.post("/api/v1/me/telegram/link-code", headers=bot_headers(123))
-        assert response.status_code == 201, response.text
-        async with engine.begin() as connection:
-            await connection.execute(update(User).values(banned_at=NOW))
-            await connection.execute(update(TelegramLink).values(broken_at=NOW))
-        assert_problem(await bot.get("/api/v1/me", headers=bot_headers(123)), 403, ErrorCode.BANNED)
-        assert (await scalar(engine, select(TelegramLink))).broken_at == NOW
-
-
-@pytest.mark.parametrize(
-    "headers",
-    [
-        bot_headers(123),
-        bot_headers(),
-        {"X-Telegram-User-Id": "123"},
-        {"Authorization": "Basic bad"},
-    ],
-)
-async def test_cookie_and_bot_credentials_are_rejected(
-    app: FastAPI, github: FakeGithub, headers: dict[str, str]
-) -> None:
-    async with browser(app) as web:
-        await sign_in(web, github, 1, "boss")
-        for path in ("/api/v1/me", "/api/v1/admin/users"):
-            assert_problem(await web.get(path, headers=headers), 400, ErrorCode.BAD_REQUEST)
 
 
 async def test_link_codes_format_expiry_and_replacement(
     app: FastAPI, github: FakeGithub, engine: AsyncEngine
 ) -> None:
-    async with browser(app) as first, browser(app) as second, browser(app) as bot:
+    async with browser(app) as first, browser(app) as second:
         await sign_in(first, github, 1, "first")
         await sign_in(second, github, 2, "second")
         second_code = (await second.post("/api/v1/me/telegram/link-code")).json()["code"]
@@ -597,75 +443,63 @@ async def test_link_codes_format_expiry_and_replacement(
                 engine, select(TelegramLinkCode).where(TelegramLinkCode.code == second_code)
             )
         ).expires_at == NOW + timedelta(minutes=10)
-        for code, status, error in (
-            ("MISSING", 404, ErrorCode.CODE_INVALID),
-            (codes[0], 410, ErrorCode.CODE_EXPIRED),
+        for code, error in (
+            ("MISSING", ErrorCode.CODE_INVALID),
+            (codes[0], ErrorCode.CODE_EXPIRED),
         ):
-            response = await bot.post(
-                "/api/v1/internal/telegram/link",
-                headers=bot_headers(),
-                json={"code": code, "telegram_user_id": 123, "chat_id": 123, "username": None},
-            )
-            assert_problem(response, status, error)
+            with pytest.raises(ProblemError) as raised:
+                await link(engine, code)
+            assert raised.value.code is error
         clock: FixedClock = app.state.clock
         clock.set(NOW + timedelta(minutes=10))
-        response = await bot.post(
-            "/api/v1/internal/telegram/link",
-            headers=bot_headers(),
-            json={"code": codes[1], "telegram_user_id": 123, "chat_id": 123, "username": None},
-        )
-        assert_problem(response, 410, ErrorCode.CODE_EXPIRED)
+        with pytest.raises(ProblemError) as raised:
+            await link(engine, codes[1], now=clock.now())
+        assert raised.value.code is ErrorCode.CODE_EXPIRED
         assert await scalar(engine, select(func.count()).select_from(TelegramLink)) == 0
 
 
 async def test_link_replacement_conflict_and_replay(
     app: FastAPI, github: FakeGithub, engine: AsyncEngine
 ) -> None:
-    async with browser(app) as first, browser(app) as second, browser(app) as bot:
+    async with browser(app) as first, browser(app) as second:
         await sign_in(first, github, 1, "first")
         await sign_in(second, github, 2, "second")
-        assert (await link_account(first, bot, 123)).status_code == 200
-        assert_problem(await link_account(second, bot, 123), 409, ErrorCode.TELEGRAM_ALREADY_LINKED)
+        await link_account(first, engine, 123)
+        with pytest.raises(ProblemError) as raised:
+            await link_account(second, engine, 123)
+        assert raised.value.code is ErrorCode.TELEGRAM_ALREADY_LINKED
         second_code = await scalar(
             engine, select(TelegramLinkCode).where(TelegramLinkCode.used_at.is_(None))
         )
         assert second_code.used_at is None
-        assert (await link_account(second, bot, 456)).status_code == 200
+        await link_account(second, engine, 456)
         async with engine.begin() as connection:
             await connection.execute(update(TelegramLink).values(broken_at=NOW))
         clock: FixedClock = app.state.clock
         later = NOW + timedelta(minutes=1)
         clock.set(later)
-        assert (await link_account(first, bot, 789)).status_code == 200
+        await link_account(first, engine, 789, now=later)
         first_user = await user_by_login(engine, "first")
-        link = await scalar(
+        stored = await scalar(
             engine, select(TelegramLink).where(TelegramLink.user_id == first_user.id)
         )
-        assert link.telegram_user_id == 789
-        assert link.chat_id == 789 and link.username == "octo_tg"
-        assert link.linked_at == later and link.broken_at is None
+        assert stored.telegram_user_id == 789
+        assert stored.chat_id == 789 and stored.username == "octo_tg"
+        assert stored.linked_at == later and stored.broken_at is None
         assert (await first.get("/api/v1/me")).json()["telegram"]["username"] == "octo_tg"
-        assert_problem(
-            await bot.get("/api/v1/me", headers=bot_headers(123)),
-            401,
-            ErrorCode.TELEGRAM_NOT_LINKED,
-        )
         used = await scalar(
             engine, select(TelegramLinkCode).where(TelegramLinkCode.used_at == later)
         )
-        replay = await bot.post(
-            "/api/v1/internal/telegram/link",
-            headers=bot_headers(),
-            json={"code": used.code, "telegram_user_id": 1000, "chat_id": 1000, "username": None},
-        )
-        assert_problem(replay, 410, ErrorCode.CODE_EXPIRED)
+        with pytest.raises(ProblemError) as raised:
+            await link(engine, used.code, 1000)
+        assert raised.value.code is ErrorCode.CODE_EXPIRED
         async with engine.begin() as connection:
             await connection.execute(
                 update(TelegramLink)
                 .where(TelegramLink.user_id == first_user.id)
                 .values(broken_at=NOW)
             )
-        assert (await link_account(first, bot, 789)).status_code == 200
+        await link_account(first, engine, 789)
         assert (
             await scalar(
                 engine, select(TelegramLink.broken_at).where(TelegramLink.user_id == first_user.id)
@@ -676,27 +510,17 @@ async def test_link_replacement_conflict_and_replay(
         assert await scalar(engine, select(func.count()).select_from(AuditLog)) == 0
 
 
-async def test_unlink_is_idempotent_from_web_and_bot(
+async def test_unlink_is_idempotent_from_web_and_service(
     app: FastAPI, github: FakeGithub, engine: AsyncEngine
 ) -> None:
-    async with browser(app) as web, browser(app) as bot:
+    async with browser(app) as web:
         await sign_in(web, github, 1, "octo")
         for _ in range(2):
             assert (await web.delete("/api/v1/me/telegram")).status_code == 204
-        assert (await link_account(web, bot)).status_code == 200
+        await link_account(web, engine)
         for _ in range(2):
-            response = await bot.post(
-                "/api/v1/internal/telegram/unlink",
-                headers=bot_headers(),
-                json={"telegram_user_id": 123},
-            )
-            assert response.status_code == 204, response.text
-        assert_problem(
-            await bot.get("/api/v1/me", headers=bot_headers(123)),
-            401,
-            ErrorCode.TELEGRAM_NOT_LINKED,
-        )
-        assert (await link_account(web, bot)).status_code == 200
+            await unlink(engine)
+        await link_account(web, engine)
         for _ in range(2):
             assert (await web.delete("/api/v1/me/telegram")).status_code == 204
         assert (await web.get("/api/v1/me")).json()["telegram"]["linked"] is False
@@ -727,34 +551,39 @@ async def test_concurrent_code_creation_leaves_one_active(
 async def test_concurrent_code_use_succeeds_once(
     app: FastAPI, github: FakeGithub, engine: AsyncEngine
 ) -> None:
-    async with browser(app) as web, browser(app) as bot:
+    async with browser(app) as web:
         await sign_in(web, github, 1, "octo")
         code = (await web.post("/api/v1/me/telegram/link-code")).json()["code"]
-        responses = await asyncio.gather(
-            *(
-                bot.post(
-                    "/api/v1/internal/telegram/link",
-                    headers=bot_headers(),
-                    json={
-                        "code": code,
-                        "telegram_user_id": identity,
-                        "chat_id": identity,
-                        "username": None,
-                    },
-                )
-                for identity in (123, 456)
-            )
+        results = await asyncio.gather(
+            *(link(engine, code, identity) for identity in (123, 456)),
+            return_exceptions=True,
         )
-        assert sorted(response.status_code for response in responses) == [200, 410]
+        outcomes = []
+        for result in results:
+            if isinstance(result, ProblemError):
+                assert result.code is ErrorCode.CODE_EXPIRED
+                outcomes.append("expired")
+            else:
+                outcomes.append("linked")
+        assert sorted(outcomes) == ["expired", "linked"]
         assert await scalar(engine, select(func.count()).select_from(TelegramLink)) == 1
 
 
 async def test_concurrent_telegram_claim_has_one_owner(
     app: FastAPI, github: FakeGithub, engine: AsyncEngine
 ) -> None:
-    async with browser(app) as first, browser(app) as second, browser(app) as bot:
+    async with browser(app) as first, browser(app) as second:
         await sign_in(first, github, 1, "first")
         await sign_in(second, github, 2, "second")
-        responses = await asyncio.gather(link_account(first, bot), link_account(second, bot))
-        assert sorted(response.status_code for response in responses) == [200, 409]
+        codes = []
+        for client in (first, second):
+            response = await client.post("/api/v1/me/telegram/link-code")
+            assert response.status_code == 201, response.text
+            codes.append(response.json()["code"])
+        results = await asyncio.gather(
+            *(link(engine, code) for code in codes), return_exceptions=True
+        )
+        errors = [result for result in results if isinstance(result, ProblemError)]
+        assert len(errors) == 1
+        assert errors[0].code is ErrorCode.TELEGRAM_ALREADY_LINKED
         assert await scalar(engine, select(func.count()).select_from(TelegramLink)) == 1

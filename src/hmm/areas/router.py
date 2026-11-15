@@ -2,16 +2,14 @@ from fastapi import APIRouter, Request, status
 
 from hmm.areas import service
 from hmm.areas.schemas import Area, CreateAreaBody, UpdateAreaBody
-from hmm.catalog.import_schema import AreaListItem, AreaListResponse
 from hmm.common import AreaId
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
 from hmm.platform.schemas import ReasonBody
-from hmm.platform.security import AdminAuth, MemberAuth, ParserAuth
+from hmm.platform.security import AdminAuth, MemberAuth
 
 router = APIRouter(tags=["areas"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["areas"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/areas", status_code=status.HTTP_200_OK, summary="List areas")
@@ -62,21 +60,3 @@ async def unarchive_area(
         session, id, actor.id, body.reason if body else None, clock.now()
     )
     return service.area_view(area, actor)
-
-
-@internal.get("/areas", status_code=status.HTTP_200_OK, summary="List importable areas")
-async def list_internal_areas(actor: ParserAuth, session: Session) -> AreaListResponse:
-    areas = await service.list_areas(session, include_archived=False)
-    return AreaListResponse(
-        items=[
-            AreaListItem(
-                id=area.id,
-                key=area.key,
-                name=area.name,
-                description=area.description,
-                sort=area.sort,
-            )
-            for area in areas
-        ],
-        next_cursor=None,
-    )

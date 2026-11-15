@@ -3,15 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from pydantic import AwareDatetime
 
-from hmm.catalog import parser as catalog_parser
 from hmm.catalog import review
 from hmm.catalog import service as catalog
-from hmm.catalog.import_schema import (
-    EventImportBatch,
-    EventImportResponse,
-    ParserHeartbeat,
-    TrackedEventsResponse,
-)
 from hmm.catalog.schemas import (
     CreateEventBody,
     EventDetail,
@@ -37,11 +30,10 @@ from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
-from hmm.platform.security import AdminAuth, MemberAuth, ParserAuth
+from hmm.platform.security import AdminAuth, MemberAuth
 from hmm.projects.schemas import ProjectView
 
 router = APIRouter(tags=["catalog"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["catalog"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/events", status_code=status.HTTP_200_OK, summary="List events")
@@ -244,36 +236,3 @@ async def cancel_event(
         now=clock.now(),
     )
     return await catalog.event_detail(session, event, actor, clock.now())
-
-
-@internal.post("/events/import", status_code=status.HTTP_200_OK, summary="Import an event batch")
-async def import_events(
-    body: EventImportBatch,
-    actor: ParserAuth,
-    session: Session,
-    request: Request,
-    clock: CurrentClock,
-) -> EventImportResponse:
-    return await catalog.import_events(session, request.app.state.jobs, body, clock.now())
-
-
-@internal.get(
-    "/events/tracked", status_code=status.HTTP_200_OK, summary="List tracked parser events"
-)
-async def list_tracked_events(
-    actor: ParserAuth,
-    pagination: Annotated[CursorParams, Depends()],
-    session: Session,
-    clock: CurrentClock,
-) -> TrackedEventsResponse:
-    return await catalog_parser.tracked_events(session, pagination, clock.now())
-
-
-@internal.post(
-    "/parser/heartbeat", status_code=status.HTTP_204_NO_CONTENT, summary="Record a parser heartbeat"
-)
-async def record_parser_heartbeat(
-    body: ParserHeartbeat, actor: ParserAuth, session: Session
-) -> Response:
-    await catalog_parser.record_heartbeat(session, body)
-    return Response(status_code=status.HTTP_204_NO_CONTENT)

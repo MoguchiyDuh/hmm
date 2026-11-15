@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
 
 import pytest
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.admin import service as admin
@@ -368,8 +367,6 @@ async def test_parser_down_without_heartbeats(harness: Harness) -> None:
 async def test_system_and_retry_require_web_admin(harness: Harness) -> None:
     h = harness
     member = await h.user()
-    actor = await h.admin()
-    telegram_id = await h.link_telegram(actor)
     async with h.db() as session:
         job_id = await add_job(session, h.now)
     retry = f"/api/v1/admin/jobs/{job_id}/retry"
@@ -377,8 +374,5 @@ async def test_system_and_retry_require_web_admin(harness: Harness) -> None:
         assert_problem(await client.get(SYSTEM), 403, ErrorCode.FORBIDDEN)
         assert_problem(await client.post(retry), 403, ErrorCode.FORBIDDEN)
     async with h.anonymous() as client:
-        assert_problem(await client.get(SYSTEM), 401, ErrorCode.UNAUTHENTICATED)
-        assert_problem(await client.post(retry), 401, ErrorCode.UNAUTHENTICATED)
-    async with h.bot(telegram_id) as client:
         assert_problem(await client.get(SYSTEM), 401, ErrorCode.UNAUTHENTICATED)
         assert_problem(await client.post(retry), 401, ErrorCode.UNAUTHENTICATED)

@@ -3,9 +3,8 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import func, select
-from test_api_skeleton import assert_problem
 from test_catalog_import import import_item, import_results
 
 from hmm import models

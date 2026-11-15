@@ -5,11 +5,12 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-import httpx
 from harness import Harness
 from sqlalchemy import func, select
 
 from hmm import models
+from hmm.catalog import service as catalog
+from hmm.catalog.import_schema import EventImportBatch
 from hmm.common import (
     AttendanceRole,
     AttendanceStatus,
@@ -23,7 +24,6 @@ from hmm.common import (
     Trust,
 )
 
-IMPORT_URL = "/api/v1/internal/events/import"
 HACKATHON = json.loads(
     (Path(__file__).resolve().parent / "fixtures" / "imports" / "hackathon.json").read_text()
 )
@@ -36,10 +36,11 @@ def hackathon(**overrides: Any) -> dict[str, Any]:
 
 
 async def import_one(h: Harness, item: dict[str, Any]) -> dict[str, Any]:
-    async with h.parser() as client:
-        response: httpx.Response = await client.post(IMPORT_URL, json={"items": [item]})
-    assert response.status_code == 200, response.text
-    return response.json()["results"][0]
+    async with h.db() as session:
+        response = await catalog.import_events(
+            session, h.jobs, EventImportBatch(items=[item]), h.now
+        )
+    return response.results[0].model_dump(mode="json")
 
 
 async def count(h: Harness, model: Any, *where: Any) -> int:

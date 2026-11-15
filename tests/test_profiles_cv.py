@@ -1,9 +1,8 @@
 from uuid import UUID
 
 import httpx
-from harness import Harness, MemoryObjectStore
+from harness import Harness, MemoryObjectStore, assert_problem
 from sqlalchemy import select
-from test_api_skeleton import assert_problem
 
 from hmm.common import ErrorCode
 from hmm.models import CvFile, User

@@ -4,8 +4,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from harness import Harness
-from test_api_skeleton import assert_problem
+from harness import Harness, assert_problem
 
 from hmm import models
 from hmm.common import (

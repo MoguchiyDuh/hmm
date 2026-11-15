@@ -2,7 +2,6 @@ import json
 import re
 from pathlib import Path
 from typing import Any
-from uuid import UUID
 
 import pytest
 from pydantic import TypeAdapter, ValidationError
@@ -17,20 +16,15 @@ from hmm.notifications.payloads import (
     ActionKey,
     AlertKind,
     ApiAction,
-    DeliveryAck,
+    DeliveryAckResult,
     HelpRequestDeclinedPayload,
     HelpRequestDirectPayload,
     HelpRequestExpiredPayload,
     LinkAction,
     Notification,
-    NotificationActionCallback,
     NotificationPayload,
     NotificationType,
-    PendingDeliveriesQuery,
     PendingDelivery,
-    TelegramLinkRequest,
-    TelegramLinkResult,
-    TelegramUnlinkRequest,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,14 +79,6 @@ def test_fixture_and_discriminator_round_trip(notification_type: NotificationTyp
     assert {action.key for action in payload.actions if isinstance(action, ApiAction)} == set(
         ALLOWED_ACTIONS[notification_type]
     )
-    for action in payload.actions:
-        if not isinstance(action, ApiAction):
-            continue
-        callback = NotificationActionCallback(key=action.key, entity_id=action.entity_id)
-        assert len(callback.to_callback_data().encode()) <= 64
-        assert (
-            NotificationActionCallback.from_callback_data(callback.to_callback_data()) == callback
-        )
 
 
 def test_unknown_type_rejected() -> None:
@@ -178,17 +164,9 @@ def test_complete_policy_mappings() -> None:
     assert expected_telegram_off == TELEGRAM_OFF_BY_DEFAULT
 
 
-def test_action_keys_and_longest_callback_fit_telegram() -> None:
+def test_action_keys_are_snake_case_and_short() -> None:
     assert all(re.fullmatch(r"[a-z]+(?:_[a-z]+)*", key) for key in ActionKey)
     assert max(map(len, ActionKey)) <= 24
-    for key in ActionKey:
-        callback = NotificationActionCallback(
-            key=key, entity_id=UUID("019a7b32-0000-7000-8000-000000000001")
-        )
-        assert len(callback.to_callback_data().encode()) <= 64
-        assert (
-            NotificationActionCallback.from_callback_data(callback.to_callback_data()) == callback
-        )
 
 
 def test_all_public_models_exported() -> None:
@@ -239,62 +217,23 @@ def test_telegram_link_broken_is_web_only() -> None:
         )
 
 
-def test_delivery_ack_outcomes() -> None:
-    ack = DeliveryAck.model_validate(
-        {
-            "results": [
-                {
-                    "delivery_id": "019a7b32-0000-7000-8000-000000000099",
-                    "status": status,
-                    "external_id": "1042" if status == "sent" else None,
-                    "error": None if status == "sent" else "chat not found",
-                }
-                for status in ("sent", "failed", "permanent_failure")
-            ]
-        }
-    )
-    assert ack.results[0].status == DeliveryStatus.SENT
-    assert ack.results[1].status == DeliveryStatus.FAILED
-    assert ack.results[2].status == "permanent_failure"
-    assert DeliveryAck.model_validate_json(ack.model_dump_json()) == ack
-    with pytest.raises(ValidationError):
-        DeliveryAck.model_validate(
-            {"results": [{"delivery_id": ack.results[0].delivery_id, "status": "skipped"}]}
+def test_delivery_ack_result_outcomes() -> None:
+    results = [
+        DeliveryAckResult(
+            delivery_id="019a7b32-0000-7000-8000-000000000099",
+            status=status,
+            external_id="1042" if status == DeliveryStatus.SENT else None,
+            error=None if status == DeliveryStatus.SENT else "chat not found",
         )
-
-
-def test_pending_query_defaults_and_limits() -> None:
-    query = PendingDeliveriesQuery()
-    assert query.limit == 50
-    assert query.wait == 25
-    for invalid in ({"limit": 0}, {"limit": 101}, {"wait": -1}, {"wait": 26}):
-        with pytest.raises(ValidationError):
-            PendingDeliveriesQuery.model_validate(invalid)
-
-
-def test_telegram_link_and_unlink() -> None:
-    link = TelegramLinkRequest(
-        code="link-code-from-web",
-        telegram_user_id=123456789,
-        chat_id=123456789,
-        username=None,
-    )
-    result = TelegramLinkResult(
-        user_id=UUID("019a7b32-0000-7000-8000-000000000001"), display_name="Alex Morgan"
-    )
-    unlink = TelegramUnlinkRequest(telegram_user_id=link.telegram_user_id)
-    assert TelegramLinkRequest.model_validate_json(link.model_dump_json()) == link
-    assert TelegramLinkResult.model_validate_json(result.model_dump_json()) == result
-    assert TelegramUnlinkRequest.model_validate_json(unlink.model_dump_json()) == unlink
-
-
-@pytest.mark.parametrize(
-    "data",
-    ["confirm", "b:confirm:019a7b32-0000-7000-8000-000000000001", "a:confirm:invalid", "a:" * 40],
-)
-def test_invalid_callback_data(data: str) -> None:
-    with pytest.raises(ValueError):
-        NotificationActionCallback.from_callback_data(data)
+        for status in (DeliveryStatus.SENT, DeliveryStatus.FAILED, "permanent_failure")
+    ]
+    assert results[0].status == DeliveryStatus.SENT
+    assert results[1].status == DeliveryStatus.FAILED
+    assert results[2].status == "permanent_failure"
+    with pytest.raises(ValidationError):
+        DeliveryAckResult.model_validate(
+            {"delivery_id": results[0].delivery_id, "status": "skipped"}
+        )
 
 
 @pytest.mark.parametrize("link", ["https://example.org", "//example.org", "/bad path"])

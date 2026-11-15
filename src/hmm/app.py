@@ -106,7 +106,6 @@ def create_app(config: Config | None = None) -> FastAPI:
         mentorship,
     ):
         app.include_router(domain.router, prefix="/api/v1")
-        app.include_router(domain.internal, prefix="/api/v1/internal")
 
     def openapi() -> dict[str, Any]:
         if app.openapi_schema is None:

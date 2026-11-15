@@ -20,7 +20,6 @@ from hmm.platform.security import MemberAuth
 from hmm.platform.settings import load_settings
 
 router = APIRouter(tags=["feed"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["feed"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/feed", status_code=status.HTTP_200_OK, summary="List community feed")

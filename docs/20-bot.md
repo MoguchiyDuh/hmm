@@ -15,7 +15,7 @@ Config: `BOT_TOKEN`, `CORE_URL`, `BOT_SERVICE_TOKEN`, `PUBLIC_URL` (for web link
 - `/start <code>` → `POST /internal/telegram/link` → "Linked to <display_name>". Errors:
   - `code_invalid` / `code_expired` → tell the user to generate a new code on the web;
   - `telegram_already_linked` → this Telegram account belongs to another user, who must unlink it first.
-- `/start` without a code, or any command from an unlinked user (`telegram_not_linked`) → a message linking to `PUBLIC_URL/settings#telegram`.
+- `/start` without a code, or any command from an unlinked user → a message linking to `PUBLIC_URL/settings#telegram`.
 - `/unlink` → `POST /internal/telegram/unlink`.
 - Private chats only; ignore groups.
 

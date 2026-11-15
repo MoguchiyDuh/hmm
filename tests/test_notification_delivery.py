@@ -2,19 +2,18 @@ import asyncio
 import json
 from datetime import timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, patch
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import select, text, update
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.common import DeliveryStatus, ErrorCode, NotificationChannel
 from hmm.notifications import service
 from hmm.notifications.payloads import (
+    DeliveryAckResult,
     EventCancelledPayload,
     Notification,
     NotificationPayload,
@@ -23,8 +22,6 @@ from hmm.notifications.payloads import (
 )
 
 INBOX = "/api/v1/notifications"
-PENDING = "/api/v1/internal/notifications/pending"
-ACK = "/api/v1/internal/notifications/ack"
 FIXTURES = Path(__file__).resolve().parent / "fixtures/notifications"
 
 
@@ -50,6 +47,16 @@ async def delivery(h: Harness, id: UUID) -> models.NotificationDelivery:
         row = await session.get(models.NotificationDelivery, (id, NotificationChannel.TELEGRAM))
         assert row is not None
         return row
+
+
+async def lease(h: Harness, limit: int = 50) -> list[PendingDelivery]:
+    async with h.db() as session:
+        return await service.lease_deliveries(session, h.now, limit)
+
+
+async def ack(h: Harness, *results: DeliveryAckResult) -> None:
+    async with h.db() as session:
+        await service.acknowledge(session, h.now, list(results))
 
 
 async def assert_count(client: httpx.AsyncClient, count: int) -> None:
@@ -154,28 +161,24 @@ async def test_pending_lease_and_redelivery(harness: Harness) -> None:
         )
     body = payload()
     id = await emit(h, user, body)
-    async with h.bot() as client:
-        response = await client.get(PENDING, params={"wait": 0})
-        assert response.status_code == 200, response.text
-        items = response.json()
-        assert len(items) == 1
-        pending = PendingDelivery.model_validate(items[0])
-        assert pending.delivery_id == id
-        assert pending.notification_id == id
-        assert pending.telegram_chat_id == -123456
-        assert pending.telegram_chat_id != tg
-        assert pending.locale == "ru"
-        assert pending.type == body.type
-        assert pending.payload == body
-        assert pending.created_at == h.now
-        row = await delivery(h, id)
-        assert row.next_attempt_at == h.now + timedelta(seconds=60)
-        assert row.attempts == 0
-        assert (await client.get(PENDING, params={"wait": 0})).json() == []
-        h.advance(timedelta(seconds=61))
-        response = await client.get(PENDING, params={"wait": 0})
-        assert response.json() == items
-        assert (await delivery(h, id)).attempts == 0
+    items = await lease(h)
+    assert len(items) == 1
+    pending = items[0]
+    assert pending.delivery_id == id
+    assert pending.notification_id == id
+    assert pending.telegram_chat_id == -123456
+    assert pending.telegram_chat_id != tg
+    assert pending.locale == "ru"
+    assert pending.type == body.type
+    assert pending.payload == body
+    assert pending.created_at == h.now
+    row = await delivery(h, id)
+    assert row.next_attempt_at == h.now + timedelta(seconds=60)
+    assert row.attempts == 0
+    assert await lease(h) == []
+    h.advance(timedelta(seconds=61))
+    assert await lease(h) == items
+    assert (await delivery(h, id)).attempts == 0
 
 
 async def test_pending_excludes_unavailable_and_expired(harness: Harness) -> None:
@@ -210,37 +213,24 @@ async def test_pending_excludes_unavailable_and_expired(harness: Harness) -> Non
                         text(f"UPDATE {table} SET created_at = :created_at WHERE {column} = :id"),
                         {"created_at": created_at, "id": ids[state]},
                     )
-    async with h.bot() as client:
-        response = await client.get(PENDING, params={"wait": 0})
-        assert response.status_code == 200, response.text
-        assert {item["delivery_id"] for item in response.json()} == {
-            str(ids["boundary"]),
-            str(ids["ready"]),
-        }
+    assert {item.delivery_id for item in await lease(h)} == {
+        ids["boundary"],
+        ids["ready"],
+    }
     assert (await delivery(h, ids["expired"])).status == DeliveryStatus.SKIPPED
     for state in ("future", "broken", "banned"):
         assert (await delivery(h, ids[state])).status == DeliveryStatus.PENDING
 
 
-async def test_pending_limit_and_bot_auth(harness: Harness) -> None:
+async def test_pending_limit(harness: Harness) -> None:
     h = harness
     user = await h.user()
     await h.link_telegram(user)
     ids = [await emit(h, user) for _ in range(5)]
-    async with h.bot() as client:
-        first = await client.get(PENDING, params={"wait": 0, "limit": 2})
-        second = await client.get(PENDING, params={"wait": 0, "limit": 2})
-        third = await client.get(PENDING, params={"wait": 0, "limit": 2})
-        assert [len(response.json()) for response in (first, second, third)] == [2, 2, 1]
-        received = [
-            item["delivery_id"] for response in (first, second, third) for item in response.json()
-        ]
-        assert received == [str(id) for id in sorted(ids)]
-    async with h.anonymous() as client:
-        assert_problem(
-            await client.get(PENDING, params={"wait": 0}), 401, ErrorCode.UNAUTHENTICATED
-        )
-        assert_problem(await client.post(ACK, json={"results": []}), 401, ErrorCode.UNAUTHENTICATED)
+    first, second, third = [await lease(h, limit=2) for _ in range(3)]
+    assert [len(page) for page in (first, second, third)] == [2, 2, 1]
+    received = [str(item.delivery_id) for page in (first, second, third) for item in page]
+    assert received == [str(id) for id in sorted(ids)]
 
 
 async def test_concurrent_leases_are_disjoint(harness: Harness) -> None:
@@ -260,42 +250,21 @@ async def test_concurrent_leases_are_disjoint(harness: Harness) -> None:
         assert a_ids | b_ids == ids
 
 
-async def test_pending_wait_retries_and_deadline(harness: Harness) -> None:
-    h = harness
-    with (
-        patch("hmm.notifications.router.time") as clock,
-        patch("hmm.notifications.router.asyncio.sleep", new_callable=AsyncMock) as sleep,
-    ):
-        clock.monotonic.side_effect = [0, 0, 1]
-        async with h.bot() as client:
-            response = await client.get(PENDING, params={"wait": 1})
-        assert response.status_code == 200, response.text
-        assert response.json() == []
-        sleep.assert_awaited_once_with(1)
-
-
 async def test_ack_sent_duplicates_and_unknown(harness: Harness) -> None:
     h = harness
     user = await h.user()
     await h.link_telegram(user)
     id = await emit(h, user)
-    async with h.bot() as client:
-        response = await client.post(
-            ACK,
-            json={
-                "results": [
-                    {"delivery_id": str(id), "status": "failed", "error": "temporary"},
-                    {"delivery_id": str(id), "status": "sent", "external_id": "message-42"},
-                    {"delivery_id": str(id), "status": "sent", "external_id": "duplicate"},
-                    {"delivery_id": str(id), "status": "failed", "error": "late"},
-                    {"delivery_id": str(id), "status": "permanent_failure", "error": "late"},
-                    {"delivery_id": str(uuid4()), "status": "sent"},
-                ]
-            },
-        )
-        assert response.status_code == 204, response.text
-        assert response.content == b""
-        assert (await client.post(ACK, json={"results": []})).status_code == 204
+    await ack(
+        h,
+        DeliveryAckResult(delivery_id=id, status=DeliveryStatus.FAILED, error="temporary"),
+        DeliveryAckResult(delivery_id=id, status=DeliveryStatus.SENT, external_id="message-42"),
+        DeliveryAckResult(delivery_id=id, status=DeliveryStatus.SENT, external_id="duplicate"),
+        DeliveryAckResult(delivery_id=id, status=DeliveryStatus.FAILED, error="late"),
+        DeliveryAckResult(delivery_id=id, status="permanent_failure", error="late"),
+        DeliveryAckResult(delivery_id=uuid4(), status=DeliveryStatus.SENT),
+    )
+    await ack(h)
     row = await delivery(h, id)
     assert row.status == DeliveryStatus.SENT
     assert row.external_id == "message-42"
@@ -311,32 +280,27 @@ async def test_ack_exponential_backoff_and_attempt_limit(harness: Harness) -> No
     user = await h.user()
     await h.link_telegram(user)
     id = await emit(h, user)
-    async with h.bot() as client:
-        for attempt in range(1, 9):
-            response = await client.post(
-                ACK,
-                json={
-                    "results": [
-                        {"delivery_id": str(id), "status": "failed", "error": f"error-{attempt}"}
-                    ]
-                },
-            )
-            assert response.status_code == 204, response.text
-            row = await delivery(h, id)
-            assert row.attempts == attempt
-            assert row.last_error == f"error-{attempt}"
-            if attempt < 8:
-                delay = 30 * 2 ** (attempt - 1)
-                assert row.status == DeliveryStatus.PENDING
-                assert row.next_attempt_at == h.now + timedelta(seconds=delay)
-                assert (await client.get(PENDING, params={"wait": 0})).json() == []
-                h.advance(timedelta(seconds=delay))
-                pending = await client.get(PENDING, params={"wait": 0})
-                assert [item["delivery_id"] for item in pending.json()] == [str(id)]
-            else:
-                assert row.status == DeliveryStatus.FAILED
-                h.advance(timedelta(hours=2))
-                assert (await client.get(PENDING, params={"wait": 0})).json() == []
+    for attempt in range(1, 9):
+        await ack(
+            h,
+            DeliveryAckResult(
+                delivery_id=id, status=DeliveryStatus.FAILED, error=f"error-{attempt}"
+            ),
+        )
+        row = await delivery(h, id)
+        assert row.attempts == attempt
+        assert row.last_error == f"error-{attempt}"
+        if attempt < 8:
+            delay = 30 * 2 ** (attempt - 1)
+            assert row.status == DeliveryStatus.PENDING
+            assert row.next_attempt_at == h.now + timedelta(seconds=delay)
+            assert await lease(h) == []
+            h.advance(timedelta(seconds=delay))
+            assert [item.delivery_id for item in await lease(h)] == [id]
+        else:
+            assert row.status == DeliveryStatus.FAILED
+            h.advance(timedelta(hours=2))
+            assert await lease(h) == []
 
 
 async def test_ack_backoff_cap(harness: Harness, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -345,57 +309,34 @@ async def test_ack_backoff_cap(harness: Harness, monkeypatch: pytest.MonkeyPatch
     user = await h.user()
     await h.link_telegram(user)
     id = await emit(h, user)
-    async with h.bot() as client:
-        for attempt in range(1, 11):
-            response = await client.post(
-                ACK, json={"results": [{"delivery_id": str(id), "status": "failed"}]}
-            )
-            assert response.status_code == 204, response.text
-            row = await delivery(h, id)
-            assert row.next_attempt_at == h.now + timedelta(
-                seconds=min(30 * 2 ** (attempt - 1), 3600)
-            )
-            assert row.status == DeliveryStatus.PENDING
+    for attempt in range(1, 11):
+        await ack(h, DeliveryAckResult(delivery_id=id, status=DeliveryStatus.FAILED))
+        row = await delivery(h, id)
+        assert row.next_attempt_at == h.now + timedelta(seconds=min(30 * 2 ** (attempt - 1), 3600))
+        assert row.status == DeliveryStatus.PENDING
 
 
 @pytest.mark.parametrize("error", ["bot blocked", None])
 async def test_permanent_failure_and_recovery(harness: Harness, error: str | None) -> None:
     h = harness
     user = await h.user()
-    tg = await h.link_telegram(user)
+    await h.link_telegram(user)
     ids = [await emit(h, user) for _ in range(3)]
     other = await h.user()
     await h.link_telegram(other)
     other_id = await emit(h, other)
     now = h.now
-    async with h.bot() as client:
-        response = await client.post(
-            ACK,
-            json={
-                "results": [
-                    {"delivery_id": str(ids[0]), "status": "permanent_failure", "error": error}
-                ]
-            },
-        )
-        assert response.status_code == 204, response.text
-        row = await delivery(h, ids[0])
-        assert row.status == DeliveryStatus.FAILED
-        assert row.attempts == 1
-        assert row.last_error == error
-        assert (await delivery(h, ids[1])).status == DeliveryStatus.SKIPPED
-        assert (await delivery(h, ids[2])).status == DeliveryStatus.SKIPPED
-        assert (await delivery(h, other_id)).status == DeliveryStatus.PENDING
-        h.advance(timedelta(seconds=1))
-        response = await client.post(
-            ACK,
-            json={
-                "results": [
-                    {"delivery_id": str(ids[1]), "status": "permanent_failure", "error": "again"}
-                ]
-            },
-        )
-        assert response.status_code == 204, response.text
-        assert (await delivery(h, ids[1])).status == DeliveryStatus.FAILED
+    await ack(h, DeliveryAckResult(delivery_id=ids[0], status="permanent_failure", error=error))
+    row = await delivery(h, ids[0])
+    assert row.status == DeliveryStatus.FAILED
+    assert row.attempts == 1
+    assert row.last_error == error
+    assert (await delivery(h, ids[1])).status == DeliveryStatus.SKIPPED
+    assert (await delivery(h, ids[2])).status == DeliveryStatus.SKIPPED
+    assert (await delivery(h, other_id)).status == DeliveryStatus.PENDING
+    h.advance(timedelta(seconds=1))
+    await ack(h, DeliveryAckResult(delivery_id=ids[1], status="permanent_failure", error="again"))
+    assert (await delivery(h, ids[1])).status == DeliveryStatus.FAILED
     async with h.db() as session:
         link = await session.get(models.TelegramLink, user.id)
         assert link is not None and link.broken_at == now
@@ -421,16 +362,7 @@ async def test_permanent_failure_and_recovery(harness: Harness, error: str | Non
     async with await h.client(user) as client:
         inbox = await client.get(INBOX)
         assert sum(item["type"] == "telegram_link_broken" for item in inbox.json()["items"]) == 1
-    async with h.bot(tg) as client:
-        assert (await client.get(f"{INBOX}/unread-count")).status_code == 200
-    async with h.db() as session:
-        link = await session.get(models.TelegramLink, user.id)
-        assert link is not None and link.broken_at is None
-    new_id = await emit(h, user)
-    assert (await delivery(h, new_id)).status == DeliveryStatus.PENDING
-    async with h.bot() as client:
-        pending = await client.get(PENDING, params={"wait": 0})
-        assert {item["delivery_id"] for item in pending.json()} == {str(new_id), str(other_id)}
+    assert {item.delivery_id for item in await lease(h)} == {other_id}
 
 
 @pytest.mark.parametrize(
@@ -451,9 +383,7 @@ async def test_payload_fixture_compatibility(harness: Harness, fixture: Path) ->
             )
         )
     await emit(h, user, notification.payload)
-    async with h.bot() as client:
-        response = await client.get(PENDING, params={"wait": 0})
-        assert response.status_code == 200, response.text
-        assert len(response.json()) == 1
-        pending = PendingDelivery.model_validate(response.json()[0])
-        assert pending.model_dump(mode="json")["payload"] == expected["payload"]
+    items = await lease(h)
+    assert len(items) == 1
+    pending = items[0]
+    assert pending.model_dump(mode="json")["payload"] == expected["payload"]

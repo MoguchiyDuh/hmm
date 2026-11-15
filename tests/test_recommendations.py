@@ -5,10 +5,9 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from harness import NOW, Harness
+from harness import NOW, Harness, assert_problem
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.catalog import service as catalog

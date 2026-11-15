@@ -3,9 +3,8 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from harness import Harness, MemoryObjectStore
+from harness import Harness, MemoryObjectStore, assert_problem
 from sqlalchemy import func, select
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.common import (

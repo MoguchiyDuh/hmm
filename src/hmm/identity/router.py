@@ -16,20 +16,16 @@ from hmm.identity.schemas import (
     CurrentUser,
     TelegramLink,
     TelegramLinkCode,
-    TelegramLinkRequest,
-    TelegramLinkResult,
-    TelegramUnlinkRequest,
 )
 from hmm.platform.clock import CurrentClock
 from hmm.platform.config import Config
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
-from hmm.platform.security import BotAuth, UserAuth
+from hmm.platform.security import UserAuth
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["identity"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["identity"], responses=PROBLEM_RESPONSES)
 
 OAUTH_COOKIE = "hmm_oauth"
 OAUTH_COOKIE_PATH = "/api/v1/auth/github"
@@ -224,26 +220,3 @@ async def create_telegram_link_code(
 @router.delete("/me/telegram", status_code=status.HTTP_204_NO_CONTENT, summary="Unlink Telegram")
 async def unlink_telegram(actor: UserAuth, session: Session) -> None:
     await identity.unlink_user_telegram(session, actor.id)
-
-
-@internal.post(
-    "/telegram/link",
-    status_code=status.HTTP_200_OK,
-    summary="Link Telegram using a one-time account code",
-)
-async def link_telegram(
-    body: TelegramLinkRequest, actor: BotAuth, session: Session, clock: CurrentClock
-) -> TelegramLinkResult:
-    user = await identity.link_telegram(
-        session, body.code, body.telegram_user_id, body.chat_id, body.username, clock.now()
-    )
-    return TelegramLinkResult(user_id=user.id, display_name=user.display_name)
-
-
-@internal.post(
-    "/telegram/unlink", status_code=status.HTTP_204_NO_CONTENT, summary="Unlink Telegram account"
-)
-async def unlink_telegram_account(
-    body: TelegramUnlinkRequest, actor: BotAuth, session: Session
-) -> None:
-    await identity.unlink_telegram_account(session, body.telegram_user_id)

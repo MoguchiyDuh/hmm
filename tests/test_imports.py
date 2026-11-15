@@ -7,7 +7,6 @@ from pydantic import ValidationError
 
 from hmm.catalog import import_schema as imports
 from hmm.catalog.import_schema import (
-    AreaListResponse,
     EventImport,
     EventImportBatch,
     EventImportResponse,
@@ -297,7 +296,7 @@ def test_invalid_tracked_event(changes: dict[str, Any]) -> None:
         TrackedEvent.model_validate(payload)
 
 
-def test_tracked_events_and_areas() -> None:
+def test_tracked_events_round_trip() -> None:
     tracked = TrackedEventsResponse.model_validate(
         {
             "items": [
@@ -310,22 +309,7 @@ def test_tracked_events_and_areas() -> None:
             "next_cursor": "next-source",
         }
     )
-    areas = AreaListResponse.model_validate(
-        {
-            "items": [
-                {
-                    "id": "019a7080-1000-7000-8000-000000000002",
-                    "key": "backend",
-                    "name": "Backend",
-                    "description": "APIs and databases",
-                    "sort": 0,
-                }
-            ],
-            "next_cursor": None,
-        }
-    )
     assert TrackedEventsResponse.model_validate_json(tracked.model_dump_json()) == tracked
-    assert AreaListResponse.model_validate_json(areas.model_dump_json()) == areas
 
 
 @pytest.fixture

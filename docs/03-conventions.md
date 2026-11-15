@@ -34,7 +34,6 @@
 | 422 | Validation |
 | 429 | Rate limited |
 | 500 | `internal_error` |
-| 501 | `not_implemented` (endpoint not built yet) |
 | 503 | Dependent data not ready yet |
 
 - Text limits unless a section says otherwise: names ≤ 100, titles ≤ 200, notes and reasons ≤ 1000 (trimmed, non-empty), markdown ≤ 5000, event descriptions ≤ 20000, ≤ 10 links.
@@ -46,7 +45,7 @@
 | Caller | Mechanism |
 |---|---|
 | Browser | `hmm_session` cookie: `HttpOnly; Secure; SameSite=Lax; Path=/`. Opaque random token; only its SHA-256 is stored. Unsafe methods (anything but GET, HEAD, OPTIONS) require `Origin` = `PUBLIC_URL`, otherwise 403 `origin_mismatch`. |
-| Bot acting as a user | `Authorization: Bearer <BOT_SERVICE_TOKEN>` + `X-Telegram-User-Id: <id>`. Core resolves the linked user; unlinked → 401 `telegram_not_linked`. Same permission checks as the user. |
+| Bot acting as a user | `Authorization: Bearer <BOT_SERVICE_TOKEN>` + `X-Telegram-User-Id: <id>`. Core resolves the linked user. Same permission checks as the user. |
 | Bot service calls | `Authorization: Bearer <BOT_SERVICE_TOKEN>` on `/internal/telegram/*` and `/internal/notifications/*` only. |
 | Parser | `Authorization: Bearer <PARSER_SERVICE_TOKEN>` on `/internal/events/*`, `/internal/areas` and `/internal/parser/*` only. |
 

@@ -30,7 +30,6 @@ from hmm.platform.security import AdminAuth
 from hmm.platform.settings import SettingKey
 
 router = APIRouter(tags=["admin"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["admin"], responses=PROBLEM_RESPONSES)
 
 
 async def admin_user(session: AsyncSession, user: models.User) -> AdminUser:

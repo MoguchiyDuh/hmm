@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta
 
 import pytest
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.admin.schemas import AdminDashboard
@@ -410,11 +409,7 @@ async def test_dashboard_parser_and_jobs(harness: Harness) -> None:
 async def test_dashboard_access(harness: Harness) -> None:
     h = harness
     member = await h.user()
-    actor = await h.admin()
-    telegram_id = await h.link_telegram(actor)
     async with await h.client(member) as client:
         assert_problem(await client.get(PATH), 403, ErrorCode.FORBIDDEN)
     async with h.anonymous() as client:
-        assert_problem(await client.get(PATH), 401, ErrorCode.UNAUTHENTICATED)
-    async with h.bot(telegram_id) as client:
         assert_problem(await client.get(PATH), 401, ErrorCode.UNAUTHENTICATED)

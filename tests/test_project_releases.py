@@ -3,9 +3,8 @@ from datetime import datetime, timedelta
 from typing import Any, cast
 from uuid import uuid4
 
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import func, select
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.common import ErrorCode

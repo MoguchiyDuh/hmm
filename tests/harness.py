@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from hmm.algo.fake import FakeAlgorithm
 from hmm.app import create_app
-from hmm.common import SEED_AREA_KEYS, OnboardingStatus
+from hmm.common import SEED_AREA_KEYS, ErrorCode, OnboardingStatus, Problem
 from hmm.identity.service import SESSION_COOKIE, create_session
 from hmm.models import Area, TelegramLink, User
 from hmm.platform.clock import FixedClock
@@ -26,10 +26,18 @@ from hmm.platform.storage import ObjectStore
 
 PUBLIC_URL = "https://hmm.test"
 NOW = datetime(2026, 11, 13, 9, 0, tzinfo=UTC)
-BOT_TOKEN = "bot-token"
-PARSER_TOKEN = "parser-token"
 
 _ids = itertools.count(10_000)
+
+
+def assert_problem(response: httpx.Response, status: int, code: ErrorCode) -> Problem:
+    assert response.status_code == status, response.text
+    assert response.headers["content-type"] == "application/problem+json"
+    problem = Problem.model_validate(response.json())
+    assert problem.status == status
+    assert problem.code == code
+    assert problem.type.endswith(f"/errors/{code}")
+    return problem
 
 
 class MemoryObjectStore:
@@ -173,15 +181,6 @@ class Harness:
     def anonymous(self) -> httpx.AsyncClient:
         return self._client(headers={"Origin": PUBLIC_URL})
 
-    def bot(self, telegram_user_id: int | None = None) -> httpx.AsyncClient:
-        headers = {"Authorization": f"Bearer {BOT_TOKEN}"}
-        if telegram_user_id is not None:
-            headers["X-Telegram-User-Id"] = str(telegram_user_id)
-        return self._client(headers=headers)
-
-    def parser(self) -> httpx.AsyncClient:
-        return self._client(headers={"Authorization": f"Bearer {PARSER_TOKEN}"})
-
     async def run_jobs(self) -> None:
         await self.jobs.run_worker_async(
             wait=False,
@@ -211,8 +210,6 @@ def harness_config(database_url: str) -> Config:
         github_client_secret="client-secret",
         github_token="test-token",
         session_secret="session-secret",
-        bot_service_token=BOT_TOKEN,
-        parser_service_token=PARSER_TOKEN,
         telegram_bot_username="hmm_test_bot",
         algorithm="fake",
     )

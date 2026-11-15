@@ -12,7 +12,6 @@ from hmm.common import (
     Contract,
     DeliveryId,
     DeliveryStatus,
-    ErrorCode,
     EventId,
     HelpOfferId,
     HelpRequestFormat,
@@ -24,7 +23,6 @@ from hmm.common import (
     MentorshipId,
     MentorshipKind,
     MentorshipOutcome,
-    NotificationChannel,
     NotificationId,
     PartyId,
     ProjectId,
@@ -59,7 +57,6 @@ __all__ = [
     "AttendanceConfirmDigestPayload",
     "AttendanceConfirmationCandidate",
     "ContributionsConfirmDigestPayload",
-    "DeliveryAck",
     "DeliveryAckResult",
     "EventCancelledPayload",
     "EventChangedPayload",
@@ -85,8 +82,6 @@ __all__ = [
     "MentorshipStalledPayload",
     "MentorshipStartedPayload",
     "Notification",
-    "NotificationActionCallback",
-    "NotificationActionResult",
     "NotificationChange",
     "NotificationPayload",
     "NotificationPerson",
@@ -94,7 +89,6 @@ __all__ = [
     "OnboardingReopenedPayload",
     "PartyInvitePayload",
     "PenaltyAppliedPayload",
-    "PendingDeliveriesQuery",
     "PendingDelivery",
     "PlacementLapsedPayload",
     "ProjectIdlePayload",
@@ -122,9 +116,6 @@ __all__ = [
     "TeamProposedPayload",
     "TeamStatusChangedPayload",
     "TelegramLinkBrokenPayload",
-    "TelegramLinkRequest",
-    "TelegramLinkResult",
-    "TelegramUnlinkRequest",
     "WebPath",
 ]
 
@@ -945,12 +936,6 @@ class Notification(Contract):
         return self
 
 
-class PendingDeliveriesQuery(Contract):
-    channel: NotificationChannel = NotificationChannel.TELEGRAM
-    limit: int = Field(default=50, ge=1, le=100)
-    wait: int = Field(default=25, ge=0, le=25)
-
-
 class PendingDelivery(Contract):
     delivery_id: DeliveryId
     notification_id: NotificationId
@@ -978,52 +963,3 @@ class DeliveryAckResult(Contract):
     status: Literal[DeliveryStatus.SENT, DeliveryStatus.FAILED, "permanent_failure"]
     external_id: str | None = None
     error: str | None = None
-
-
-class DeliveryAck(Contract):
-    results: list[DeliveryAckResult]
-
-
-class TelegramLinkRequest(Contract):
-    code: str = Field(min_length=1)
-    telegram_user_id: int
-    chat_id: int
-    username: str | None
-
-
-class TelegramLinkResult(Contract):
-    user_id: UserId
-    display_name: str
-
-
-class TelegramUnlinkRequest(Contract):
-    telegram_user_id: int
-
-
-class NotificationActionCallback(Contract):
-    key: ActionKey
-    entity_id: SubjectId
-
-    def to_callback_data(self) -> str:
-        data = f"a:{self.key}:{self.entity_id}"
-        if len(data.encode("utf-8")) > 64:
-            raise ValueError("Telegram callback data exceeds 64 bytes")
-        return data
-
-    @classmethod
-    def from_callback_data(cls, data: str) -> Self:
-        if len(data.encode("utf-8")) > 64:
-            raise ValueError("Telegram callback data exceeds 64 bytes")
-        prefix, separator, rest = data.partition(":")
-        key, entity_separator, entity_id = rest.partition(":")
-        if prefix != "a" or not separator or not entity_separator:
-            raise ValueError("Invalid notification callback data")
-        return cls.model_validate({"key": key, "entity_id": entity_id})
-
-
-class NotificationActionResult(Contract):
-    key: ActionKey
-    entity_id: SubjectId
-    success: bool
-    message: str
-    code: ErrorCode | None = None

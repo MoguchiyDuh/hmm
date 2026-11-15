@@ -9,7 +9,6 @@ from hmm.recommendations import service
 from hmm.recommendations.schemas import ProjectRecommendations, Recommendation
 
 router = APIRouter(tags=["recommendations"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["recommendations"], responses=PROBLEM_RESPONSES)
 
 
 @router.get(

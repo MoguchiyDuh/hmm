@@ -1,5 +1,3 @@
-import asyncio
-import time
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
@@ -18,9 +16,6 @@ from hmm.common import (
 from hmm.notifications import service
 from hmm.notifications.payloads import (
     AlertKind,
-    DeliveryAck,
-    PendingDeliveriesQuery,
-    PendingDelivery,
 )
 from hmm.notifications.schemas import (
     Alert,
@@ -36,10 +31,9 @@ from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError
 from hmm.platform.pagination import CursorParams, keyset_page
-from hmm.platform.security import AdminAuth, BotAuth, UserAuth
+from hmm.platform.security import AdminAuth, UserAuth
 
 router = APIRouter(tags=["notifications"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["notifications"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/notifications", status_code=status.HTTP_200_OK, summary="List notification inbox")
@@ -79,36 +73,6 @@ async def read_notification(
     id: NotificationId, actor: UserAuth, session: Session, clock: CurrentClock
 ) -> None:
     await service.read_notification(session, actor.id, id, clock.now())
-
-
-@internal.get(
-    "/notifications/pending",
-    status_code=status.HTTP_200_OK,
-    summary="Long-poll Telegram deliveries with a 60-second lease",
-)
-async def list_pending_deliveries(
-    query: Annotated[PendingDeliveriesQuery, Query()],
-    actor: BotAuth,
-    session: Session,
-    clock: CurrentClock,
-) -> list[PendingDelivery]:
-    deadline = time.monotonic() + query.wait
-    while True:
-        leased = await service.lease_deliveries(session, clock.now(), query.limit)
-        if leased or time.monotonic() >= deadline:
-            return leased
-        await asyncio.sleep(1)
-
-
-@internal.post(
-    "/notifications/ack",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Acknowledge Telegram delivery outcomes",
-)
-async def acknowledge_deliveries(
-    body: DeliveryAck, actor: BotAuth, session: Session, clock: CurrentClock
-) -> None:
-    await service.acknowledge(session, clock.now(), body.results)
 
 
 def serialize_alert(row: models.AdminAlert) -> Alert:

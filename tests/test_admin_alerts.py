@@ -2,10 +2,9 @@ from datetime import timedelta
 from uuid import uuid4
 
 import pytest
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.common import (
@@ -202,17 +201,10 @@ async def test_resolve_alert_records_audit_and_is_idempotent(harness: Harness) -
 async def test_admin_alerts_require_web_admin(harness: Harness) -> None:
     h = harness
     member = await h.user()
-    admin = await h.admin()
-    telegram_id = await h.link_telegram(admin)
     url = f"/api/v1/admin/alerts/{uuid4()}/resolve"
     async with await h.client(member) as client:
         assert_problem(await client.get("/api/v1/admin/alerts"), 403, ErrorCode.FORBIDDEN)
         assert_problem(await client.post(url, json={"note": "Done"}), 403, ErrorCode.FORBIDDEN)
-    async with h.bot(telegram_id) as client:
-        assert_problem(await client.get("/api/v1/admin/alerts"), 401, ErrorCode.UNAUTHENTICATED)
-        assert_problem(
-            await client.post(url, json={"note": "Done"}), 401, ErrorCode.UNAUTHENTICATED
-        )
 
 
 async def test_job_failure_alert_validates_deduplicates_and_recovers(

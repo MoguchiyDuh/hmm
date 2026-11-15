@@ -34,7 +34,6 @@ from hmm.platform.pagination import CursorParams
 from hmm.platform.security import MemberAuth
 
 router = APIRouter(tags=["mentorship"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["mentorship"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/me/mentor-offers", status_code=status.HTTP_200_OK, summary="List own mentor offers")

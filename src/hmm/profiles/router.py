@@ -26,7 +26,6 @@ from hmm.profiles.schemas import (
 )
 
 router = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["profiles"], responses=PROBLEM_RESPONSES)
 
 
 async def read_chunks(upload: UploadFile) -> AsyncIterator[bytes]:

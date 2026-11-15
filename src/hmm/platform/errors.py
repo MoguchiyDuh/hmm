@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from typing import Any, NoReturn
+from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -31,7 +31,6 @@ HTTP_ERROR_CODES: dict[int, ErrorCode] = {
     415: ErrorCode.UNSUPPORTED_FILE_TYPE,
     422: ErrorCode.VALIDATION_ERROR,
     429: ErrorCode.RATE_LIMITED,
-    501: ErrorCode.NOT_IMPLEMENTED,
 }
 
 
@@ -46,10 +45,6 @@ class ProblemError(Exception):
         self.code = code
         self.detail = detail
         self.errors = errors
-
-
-def not_implemented() -> NoReturn:
-    raise ProblemError(ErrorCode.NOT_IMPLEMENTED)
 
 
 def problem_response(

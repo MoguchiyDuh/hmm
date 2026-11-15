@@ -22,9 +22,8 @@ from formation_support import (
     stored_member,
     teams,
 )
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import select
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.common import ErrorCode

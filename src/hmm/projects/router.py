@@ -44,7 +44,6 @@ from hmm.projects.views import POST_RESULT_TEAM_STATUSES
 from hmm.recommendations import service as recommendations
 
 router = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
-internal = APIRouter(tags=["projects"], responses=PROBLEM_RESPONSES)
 
 
 @router.get("/projects", status_code=status.HTTP_200_OK, summary="List projects")

@@ -11,9 +11,7 @@ from pydantic import (
 )
 
 from hmm.common import (
-    AreaId,
     AreaImportance,
-    AreaKey,
     Contract,
     EventFormat,
     EventId,
@@ -26,8 +24,6 @@ from hmm.common import (
 )
 
 __all__ = [
-    "AreaListItem",
-    "AreaListResponse",
     "Difficulty",
     "EventImport",
     "EventImportBatch",
@@ -171,19 +167,6 @@ class TrackedEvent(Contract):
 
 class TrackedEventsResponse(Contract):
     items: list[TrackedEvent]
-    next_cursor: str | None
-
-
-class AreaListItem(Contract):
-    id: AreaId
-    key: AreaKey
-    name: str
-    description: str
-    sort: int
-
-
-class AreaListResponse(Contract):
-    items: list[AreaListItem]
     next_cursor: str | None
 
 

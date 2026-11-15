@@ -4,21 +4,18 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
-import httpx
 import pytest
 from harness import Harness
-from pydantic import JsonValue
+from pydantic import JsonValue, ValidationError
 from sqlalchemy import func, select
-from test_api_skeleton import assert_problem
 
 from hmm import models
 from hmm.catalog import service as catalog
-from hmm.catalog.import_schema import EventImport
+from hmm.catalog.import_schema import EventImport, EventImportBatch, EventImportResponse
 from hmm.common import (
     AttendanceRole,
     AttendanceStatus,
     AuditAction,
-    ErrorCode,
     EventKind,
     EventOrigin,
     EventStatus,
@@ -33,7 +30,6 @@ from hmm.common import (
 )
 from hmm.notifications.payloads import AlertKind, NotificationType
 
-IMPORT_URL = "/api/v1/internal/events/import"
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "imports"
 FIXTURE_NAMES = ("conference", "contest", "course", "hackathon", "meetup", "workshop")
 
@@ -74,15 +70,16 @@ def import_item(
     return item
 
 
-async def post_import(h: Harness, *items: JsonValue) -> httpx.Response:
-    async with h.parser() as client:
-        return await client.post(IMPORT_URL, json={"items": list(items)})
+async def post_import(h: Harness, *items: JsonValue) -> EventImportResponse:
+    async with h.db() as session:
+        return await catalog.import_events(
+            session, h.jobs, EventImportBatch(items=list(items)), h.now
+        )
 
 
 async def import_results(h: Harness, *items: JsonValue) -> list[dict[str, Any]]:
     response = await post_import(h, *items)
-    assert response.status_code == 200, response.text
-    return response.json()["results"]
+    return [result.model_dump(mode="json") for result in response.results]
 
 
 async def count(h: Harness, model: Any, *where: Any) -> int:
@@ -173,9 +170,11 @@ async def test_import_invalid_siblings(harness: Harness) -> None:
     assert [result["result"] for result in results] == ["created", "rejected", "created"]
     assert results[1]["source_id"] == "s2"
     assert results[1]["errors"][0]["loc"][0] == "starts_at"
-    assert_problem(await post_import(h), 422, ErrorCode.VALIDATION_ERROR)
+    with pytest.raises(ValidationError):
+        EventImportBatch(items=[])
     many = [import_item(h, source_id=f"m{index}") for index in range(51)]
-    assert_problem(await post_import(h, *many), 422, ErrorCode.VALIDATION_ERROR)
+    with pytest.raises(ValidationError):
+        EventImportBatch(items=many)
 
 
 async def test_import_rolls_back_failed_item(harness: Harness) -> None:
@@ -365,25 +364,6 @@ async def test_import_archived_match_rejected(harness: Harness) -> None:
         assert event.status == "archived"
         assert event.updated_at == updated_at
     assert await count(h, models.EventRevision) == 0
-
-
-async def test_import_requires_parser_token(harness: Harness) -> None:
-    h = harness
-    body = {"items": [import_item(h)]}
-    async with h.anonymous() as client:
-        response = await client.post(IMPORT_URL, json=body)
-    assert_problem(response, 401, ErrorCode.UNAUTHENTICATED)
-    async with h.bot() as client:
-        response = await client.post(IMPORT_URL, json=body)
-    assert_problem(response, 401, ErrorCode.UNAUTHENTICATED)
-    async with h._client(headers={"Authorization": "Bearer wrong"}) as client:
-        response = await client.post(IMPORT_URL, json=body)
-    assert_problem(response, 401, ErrorCode.UNAUTHENTICATED)
-    member = await h.user()
-    async with await h.client(member) as client:
-        response = await client.post(IMPORT_URL, json=body)
-    assert_problem(response, 401, ErrorCode.UNAUTHENTICATED)
-    assert await count(h, models.Event) == 0
 
 
 async def admin_patch(h: Harness, event_id: str, body: dict[str, JsonValue]) -> None:

@@ -763,7 +763,6 @@ class ErrorCode(StrEnum):
     NOT_DRAFT = "not_draft"
     NOT_ENROLLED = "not_enrolled"
     NOT_FOUND = "not_found"
-    NOT_IMPLEMENTED = "not_implemented"
     ONBOARDING_REQUIRED = "onboarding_required"
     ORIGIN_MISMATCH = "origin_mismatch"
     PARTY_FULL = "party_full"
@@ -780,7 +779,6 @@ class ErrorCode(StrEnum):
     SEATS_CLOSE_BELOW_MIN = "seats_close_below_min"
     TEAM_FULL = "team_full"
     TELEGRAM_ALREADY_LINKED = "telegram_already_linked"
-    TELEGRAM_NOT_LINKED = "telegram_not_linked"
     UNAUTHENTICATED = "unauthenticated"
     UNSUPPORTED_FILE_TYPE = "unsupported_file_type"
     USER_DND = "user_dnd"
@@ -814,7 +812,6 @@ ERROR_STATUS: dict[ErrorCode, HTTPStatus] = {
     ErrorCode.NOT_DRAFT: HTTPStatus.CONFLICT,
     ErrorCode.NOT_ENROLLED: HTTPStatus.CONFLICT,
     ErrorCode.NOT_FOUND: HTTPStatus.NOT_FOUND,
-    ErrorCode.NOT_IMPLEMENTED: HTTPStatus.NOT_IMPLEMENTED,
     ErrorCode.ONBOARDING_REQUIRED: HTTPStatus.FORBIDDEN,
     ErrorCode.ORIGIN_MISMATCH: HTTPStatus.FORBIDDEN,
     ErrorCode.PARTY_FULL: HTTPStatus.CONFLICT,
@@ -831,7 +828,6 @@ ERROR_STATUS: dict[ErrorCode, HTTPStatus] = {
     ErrorCode.SEATS_CLOSE_BELOW_MIN: HTTPStatus.CONFLICT,
     ErrorCode.TEAM_FULL: HTTPStatus.CONFLICT,
     ErrorCode.TELEGRAM_ALREADY_LINKED: HTTPStatus.CONFLICT,
-    ErrorCode.TELEGRAM_NOT_LINKED: HTTPStatus.UNAUTHORIZED,
     ErrorCode.UNAUTHENTICATED: HTTPStatus.UNAUTHORIZED,
     ErrorCode.UNSUPPORTED_FILE_TYPE: HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
     ErrorCode.USER_DND: HTTPStatus.CONFLICT,

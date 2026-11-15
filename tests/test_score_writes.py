@@ -3,9 +3,8 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from harness import Harness
+from harness import Harness, assert_problem
 from sqlalchemy import func, select
-from test_api_skeleton import assert_problem
 
 from hmm.algo.models import ScoreWithReason
 from hmm.common import (
