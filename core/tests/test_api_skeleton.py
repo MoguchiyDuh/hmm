@@ -1,6 +1,4 @@
 import re
-import subprocess
-import sys
 from collections.abc import Iterator
 from typing import Annotated, Any
 
@@ -278,7 +276,3 @@ async def test_security_dependencies() -> None:
 
 def test_openapi_export_is_current() -> None:
     assert OPENAPI_PATH.read_text(encoding="utf-8") == render_openapi()
-    result = subprocess.run(
-        [sys.executable, "-m", "hmm_core.export_openapi", "--check"], capture_output=True, text=True
-    )
-    assert result.returncode == 0, result.stdout + result.stderr

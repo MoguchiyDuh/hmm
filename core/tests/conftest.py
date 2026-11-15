@@ -1,3 +1,4 @@
+import fcntl
 import os
 import subprocess
 import sys
@@ -11,6 +12,7 @@ from harness import Harness, open_harness
 from hmm_contracts.common import OnboardingStatus
 from hmm_core.models import User
 from hmm_core.platform.db import Base, create_engine
+from psycopg import sql
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
@@ -31,16 +33,7 @@ $$
 """
 
 
-@pytest.fixture(scope="session")
-def database_url() -> str:
-    url = os.environ.get("TEST_DATABASE_URL")
-    if not url:
-        pytest.skip("PostgreSQL tests require TEST_DATABASE_URL")
-    return url
-
-
-@pytest.fixture(scope="session")
-def migrated_database(database_url: str) -> str:
+def migrate(database_url: str) -> None:
     conninfo = (
         make_url(database_url).set(drivername="postgresql").render_as_string(hide_password=False)
     )
@@ -68,7 +61,44 @@ def migrated_database(database_url: str) -> str:
                     "SELECT count(*) FROM pg_tables "
                     "WHERE schemaname = 'public' AND tablename <> 'alembic_version'"
                 ).fetchone() == (0,)
-    return database_url
+
+
+@pytest.fixture(scope="session")
+def database_url() -> str:
+    url = os.environ.get("TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("PostgreSQL tests require TEST_DATABASE_URL")
+    return url
+
+
+@pytest.fixture(scope="session")
+def migrated_database(
+    database_url: str, worker_id: str, tmp_path_factory: pytest.TempPathFactory
+) -> str:
+    if worker_id == "master":
+        migrate(database_url)
+        return database_url
+    root = tmp_path_factory.getbasetemp().parent
+    with (root / "migrate.lock").open("w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not (root / "migrated").exists():
+            migrate(database_url)
+            (root / "migrated").touch()
+    base = make_url(database_url)
+    name = f"{base.database}_{worker_id}"
+    conninfo = base.set(drivername="postgresql", database="postgres").render_as_string(
+        hide_password=False
+    )
+    with psycopg.connect(conninfo, autocommit=True) as connection:
+        connection.execute(
+            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name))
+        )
+        connection.execute(
+            sql.SQL("CREATE DATABASE {} TEMPLATE {}").format(
+                sql.Identifier(name), sql.Identifier(base.database or "")
+            )
+        )
+    return base.set(database=name).render_as_string(hide_password=False)
 
 
 @pytest.fixture

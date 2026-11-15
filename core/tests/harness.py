@@ -4,6 +4,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from functools import cache
 from typing import Any
 
 import httpx
@@ -216,9 +217,15 @@ def harness_config(database_url: str) -> Config:
     )
 
 
+@cache
+def harness_app(database_url: str) -> FastAPI:
+    return create_app(harness_config(database_url))
+
+
 @asynccontextmanager
 async def open_harness(engine: AsyncEngine, database_url: str) -> AsyncGenerator[Harness]:
-    app = create_app(harness_config(database_url))
+    app = harness_app(database_url)
+    app.dependency_overrides.clear()
     clock = FixedClock(NOW)
     app.state.clock = clock
     async with app.router.lifespan_context(app):

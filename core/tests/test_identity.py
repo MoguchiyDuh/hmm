@@ -468,7 +468,7 @@ async def test_unconfigured_service_tokens_fail(app: FastAPI, configured: str | 
     )
     async with browser(app) as client:
         for path, token in (
-            ("/api/v1/internal/notifications/pending", "bot-token"),
+            ("/api/v1/internal/notifications/pending?wait=0", "bot-token"),
             ("/api/v1/internal/areas", "parser-token"),
             ("/api/v1/me", "bot-token"),
         ):
@@ -485,7 +485,7 @@ async def test_service_token_comparisons_use_hmac(app: FastAPI) -> None:
             "hmm_core.identity.service.hmac.compare_digest", wraps=hmac.compare_digest
         ) as compare:
             for path, configured in (
-                ("/api/v1/internal/notifications/pending", "bot-token"),
+                ("/api/v1/internal/notifications/pending?wait=0", "bot-token"),
                 ("/api/v1/internal/areas", "parser-token"),
                 ("/api/v1/me", "bot-token"),
             ):
