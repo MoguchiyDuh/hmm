@@ -5,6 +5,7 @@ import pytest
 from harness import Harness
 from sqlalchemy import select, text
 
+from hmm import ticks
 from hmm.algo.fake import FakeAlgorithm
 from hmm.algo.models import LLMConfig
 from hmm.common import DeliveryStatus, NotificationChannel
@@ -104,6 +105,12 @@ def test_schedules(migrated_database: str) -> None:
         "cleanup": "0 1 * * *",
     }
     app = register_jobs(create_jobs_app(migrated_database))
+    assert {name for name in app.tasks if "procrastinate" not in name} == {
+        name.value for name in JobName
+    }
+    assert {key[0] for key in app.periodic_registry.periodic_tasks} == {
+        name.value for name, spec in JOBS.items() if spec.cron
+    }
     periodic = app.periodic_registry.periodic_tasks[("cleanup", "cleanup")]
     assert periodic.task.name == "cleanup"
     assert periodic.cron == "0 1 * * *"
@@ -280,3 +287,8 @@ async def test_cleanup(harness: Harness) -> None:
             assert [(row.namespace, row.key, row.value, row.expires_at) for row in caches] == [
                 ("cleanup", "live", b"live", live)
             ]
+
+
+async def test_ticks_run_every_sweep(harness: Harness) -> None:
+    await ticks.event_tick(harness.runtime)
+    await ticks.community_tick(harness.runtime)

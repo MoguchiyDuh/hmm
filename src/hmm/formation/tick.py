@@ -24,7 +24,7 @@ from hmm.notifications.payloads import (
     FormationSoonPayload,
 )
 from hmm.notifications.service import notify, notify_many, raise_alert, resolve_alerts
-from hmm.platform.jobs import JobName, Runtime, defer_job, job
+from hmm.platform.jobs import JobName, Runtime, defer_job
 from hmm.platform.settings import load_settings
 
 
@@ -173,24 +173,3 @@ async def tick_event(
                 )
             else:
                 await resolve_alerts(session, f"team_below_min:{project.id}", now)
-
-
-@job(JobName.EVENT_TICK)
-async def event_tick(runtime: Runtime, limit: int = 100) -> None:
-    async with runtime.sessionmaker.begin() as session:
-        query = (
-            select(models.Event.id)
-            .join(models.EventFormation, models.EventFormation.event_id == models.Event.id)
-            .where(
-                models.Event.status == "published",
-                models.EventFormation.phase.in_(["open", "formed"]),
-            )
-        )
-        event_ids = list(
-            await session.scalars(
-                query.order_by(models.EventFormation.updated_at, models.Event.id).limit(limit)
-            )
-        )
-    for event_id in event_ids:
-        async with runtime.sessionmaker.begin() as session:
-            await tick_event(session, runtime, event_id, runtime.clock.now())
