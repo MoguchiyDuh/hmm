@@ -21,21 +21,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: core
+          - name: app
             dockerfile: deploy/python.Dockerfile
-            package: hmm-core
-          - name: bot
-            dockerfile: deploy/python.Dockerfile
-            package: hmm-bot
-          - name: parser
-            dockerfile: deploy/python.Dockerfile
-            package: hmm-parser
           - name: web
             dockerfile: deploy/web.Dockerfile
-            package: ""
           - name: backup
             dockerfile: deploy/backup/Dockerfile
-            package: ""
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v4
@@ -55,7 +46,6 @@ jobs:
         with:
           context: .
           file: ${{ matrix.dockerfile }}
-          build-args: PACKAGE=${{ matrix.package }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.image.outputs.tag }}

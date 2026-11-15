@@ -34,16 +34,13 @@ if [ "$(cat "$temporary/complete")" != "$timestamp" ]; then
     exit 1
 fi
 rclone copyto "$snapshot/hmm.dump" "$temporary/hmm.dump"
-rclone copyto "$snapshot/hmm_parser.dump" "$temporary/hmm_parser.dump"
 rclone copyto "$snapshot/objects.list" "$temporary/objects.list"
 pg_restore --list "$temporary/hmm.dump" > /dev/null
-pg_restore --list "$temporary/hmm_parser.dump" > /dev/null
 mkdir "$temporary/objects"
 if [ -s "$temporary/objects.list" ]; then
     rclone copy "$snapshot/objects" "$temporary/objects"
 fi
 printf 'Restoring backup %s\n' "$timestamp"
 pg_restore --dbname=postgres --create --clean --if-exists --exit-on-error --no-owner --no-acl "$temporary/hmm.dump"
-pg_restore --dbname=postgres --create --clean --if-exists --exit-on-error --no-owner --no-acl "$temporary/hmm_parser.dump"
 rclone sync "$temporary/objects" "source:${S3_BUCKET}" --delete-after
 printf 'Restore complete: %s\n' "$timestamp"

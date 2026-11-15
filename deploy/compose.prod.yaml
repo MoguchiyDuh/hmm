@@ -38,11 +38,8 @@ services:
       POSTGRES_DB: hmm
     volumes:
       - postgres:/var/lib/postgresql
-    configs:
-      - source: parser-database
-        target: /docker-entrypoint-initdb.d/10-parser.sql
     healthcheck:
-      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U hmm -d hmm && psql -U hmm -d hmm_parser -c 'SELECT 1' > /dev/null"]
+      test: [CMD-SHELL, "pg_isready -h 127.0.0.1 -U hmm -d hmm"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -91,7 +88,7 @@ services:
 
   migrate:
     <<: *service
-    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-core:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-app:${IMAGE_TAG:-latest}
     restart: "no"
     command: alembic upgrade head
     environment: *core-environment
@@ -103,8 +100,8 @@ services:
 
   api:
     <<: *service
-    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-core:${IMAGE_TAG:-latest}
-    command: uvicorn hmm_core.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-app:${IMAGE_TAG:-latest}
+    command: uvicorn hmm.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*
     environment: *core-environment
     depends_on:
       migrate:
@@ -122,7 +119,7 @@ services:
 
   worker:
     <<: *service
-    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-core:${IMAGE_TAG:-latest}
+    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-app:${IMAGE_TAG:-latest}
     command: hmm-worker
     environment: *core-environment
     depends_on:
@@ -132,40 +129,6 @@ services:
         condition: service_completed_successfully
     mem_limit: ${WORKER_MEMORY:-512m}
     cpus: ${WORKER_CPUS:-1.0}
-
-  bot:
-    <<: *service
-    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-bot:${IMAGE_TAG:-latest}
-    command: hmm-bot
-    environment:
-      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL to the HTTPS origin}
-      CORE_URL: ${CORE_URL:-http://api:8000}
-      BOT_TOKEN: ${BOT_TOKEN:-}
-      BOT_SERVICE_TOKEN: ${BOT_SERVICE_TOKEN:-}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    depends_on:
-      api:
-        condition: service_healthy
-    mem_limit: ${BOT_MEMORY:-256m}
-    cpus: ${BOT_CPUS:-0.5}
-
-  parser:
-    <<: *service
-    image: ${IMAGE_PREFIX:?set IMAGE_PREFIX}-parser:${IMAGE_TAG:-latest}
-    command: hmm-parser
-    environment:
-      CORE_URL: ${CORE_URL:-http://api:8000}
-      PARSER_DATABASE_URL: ${PARSER_DATABASE_URL:?set PARSER_DATABASE_URL}
-      PARSER_SERVICE_TOKEN: ${PARSER_SERVICE_TOKEN:-}
-      LLM_BASE_URL: ${LLM_BASE_URL:-}
-      LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_MODEL: ${LLM_MODEL:-}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    depends_on:
-      api:
-        condition: service_healthy
-    mem_limit: ${PARSER_MEMORY:-256m}
-    cpus: ${PARSER_CPUS:-0.5}
 
   web:
     <<: *service
@@ -214,11 +177,6 @@ services:
         condition: service_completed_successfully
     mem_limit: ${BACKUP_MEMORY:-256m}
     cpus: ${BACKUP_CPUS:-0.5}
-
-configs:
-  parser-database:
-    content: |
-      CREATE DATABASE hmm_parser OWNER hmm;
 
 volumes:
   postgres:

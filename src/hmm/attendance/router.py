@@ -1,0 +1,133 @@
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, Request, Response, status
+
+from hmm.attendance import events
+from hmm.attendance.schemas import (
+    Attendance,
+    AttendancePage,
+    CancelMemberEventBody,
+    CreateMemberEventBody,
+    MemberEvent,
+    SetAttendanceBody,
+    UpdateMemberEventBody,
+)
+from hmm.common import AttendanceStatus, EventId
+from hmm.platform.clock import CurrentClock
+from hmm.platform.db import Session
+from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.pagination import CursorParams
+from hmm.platform.security import MemberAuth
+
+router = APIRouter(tags=["attendance"], responses=PROBLEM_RESPONSES)
+internal = APIRouter(tags=["attendance"], responses=PROBLEM_RESPONSES)
+
+
+@router.put(
+    "/events/{id}/attendance", status_code=status.HTTP_200_OK, summary="Set own event attendance"
+)
+async def set_attendance(
+    id: EventId,
+    body: SetAttendanceBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> Attendance:
+    now = clock.now()
+    return await events.set_attendance(session, request.app.state.jobs, id, body, actor, now)
+
+
+@router.delete(
+    "/events/{id}/attendance",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove own event attendance",
+)
+async def delete_attendance(
+    id: EventId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+) -> Response:
+    now = clock.now()
+    await events.delete_attendance(session, request.app.state.jobs, id, actor, now)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get(
+    "/events/{id}/attendees",
+    status_code=status.HTTP_200_OK,
+    summary="List event attendees with role and trust",
+)
+async def list_attendees(
+    id: EventId,
+    actor: MemberAuth,
+    pagination: Annotated[CursorParams, Depends()],
+    session: Session,
+    clock: CurrentClock,
+    attendance_status: Annotated[AttendanceStatus | None, Query(alias="status")] = None,
+) -> AttendancePage:
+    now = clock.now()
+    return await events.list_attendees(
+        session, id, actor, pagination, status=attendance_status, now=now
+    )
+
+
+@router.post("/events", status_code=status.HTTP_201_CREATED, summary="Create a member event")
+async def create_event(
+    body: CreateMemberEventBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+    confirm_new: Annotated[bool, Query()] = False,
+) -> MemberEvent:
+    now = clock.now()
+    event = await events.create_member_event(
+        session, request.app.state.jobs, body, actor, confirm_new=confirm_new, now=now
+    )
+    return await events.member_event_view(session, event, actor, now)
+
+
+@router.patch(
+    "/events/{id}",
+    status_code=status.HTTP_200_OK,
+    summary="Edit event as creator before its start or as admin",
+)
+async def update_event(
+    id: EventId,
+    body: UpdateMemberEventBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> MemberEvent:
+    now = clock.now()
+    event = await events.update_member_event(session, request.app.state.jobs, id, body, actor, now)
+    return await events.member_event_view(session, event, actor, now)
+
+
+@router.post(
+    "/events/{id}/cancel",
+    status_code=status.HTTP_200_OK,
+    summary="Cancel event as creator or admin",
+)
+async def cancel_event(
+    id: EventId,
+    body: CancelMemberEventBody,
+    actor: MemberAuth,
+    session: Session,
+    request: Request,
+    clock: CurrentClock,
+) -> MemberEvent:
+    now = clock.now()
+    event = await events.cancel_member_event(
+        session, request.app.state.jobs, id, body.reason, actor, now
+    )
+    return await events.member_event_view(session, event, actor, now)
+
+
+@router.get("/me/attendances", status_code=status.HTTP_200_OK, summary="List own attendances")
+async def list_my_attendances(
+    actor: MemberAuth,
+    session: Session,
+    attendance_status: Annotated[AttendanceStatus | None, Query(alias="status")] = None,
+) -> list[Attendance]:
+    return await events.list_my_attendances(session, actor, status=attendance_status)

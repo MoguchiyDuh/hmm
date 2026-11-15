@@ -29,12 +29,11 @@ services:
       - "127.0.0.1:9001:9001"
 
   api:
+    image: hmm
     build:
       context: ..
       dockerfile: deploy/python.Dockerfile
-      args:
-        PACKAGE: hmm-core
-    command: uvicorn hmm_core.main:app --host 0.0.0.0 --port 8000
+    command: uvicorn hmm.main:app --host 0.0.0.0 --port 8000
     env_file: .env
     depends_on:
       migrate:
@@ -43,11 +42,7 @@ services:
       - "127.0.0.1:8000:8000"
 
   migrate:
-    build:
-      context: ..
-      dockerfile: deploy/python.Dockerfile
-      args:
-        PACKAGE: hmm-core
+    image: hmm
     command: alembic upgrade head
     env_file: .env
     depends_on:
@@ -55,36 +50,12 @@ services:
         condition: service_healthy
 
   worker:
-    build:
-      context: ..
-      dockerfile: deploy/python.Dockerfile
-      args:
-        PACKAGE: hmm-core
+    image: hmm
     command: hmm-worker
     env_file: .env
     depends_on:
       migrate:
         condition: service_completed_successfully
-
-  parser:
-    profiles: [full]
-    build:
-      context: ..
-      dockerfile: deploy/python.Dockerfile
-      args:
-        PACKAGE: hmm-parser
-    command: hmm-parser
-    env_file: .env
-
-  bot:
-    profiles: [full]
-    build:
-      context: ..
-      dockerfile: deploy/python.Dockerfile
-      args:
-        PACKAGE: hmm-bot
-    command: hmm-bot
-    env_file: .env
 
 volumes:
   postgres:

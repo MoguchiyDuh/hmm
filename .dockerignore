@@ -17,3 +17,5 @@ web/dist
 **/*.tsbuildinfo
 docs
 **/*.log
+tests
+openapi.json

@@ -39,7 +39,6 @@ trap 'rm -rf "$temporary"' EXIT
 
 printf 'Starting backup %s\n' "$timestamp"
 pg_dump --dbname=hmm --format=custom --file="$temporary/hmm.dump"
-pg_dump --dbname=hmm_parser --format=custom --file="$temporary/hmm_parser.dump"
 rclone lsf "source:${S3_BUCKET}" --recursive --files-only > "$temporary/objects.list"
 rclone copy "source:${S3_BUCKET}" "$snapshot/objects"
 rclone copy "$temporary" "$snapshot"
