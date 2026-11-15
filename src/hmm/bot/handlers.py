@@ -1,16 +1,24 @@
 import re
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from datetime import datetime
 from html import unescape
 from uuid import UUID
 
-from aiogram import F, Router
+from aiogram import Bot, F, Router
 from aiogram.enums import ChatType
-from aiogram.exceptions import TelegramBadRequest
+from aiogram.exceptions import TelegramAPIError, TelegramBadRequest
 from aiogram.filters import KICKED, ChatMemberUpdatedFilter, Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import CallbackQuery, ChatMemberUpdated, InlineKeyboardMarkup, Message
+from aiogram.types import (
+    BotCommandScopeChat,
+    CallbackQuery,
+    ChatMemberUpdated,
+    InlineKeyboardMarkup,
+    Message,
+    User,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
@@ -25,11 +33,20 @@ from hmm.bot.callbacks import (
     EventCallback,
     EventOp,
     HelpCallback,
+    LanguageCallback,
     MenuCallback,
     OutcomeCallback,
 )
-from hmm.bot.fmt import clip
-from hmm.bot.runtime import Body, BotRuntime, Reply, respond, respond_anonymous
+from hmm.bot.fmt import clip, tr
+from hmm.bot.runtime import (
+    AnonymousBody,
+    Body,
+    BotRuntime,
+    Reply,
+    respond,
+    respond_anonymous,
+)
+from hmm.common import Locale
 
 TOAST_LIMIT = 200
 CONFIRMED_MARK = "☑"
@@ -52,11 +69,38 @@ async def send(message: Message, reply: Reply) -> Message:
     return await message.answer(reply.text, reply_markup=reply.markup)
 
 
-async def run(message: Message, runtime: BotRuntime, body: Body) -> tuple[Reply, Message] | None:
-    if message.from_user is None:
+async def run(
+    message: Message, runtime: BotRuntime, body: Body, *, member: bool = True
+) -> tuple[Reply, Message] | None:
+    user = message.from_user
+    if user is None:
         return None
-    reply = await respond(runtime, message.from_user.id, body)
+    reply = await respond(runtime, user.id, body, member=member, language_code=user.language_code)
     return reply, await send(message, reply)
+
+
+async def anonymous(runtime: BotRuntime, user: User, body: AnonymousBody) -> Reply:
+    return await respond_anonymous(
+        runtime, body, telegram_user_id=user.id, language_code=user.language_code
+    )
+
+
+def fixed(build: Callable[[], Reply]) -> AnonymousBody:
+    async def body(session: AsyncSession, now: datetime) -> Reply:
+        return build()
+
+    return body
+
+
+async def apply_commands(bot: Bot | None, chat_id: int, locale: Locale | None) -> None:
+    if bot is None:
+        return
+    scope = BotCommandScopeChat(chat_id=chat_id)
+    with suppress(TelegramAPIError):
+        if locale is None:
+            await bot.delete_my_commands(scope=scope)
+        else:
+            await bot.set_my_commands(commands.bot_commands(locale), scope=scope)
 
 
 def plain(text: str) -> str:
@@ -100,18 +144,23 @@ async def on_start_link(message: Message, command: CommandObject, runtime: BotRu
     if user is None or command.args is None:
         return
     code = command.args.strip()
-    reply = await respond_anonymous(
+    reply = await anonymous(
         runtime,
+        user,
         lambda session, now: commands.link_account(
+            runtime,
             session,
             now,
             code=code,
             telegram_user_id=user.id,
             chat_id=message.chat.id,
             username=user.username,
+            language_code=user.language_code,
         ),
     )
     await send(message, reply)
+    if reply.ok:
+        await apply_commands(message.bot, message.chat.id, reply.locale)
 
 
 async def on_start(message: Message, runtime: BotRuntime) -> None:
@@ -120,8 +169,8 @@ async def on_start(message: Message, runtime: BotRuntime) -> None:
         return
     await send(
         message,
-        await respond_anonymous(
-            runtime, lambda session, now: commands.greet(runtime, session, user.id)
+        await anonymous(
+            runtime, user, lambda session, now: commands.greet(runtime, session, user.id)
         ),
     )
 
@@ -131,26 +180,38 @@ async def on_unlink(message: Message, runtime: BotRuntime, state: FSMContext) ->
     if user is None:
         return
     await end_flow(message, state)
-    await send(
-        message,
-        await respond_anonymous(runtime, lambda session, now: commands.unlink(session, user.id)),
-    )
+    reply = await anonymous(runtime, user, lambda session, now: commands.unlink(session, user.id))
+    await send(message, reply)
+    if reply.ok:
+        await apply_commands(message.bot, message.chat.id, None)
 
 
-async def on_help(message: Message) -> None:
-    await message.answer(commands.HELP_TEXT)
+async def reply_fixed(message: Message, runtime: BotRuntime, build: Callable[[], Reply]) -> None:
+    if message.from_user is not None:
+        await send(message, await anonymous(runtime, message.from_user, fixed(build)))
+
+
+async def on_help(message: Message, runtime: BotRuntime) -> None:
+    await reply_fixed(message, runtime, lambda: Reply(commands.help_text()))
 
 
 async def on_settings(message: Message, runtime: BotRuntime) -> None:
-    await send(message, commands.settings_reply(runtime))
+    await reply_fixed(message, runtime, commands.settings_reply)
 
 
-async def on_cancel(message: Message, state: FSMContext) -> None:
+async def on_cancel(message: Message, state: FSMContext, runtime: BotRuntime) -> None:
     if await state.get_state() is None:
-        await message.answer("Nothing to cancel.")
+        await reply_fixed(message, runtime, lambda: Reply(tr().nothing_to_cancel))
         return
     await end_flow(message, state)
-    await message.answer("Cancelled.")
+    await reply_fixed(message, runtime, lambda: Reply(tr().cancelled))
+
+
+async def on_language(message: Message, runtime: BotRuntime) -> None:
+    async def body(session: AsyncSession, actor: models.User, now: datetime) -> Reply:
+        return commands.language_menu()
+
+    await run(message, runtime, body, member=False)
 
 
 async def on_events(message: Message, runtime: BotRuntime) -> None:
@@ -310,14 +371,17 @@ async def on_other(message: Message, runtime: BotRuntime) -> None:
         return
     await send(
         message,
-        await respond_anonymous(
-            runtime, lambda session, now: commands.unknown(runtime, session, user.id)
+        await anonymous(
+            runtime, user, lambda session, now: commands.unknown(runtime, session, user.id)
         ),
     )
 
 
-async def callback_reply(query: CallbackQuery, runtime: BotRuntime, body: Body) -> Reply | None:
-    reply = await respond(runtime, query.from_user.id, body)
+async def callback_reply(
+    query: CallbackQuery, runtime: BotRuntime, body: Body, *, member: bool = True
+) -> Reply | None:
+    user = query.from_user
+    reply = await respond(runtime, user.id, body, member=member, language_code=user.language_code)
     if not reply.ok:
         await query.answer(plain(reply.text), show_alert=True)
         return None
@@ -449,14 +513,33 @@ async def on_close_button(
         await send(query.message, reply)
 
 
-async def on_cancel_button(query: CallbackQuery, state: FSMContext) -> None:
-    await query.answer("Cancelled")
+async def on_cancel_button(query: CallbackQuery, state: FSMContext, runtime: BotRuntime) -> None:
+    reply = await anonymous(runtime, query.from_user, fixed(lambda: Reply(tr().cancelled)))
+    await query.answer(plain(reply.text))
     message = query.message
     if not isinstance(message, Message):
         return
     if (await state.get_data()).get(PROMPT_KEY) == str(message.message_id):
         await state.clear()
-    await edit(message, f"{message.html_text}\n\n<i>Cancelled.</i>", None)
+    await edit(message, f"{message.html_text}\n\n<i>{reply.text}</i>", None)
+
+
+async def on_language_button(
+    query: CallbackQuery, callback_data: LanguageCallback, runtime: BotRuntime
+) -> None:
+    locale = callback_data.locale
+    reply = await callback_reply(
+        query,
+        runtime,
+        lambda s, a, n: commands.set_language(runtime, s, a, n, locale),
+        member=False,
+    )
+    if reply is None:
+        return
+    await query.answer(plain(reply.text))
+    if isinstance(query.message, Message):
+        await edit(query.message, reply.text, reply.markup)
+        await apply_commands(query.bot, query.message.chat.id, reply.locale)
 
 
 async def on_outcome(
@@ -515,6 +598,7 @@ async def on_confirm_button(
 async def on_blocked(event: ChatMemberUpdated, runtime: BotRuntime) -> None:
     user_id = event.from_user.id
     await respond_anonymous(runtime, lambda session, now: commands.unlink(session, user_id))
+    await apply_commands(event.bot, event.chat.id, None)
 
 
 def build_router() -> Router:
@@ -541,6 +625,7 @@ def build_router() -> Router:
         (("confirm",), on_confirm),
         (("profile", "me"), on_profile),
         (("dnd",), on_dnd),
+        (("language",), on_language),
     ):
         router.message.register(handler, Command(*names))
     text = F.text & ~F.text.startswith("/")
@@ -559,5 +644,6 @@ def build_router() -> Router:
     router.callback_query.register(on_cancel_button, CancelCallback.filter())
     router.callback_query.register(on_outcome, OutcomeCallback.filter())
     router.callback_query.register(on_confirm_button, ConfirmCallback.filter())
+    router.callback_query.register(on_language_button, LanguageCallback.filter())
     router.my_chat_member.register(on_blocked, ChatMemberUpdatedFilter(KICKED))
     return router

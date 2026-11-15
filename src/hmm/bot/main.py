@@ -5,13 +5,13 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import BotCommand
 
-from hmm.bot.commands import MENU_COMMANDS
+from hmm.bot.commands import bot_commands
 from hmm.bot.delivery import Deliverer
 from hmm.bot.handlers import build_router
 from hmm.bot.runtime import BotRuntime
 from hmm.bot.templates import Rendered
+from hmm.common import Locale
 from hmm.platform.clock import SystemClock
 from hmm.platform.config import Config
 from hmm.platform.db import create_engine, create_sessionmaker
@@ -56,12 +56,8 @@ async def run(config: Config) -> None:
 
     delivery = asyncio.create_task(Deliverer(runtime, send).run())
     try:
-        await bot.set_my_commands(
-            [
-                BotCommand(command=command.name, description=command.text)
-                for command in MENU_COMMANDS
-            ]
-        )
+        await bot.set_my_commands(bot_commands(Locale.EN))
+        await bot.set_my_commands(bot_commands(Locale.RU), language_code=Locale.RU)
         await build_dispatcher().start_polling(bot, runtime=runtime, close_bot_session=False)
     finally:
         delivery.cancel()

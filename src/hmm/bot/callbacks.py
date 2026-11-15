@@ -3,7 +3,7 @@ from uuid import UUID
 
 from aiogram.filters.callback_data import CallbackData
 
-from hmm.common import ConfirmationFactType, MentorshipOutcome
+from hmm.common import ConfirmationFactType, Locale, MentorshipOutcome
 from hmm.notifications.payloads import ActionKey
 
 
@@ -65,3 +65,7 @@ class AskAreaCallback(CallbackData, prefix="aa"):
 
 class CancelCallback(CallbackData, prefix="x"):
     pass
+
+
+class LanguageCallback(CallbackData, prefix="l"):
+    locale: Locale

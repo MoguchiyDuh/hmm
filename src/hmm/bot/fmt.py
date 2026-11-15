@@ -1,12 +1,17 @@
 from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, tzinfo
 from html import escape
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from hmm.notifications.payloads import NotificationPerson
+from hmm.bot import texts_en, texts_ru
+from hmm.bot.i18n import Noun, Texts
+from hmm.common import EventFormat, Locale
+from hmm.notifications.payloads import NotificationChange, NotificationPerson, ScoreChange
+
+TEXTS: dict[Locale, Texts] = {Locale.EN: texts_en.TEXTS, Locale.RU: texts_ru.TEXTS}
 
 MINUTE = 60
 HOUR = 60 * MINUTE
@@ -19,6 +24,7 @@ class View:
     now: datetime | None = None
     timezone: str | None = None
     link: str | None = None
+    locale: Locale = Locale.EN
 
 
 VIEW: ContextVar[View | None] = ContextVar("hmm_bot_view", default=None)
@@ -31,6 +37,22 @@ def viewing(view: View) -> Generator[View]:
         yield view
     finally:
         VIEW.reset(token)
+
+
+@contextmanager
+def localized(locale: Locale) -> Generator[View]:
+    current = VIEW.get() or View(public_url="")
+    with viewing(replace(current, locale=locale)) as view:
+        yield view
+
+
+def current_locale() -> Locale:
+    view = VIEW.get()
+    return view.locale if view else Locale.EN
+
+
+def tr() -> Texts:
+    return TEXTS[current_locale()]
 
 
 def web_url(path: str | None = None) -> str | None:
@@ -92,11 +114,12 @@ def zone(timezone: str | None) -> tzinfo:
 
 def ago(seconds: float) -> str:
     seconds = abs(seconds)
+    texts = tr()
     if seconds < HOUR:
-        return plural(round(seconds / MINUTE), "minute")
+        return plural(round(seconds / MINUTE), texts.minute)
     if seconds < 2 * DAY:
-        return plural(round(seconds / HOUR), "hour")
-    return plural(round(seconds / DAY), "day")
+        return plural(round(seconds / HOUR), texts.hour)
+    return plural(round(seconds / DAY), texts.day)
 
 
 def relative(moment: datetime) -> str | None:
@@ -104,20 +127,26 @@ def relative(moment: datetime) -> str | None:
     if view is None or view.now is None:
         return None
     seconds = (moment - view.now).total_seconds()
+    texts = tr()
     if abs(seconds) < MINUTE:
-        return "just now"
-    return f"in {ago(seconds)}" if seconds >= 0 else f"{ago(seconds)} ago"
+        return texts.just_now
+    return (texts.in_time if seconds >= 0 else texts.ago_time).format(ago(seconds))
+
+
+def date_label(local: datetime) -> str:
+    texts = tr()
+    return f"{texts.weekdays[local.weekday()]} {local:%d} {texts.months[local.month - 1]}"
 
 
 def when(moment: datetime, timezone: str | None = None, *, relative_to_now: bool = True) -> str:
     local = moment.astimezone(zone(timezone))
-    text = f"{local:%a %d %b %H:%M} {local.tzname()}"
+    text = f"{date_label(local)} {local:%H:%M} {local.tzname()}"
     hint = relative(moment) if relative_to_now else None
     return f"{text} ({hint})" if hint else text
 
 
 def day(moment: datetime, timezone: str | None = None) -> str:
-    return f"{moment.astimezone(zone(timezone)):%a %d %b}"
+    return date_label(moment.astimezone(zone(timezone)))
 
 
 def span(start: datetime, end: datetime, timezone: str | None = None) -> str:
@@ -126,8 +155,8 @@ def span(start: datetime, end: datetime, timezone: str | None = None) -> str:
     hint = relative(start)
     suffix = f" ({hint})" if hint else ""
     if first.date() == last.date():
-        return f"{first:%a %d %b %H:%M}-{last:%H:%M} {last.tzname()}{suffix}"
-    return f"{first:%a %d %b} to {last:%a %d %b}{suffix}"
+        return f"{date_label(first)} {first:%H:%M}-{last:%H:%M} {last.tzname()}{suffix}"
+    return tr().span_days.format(date_label(first), date_label(last)) + suffix
 
 
 def score(value: float) -> str:
@@ -145,7 +174,7 @@ def person(value: NotificationPerson) -> str:
 def people(values: tuple[NotificationPerson, ...], limit: int = 10) -> str:
     names = [esc(value.display_name) for value in values[:limit]]
     if len(values) > limit:
-        names.append(f"+{len(values) - limit} more")
+        names.append(tr().and_more.format(len(values) - limit))
     return ", ".join(names)
 
 
@@ -153,12 +182,12 @@ def reason(value: str) -> str:
     return esc(value.strip().rstrip("."))
 
 
-def plural(count: int, noun: str) -> str:
-    return f"{count} {noun}" if count == 1 else f"{count} {noun}s"
+def plural(count: int, noun: Noun) -> str:
+    return f"{count} {noun.pick(count)}"
 
 
 def headcount(count: int) -> str:
-    return "1 person" if count == 1 else f"{count} people"
+    return plural(count, tr().person)
 
 
 def moment_or_text(value: str | None, timezone: str | None = None) -> str:
@@ -173,3 +202,29 @@ def moment_or_text(value: str | None, timezone: str | None = None) -> str:
 
 def lines(*parts: str | None) -> str:
     return "\n".join(part for part in parts if part)
+
+
+def event_field(field: str) -> str:
+    return tr().event_fields.get(field, humanize(field))
+
+
+def change_line(change: NotificationChange, timezone: str) -> str:
+    return (
+        f"• {esc(event_field(change.field))}: "
+        f"{change_value(change.field, change.previous, timezone)} → "
+        f"{change_value(change.field, change.current, timezone)}"
+    )
+
+
+def change_value(field: str, value: str | None, timezone: str) -> str:
+    if field == "format" and value in EventFormat:
+        return esc(tr().event_formats[EventFormat(value)])
+    return moment_or_text(value, timezone)
+
+
+def score_changes(changes: tuple[ScoreChange, ...]) -> str:
+    return "\n".join(
+        f"• {esc(change.area_name)}: {score(change.previous_score)} → "
+        f"{bold(score(change.score))} — {esc(clip(change.reason, 160))}"
+        for change in changes
+    )

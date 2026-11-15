@@ -124,6 +124,7 @@ class Deliverer:
             rendered = render(
                 delivery.payload,
                 self.runtime.config.public_url,
+                locale=delivery.locale,
                 now=self.runtime.clock.now(),
                 timezone=timezone,
             )

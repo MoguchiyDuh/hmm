@@ -6,18 +6,18 @@ from html import escape
 import procrastinate
 from aiogram.types import InlineKeyboardMarkup
 from pydantic import ValidationError
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from hmm import models
-from hmm.bot.fmt import View, viewing
-from hmm.common import ErrorCode, Problem
+from hmm.bot.fmt import TEXTS, View, viewing
+from hmm.bot.i18n import telegram_locale
+from hmm.common import Locale, Problem
 from hmm.identity.service import telegram_actor
 from hmm.platform.clock import Clock
 from hmm.platform.config import Config
 from hmm.platform.db import transaction
 from hmm.platform.errors import ProblemError
-
-LINK_PATH = "/settings#telegram"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -37,76 +37,93 @@ class Reply:
     markup: InlineKeyboardMarkup | None = None
     ok: bool = True
     retry: bool = False
+    locale: Locale | None = None
 
 
-ERROR_TEXT: dict[ErrorCode, str] = {
-    ErrorCode.UNAUTHENTICATED: (
-        "This Telegram account isn't linked to hmm yet. Get a link code at {url}" + LINK_PATH
-    ),
-    ErrorCode.BANNED: "Your hmm account is banned.",
-    ErrorCode.ONBOARDING_REQUIRED: "Finish onboarding on the web first: {url}/onboarding",
-    ErrorCode.CODE_INVALID: (
-        "This link code doesn't exist. Generate a new one at {url}" + LINK_PATH
-    ),
-    ErrorCode.CODE_EXPIRED: (
-        "This link code has expired or was already used. Generate a new one at {url}" + LINK_PATH
-    ),
-    ErrorCode.TELEGRAM_ALREADY_LINKED: (
-        "This Telegram account is linked to another hmm user. Unlink it there first."
-    ),
-    ErrorCode.NOT_FOUND: "Not found, or you can't see it.",
-    ErrorCode.FORBIDDEN: "You can't do that.",
-    ErrorCode.RESTRICTED: "Your account is restricted from doing that right now.",
-    ErrorCode.USER_DND: "That member is in do-not-disturb mode.",
-    ErrorCode.INTERNAL_ERROR: "Something went wrong. Try again later.",
-}
-
-
-def problem_text(error: ProblemError, public_url: str) -> str:
-    known = ERROR_TEXT.get(error.code)
+def problem_text(error: ProblemError, public_url: str, locale: Locale) -> str:
+    known = TEXTS[locale].errors.get(error.code)
     if known is not None:
         return known.format(url=public_url)
     title = Problem.build(public_url=public_url, code=error.code).title
     return f"{title}: {error.detail}" if error.detail else f"{title}."
 
 
-def validation_text(error: ValidationError) -> str:
+def validation_text(error: ValidationError, locale: Locale) -> str:
+    texts = TEXTS[locale]
     issue = error.errors()[0]
-    field = ".".join(str(part) for part in issue["loc"]).replace("_", " ")
-    return f"{escape(field.capitalize(), quote=False)}: {escape(issue['msg'], quote=False)}."
+    path = [str(part) for part in issue["loc"]]
+    field = texts.field_names.get(path[-1]) if path else None
+    if field is None:
+        field = " ".join(path).replace("_", " ").capitalize()
+    template = texts.validation.get(issue["type"])
+    message = template.format(**issue.get("ctx", {})) if template else issue["msg"]
+    return texts.invalid_field.format(
+        field=escape(field, quote=False), message=escape(message, quote=False)
+    )
 
 
-def failure(error: ProblemError | ValidationError, public_url: str) -> Reply:
+def failure(error: ProblemError | ValidationError, public_url: str, locale: Locale) -> Reply:
     if isinstance(error, ValidationError):
-        return Reply(validation_text(error), ok=False, retry=True)
-    return Reply(escape(problem_text(error, public_url), quote=False), ok=False)
+        return Reply(validation_text(error, locale), ok=False, retry=True)
+    return Reply(escape(problem_text(error, public_url, locale), quote=False), ok=False)
+
+
+async def linked_locale(session: AsyncSession, telegram_user_id: int) -> Locale | None:
+    value = await session.scalar(
+        select(models.User.locale)
+        .join(models.TelegramLink, models.TelegramLink.user_id == models.User.id)
+        .where(models.TelegramLink.telegram_user_id == telegram_user_id)
+    )
+    return Locale(value) if value else None
 
 
 type Body = Callable[[AsyncSession, models.User, datetime], Awaitable[Reply]]
 
 
 async def respond(
-    runtime: BotRuntime, telegram_user_id: int, body: Body, *, member: bool = True
+    runtime: BotRuntime,
+    telegram_user_id: int,
+    body: Body,
+    *,
+    member: bool = True,
+    language_code: str | None = None,
 ) -> Reply:
     now = runtime.clock.now()
+    locale = telegram_locale(language_code)
     try:
         async with transaction(runtime.sessionmaker) as session:
             actor = await telegram_actor(session, telegram_user_id, now, member=member)
-            view = View(public_url=runtime.config.public_url, now=now, timezone=actor.timezone)
+            locale = Locale(actor.locale)
+            view = View(
+                public_url=runtime.config.public_url,
+                now=now,
+                timezone=actor.timezone,
+                locale=locale,
+            )
             with viewing(view):
                 return await body(session, actor, now)
     except (ProblemError, ValidationError) as error:
-        return failure(error, runtime.config.public_url)
+        return failure(error, runtime.config.public_url, locale)
 
 
 type AnonymousBody = Callable[[AsyncSession, datetime], Awaitable[Reply]]
 
 
-async def respond_anonymous(runtime: BotRuntime, body: AnonymousBody) -> Reply:
+async def respond_anonymous(
+    runtime: BotRuntime,
+    body: AnonymousBody,
+    *,
+    telegram_user_id: int | None = None,
+    language_code: str | None = None,
+) -> Reply:
     now = runtime.clock.now()
+    locale = telegram_locale(language_code)
     try:
         async with transaction(runtime.sessionmaker) as session:
-            with viewing(View(public_url=runtime.config.public_url, now=now)):
+            if telegram_user_id is not None:
+                locale = await linked_locale(session, telegram_user_id) or locale
+            view = View(public_url=runtime.config.public_url, now=now, locale=locale)
+            with viewing(view):
                 return await body(session, now)
     except (ProblemError, ValidationError) as error:
-        return failure(error, runtime.config.public_url)
+        return failure(error, runtime.config.public_url, locale)

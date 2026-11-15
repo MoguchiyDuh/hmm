@@ -1,4 +1,5 @@
 import re
+from dataclasses import fields
 from datetime import timedelta
 from html.parser import HTMLParser
 from pathlib import Path
@@ -15,10 +16,26 @@ from hmm.bot.callbacks import (
     CloseCallback,
     ConfirmCallback,
     HelpCallback,
+    MenuItem,
 )
+from hmm.bot.commands import COMMANDS
 from hmm.bot.delivery import Throttle
-from hmm.bot.templates import API_LABELS, FALLBACK_TEXT, SILENT, TEMPLATES, render
+from hmm.bot.fmt import TEXTS
+from hmm.bot.i18n import Texts, telegram_locale
+from hmm.bot.templates import SILENT, TEMPLATES, render
+from hmm.common import (
+    EventFormat,
+    EventKind,
+    Locale,
+    MentorshipKind,
+    MentorshipOutcome,
+    MentorshipStatus,
+    RestrictionKind,
+    TeamStatus,
+)
 from hmm.notifications.payloads import (
+    ActionKey,
+    AlertKind,
     ApiAction,
     EventCancelledPayload,
     Notification,
@@ -78,15 +95,17 @@ def unpack(data: str) -> object:
     raise AssertionError(data)
 
 
-def test_every_type_has_a_template() -> None:
-    assert set(TEMPLATES) == set(NotificationType)
+@pytest.mark.parametrize("locale", list(Locale))
+def test_every_type_has_a_template(locale: Locale) -> None:
+    assert set(TEMPLATES[locale]) == set(NotificationType)
     assert {path.stem for path in FIXTURES.glob("*.json")} == set(NotificationType)
 
 
+@pytest.mark.parametrize("locale", list(Locale))
 @pytest.mark.parametrize("path", sorted(FIXTURES.glob("*.json")), ids=lambda path: path.stem)
-def test_fixture_renders(path: Path) -> None:
+def test_fixture_renders(path: Path, locale: Locale) -> None:
     payload = fixture(path)
-    rendered = render(payload, PUBLIC_URL)
+    rendered = render(payload, PUBLIC_URL, locale=locale)
     assert rendered.text.strip()
     assert len(rendered.text) <= MAX_TEXT
     assert_html(rendered.text)
@@ -101,7 +120,7 @@ def test_fixture_renders(path: Path) -> None:
         if isinstance(item, ActionCallback)
     ] == [(action.key, action.entity_id) for action in api]
     assert [button.text for button in buttons(rendered) if button.callback_data][: len(api)] == [
-        API_LABELS[action.key] for action in api
+        TEXTS[locale].api_labels[action.key] for action in api
     ]
     urls = [button.url for button in buttons(rendered) if button.url]
     assert all(url.startswith(PUBLIC_URL) for url in urls)
@@ -142,9 +161,9 @@ def test_unknown_type_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = EventCancelledPayload(
         link="/events", event_id=uuid4(), event_title="Event", reason="Cancelled"
     )
-    monkeypatch.delitem(TEMPLATES, NotificationType.EVENT_CANCELLED)
+    monkeypatch.delitem(TEMPLATES[Locale.EN], NotificationType.EVENT_CANCELLED)
     rendered = render(payload, PUBLIC_URL)
-    assert rendered.text == FALLBACK_TEXT
+    assert rendered.text == TEXTS[Locale.EN].fallback
     assert rendered.markup is None
 
 
@@ -183,6 +202,65 @@ def test_quiet_types_are_silent() -> None:
     for path in sorted(FIXTURES.glob("*.json")):
         payload = fixture(path)
         assert render(payload, PUBLIC_URL).silent is (payload.type in SILENT)
+
+
+def test_locale_tables_match() -> None:
+    english, russian = TEXTS[Locale.EN], TEXTS[Locale.RU]
+    for field in fields(Texts):
+        value = getattr(english, field.name)
+        if isinstance(value, dict):
+            assert set(value) == set(getattr(russian, field.name)), field.name
+    assert set(english.commands) == {command.name for command in COMMANDS}
+    for table, enum in (
+        (english.event_kinds, EventKind),
+        (english.event_formats, EventFormat),
+        (english.mentorship_kinds, MentorshipKind),
+        (english.mentorship_statuses, MentorshipStatus),
+        (english.outcomes, MentorshipOutcome),
+        (english.team_statuses, TeamStatus),
+        (english.restriction_kinds, RestrictionKind),
+        (english.alert_kinds, AlertKind),
+        (english.api_labels, ActionKey),
+        (english.action_done, ActionKey),
+        (english.menu, MenuItem),
+    ):
+        assert set(table) == set(enum)
+
+
+def test_russian_plurals() -> None:
+    noun = TEXTS[Locale.RU].team
+    picks = {count: noun.pick(count) for count in (1, 2, 5, 11, 12, 21, 22, 25, 111)}
+    assert picks == {
+        1: "команда",
+        2: "команды",
+        5: "команд",
+        11: "команд",
+        12: "команд",
+        21: "команда",
+        22: "команды",
+        25: "команд",
+        111: "команд",
+    }
+
+
+def test_russian_dates_and_relative_hint() -> None:
+    payload = fixture(FIXTURES / "party_invite.json")
+    assert isinstance(payload, PartyInvitePayload)
+    now = payload.expires_at - timedelta(days=3, hours=1)
+    text = render(payload, PUBLIC_URL, locale=Locale.RU, now=now, timezone="Europe/Moscow").text
+    local = payload.expires_at.astimezone(ZoneInfo("Europe/Moscow"))
+    weekday = TEXTS[Locale.RU].weekdays[local.weekday()]
+    month = TEXTS[Locale.RU].months[local.month - 1]
+    assert f"{weekday} {local:%d} {month} {local:%H:%M} MSK (через 3 дня)" in text
+    assert text.startswith("👥")
+
+
+def test_telegram_locale() -> None:
+    assert telegram_locale("ru") is Locale.RU
+    assert telegram_locale("ru-RU") is Locale.RU
+    assert telegram_locale("en") is Locale.EN
+    assert telegram_locale("uk") is Locale.EN
+    assert telegram_locale(None) is Locale.EN
 
 
 async def test_throttle_spaces_sends() -> None:

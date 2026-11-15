@@ -21,12 +21,13 @@ from hmm.bot.callbacks import (
     CancelCallback,
     EventCallback,
     EventOp,
+    LanguageCallback,
     MenuItem,
 )
 from hmm.bot.delivery import Deliverer, Throttle
+from hmm.bot.fmt import TEXTS
+from hmm.bot.i18n import LINK_PATH
 from hmm.bot.runtime import (
-    ERROR_TEXT,
-    LINK_PATH,
     Body,
     BotRuntime,
     Reply,
@@ -34,11 +35,13 @@ from hmm.bot.runtime import (
     respond_anonymous,
 )
 from hmm.bot.templates import Rendered
-from hmm.common import DeliveryStatus, ErrorCode, MemberState, NotificationChannel
+from hmm.common import DeliveryStatus, ErrorCode, Locale, MemberState, NotificationChannel
 from hmm.notifications import service
 from hmm.notifications.payloads import ActionKey, EventCancelledPayload
 
 METHOD = SendMessage(chat_id=1, text="x")
+EN = TEXTS[Locale.EN]
+RU = TEXTS[Locale.RU]
 
 
 async def emit_event_cancelled(h: Harness, user: models.User) -> UUID:
@@ -193,16 +196,20 @@ async def add_code(h: Harness, user: models.User, code: str) -> None:
         )
 
 
-async def link_with(h: Harness, code: str, telegram_user_id: int) -> Reply:
+async def link_with(
+    h: Harness, code: str, telegram_user_id: int, language_code: str | None = None
+) -> Reply:
     return await respond_anonymous(
         bot_runtime(h),
         lambda session, now: commands.link_account(
+            bot_runtime(h),
             session,
             now,
             code=code,
             telegram_user_id=telegram_user_id,
             chat_id=telegram_user_id,
             username="tg",
+            language_code=language_code,
         ),
     )
 
@@ -214,7 +221,7 @@ async def test_linking(harness: Harness) -> None:
     second = await h.user()
     unknown = await respond(runtime, 777, lambda s, a, n: commands.profile(runtime, s, a, n))
     assert not unknown.ok
-    assert unknown.text == ERROR_TEXT[ErrorCode.UNAUTHENTICATED].format(
+    assert unknown.text == EN.errors[ErrorCode.UNAUTHENTICATED].format(
         url=runtime.config.public_url
     )
     assert LINK_PATH in unknown.text
@@ -228,18 +235,64 @@ async def test_linking(harness: Harness) -> None:
     link = await telegram_link(h, first)
     assert link is not None and link.telegram_user_id == 777
     reused = await link_with(h, "first-code", 777)
-    assert reused.text == ERROR_TEXT[ErrorCode.CODE_EXPIRED].format(url=runtime.config.public_url)
+    assert reused.text == EN.errors[ErrorCode.CODE_EXPIRED].format(url=runtime.config.public_url)
     await add_code(h, second, "second-code")
     taken = await link_with(h, "second-code", 777)
-    assert taken.text == ERROR_TEXT[ErrorCode.TELEGRAM_ALREADY_LINKED]
+    assert taken.text == EN.errors[ErrorCode.TELEGRAM_ALREADY_LINKED]
     me = await respond(runtime, 777, lambda s, a, n: commands.profile(runtime, s, a, n))
     assert me.ok and "Ada" in me.text
     greeting = await respond_anonymous(runtime, lambda s, n: commands.greet(runtime, s, 777))
     assert "Hi, <b>Ada</b>" in greeting.text
     other = await respond_anonymous(runtime, lambda s, n: commands.unknown(runtime, s, 777))
-    assert other.text == commands.UNKNOWN_TEXT
+    assert other.text == EN.unknown
     await respond_anonymous(runtime, lambda s, n: commands.unlink(s, 777))
     assert await telegram_link(h, first) is None
+
+
+async def test_language(harness: Harness) -> None:
+    h = harness
+    runtime = bot_runtime(h)
+    user = await h.user(display_name="Ada")
+    unlinked = await respond(
+        runtime,
+        555,
+        lambda s, a, n: commands.profile(runtime, s, a, n),
+        language_code="ru",
+    )
+    assert unlinked.text == RU.errors[ErrorCode.UNAUTHENTICATED].format(
+        url=runtime.config.public_url
+    )
+    await add_code(h, user, "ru-code")
+    linked = await link_with(h, "ru-code", 555, "ru")
+    assert linked.locale is Locale.RU
+    assert linked.text.startswith(RU.linked.format(name="<b>Ada</b>"))
+    async with h.db() as session:
+        stored = await session.get(models.User, user.id)
+    assert stored is not None and stored.locale == Locale.RU
+    teams = await respond(runtime, 555, lambda s, a, n: commands.teams(runtime, s, a, n))
+    assert teams.text == RU.no_teams
+
+    async def menu(session: AsyncSession, actor: models.User, now: datetime) -> Reply:
+        return commands.language_menu()
+
+    shown = await respond(runtime, 555, menu, member=False)
+    assert shown.text == RU.language_prompt
+    assert LanguageCallback(locale=Locale.EN).pack() in callbacks(shown)
+    switched = await respond(
+        runtime,
+        555,
+        lambda s, a, n: commands.set_language(runtime, s, a, n, Locale.EN),
+        member=False,
+    )
+    assert switched.text == EN.language_set and switched.locale is Locale.EN
+    async with h.db() as session:
+        stored = await session.get(models.User, user.id)
+    assert stored is not None and stored.locale == Locale.EN
+    teams = await respond(runtime, 555, lambda s, a, n: commands.teams(runtime, s, a, n))
+    assert teams.text == EN.no_teams
+    assert [command.command for command in commands.bot_commands(Locale.RU)] == [
+        command.name for command in commands.MENU_COMMANDS
+    ]
 
 
 async def test_team_placement_accept(harness: Harness) -> None:
@@ -259,7 +312,7 @@ async def test_team_placement_accept(harness: Harness) -> None:
         telegram_user_id,
         lambda s, a, n: commands.action(runtime, s, a, n, ActionKey.PLACEMENT_ACCEPT, team.id),
     )
-    assert done == Reply(commands.ACTION_DONE[ActionKey.PLACEMENT_ACCEPT])
+    assert done == Reply(EN.action_done[ActionKey.PLACEMENT_ACCEPT])
     assert (await stored_member(h, team, users[0])).state == MemberState.CONFIRMED
     again = await respond(
         runtime,
