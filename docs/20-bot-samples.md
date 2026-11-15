@@ -15,7 +15,7 @@ Rendered from `tests/fixtures/notifications/*.json` with `PUBLIC_URL=https://hmm
 ```html
 ⚠️ <a href="https://hmm.example/admin"><b>Team below minimum size</b></a>
 Aurora Builders has 2 confirmed members, below the minimum of 3, and the reserve is empty.
-<i>team below min · warning · Aurora Builders</i>
+<i>team below min · Aurora Builders</i>
 ```
 
 - [Open alert] → `https://hmm.example/admin`

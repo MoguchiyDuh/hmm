@@ -61,7 +61,7 @@ Each command resolves the linked user with `identity.service.telegram_actor` (§
 
 Follow-ups: Help (offer message), Check in (note) and `/ask` (topic, then goal) wait for one plain-text message. Every prompt carries a Cancel button; when the flow ends, its prompt's keyboard is removed. Close asks for the outcome with Goal reached / Partly / Not reached / Cancel buttons. Confirm buttons flip ☐ to ☑ in place.
 
-Event buttons edit the message in place: the card replaces the list, ⬅️ All events goes back, and an op re-renders the card with its new state and confirms the result as a toast. Starting a party adds an Invite teammates web button.
+Event buttons edit the message in place: the card replaces the list, ⬅️ All events goes back, and an op re-renders the card with its new state and confirms the result as a toast. Other buttons that edit their message to show the outcome (actions, Cancel, language, close outcome) answer without a toast; Confirm, which only flips its button, toasts. Starting a party adds an Invite teammates web button.
 
 The main entity of a reply (event, team, project, topic, profile) is a bold inline link to its web page; there are no separate "open on web" buttons. Times are shown in the user's timezone (else the event's, else UTC) with a relative hint such as "(in 3 days)". Lists number their buttons ("1 · Accept") only when there is more than one item.
 

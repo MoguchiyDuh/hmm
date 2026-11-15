@@ -399,7 +399,7 @@ async def on_action(
     )
     if reply is None:
         return
-    await query.answer(plain(reply.text))
+    await query.answer()
     if isinstance(query.message, Message):
         await edit(query.message, f"{query.message.html_text}\n\n{reply.text}", None)
 
@@ -513,7 +513,7 @@ async def on_close_button(
 
 async def on_cancel_button(query: CallbackQuery, state: FSMContext, runtime: BotRuntime) -> None:
     reply = await anonymous(runtime, query.from_user, fixed(lambda: Reply(tr().cancelled)))
-    await query.answer(plain(reply.text))
+    await query.answer()
     message = query.message
     if not isinstance(message, Message):
         return
@@ -534,7 +534,7 @@ async def on_language_button(
     )
     if reply is None:
         return
-    await query.answer(plain(reply.text))
+    await query.answer()
     if isinstance(query.message, Message):
         await edit(query.message, reply.text, reply.markup)
         await apply_commands(query.bot, query.message.chat.id, reply.locale)
@@ -552,7 +552,7 @@ async def on_outcome(
     )
     if reply is None:
         return
-    await query.answer(plain(reply.text))
+    await query.answer()
     if isinstance(query.message, Message):
         await edit(query.message, reply.text, None)
 

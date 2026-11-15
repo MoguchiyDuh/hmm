@@ -533,7 +533,7 @@ def admin_alert(p: AdminAlertPayload) -> str:
     return lines(
         f"{SEVERITY_ICONS[alert.severity]} {subject(alert.title)}",
         esc(clip(alert.message, 800)),
-        italic(f"{tr().alert_kinds[alert.type]} · {alert.severity} · {alert.subject_title}"),
+        italic(f"{tr().alert_kinds[alert.type]} · {alert.subject_title}"),
     )
 
 

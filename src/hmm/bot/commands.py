@@ -386,7 +386,7 @@ def formation_lines(formation: Formation | None, timezone: str) -> list[str | No
     return [
         timing,
         queue,
-        texts.enrollment.get(status) if status else None,
+        texts.enrollment.get(status) if status and not team else None,
         texts.your_team.format(subject(team.name, f"/projects/{team.id}")) if team else None,
     ]
 

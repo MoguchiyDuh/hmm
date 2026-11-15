@@ -274,7 +274,7 @@ async def send_proposals(
                 project_member_id=member.id,
                 accept_by=deadline,
                 timezone=event.timezone,
-                members=people,
+                members=tuple(item for item in people if item.user_id != member.user_id),
                 proposal_reason="Matchmaking placement",
                 actions=(
                     ApiAction(

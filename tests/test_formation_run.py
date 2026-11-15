@@ -27,6 +27,7 @@ from factories import (
 from harness import Harness
 
 from hmm.formation import jobs
+from hmm.notifications.payloads import TeamProposedPayload
 
 
 async def test_closed_party_becomes_team_as_is(harness: Harness) -> None:
@@ -150,9 +151,12 @@ async def test_queued_members_become_reserve(harness: Harness) -> None:
     assert len(placed) == 5
     assert len(reserved) == 2
     for user in placed:
-        assert [notice.user_id for notice in await notices(h, user=user, kind="team_proposed")] == [
-            user.id
-        ]
+        [proposal] = await notices(h, user=user, kind="team_proposed")
+        assert proposal.user_id == user.id
+        payload = TeamProposedPayload.model_validate(proposal.payload)
+        assert {item.user_id for item in payload.members} == {
+            other.id for other in placed if other.id != user.id
+        }
     for user in reserved:
         sent = await notices(h, user=user, kind="reserve_placed")
         assert [notice.user_id for notice in sent] == [user.id]
