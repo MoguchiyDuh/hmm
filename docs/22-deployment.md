@@ -19,7 +19,7 @@ Files:
 
 | File | Purpose |
 |---|---|
-| `deploy/compose.yaml` | development stack: postgres, minio, migrate, api, worker |
+| `deploy/compose.yaml` | development stack: postgres, minio, minio-init, migrate, api, worker, with the same health checks as production |
 | `deploy/compose.prod.yaml` | production stack, runs published images |
 | `deploy/python.Dockerfile` | the `hmm` application image, non-root |
 | `deploy/web.Dockerfile` | builds `web/` and packages it with Caddy and `deploy/Caddyfile` |
