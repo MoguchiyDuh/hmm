@@ -14,10 +14,12 @@ dependencies = [
     "pypdf>=6.0",
     "python-multipart>=0.0.20",
     "aioboto3>=15",
+    "aiogram>=3.31",
 ]
 
 [project.scripts]
 hmm-worker = "hmm.worker:main"
+hmm-bot = "hmm.bot.main:main"
 
 [dependency-groups]
 dev = [

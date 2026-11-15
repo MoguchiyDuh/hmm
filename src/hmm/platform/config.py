@@ -20,6 +20,7 @@ class Config(Contract):
     s3_bucket: str | None = None
     session_secret: str | None = None
     telegram_bot_username: str | None = None
+    bot_token: SecretStr | None = None
     admin_github_logins: frozenset[str] = frozenset()
     llm_base_url: str | None = None
     llm_api_key: str | None = None
@@ -66,6 +67,7 @@ class Config(Contract):
             s3_bucket=env.get("S3_BUCKET") or None,
             session_secret=env.get("SESSION_SECRET") or None,
             telegram_bot_username=env.get("TELEGRAM_BOT_USERNAME") or None,
+            bot_token=SecretStr(env["BOT_TOKEN"]) if env.get("BOT_TOKEN") else None,
             admin_github_logins=frozenset(env.get("ADMIN_GITHUB_LOGINS", "").split(",")),
             llm_base_url=env.get("LLM_BASE_URL") or None,
             llm_api_key=env.get("LLM_API_KEY") or None,
