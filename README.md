@@ -7,8 +7,6 @@
 hmm is a home for a tech community: it finds hackathons for you, puts you in a team that has every skill it needs,<br>
 and keeps the team going after the event with projects, mentors and a profile that grows with everything you do.
 
-[![CI](https://github.com/MoguchiyDuh/hmm/actions/workflows/ci.yml/badge.svg)](https://github.com/MoguchiyDuh/hmm/actions/workflows/ci.yml)
-[![Release](https://github.com/MoguchiyDuh/hmm/actions/workflows/release.yml/badge.svg)](https://github.com/MoguchiyDuh/hmm/actions/workflows/release.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 ![Python 3.13](https://img.shields.io/badge/python-3.13-3776AB?logo=python&logoColor=white)
 ![PostgreSQL 18](https://img.shields.io/badge/postgres-18-4169E1?logo=postgresql&logoColor=white)
@@ -64,14 +62,13 @@ flowchart LR
 | Algorithm | [`src/hmm/algo/`](src/hmm/algo) | Pure Python interface and fakes, called in-process by the worker |
 | Tests | [`tests/`](tests) | pytest + xdist against PostgreSQL, canonical JSON fixtures |
 | Web | [`web/`](web) | SPA |
-| Deploy | [`deploy/`](deploy) | Dockerfiles, Compose (dev + production), Caddy, S3 backups, GitHub Actions → GHCR |
+| Deploy | [`deploy/`](deploy) | Dockerfiles, Compose (dev + production), Caddy, S3 backups |
 
 ## Quick start
 
 You need [uv](https://docs.astral.sh/uv/getting-started/installation/) and [Docker](https://docs.docker.com/engine/install/) with Compose.
 
 ```sh
-git clone https://github.com/MoguchiyDuh/hmm.git
 cd hmm
 uv sync
 cp deploy/.env.example deploy/.env
@@ -110,7 +107,16 @@ export TEST_DATABASE_URL=postgresql+psycopg://hmm:hmm@127.0.0.1:55432/hmm_test
 
 Set `ALGORITHM=fake` to run the worker with `hmm.algo.fake.FakeAlgorithm`. Shared test builders live in `tests/factories.py`, the harness in `tests/harness.py`.
 
-CI runs lint, types, the migration round-trip and the suite on every push, plus the web build and a compose config check. Commits follow `type(scope): subject`; schema changes ship with a migration.
+Before committing, also check the migration round-trip and the compose files when they change:
+
+```sh
+uv run alembic upgrade head && uv run alembic check
+uv run alembic downgrade base && uv run alembic upgrade head
+docker compose -f deploy/compose.yaml config --quiet
+docker compose --env-file deploy/.env.prod.example -f deploy/compose.prod.yaml config --quiet
+```
+
+Commits follow `type(scope): subject`; schema changes ship with a migration.
 
 ### Repository layout
 
@@ -129,15 +135,14 @@ Production runs on any Linux server with Docker; nothing is tied to a provider.
 
 1. Point your domain at the server and open ports 80, 443 (TCP + UDP).
 2. Copy [`deploy/compose.prod.yaml`](deploy/compose.prod.yaml) and [`deploy/.env.prod.example`](deploy/.env.prod.example) (as `.env`) to the server and fill in every value.
-3. Add the deploy secrets to the GitHub `production` environment.
-4. Tag a release:
+3. Build and push the images to your registry (`IMAGE_PREFIX` in `.env`), then start the stack:
 
 ```sh
-git tag v1.0.0
-git push origin v1.0.0
+IMAGE_PREFIX=registry.example.com/hmm IMAGE_TAG=v1.0.0 ./deploy/release.sh
+ssh server 'cd /srv/hmm && IMAGE_TAG=v1.0.0 docker compose -f compose.prod.yaml up -d --remove-orphans --wait'
 ```
 
-The [release workflow](.github/workflows/release.yml) builds multi-arch images, pushes them to GHCR and rolls the stack out over SSH. Migrations run before the API starts; Caddy obtains TLS certificates automatically; the `backup` service snapshots the database and the file bucket to external S3 on a schedule.
+Migrations run before the API starts; Caddy obtains TLS certificates automatically; the `backup` service snapshots the database and the file bucket to external S3 on a schedule.
 
 Full guide, every environment variable, upgrades, rollback and restore: [docs §22](docs/22-deployment.md).
 

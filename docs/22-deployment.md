@@ -1,6 +1,6 @@
 # 22. Deployment and configuration
 
-The repo ships everything needed to run hmm in production on any Linux server with Docker: images, a production compose file, TLS termination, backups and a release workflow. Nothing in it depends on a particular provider or server size.
+The repo ships everything needed to run hmm in production on any Linux server with Docker: images, a production compose file, TLS termination, backups and a release script. Nothing in it depends on a particular provider or server size.
 
 ## 22.1 Services
 
@@ -26,7 +26,7 @@ Files:
 | `deploy/backup/` | backup image, `backup.sh`, `restore.sh` |
 | `deploy/.env.example` | development environment |
 | `deploy/.env.prod.example` | production environment template |
-| `.github/workflows/release.yml` | builds and publishes images on a `v*` tag, then deploys |
+| `deploy/release.sh` | builds the app, web and backup images for amd64 and arm64 and pushes them |
 
 `/healthz` and `/readyz` are reachable only inside the compose network. Postgres, MinIO and the API are never published.
 
@@ -52,7 +52,7 @@ Production stack:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `IMAGE_PREFIX` | required | Image name prefix, e.g. `ghcr.io/<owner>/hmm` |
+| `IMAGE_PREFIX` | required | Image name prefix, e.g. `registry.example.com/hmm` |
 | `IMAGE_TAG` | `latest` | Release tag to run |
 | `MINIO_IMAGE` | `cgr.dev/chainguard/minio:latest` | MinIO server and client image |
 | `DOMAIN` | required | Site hostname |
@@ -68,8 +68,6 @@ Production stack:
 | `LOG_MAX_SIZE` `LOG_MAX_FILES` | `10m` `3` | Container log rotation |
 | `<SERVICE>_MEMORY` `<SERVICE>_CPUS` | see `deploy/.env.prod.example` | Limits for `POSTGRES`, `MINIO`, `INIT`, `MIGRATE`, `API`, `WORKER`, `WEB`, `BACKUP` |
 
-Release workflow secrets, in the GitHub `production` environment: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`, `DEPLOY_PATH`.
-
 ## 22.3 First deployment
 
 1. Server: Docker Engine with the Compose plugin, SSH access for a deployment user in the `docker` group, a deployment directory (`DEPLOY_PATH`).
@@ -84,14 +82,14 @@ Release workflow secrets, in the GitHub `production` environment: `DEPLOY_HOST`,
 6. On the server, fill in `.env` (`chmod 600 .env`), replacing every placeholder with real values and random secrets, then validate and log in to the registry:
    ```sh
    docker compose -f compose.prod.yaml config --quiet
-   docker login ghcr.io
+   docker login <registry>
    ```
-7. Add the release secrets to the GitHub `production` environment.
-8. Tag a release: `git tag v1.0.0 && git push origin v1.0.0`. The workflow builds amd64 and arm64 images, pushes them to GHCR, copies `compose.prod.yaml` to the server and runs the stack with that tag.
+7. On the workstation, logged in to the same registry: `git tag v1.0.0 && IMAGE_PREFIX=<prefix> IMAGE_TAG=v1.0.0 ./deploy/release.sh`.
+8. On the server: `IMAGE_TAG=v1.0.0 docker compose -f compose.prod.yaml up -d --remove-orphans --wait`.
 
 ## 22.4 Upgrades and rollback
 
-- Upgrade: push a new `v*` tag. Migrations run before `api` and `worker` start.
+- Upgrade: tag, run `deploy/release.sh`, then copy `compose.prod.yaml` if it changed and run the stack with the new tag. Migrations run before `api` and `worker` start.
 - Manual run of a published release:
   ```sh
   export IMAGE_TAG=v1.2.3

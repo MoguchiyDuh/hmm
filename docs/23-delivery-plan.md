@@ -9,7 +9,7 @@ Full scope, one release, five phases. Work runs against fakes (`hmm.algo.fake.Fa
    - Algorithm: `Algorithm` protocol and I/O models, `pack()` with the §12.3 example and property tests, `FakeAlgorithm` with conformance tests.
    - Fixtures: members, events, formation inputs, mentorship cases, community graphs with planted rings, imports, notifications, visibility cases.
    - Parser: source survey, fetch + classify dry-run. Bot: aiogram skeleton. Web: app shell, routing, generated client, i18n (en/ru).
-   - CI green; production stack and release workflow in place (§22).
+   - Local gate green; production stack and release script in place (§22).
 2. **Registration and catalog.**
    - Server: job registry and algorithm wiring, areas, quiz builder and onboarding, profiles, GitHub sync, CV, scores, member review, solo log, catalog with import and review queue, queue and parties, enrollments, invites.
    - Algorithm: `score_onboarding` with an evaluation harness, `compute_member`, `recommend`.
@@ -26,11 +26,11 @@ Full scope, one release, five phases. Work runs against fakes (`hmm.algo.fake.Fa
    - Algorithm: `match_mentors`, `scan_community`, abuse flags, project quick-pick.
    - Parser: revisit ended events for results. Bot: `/ask`, `/requests`, `/mentorships`, `/confirm`, new templates.
    - Web: home feed, attendance panel, projects, mentorship, profile history and reputation, admin to-check queue.
-5. **Release.** Property, concurrency and timer tests; algorithm performance and evaluation report; parser quality report and a full run against real sources; bot and web end-to-end pass on the dev stack. Ends with the acceptance scenario (§23.4) passing and a `v*` release tag deployed with the release workflow (§22.3).
+5. **Release.** Property, concurrency and timer tests; algorithm performance and evaluation report; parser quality report and a full run against real sources; bot and web end-to-end pass on the dev stack. Ends with the acceptance scenario (§23.4) passing and a `v*` release tag deployed with `deploy/release.sh` (§22.3).
 
 ## 23.3 Checkpoints
 
-1. **Foundation:** `docker compose up` brings up every service healthy; CI green; the bot links an account.
+1. **Foundation:** `docker compose up` brings up every service healthy; the local gate is green; the bot links an account.
 2. **Registration and catalog:** frontend signs in via real GitHub; full registration (quiz + CV) → scores on profile; admin completes a member review with an override; parser imports real events; members enroll and create a party.
 3. **Hackathon lifecycle:** queue and parties → formation → accepts → refills until `reg_deadline` → results, reviews, XP; placement accepted from Telegram; admin handles every alert type.
 4. **Community:** a project ships with confirmed contributions; a mentorship runs from request to reviews; attendance gets confirmed; a planted ring lands in the to-check queue and gets punished.

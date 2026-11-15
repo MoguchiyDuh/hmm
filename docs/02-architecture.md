@@ -38,7 +38,7 @@ hmm/
 | Algorithm | `hmm.algo`: pure Python, no DB access, no embeddings |
 | Bot | aiogram 3, long polling |
 | Frontend | §21 |
-| Infra | Docker Compose (dev and production), Caddy, PostgreSQL 18, MinIO, S3 backups, GitHub Actions release to GHCR (§22) |
+| Infra | Docker Compose (dev and production), Caddy, PostgreSQL 18, MinIO, S3 backups, release script (§22) |
 | LLM | Any OpenAI-compatible chat endpoint; `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`. Chat only. |
 
 ## 2.4 Process model
