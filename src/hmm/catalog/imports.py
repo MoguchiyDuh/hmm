@@ -9,15 +9,16 @@ from uuid import UUID
 
 import procrastinate
 from pydantic import JsonValue, ValidationError
-from sqlalchemy import delete, func, select
+from sqlalchemy import func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.catalog.changes import (
-    _json,
     cancel_event,
-    notify_event_changed,
+    json_value,
+    notify_field_changes,
+    replace_event_areas,
 )
 from hmm.catalog.events import (
     DATE_FIELDS,
@@ -49,7 +50,7 @@ from hmm.common import (
     ValidationIssue,
 )
 from hmm.formation import common as formation_common
-from hmm.notifications.payloads import AlertKind, NotificationChange
+from hmm.notifications.payloads import AlertKind
 from hmm.notifications.service import raise_alert
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import load_settings
@@ -400,7 +401,7 @@ async def update_imported_event(
     applied: dict[str, Any] = {}
     ignored: list[str] = []
     for field, value in import_values(item).items():
-        if _json(_utc(getattr(event, field))) == _json(_utc(value)):
+        if json_value(_utc(getattr(event, field))) == json_value(_utc(value)):
             continue
         if field != "confidence" and field in locked:
             ignored.append(field)
@@ -448,26 +449,18 @@ async def update_imported_event(
         event.unmapped_areas = list(unmapped)
         event.review_reasons = new_reasons
     if area_change:
-        rows = await resolve_areas(session, mapped)
-        await session.execute(delete(models.EventArea).where(models.EventArea.event_id == event.id))
-        session.add_all(
-            models.EventArea(
-                event_id=event.id,
-                area_id=area.id,
-                importance=area_input.importance.value,
-                headcount=area_input.headcount,
-            )
-            for area, area_input in rows
-        )
-        await session.flush()
+        await replace_event_areas(session, event.id, await resolve_areas(session, mapped))
     diff: dict[str, JsonValue] = {
-        field: {"before": _json(before[field]), "after": _json(getattr(event, field))}
+        field: {"before": json_value(before[field]), "after": json_value(getattr(event, field))}
         for field in applied
     }
     if area_change:
-        diff["areas"] = {"before": _json(areas_before), "after": _json(new_area_rows)}
+        diff["areas"] = {"before": json_value(areas_before), "after": json_value(new_area_rows)}
     if unmapped_changed:
-        diff["unmapped_areas"] = {"before": _json(unmapped_before), "after": _json(unmapped)}
+        diff["unmapped_areas"] = {
+            "before": json_value(unmapped_before),
+            "after": json_value(unmapped),
+        }
     session.add(
         models.EventRevision(
             event_id=event.id,
@@ -478,23 +471,7 @@ async def update_imported_event(
         )
     )
     changed = set(applied) | ({"areas"} if area_change else set())
-    fields = sorted(changed & NOTIFY_FIELDS)
-    if fields:
-        await notify_event_changed(
-            session,
-            event,
-            [
-                NotificationChange(
-                    field=field,
-                    previous=None if before[field] is None else str(_json(before[field])),
-                    current=None
-                    if getattr(event, field) is None
-                    else str(_json(getattr(event, field))),
-                )
-                for field in fields
-            ],
-            now,
-        )
+    await notify_field_changes(session, event, before, changed & NOTIFY_FIELDS, now)
     if changed & DATE_FIELDS:
         await formation_common.dates_changed(session, event)
     if changed & TEAM_FIELDS:

@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime
 from decimal import ROUND_HALF_UP, Decimal
 from enum import Enum
@@ -15,8 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hmm import models
 from hmm.catalog import schemas
 from hmm.catalog.events import (
+    DATE_FIELDS,
     LIVE_ENROLLMENTS,
     LOCKABLE_SKIP,
+    NOTIFY_FIELDS,
     TEAM_TERMINAL,
     EventAreaInput,
     load_event,
@@ -217,7 +219,7 @@ async def cancel_event(
     return event
 
 
-def _json(value: Any) -> JsonValue:
+def json_value(value: Any) -> JsonValue:
     if value is None:
         return None
     if isinstance(value, datetime):
@@ -225,10 +227,54 @@ def _json(value: Any) -> JsonValue:
     if isinstance(value, Decimal | UUID | Enum):
         return str(value)
     if isinstance(value, dict):
-        return {str(key): _json(item) for key, item in value.items()}
+        return {str(key): json_value(item) for key, item in value.items()}
     if isinstance(value, list | tuple):
-        return [_json(item) for item in value]
+        return [json_value(item) for item in value]
     return value
+
+
+def change_text(value: Any) -> str | None:
+    return None if value is None else str(json_value(value))
+
+
+async def replace_event_areas(
+    session: AsyncSession,
+    event_id: UUID,
+    rows: Sequence[tuple[models.Area, EventAreaInput]],
+) -> None:
+    await session.execute(delete(models.EventArea).where(models.EventArea.event_id == event_id))
+    session.add_all(
+        models.EventArea(
+            event_id=event_id,
+            area_id=area.id,
+            importance=area_input.importance.value,
+            headcount=area_input.headcount,
+        )
+        for area, area_input in rows
+    )
+    await session.flush()
+
+
+async def notify_field_changes(
+    session: AsyncSession,
+    event: models.Event,
+    before: Mapping[str, Any],
+    fields: Iterable[str],
+    now: datetime,
+) -> None:
+    await notify_event_changed(
+        session,
+        event,
+        [
+            NotificationChange(
+                field=field,
+                previous=change_text(before[field]),
+                current=change_text(getattr(event, field)),
+            )
+            for field in sorted(fields)
+        ],
+        now,
+    )
 
 
 async def update_event(
@@ -317,7 +363,9 @@ async def update_event(
                 ErrorCode.INVALID_STATE, "Formation can only be enabled before enrollments"
             )
     changes = {
-        field: value for field, value in raw.items() if _json(value) != _json(getattr(event, field))
+        field: value
+        for field, value in raw.items()
+        if json_value(value) != json_value(getattr(event, field))
     }
     before_values = {field: getattr(event, field) for field in changes}
     resolved_areas: list[tuple[models.Area, EventAreaInput]] | None = None
@@ -355,24 +403,15 @@ async def update_event(
         if field != "areas":
             setattr(event, field, value.value if isinstance(value, Enum) else value)
     if "areas" in changes and resolved_areas is not None:
-        await session.execute(delete(models.EventArea).where(models.EventArea.event_id == event_id))
-        session.add_all(
-            models.EventArea(
-                event_id=event_id,
-                area_id=area.id,
-                importance=area_input.importance.value,
-                headcount=area_input.headcount,
-            )
-            for area, area_input in resolved_areas
-        )
+        await replace_event_areas(session, event_id, resolved_areas)
     for field in sorted(changes.keys() - LOCKABLE_SKIP):
         await session.execute(
             insert(models.EventFieldLock)
             .values(event_id=event_id, field=field, locked_by=actor.id, locked_at=now)
             .on_conflict_do_nothing(index_elements=["event_id", "field"])
         )
-    before = {field: _json(value) for field, value in before_values.items()}
-    after = {field: _json(value) for field, value in changes.items()}
+    before = {field: json_value(value) for field, value in before_values.items()}
+    after = {field: json_value(value) for field, value in changes.items()}
     diff: dict[str, JsonValue] = {
         field: {"before": before[field], "after": after[field]} for field in changes
     }
@@ -398,33 +437,8 @@ async def update_event(
     )
     if "formation_enabled" in changes and event.formation_enabled:
         await formation_common.ensure_formation(session, event, now)
-    notification_fields = changes.keys() & {
-        "starts_at",
-        "ends_at",
-        "team_size_min",
-        "team_size_max",
-        "format",
-        "registration_deadline",
-    }
-    if notification_fields:
-        await notify_event_changed(
-            session,
-            event,
-            [
-                NotificationChange(
-                    field=field,
-                    previous=str(_json(before_values[field]))
-                    if before_values[field] is not None
-                    else None,
-                    current=str(_json(getattr(event, field)))
-                    if getattr(event, field) is not None
-                    else None,
-                )
-                for field in sorted(notification_fields)
-            ],
-            now,
-        )
-    if changes.keys() & {"starts_at", "ends_at", "registration_deadline"}:
+    await notify_field_changes(session, event, before_values, changes.keys() & NOTIFY_FIELDS, now)
+    if changes.keys() & DATE_FIELDS:
         await formation_common.dates_changed(session, event)
 
     await recommendations.enqueue_event_refresh(session, jobs, event_id)

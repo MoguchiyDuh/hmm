@@ -1,13 +1,11 @@
 import re
 from datetime import datetime, timedelta
-from decimal import Decimal
-from enum import Enum
 from typing import Any
 from uuid import UUID
 
 import procrastinate
 from pydantic import JsonValue
-from sqlalchemy import delete, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
@@ -37,7 +35,6 @@ from hmm.common import (
 )
 from hmm.feed import confirmations, digests, timeline
 from hmm.formation import common as formation_common
-from hmm.notifications.payloads import NotificationChange
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
@@ -428,26 +425,6 @@ async def create_member_event(
     return event
 
 
-def json_value(value: Any) -> JsonValue:
-    if value is None:
-        return None
-    if isinstance(value, datetime):
-        return value.isoformat()
-    if isinstance(value, Decimal | UUID | Enum):
-        return str(value)
-    if isinstance(value, dict):
-        return {str(key): json_value(item) for key, item in value.items()}
-    if isinstance(value, list | tuple):
-        return [json_value(item) for item in value]
-    return value
-
-
-def change_text(value: Any) -> str | None:
-    if isinstance(value, datetime):
-        return value.isoformat()
-    return str(value) if value is not None else None
-
-
 async def update_member_event(
     session: AsyncSession,
     event_id: UUID,
@@ -500,25 +477,14 @@ async def update_member_event(
             )
         else:
             before = getattr(event, field)
-        if json_value(before) != json_value(after):
+        if catalog_changes.json_value(before) != catalog_changes.json_value(after):
             changed[field] = (before, after)
     if not changed:
         await session.flush()
         return event
     for field, (_, after) in changed.items():
         if field == "area_keys":
-            await session.execute(
-                delete(models.EventArea).where(models.EventArea.event_id == event.id)
-            )
-            session.add_all(
-                models.EventArea(
-                    event_id=event.id,
-                    area_id=area.id,
-                    importance=area_input.importance.value,
-                    headcount=area_input.headcount,
-                )
-                for area, area_input in resolved
-            )
+            await catalog_changes.replace_event_areas(session, event.id, resolved)
         elif field in ("kind", "format"):
             setattr(event, field, after.value)
         else:
@@ -529,7 +495,10 @@ async def update_member_event(
             origin=EventRevisionOrigin.MEMBER.value,
             actor_id=actor.id,
             diff={
-                field: {"before": json_value(before), "after": json_value(after)}
+                field: {
+                    "before": catalog_changes.json_value(before),
+                    "after": catalog_changes.json_value(after),
+                }
                 for field, (before, after) in changed.items()
             },
             ignored_fields=[],
@@ -542,21 +511,19 @@ async def update_member_event(
         action=AuditAction.EVENT_EDIT,
         entity_type=AuditEntityType.EVENT,
         entity_id=event.id,
-        before={field: json_value(before) for field, (before, _) in changed.items()},
-        after={field: json_value(after) for field, (_, after) in changed.items()},
+        before={
+            field: catalog_changes.json_value(before) for field, (before, _) in changed.items()
+        },
+        after={field: catalog_changes.json_value(after) for field, (_, after) in changed.items()},
         reason=None,
     )
-    notifiable = sorted({"starts_at", "ends_at", "format"} & changed.keys())
-    if notifiable:
-        changes = [
-            NotificationChange(
-                field=field,
-                previous=change_text(changed[field][0]),
-                current=change_text(changed[field][1]),
-            )
-            for field in notifiable
-        ]
-        await catalog_changes.notify_event_changed(session, event, changes, now)
+    await catalog_changes.notify_field_changes(
+        session,
+        event,
+        {field: before for field, (before, _) in changed.items()},
+        {"starts_at", "ends_at", "format"} & changed.keys(),
+        now,
+    )
     if {"starts_at", "ends_at"} & changed.keys():
         await formation_common.dates_changed(session, event)
     await session.flush()
