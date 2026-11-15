@@ -26,6 +26,7 @@ from hmm.identity.service import ONBOARDED
 from hmm.notifications.payloads import AlertKind, NotificationPerson, ReviewRemovedPayload
 from hmm.notifications.service import notify, raise_alert, resolve_alerts
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
 from hmm.platform.schemas import UserRef
@@ -72,11 +73,7 @@ async def submit_review(
     comment: str,
     now: datetime,
 ) -> models.Review:
-    window = await session.scalar(
-        select(models.ReviewWindow).where(models.ReviewWindow.id == window_id).with_for_update()
-    )
-    if window is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    window = await get_or_404(session, models.ReviewWindow, window_id, lock=True)
     if window.revealed_at is not None or now < window.opens_at or now >= window.closes_at:
         raise ProblemError(ErrorCode.REVIEW_WINDOW_CLOSED)
     participants = window_participants(window)
@@ -87,9 +84,7 @@ async def submit_review(
     context = participants[reviewee_id]
     endorsement = False
     if window.subject_type == ReviewSubjectType.MENTORSHIP:
-        mentorship = await session.get(models.Mentorship, window.subject_id)
-        if mentorship is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        mentorship = await get_or_404(session, models.Mentorship, window.subject_id)
         endorsement = (
             mentorship.kind == MentorshipKind.MENTORING and reviewee_id == mentorship.learner_id
         )
@@ -218,9 +213,7 @@ async def submit_host_review(
     comment: str,
     now: datetime,
 ) -> models.Review:
-    event = await session.get(models.Event, event_id)
-    if event is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    event = await get_or_404(session, models.Event, event_id)
     if now < event.starts_at:
         raise ProblemError(ErrorCode.INVALID_STATE, "Host reviews open when the event starts")
     reviewer_attendance = await session.scalar(
@@ -405,11 +398,7 @@ def build_report(report: models.ReviewReport) -> schemas.ReviewReport:
 async def report_review(
     session: AsyncSession, *, actor_id: UUID, review_id: UUID, reason: str, now: datetime
 ) -> models.ReviewReport:
-    review = await session.scalar(
-        select(models.Review).where(models.Review.id == review_id).with_for_update()
-    )
-    if review is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    review = await get_or_404(session, models.Review, review_id, lock=True)
     if review.revealed_at is None:
         raise ProblemError(ErrorCode.INVALID_STATE, "Review is not revealed")
     if review.removed_at is not None:
@@ -433,9 +422,7 @@ async def report_review(
     title, link = await subject_details(
         session, subject_type=ReviewSubjectType(review.subject_type), subject_id=review.subject_id
     )
-    reporter = await session.get(models.User, actor_id)
-    if reporter is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    reporter = await get_or_404(session, models.User, actor_id)
     await raise_alert(
         session,
         AlertKind.REVIEW_REPORTED,
@@ -507,11 +494,7 @@ async def admin_review_page(
 async def remove_review(
     session: AsyncSession, *, actor_id: UUID, review_id: UUID, reason: str, now: datetime
 ) -> models.Review:
-    review = await session.scalar(
-        select(models.Review).where(models.Review.id == review_id).with_for_update()
-    )
-    if review is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    review = await get_or_404(session, models.Review, review_id, lock=True)
     if review.removed_at is not None:
         return review
     review.removed_at = now
@@ -540,9 +523,7 @@ async def remove_review(
         },
         reason=reason,
     )
-    reviewee = await session.get(models.User, review.reviewee_id)
-    if reviewee is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    reviewee = await get_or_404(session, models.User, review.reviewee_id)
     title, link = await subject_details(
         session, subject_type=ReviewSubjectType(review.subject_type), subject_id=review.subject_id
     )

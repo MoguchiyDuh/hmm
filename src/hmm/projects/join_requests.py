@@ -16,11 +16,11 @@ from hmm.notifications.payloads import (
     ProjectJoinRequestReceivedPayload,
 )
 from hmm.notifications.service import notify
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
 from hmm.projects.invites import add_member, eligible_invitee
-from hmm.projects.lifecycle import _locked_project
 from hmm.projects.views import CLOSED_PROJECT_STATUSES, join_request_view
 
 
@@ -29,9 +29,7 @@ async def request_view(
 ) -> schemas.JoinRequest:
     await session.flush()
     await session.refresh(row)
-    user = await session.get(models.User, row.user_id)
-    if user is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    user = await get_or_404(session, models.User, row.user_id)
     return join_request_view(project, row, users={user.id: user}, actor=actor)
 
 
@@ -42,7 +40,7 @@ async def create_join_request(
     actor: models.User,
     now: datetime,
 ) -> schemas.JoinRequest:
-    project = await _locked_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if (
         project.team_status is not None
         or project.status in CLOSED_PROJECT_STATUSES
@@ -93,7 +91,7 @@ async def create_join_request(
 async def list_join_requests(
     session: AsyncSession, project_id: UUID, actor: models.User
 ) -> list[schemas.JoinRequest]:
-    project = await _locked_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if project.team_status is not None:
         raise ProblemError(ErrorCode.INVALID_STATE)
     if project.lead_user_id != actor.id and not actor.is_admin:
@@ -118,10 +116,8 @@ async def respond_join_request(
 ) -> schemas.JoinRequest:
     from hmm.recommendations.service import enqueue_project_refresh
 
-    row = await session.get(models.JoinRequest, request_id)
-    if row is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
-    project = await _locked_project(session, row.project_id)
+    row = await get_or_404(session, models.JoinRequest, request_id)
+    project = await get_or_404(session, models.Project, row.project_id, lock=True)
     await session.refresh(row)
     if project.team_status is not None:
         raise ProblemError(ErrorCode.INVALID_STATE)

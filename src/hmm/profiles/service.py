@@ -30,6 +30,7 @@ from hmm.common import (
 from hmm.identity.service import ONBOARDED, dnd_active, dnd_until, lock_user
 from hmm.notifications.payloads import NotificationType
 from hmm.notifications.service import channel_settings
+from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, Runtime, defer_job
 from hmm.platform.pagination import Column, CursorParams, apply_keyset, encode_cursor
@@ -456,7 +457,7 @@ async def upload_cv(
     key = f"cv/{user_id}/{uuid4()}"
     await store.put(key, data, content_type=mime)
     await lock_user(session, user_id)
-    row = await session.get(models.CvFile, user_id, with_for_update=True)
+    row = await locked(session, models.CvFile, user_id)
     old_key: str | None = None
     if row is None:
         row = models.CvFile(
@@ -497,7 +498,7 @@ async def delete_cv(
     now: datetime,
 ) -> None:
     await lock_user(session, user_id)
-    row = await session.get(models.CvFile, user_id, with_for_update=True)
+    row = await locked(session, models.CvFile, user_id)
     if row is None:
         return
     key = row.object_key
@@ -510,9 +511,7 @@ async def delete_cv(
 async def cv_download(
     session: AsyncSession, store: ObjectStore, *, actor: models.User, user_id: UUID
 ) -> tuple[models.CvFile, str]:
-    row = await session.get(models.CvFile, user_id)
-    if row is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    row = await get_or_404(session, models.CvFile, user_id)
     url = await store.presign_get(row.object_key, CV_URL_TTL)
     return row, url
 
@@ -547,7 +546,7 @@ async def write_cv_text(
     error: str | None,
     now: datetime,
 ) -> bool:
-    row = await session.get(models.CvFile, user_id, with_for_update=True)
+    row = await locked(session, models.CvFile, user_id)
     if row is None or row.object_key != object_key:
         return False
     row.text = text
@@ -627,7 +626,7 @@ async def refresh_github(
     session: AsyncSession, jobs: procrastinate.App, *, user_id: UUID, now: datetime
 ) -> None:
     await lock_user(session, user_id)
-    row = await session.get(models.GithubSnapshot, user_id, with_for_update=True)
+    row = await locked(session, models.GithubSnapshot, user_id)
     if row is not None:
         interval = timedelta(
             minutes=(await load_settings(session)).github_manual_refresh_min_interval_minutes
@@ -641,7 +640,7 @@ async def refresh_github(
 async def record_github_failure(
     session: AsyncSession, user_id: UUID, error: str, now: datetime
 ) -> None:
-    row = await session.get(models.GithubSnapshot, user_id, with_for_update=True)
+    row = await locked(session, models.GithubSnapshot, user_id)
     if row is not None:
         row.status = GithubSnapshotStatus.ERROR
         row.error = error[:1000]
@@ -669,7 +668,7 @@ async def store_github_snapshot(
     data: GithubData,
     now: datetime,
 ) -> models.GithubSnapshot:
-    row = await session.get(models.GithubSnapshot, user_id, with_for_update=True)
+    row = await locked(session, models.GithubSnapshot, user_id)
     if row is None:
         row = models.GithubSnapshot(user_id=user_id, manual_refresh_at=None)
         session.add(row)

@@ -15,18 +15,16 @@ from hmm.notifications.payloads import (
     ProjectMemberJoinedPayload,
 )
 from hmm.notifications.service import notify, notify_many
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import load_settings
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
-from hmm.projects.lifecycle import _locked_project
 from hmm.projects.views import CLOSED_PROJECT_STATUSES, POST_RESULT_TEAM_STATUSES
 
 
 async def eligible_invitee(session: AsyncSession, user_id: UUID, now: datetime) -> models.User:
-    user = await session.get(models.User, user_id)
-    if user is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    user = await get_or_404(session, models.User, user_id)
     if user.banned_at is not None:
         raise ProblemError(ErrorCode.BANNED)
     if user.onboarding_status not in {"completed", "reopened"}:
@@ -90,7 +88,7 @@ async def create_invite(
     actor: models.User,
     now: datetime,
 ) -> Invite:
-    project = await _locked_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if project.status in CLOSED_PROJECT_STATUSES or (
         project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES
     ):
@@ -165,7 +163,7 @@ async def respond_invite(
     row = await session.get(models.Invite, invite_id)
     if row is None or row.event_id is not None or row.project_id is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
-    project = await _locked_project(session, row.project_id)
+    project = await get_or_404(session, models.Project, row.project_id, lock=True)
     await session.refresh(row)
     if action == "withdrawn":
         if row.invited_by != actor.id:

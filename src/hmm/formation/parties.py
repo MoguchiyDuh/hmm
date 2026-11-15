@@ -15,6 +15,7 @@ from hmm.formation.common import (
     queue_open,
 )
 from hmm.formation.queue import queue_user
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import load_settings
 
@@ -52,9 +53,7 @@ async def party_view(session: AsyncSession, party: models.Party) -> schemas.Part
 
 
 async def get_party(session: AsyncSession, party_id: UUID, actor: models.User) -> schemas.Party:
-    party = await session.get(models.Party, party_id)
-    if party is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    party = await get_or_404(session, models.Party, party_id)
     rows = await party_rows(session, party_id)
     if not actor.is_admin and actor.id not in {row.user_id for row in rows}:
         raise ProblemError(ErrorCode.FORBIDDEN)
@@ -64,9 +63,7 @@ async def get_party(session: AsyncSession, party_id: UUID, actor: models.User) -
 async def locked_party(
     session: AsyncSession, party_id: UUID, actor: models.User, now: datetime
 ) -> tuple[models.Party, models.Event, models.EventFormation]:
-    party = await session.get(models.Party, party_id)
-    if party is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    party = await get_or_404(session, models.Party, party_id)
     event, formation = await participation_event(session, party.event_id, actor)
     await session.refresh(party)
     queue_open(event, formation, now)
@@ -80,9 +77,7 @@ async def create_party(
     queue_open(event, formation, now)
     row = await queue_user(session, event, formation, actor.id, now)
     if row.party_id is not None:
-        party = await session.get(models.Party, row.party_id)
-        if party is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        party = await get_or_404(session, models.Party, row.party_id)
         return await party_view(session, party)
     party = models.Party(event_id=event_id, owner_user_id=actor.id, closed=False, created_at=now)
     session.add(party)

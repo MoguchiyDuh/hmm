@@ -13,12 +13,11 @@ from hmm.common import (
     AttendanceStatus,
     ConfirmationFactType,
     ConfirmationSource,
-    ErrorCode,
     EventKind,
     Trust,
 )
 from hmm.feed import confirmations
-from hmm.platform.errors import ProblemError
+from hmm.platform.db import get_or_404
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.schemas import EventRef, UserRef
 from hmm.platform.settings import load_settings
@@ -106,11 +105,7 @@ async def ensure_attended(
     role: AttendanceRole = AttendanceRole.ATTENDEE,
     system_confirmation: bool = True,
 ) -> models.EventAttendance:
-    event = await session.scalar(
-        select(models.Event).where(models.Event.id == event_id).with_for_update()
-    )
-    if event is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    await get_or_404(session, models.Event, event_id, lock=True)
     attendance = await session.scalar(
         select(models.EventAttendance)
         .where(

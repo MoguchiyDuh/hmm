@@ -28,6 +28,7 @@ from hmm.notifications.payloads import (
 )
 from hmm.notifications.service import notify
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import load_settings
 
@@ -39,14 +40,10 @@ async def subject_details(
     session: AsyncSession, *, subject_type: ReviewSubjectType, subject_id: UUID
 ) -> tuple[str, str]:
     if subject_type == ReviewSubjectType.PROJECT:
-        project = await session.get(models.Project, subject_id)
-        if project is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        project = await get_or_404(session, models.Project, subject_id)
         return project.name, f"/projects/{subject_id}"
     if subject_type == ReviewSubjectType.MENTORSHIP:
-        mentorship = await session.get(models.Mentorship, subject_id)
-        if mentorship is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        mentorship = await get_or_404(session, models.Mentorship, subject_id)
         topic = (
             await session.execute(
                 select(models.HelpRequest.topic).where(
@@ -55,9 +52,7 @@ async def subject_details(
             )
         ).scalar_one()
         return topic, f"/mentorships/{subject_id}"
-    event = await session.get(models.Event, subject_id)
-    if event is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    event = await get_or_404(session, models.Event, subject_id)
     return event.title, f"/events/{subject_id}"
 
 
@@ -74,9 +69,7 @@ async def result_review_participants(
     result = await session.get(models.ProjectResult, project_id)
     if result is None:
         raise ProblemError(ErrorCode.INVALID_STATE, "Project has no result")
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     return {
         UUID(user_id): ReviewContext.LEAD
         if UUID(user_id) == project.lead_user_id
@@ -89,9 +82,7 @@ async def result_review_participants(
 async def release_review_participants(
     session: AsyncSession, *, project_id: UUID, now: datetime
 ) -> dict[UUID, ReviewContext]:
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     min_days = (await load_settings(session)).project_review_min_days
     cutoff = now - timedelta(days=min_days)
     members = await session.execute(
@@ -113,9 +104,7 @@ async def release_review_participants(
 async def mentorship_review_participants(
     session: AsyncSession, *, mentorship_id: UUID
 ) -> dict[UUID, ReviewContext]:
-    mentorship = await session.get(models.Mentorship, mentorship_id)
-    if mentorship is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    mentorship = await get_or_404(session, models.Mentorship, mentorship_id)
     context = (
         ReviewContext.MENTOR
         if mentorship.kind == MentorshipKind.MENTORING

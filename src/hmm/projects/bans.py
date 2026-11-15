@@ -9,6 +9,7 @@ from hmm.common import ActorKind, AuditAction, AuditEntityType, LeftReason
 from hmm.notifications.payloads import NotificationPerson, ProjectMemberLeftPayload
 from hmm.notifications.service import notify_many
 from hmm.platform.audit import record_audit
+from hmm.platform.db import locked
 from hmm.projects.common import project_member_ids
 
 
@@ -39,12 +40,7 @@ async def remove_user_from_standalone_projects(
         key=str,
     )
     for project_id in project_ids:
-        project = await session.scalar(
-            select(models.Project)
-            .where(models.Project.id == project_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
+        project = await locked(session, models.Project, project_id)
         if project is None:
             continue
         member = await session.scalar(

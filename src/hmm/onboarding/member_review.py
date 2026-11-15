@@ -20,6 +20,7 @@ from hmm.onboarding import schemas
 from hmm.onboarding.schemas import MemberReviewAction
 from hmm.onboarding.submissions import user_onboarding_history
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.pagination import CursorParams, keyset_page
 from hmm.platform.schemas import UserRef
@@ -51,9 +52,7 @@ async def require_review(
 async def member_review_view(
     session: AsyncSession, review: models.MemberReview
 ) -> schemas.MemberReview:
-    user = await session.get(models.User, review.user_id)
-    if user is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    user = await get_or_404(session, models.User, review.user_id)
     return schemas.MemberReview(
         user=UserRef(id=user.id, display_name=user.display_name, avatar_url=user.avatar_url),
         status=MemberReviewStatus(review.status),

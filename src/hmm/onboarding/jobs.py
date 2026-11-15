@@ -8,6 +8,7 @@ from hmm.common import MemberReviewStatus, SubmissionStatus
 from hmm.onboarding import scoring
 from hmm.onboarding.baseline import load_onboarding_baseline, save_onboarding_baseline
 from hmm.platform.algo import call_algo
+from hmm.platform.db import locked
 from hmm.platform.jobs import JobName, Runtime, defer_job, job
 from hmm.scores.service import write_calculated_scores
 
@@ -79,7 +80,7 @@ async def score_onboarding(runtime: Runtime, user_id: str) -> None:
             algo_version=runtime.algorithm.version,
             now=now,
         )
-        review = await session.get(models.MemberReview, user.id, with_for_update=True)
+        review = await locked(session, models.MemberReview, user.id)
         if review is not None:
             review.discrepancies = list(result.discrepancies)
         else:

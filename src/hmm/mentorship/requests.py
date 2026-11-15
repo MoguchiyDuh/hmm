@@ -21,6 +21,7 @@ from hmm.notifications.payloads import (
     LinkAction,
 )
 from hmm.notifications.service import notify
+from hmm.platform.db import locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
@@ -184,9 +185,7 @@ async def update_help_request(
     body: schemas.UpdateHelpRequestBody,
     now: datetime,
 ) -> schemas.HelpRequest:
-    request = await session.scalar(
-        select(models.HelpRequest).where(models.HelpRequest.id == request_id).with_for_update()
-    )
+    request = await locked(session, models.HelpRequest, request_id)
     if request is None or not request_visible(request, actor.id):
         raise ProblemError(ErrorCode.NOT_FOUND)
     if actor.id != request.learner_id:
@@ -309,9 +308,7 @@ async def expire_help_requests(session: AsyncSession, now: datetime, *, limit: i
 async def lock_visible_request(
     session: AsyncSession, actor: models.User, request_id: UUID
 ) -> models.HelpRequest:
-    request = await session.scalar(
-        select(models.HelpRequest).where(models.HelpRequest.id == request_id).with_for_update()
-    )
+    request = await locked(session, models.HelpRequest, request_id)
     if request is None or not request_visible(request, actor.id):
         raise ProblemError(ErrorCode.NOT_FOUND)
     return request

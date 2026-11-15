@@ -35,6 +35,7 @@ from hmm.notifications.payloads import (
     TeamMemberJoinedPayload,
 )
 from hmm.notifications.service import notify, notify_many, resolve_alerts
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import load_settings
 
@@ -255,9 +256,7 @@ async def accept_invite(
     await eligible_user(session, actor.id, event.id, now)
     _, minimum, maximum = formation_sizes(event, formation, await load_settings(session))
     if row.party_id is not None:
-        party = await session.get(models.Party, row.party_id)
-        if party is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        party = await get_or_404(session, models.Party, row.party_id)
         enrollment = await live_enrollment_row(session, event.id, actor.id)
         if enrollment is None or enrollment.party_id != party.id:
             if len(await party_rows(session, party.id)) >= maximum:

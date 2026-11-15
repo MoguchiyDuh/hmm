@@ -27,6 +27,7 @@ from hmm.notifications.payloads import (
     MentorshipCloseProposedPayload,
 )
 from hmm.notifications.service import notify
+from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.results.windows import mentorship_review_participants, open_review_window
@@ -67,9 +68,7 @@ async def list_my_mentorships(
 async def get_mentorship(
     session: AsyncSession, actor: models.User, mentorship_id: UUID, now: datetime
 ) -> schemas.Mentorship:
-    mentorship = await session.get(models.Mentorship, mentorship_id)
-    if mentorship is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    mentorship = await get_or_404(session, models.Mentorship, mentorship_id)
     if actor.id not in (mentorship.mentor_id, mentorship.learner_id) and not actor.is_admin:
         raise ProblemError(ErrorCode.NOT_FOUND)
     return await views.mentorship_view(session, mentorship, actor, now)
@@ -83,11 +82,7 @@ async def create_checkin(
     body: schemas.CreateMentorshipCheckinBody,
     now: datetime,
 ) -> schemas.MentorshipCheckin:
-    mentorship = await session.scalar(
-        select(models.Mentorship).where(models.Mentorship.id == mentorship_id).with_for_update()
-    )
-    if mentorship is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    mentorship = await get_or_404(session, models.Mentorship, mentorship_id, lock=True)
     if actor.id not in (mentorship.mentor_id, mentorship.learner_id):
         raise ProblemError(ErrorCode.NOT_FOUND)
     if mentorship.status not in (MentorshipStatus.ACTIVE.value, MentorshipStatus.STALLED.value):
@@ -138,9 +133,7 @@ async def create_checkin(
 async def lock_mentorship(
     session: AsyncSession, actor: models.User, mentorship_id: UUID
 ) -> models.Mentorship:
-    mentorship = await session.scalar(
-        select(models.Mentorship).where(models.Mentorship.id == mentorship_id).with_for_update()
-    )
+    mentorship = await locked(session, models.Mentorship, mentorship_id)
     if mentorship is None or actor.id not in (mentorship.mentor_id, mentorship.learner_id):
         raise ProblemError(ErrorCode.NOT_FOUND)
     return mentorship

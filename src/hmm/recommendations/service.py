@@ -37,6 +37,7 @@ from hmm.common import (
 )
 from hmm.formation import common as formation_common
 from hmm.identity.service import ONBOARDED, dnd_active
+from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.schemas import UserRef
@@ -73,9 +74,7 @@ def hash_recommendations(request: RecommendRequest, algo_version: str) -> str:
 
 
 async def recommendation_project(session: AsyncSession, project_id: UUID) -> models.Project:
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     return project
 
 
@@ -485,18 +484,10 @@ async def prepare_refresh(
     )
 
 
-async def locked_row(session: AsyncSession, row_id: UUID) -> models.RecommendationSet | None:
-    return await session.scalar(
-        select(models.RecommendationSet)
-        .where(models.RecommendationSet.id == row_id)
-        .with_for_update()
-    )
-
-
 async def mark_ready(
     session: AsyncSession, row_id: UUID, result: Recommendations, now: datetime
 ) -> None:
-    row = await locked_row(session, row_id)
+    row = await locked(session, models.RecommendationSet, row_id)
     if row is None:
         return None
     row.status = RecommendationStatus.READY.value
@@ -507,7 +498,7 @@ async def mark_ready(
 
 
 async def mark_failed(session: AsyncSession, row_id: UUID, error: Exception, now: datetime) -> None:
-    row = await locked_row(session, row_id)
+    row = await locked(session, models.RecommendationSet, row_id)
     if row is None:
         return None
     row.status = RecommendationStatus.FAILED.value
@@ -589,14 +580,7 @@ async def request_refresh(
     actor: models.User,
     now: datetime,
 ) -> None:
-    project = await session.scalar(
-        select(models.Project)
-        .where(models.Project.id == project_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if actor.id != project.lead_user_id:
         raise ProblemError(ErrorCode.FORBIDDEN)
     if not recommendation_refreshable(project):

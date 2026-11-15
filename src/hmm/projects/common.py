@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.common import ErrorCode, ProjectVisibility
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.projects.views import project_closed
 
@@ -40,9 +41,7 @@ async def is_project_member(
 async def visible_project(
     session: AsyncSession, project_id: UUID, actor: models.User
 ) -> models.Project:
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     if (
         project.visibility == ProjectVisibility.MEMBERS.value
         and not actor.is_admin
@@ -57,14 +56,7 @@ async def member_project(
     session: AsyncSession, project_id: UUID, actor: models.User, *, lock: bool = False
 ) -> models.Project:
     if lock:
-        project = await session.scalar(
-            select(models.Project)
-            .where(models.Project.id == project_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-        if project is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        project = await get_or_404(session, models.Project, project_id, lock=True)
         if (
             project.visibility == ProjectVisibility.MEMBERS.value
             and not actor.is_admin

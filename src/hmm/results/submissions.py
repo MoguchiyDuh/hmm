@@ -28,6 +28,7 @@ from hmm.feed import confirmations as feed_confirmations
 from hmm.feed import timeline as feed_timeline
 from hmm.notifications.service import resolve_alerts
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.settings import load_settings
@@ -38,21 +39,7 @@ from hmm.results.windows import open_review_window, result_review_participants
 
 
 async def load_project(session: AsyncSession, project_id: UUID) -> models.Project:
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
-    return project
-
-
-async def lock_project(session: AsyncSession, project_id: UUID) -> models.Project:
-    project = await session.scalar(
-        select(models.Project)
-        .where(models.Project.id == project_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     return project
 
 
@@ -300,7 +287,7 @@ async def submit_result(
     *,
     admin: bool,
 ) -> ProjectResultView:
-    project = await lock_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if project.team_status != TeamStatus.ACTIVE.value:
         raise ProblemError(ErrorCode.INVALID_STATE, "Team is not active")
     event = await session.get(models.Event, project.event_id) if project.event_id else None
@@ -375,9 +362,7 @@ async def fetch_result(
     session: AsyncSession, project_id: UUID, actor: models.User, now: datetime, *, admin: bool
 ) -> ProjectResultView:
     project = await load_project(session, project_id)
-    result = await session.get(models.ProjectResult, project_id)
-    if result is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    result = await get_or_404(session, models.ProjectResult, project_id)
     return await build_result(session, result, project, actor, now, admin=admin)
 
 
@@ -463,7 +448,7 @@ async def update_result(
     *,
     admin: bool,
 ) -> ProjectResultView:
-    project = await lock_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     result = await session.scalar(
         select(models.ProjectResult)
         .where(models.ProjectResult.project_id == project_id)

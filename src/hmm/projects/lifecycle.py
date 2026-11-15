@@ -11,23 +11,12 @@ from hmm import models
 from hmm.common import ErrorCode, ProjectStatus, ProjectVisibility, TeamStatus
 from hmm.notifications.payloads import ProjectPausedPayload
 from hmm.notifications.service import notify_many
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
 from hmm.projects.idle import PAUSE_MANUAL
 from hmm.projects.views import CLOSED_PROJECT_STATUSES, lifecycle_open, project_response
-
-
-async def _locked_project(session: AsyncSession, project_id: UUID) -> models.Project:
-    project = await session.scalar(
-        select(models.Project)
-        .where(models.Project.id == project_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
-    return project
 
 
 async def _transition(
@@ -41,7 +30,7 @@ async def _transition(
     message: str,
     notify_members: bool,
 ) -> schemas.Project:
-    project = await _locked_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if not lifecycle_open(project):
         raise ProblemError(
             ErrorCode.INVALID_STATE, "This project's lifecycle follows its hackathon team"
@@ -145,7 +134,7 @@ async def update_project(
     from hmm.feed import timeline as feed_timeline
     from hmm.recommendations import service as recommendations
 
-    project = await _locked_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if project.status in CLOSED_PROJECT_STATUSES:
         raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
     if project.team_status in (TeamStatus.DISBANDED.value, TeamStatus.CANCELLED.value):

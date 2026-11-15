@@ -30,6 +30,7 @@ from hmm.identity.service import ban_user, lock_user
 from hmm.notifications.payloads import PenaltyAppliedPayload
 from hmm.notifications.service import notify, resolve_alerts
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.pagination import CursorParams, keyset_page
@@ -519,11 +520,7 @@ async def resolve_flag(
     actor: UUID,
     now: datetime,
 ) -> models.Flag:
-    row = await session.scalar(
-        select(models.Flag).where(models.Flag.id == flag_id).with_for_update()
-    )
-    if row is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    row = await get_or_404(session, models.Flag, flag_id, lock=True)
     if row.status != FlagStatus.TO_CHECK.value:
         raise ProblemError(ErrorCode.INVALID_STATE, "Flag is already resolved")
     if body.decision == "pardon":

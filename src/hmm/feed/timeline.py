@@ -6,6 +6,7 @@ from sqlalchemy import exists, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
+from hmm.platform.db import locked
 
 
 async def record_project_recruiting(
@@ -148,9 +149,7 @@ async def record_help_request(
 async def record_event_going(
     session: AsyncSession, event_id: UUID, member_id: UUID, now: datetime
 ) -> None:
-    event = await session.scalar(
-        select(models.Event).where(models.Event.id == event_id).with_for_update()
-    )
+    event = await locked(session, models.Event, event_id)
     if event is None or event.status != "published":
         return
     area_ids = list(

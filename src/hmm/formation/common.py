@@ -17,6 +17,7 @@ from hmm.common import (
 from hmm.formation import schemas
 from hmm.notifications.payloads import NotificationPerson
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import RuntimeSettings, load_settings
 
@@ -73,12 +74,7 @@ async def formation_event(
 async def locked_formation_event(
     session: AsyncSession, event_id: UUID, actor: models.User | None = None
 ) -> models.Event:
-    event = await session.scalar(
-        select(models.Event)
-        .where(models.Event.id == event_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
+    event = await locked(session, models.Event, event_id)
     if event is None or not event.formation_enabled:
         raise ProblemError(ErrorCode.NOT_FOUND)
     return event
@@ -234,9 +230,7 @@ def require_lead(project: models.Project, actor: models.User) -> None:
 async def eligible_user(
     session: AsyncSession, user_id: UUID, event_id: UUID, now: datetime, *, invite: bool = False
 ) -> models.User:
-    user = await session.get(models.User, user_id)
-    if user is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    user = await get_or_404(session, models.User, user_id)
     if user.banned_at is not None:
         raise ProblemError(ErrorCode.BANNED)
     if user.onboarding_status not in {"completed", "reopened"}:

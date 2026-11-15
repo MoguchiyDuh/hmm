@@ -10,6 +10,7 @@ from sqlalchemy.orm import aliased
 from hmm import models
 from hmm.common import ConfirmationFactType, ConfirmationSource, ErrorCode, Trust
 from hmm.feed import schemas
+from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.settings import load_settings
@@ -325,13 +326,7 @@ async def withdraw_confirmation(
     actor_id: UUID,
     now: datetime,
 ) -> None:
-    row = await session.scalar(
-        select(models.Confirmation)
-        .where(models.Confirmation.id == confirmation_id)
-        .with_for_update()
-    )
-    if row is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    row = await get_or_404(session, models.Confirmation, confirmation_id, lock=True)
     if row.confirmer_id != actor_id:
         raise ProblemError(ErrorCode.FORBIDDEN)
     if row.withdrawn_at is not None:
@@ -393,11 +388,7 @@ async def refresh_member_confirmations(
 async def refresh_confirmation(
     session: AsyncSession, jobs: procrastinate.App, confirmation_id: UUID, now: datetime
 ) -> UUID | None:
-    row = await session.scalar(
-        select(models.Confirmation)
-        .where(models.Confirmation.id == confirmation_id)
-        .with_for_update()
-    )
+    row = await locked(session, models.Confirmation, confirmation_id)
     if row is None or row.withdrawn_at is not None:
         return None
     await _refresh_rows(session, jobs, [row], now)
@@ -511,22 +502,14 @@ async def confirmation_target(
     now: datetime,
 ) -> ConfirmationCandidate:
     if fact_type == ConfirmationFactType.ATTENDANCE:
-        attendance = await session.get(models.EventAttendance, fact_id)
-        if attendance is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        attendance = await get_or_404(session, models.EventAttendance, fact_id)
         subject_user_id = attendance.user_id
-        event = await session.get(models.Event, attendance.event_id)
-        if event is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        event = await get_or_404(session, models.Event, attendance.event_id)
         subject_type, subject_id, title = "event", event.id, event.title
     elif fact_type == ConfirmationFactType.PROJECT_MEMBER:
-        member = await session.get(models.ProjectMember, fact_id)
-        if member is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        member = await get_or_404(session, models.ProjectMember, fact_id)
         subject_user_id = member.user_id
-        project = await session.get(models.Project, member.project_id)
-        if project is None:
-            raise ProblemError(ErrorCode.NOT_FOUND)
+        project = await get_or_404(session, models.Project, member.project_id)
         subject_type, subject_id, title = "project", project.id, project.name
     elif fact_type == ConfirmationFactType.MENTORSHIP_SIDE:
         if await session.get(models.Mentorship, fact_id) is None:

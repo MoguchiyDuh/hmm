@@ -10,7 +10,6 @@ from hmm.common import (
     AlertStatus,
     AuditAction,
     AuditEntityType,
-    ErrorCode,
     NotificationId,
 )
 from hmm.notifications import service
@@ -28,8 +27,8 @@ from hmm.notifications.schemas import (
 from hmm.notifications.service import alert_contract
 from hmm.platform.audit import record_audit
 from hmm.platform.clock import CurrentClock
-from hmm.platform.db import Session
-from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError
+from hmm.platform.db import Session, get_or_404
+from hmm.platform.errors import PROBLEM_RESPONSES
 from hmm.platform.pagination import CursorParams, keyset_page
 from hmm.platform.security import AdminAuth, UserAuth
 
@@ -116,14 +115,7 @@ async def resolve_alert(
     session: Session,
     clock: CurrentClock,
 ) -> Alert:
-    row = await session.scalar(
-        select(models.AdminAlert)
-        .where(models.AdminAlert.id == id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if row is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    row = await get_or_404(session, models.AdminAlert, id, lock=True)
     if row.status == AlertStatus.RESOLVED:
         return serialize_alert(row)
     row.status = AlertStatus.RESOLVED

@@ -16,6 +16,7 @@ from hmm.common import (
 from hmm.notifications.payloads import AlertKind, ResultDuePayload
 from hmm.notifications.service import notify, raise_alert, resolve_alerts
 from hmm.platform.audit import record_audit
+from hmm.platform.db import locked
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.settings import load_settings
 from hmm.results.submissions import team_member_ids
@@ -142,15 +143,10 @@ async def auto_close_result_teams(
         event = await session.get(models.Event, project.event_id) if project.event_id else None
         if event is None or now < event.ends_at + close_after:
             continue
-        locked = await session.scalar(
-            select(models.Project)
-            .where(models.Project.id == project.id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
+        row = await locked(session, models.Project, project.id)
         if (
-            locked is None
-            or locked.team_status != TeamStatus.ACTIVE.value
+            row is None
+            or row.team_status != TeamStatus.ACTIVE.value
             or await session.get(models.ProjectResult, project.id) is not None
         ):
             continue
@@ -175,8 +171,8 @@ async def auto_close_result_teams(
                 edited_at=None,
             )
         )
-        locked.team_status = TeamStatus.WITHDRAWN.value
-        locked.status = ProjectStatus.ABANDONED.value
+        row.team_status = TeamStatus.WITHDRAWN.value
+        row.status = ProjectStatus.ABANDONED.value
         await session.flush()
         for user_id in await team_member_ids(session, project.id):
             await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(user_id))

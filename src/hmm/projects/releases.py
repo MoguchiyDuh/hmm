@@ -17,12 +17,12 @@ from hmm.common import (
 )
 from hmm.notifications.payloads import NotificationPerson, ProjectReleasedPayload
 from hmm.notifications.service import notify_many
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.projects import schemas
 from hmm.projects.common import visible_project
 from hmm.projects.lifecycle import (
-    _locked_project,
     _sync_recruiting,
     resolve_project_areas,
 )
@@ -98,7 +98,7 @@ async def create_release(
     from hmm.feed import timeline as feed_timeline
     from hmm.results.windows import open_review_window, release_review_participants
 
-    project = await _locked_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if project_closed(project):
         raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
     if project.lead_user_id != actor.id:

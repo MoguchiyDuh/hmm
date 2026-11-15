@@ -25,6 +25,7 @@ from hmm.identity.service import ONBOARDED, lock_user
 from hmm.notifications.payloads import ScoreChange, ScoreChangedPayload
 from hmm.notifications.service import notify
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.pagination import CursorParams, keyset_page
@@ -425,9 +426,7 @@ def check_occurred_on(value: date, today: date) -> None:
 
 
 async def require_area(session: AsyncSession, area_id: UUID) -> models.Area:
-    area = await session.get(models.Area, area_id)
-    if area is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    area = await get_or_404(session, models.Area, area_id)
     if area.archived_at is not None:
         raise ProblemError(ErrorCode.INVALID_STATE, "Area is archived")
     return area
@@ -460,15 +459,6 @@ async def create_activity(
     return activity_view(entry, actor=actor)
 
 
-async def lock_activity(session: AsyncSession, entry_id: UUID) -> models.ActivityEntry | None:
-    return await session.scalar(
-        select(models.ActivityEntry)
-        .where(models.ActivityEntry.id == entry_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-
-
 async def update_activity(
     session: AsyncSession,
     jobs: procrastinate.App,
@@ -477,7 +467,7 @@ async def update_activity(
     body: UpdateActivityBody,
     now: datetime,
 ) -> schemas.ActivityEntry:
-    entry = await lock_activity(session, entry_id)
+    entry = await locked(session, models.ActivityEntry, entry_id)
     if entry is None or entry.deleted_at is not None:
         raise ProblemError(ErrorCode.NOT_FOUND)
     if entry.user_id != actor.id:
@@ -522,7 +512,7 @@ async def delete_activity(
     entry_id: UUID,
     now: datetime,
 ) -> None:
-    entry = await lock_activity(session, entry_id)
+    entry = await locked(session, models.ActivityEntry, entry_id)
     if entry is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
     if entry.user_id != actor.id:

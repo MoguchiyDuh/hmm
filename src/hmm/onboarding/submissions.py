@@ -28,6 +28,7 @@ from hmm.onboarding.answers import known_answers, submission_answers, validate_v
 from hmm.onboarding.quizzes import definition, quiz_view
 from hmm.onboarding.schemas import OnboardingAction, OnboardingCv, UpdateAnswersBody
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 
@@ -200,7 +201,7 @@ async def submit_onboarding(
     draft.submitted_at = now
     before = OnboardingStatus(actor.onboarding_status)
     actor.onboarding_status = OnboardingStatus.COMPLETED
-    review = await session.get(models.MemberReview, actor.id, with_for_update=True)
+    review = await locked(session, models.MemberReview, actor.id)
     if review is None:
         session.add(
             models.MemberReview(
@@ -242,9 +243,7 @@ async def submit_onboarding(
 async def user_onboarding_history(
     session: AsyncSession, user_id: UUID
 ) -> list[schemas.OnboardingSubmission]:
-    target = await session.get(models.User, user_id)
-    if target is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    await get_or_404(session, models.User, user_id)
     rows = await session.scalars(
         select(models.OnboardingSubmission)
         .where(

@@ -19,6 +19,7 @@ from hmm.common import (
     ProjectVisibility,
     TeamStatus,
 )
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.schemas import ProjectRef, UserRef
 from hmm.platform.settings import RuntimeSettings, load_settings
@@ -510,9 +511,7 @@ def lifecycle_open(project: models.Project) -> bool:
 async def project_response(
     session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
 ) -> schemas.Project:
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     view = (await project_views(session, [project], actor, now))[0]
     if not isinstance(view, schemas.Project):
         raise ProblemError(ErrorCode.NOT_FOUND)

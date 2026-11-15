@@ -17,6 +17,9 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+from hmm.common import ErrorCode
+from hmm.platform.errors import ProblemError
+
 
 class Base(DeclarativeBase):
     metadata = MetaData(
@@ -28,6 +31,19 @@ class Base(DeclarativeBase):
             "pk": "pk_%(table_name)s",
         }
     )
+
+
+async def locked[M: Base](session: AsyncSession, model: type[M], key: object) -> M | None:
+    return await session.get(model, key, with_for_update=True, populate_existing=True)
+
+
+async def get_or_404[M: Base](
+    session: AsyncSession, model: type[M], key: object, *, lock: bool = False
+) -> M:
+    row = await (locked(session, model, key) if lock else session.get(model, key))
+    if row is None:
+        raise ProblemError(ErrorCode.NOT_FOUND)
+    return row
 
 
 class Created:

@@ -23,12 +23,12 @@ from hmm.notifications.payloads import (
 )
 from hmm.notifications.service import notify, notify_many
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.settings import load_settings
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
-from hmm.projects.lifecycle import _locked_project
 from hmm.projects.records import led_projects_count
 from hmm.projects.views import (
     CLOSED_PROJECT_STATUSES,
@@ -49,13 +49,11 @@ async def remove_project_member(
     from hmm.formation import teams as formation_teams
     from hmm.recommendations import service as recommendations
 
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
         await formation_teams.kick_member(session, project_id, user_id, actor, now)
         return
-    project = await _locked_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if project.status in CLOSED_PROJECT_STATUSES:
         raise ProblemError(ErrorCode.INVALID_STATE, "This project is closed")
     if project.lead_user_id != actor.id:
@@ -120,15 +118,13 @@ async def leave_project(
     from hmm.formation import teams as formation_teams
     from hmm.recommendations import service as recommendations
 
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
         await formation_teams.leave_team(
             session, project_id, body or DeclinePlacementBody(), actor, now
         )
         return
-    project = await _locked_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     member = await session.scalar(
         select(models.ProjectMember).where(
             models.ProjectMember.project_id == project.id,
@@ -195,13 +191,11 @@ async def transfer_project_lead(
     from hmm.projects.succession import assign_project_lead
     from hmm.recommendations import service as recommendations
 
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
         raise ProblemError(ErrorCode.INVALID_STATE)
     await lock_user(session, user_id)
-    project = await _locked_project(session, project_id)
+    project = await get_or_404(session, models.Project, project_id, lock=True)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
         raise ProblemError(ErrorCode.INVALID_STATE)
     if project.lead_user_id != actor.id:

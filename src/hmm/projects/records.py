@@ -21,6 +21,7 @@ from hmm.common import (
     Trust,
 )
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.pagination import CursorParams, keyset_page
 from hmm.platform.settings import load_settings
@@ -47,9 +48,7 @@ async def led_projects_count(session: AsyncSession, user_id: UUID) -> int:
 async def get_project(
     session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
 ) -> schemas.ProjectView:
-    project = await session.get(models.Project, project_id)
-    if project is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    project = await get_or_404(session, models.Project, project_id)
     return (await project_views(session, [project], actor, now))[0]
 
 

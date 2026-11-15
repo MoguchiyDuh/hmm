@@ -32,6 +32,7 @@ from hmm.notifications.payloads import (
     HelpOfferReceivedPayload,
 )
 from hmm.notifications.service import notify
+from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import load_settings
 from hmm.scores.reputation import reputation_summaries
@@ -46,12 +47,7 @@ async def create_help_offer(
     now: datetime,
 ) -> schemas.HelpOffer:
     actor = await lock_user(session, actor.id)
-    request = await session.scalar(
-        select(models.HelpRequest)
-        .where(models.HelpRequest.id == request_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
+    request = await locked(session, models.HelpRequest, request_id)
     if request is None or not request_visible(request, actor.id):
         raise ProblemError(ErrorCode.NOT_FOUND)
     if actor.id == request.learner_id:
@@ -142,11 +138,7 @@ async def create_help_offer(
 async def withdraw_help_offer(
     session: AsyncSession, actor: models.User, offer_id: UUID, now: datetime
 ) -> None:
-    offer = await session.scalar(
-        select(models.HelpOffer).where(models.HelpOffer.id == offer_id).with_for_update()
-    )
-    if offer is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    offer = await get_or_404(session, models.HelpOffer, offer_id, lock=True)
     request = await session.get(models.HelpRequest, offer.request_id)
     if request is None or actor.id not in {offer.mentor_id, request.learner_id}:
         raise ProblemError(ErrorCode.NOT_FOUND)
@@ -161,36 +153,20 @@ async def withdraw_help_offer(
 async def accept_help_offer(
     session: AsyncSession, actor: models.User, offer_id: UUID, now: datetime
 ) -> schemas.Mentorship:
-    found = await session.get(models.HelpOffer, offer_id)
-    if found is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
-    unlocked = await session.get(models.HelpRequest, found.request_id)
-    if unlocked is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    found = await get_or_404(session, models.HelpOffer, offer_id)
+    unlocked = await get_or_404(session, models.HelpRequest, found.request_id)
     ids = sorted((unlocked.learner_id, found.mentor_id), key=str)
-    locked = {user_id: await lock_user(session, user_id) for user_id in ids}
-    learner = locked[unlocked.learner_id]
-    mentor = locked[found.mentor_id]
-    request = await session.scalar(
-        select(models.HelpRequest)
-        .where(models.HelpRequest.id == found.request_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
+    users = {user_id: await lock_user(session, user_id) for user_id in ids}
+    learner = users[unlocked.learner_id]
+    mentor = users[found.mentor_id]
+    request = await locked(session, models.HelpRequest, found.request_id)
     if request is None or not request_visible(request, actor.id):
         raise ProblemError(ErrorCode.NOT_FOUND)
     if actor.id != request.learner_id:
         raise ProblemError(ErrorCode.FORBIDDEN)
     if request.status not in LIVE_STATUSES:
         raise ProblemError(ErrorCode.INVALID_STATE)
-    offer = await session.scalar(
-        select(models.HelpOffer)
-        .where(models.HelpOffer.id == offer_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if offer is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    offer = await get_or_404(session, models.HelpOffer, offer_id, lock=True)
     if offer.status != HelpOfferStatus.PENDING.value:
         raise ProblemError(ErrorCode.INVALID_STATE)
     settings = await load_settings(session)

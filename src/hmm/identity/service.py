@@ -28,6 +28,7 @@ from hmm.feed.confirmations import refresh_member_confirmations
 from hmm.identity.github import GithubUser
 from hmm.identity.schemas import AccountAction
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404, locked
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.settings import load_settings
@@ -123,7 +124,7 @@ async def link_telegram(
         raise ProblemError(ErrorCode.CODE_INVALID)
     await lock_telegram_account(session, telegram_user_id)
     actor = await lock_user(session, user_id)
-    record = await session.get(models.TelegramLinkCode, code, with_for_update=True)
+    record = await locked(session, models.TelegramLinkCode, code)
     if record is None:
         raise ProblemError(ErrorCode.CODE_INVALID)
     if record.used_at is not None or record.expires_at <= now:
@@ -135,7 +136,7 @@ async def link_telegram(
     )
     if owner is not None and owner.user_id != user_id:
         raise ProblemError(ErrorCode.TELEGRAM_ALREADY_LINKED)
-    link = await session.get(models.TelegramLink, user_id, with_for_update=True)
+    link = await locked(session, models.TelegramLink, user_id)
     if link is None:
         link = models.TelegramLink(user_id=user_id)
         session.add(link)
@@ -352,15 +353,7 @@ def dnd_active(user: models.User, now: datetime) -> bool:
 
 
 async def lock_user(session: AsyncSession, user_id: UUID) -> models.User:
-    user = await session.scalar(
-        select(models.User)
-        .where(models.User.id == user_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    if user is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
-    return user
+    return await get_or_404(session, models.User, user_id, lock=True)
 
 
 async def admin_count(session: AsyncSession) -> int:

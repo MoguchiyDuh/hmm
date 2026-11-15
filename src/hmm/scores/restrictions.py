@@ -17,6 +17,7 @@ from hmm.feed.confirmations import refresh_member_confirmations
 from hmm.notifications.payloads import RestrictionLiftedPayload
 from hmm.notifications.service import notify
 from hmm.platform.audit import record_audit
+from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.scores import schemas
 from hmm.scores.schemas import RestrictionAction
@@ -104,13 +105,7 @@ async def lift_restriction(
     reason: str,
     now: datetime,
 ) -> models.MemberRestriction:
-    row = await session.scalar(
-        select(models.MemberRestriction)
-        .where(models.MemberRestriction.id == restriction_id)
-        .with_for_update()
-    )
-    if row is None:
-        raise ProblemError(ErrorCode.NOT_FOUND)
+    row = await get_or_404(session, models.MemberRestriction, restriction_id, lock=True)
     if row.lifted_at is not None:
         raise ProblemError(ErrorCode.INVALID_STATE, "Restriction is already lifted")
     if row.until is not None and row.until <= now:
