@@ -25,6 +25,7 @@ from hmm.identity import service as identity
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.security import AdminAuth
 from hmm.platform.settings import SettingKey
@@ -116,22 +117,20 @@ async def update_user(
 async def ban_user(
     id: UserId,
     body: BanUserBody,
-    request: Request,
+    jobs: Jobs,
     actor: AdminAuth,
     session: Session,
     clock: CurrentClock,
 ) -> AdminUser:
     target = await identity.lock_user(session, id)
-    await identity.ban_user(
-        session, request.app.state.jobs, target, body.reason, actor.id, clock.now()
-    )
+    await identity.ban_user(session, jobs, target, body.reason, actor.id, clock.now())
     return await admin_user(session, target)
 
 
 @router.post("/admin/users/{id}/unban", status_code=status.HTTP_200_OK, summary="Unban user")
 async def unban_user(
     id: UserId,
-    request: Request,
+    jobs: Jobs,
     actor: AdminAuth,
     session: Session,
     clock: CurrentClock,
@@ -140,7 +139,7 @@ async def unban_user(
     target = await identity.lock_user(session, id)
     await identity.unban_user(
         session,
-        request.app.state.jobs,
+        jobs,
         target,
         actor.id,
         body.reason if body else None,

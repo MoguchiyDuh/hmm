@@ -21,6 +21,7 @@ from hmm.platform.clock import CurrentClock
 from hmm.platform.config import Config
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.jobs import Jobs
 from hmm.platform.security import UserAuth
 
 logger = logging.getLogger(__name__)
@@ -123,6 +124,7 @@ async def login(
     summary="Complete GitHub sign-in",
 )
 async def github_callback(
+    jobs: Jobs,
     request: Request,
     session: Session,
     clock: CurrentClock,
@@ -153,9 +155,7 @@ async def github_callback(
     except GithubError:
         logger.exception("GitHub sign-in failed")
         return oauth_redirect(f"/login?error={ErrorCode.INTERNAL_ERROR}")
-    actor = await identity.sign_in(
-        session, request.app.state.jobs, profile, config.admin_github_logins, now
-    )
+    actor = await identity.sign_in(session, jobs, profile, config.admin_github_logins, now)
     if actor.banned_at is not None:
         return oauth_redirect(f"/login?error={ErrorCode.BANNED}")
     ttl = await identity.session_ttl(session)

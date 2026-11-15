@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from hmm.attendance import events
 from hmm.attendance.schemas import (
@@ -16,6 +16,7 @@ from hmm.common import AttendanceStatus, EventId
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.security import MemberAuth
 
@@ -30,11 +31,11 @@ async def set_attendance(
     body: SetAttendanceBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> Attendance:
     now = clock.now()
-    return await events.set_attendance(session, request.app.state.jobs, id, body, actor, now)
+    return await events.set_attendance(session, jobs, id, body, actor, now)
 
 
 @router.delete(
@@ -43,10 +44,10 @@ async def set_attendance(
     summary="Remove own event attendance",
 )
 async def delete_attendance(
-    id: EventId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+    id: EventId, actor: MemberAuth, session: Session, jobs: Jobs, clock: CurrentClock
 ) -> Response:
     now = clock.now()
-    await events.delete_attendance(session, request.app.state.jobs, id, actor, now)
+    await events.delete_attendance(session, jobs, id, actor, now)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -74,13 +75,13 @@ async def create_event(
     body: CreateMemberEventBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
     confirm_new: Annotated[bool, Query()] = False,
 ) -> MemberEvent:
     now = clock.now()
     event = await events.create_member_event(
-        session, request.app.state.jobs, body, actor, confirm_new=confirm_new, now=now
+        session, jobs, body, actor, confirm_new=confirm_new, now=now
     )
     return await events.member_event_view(session, event, actor, now)
 
@@ -95,11 +96,11 @@ async def update_event(
     body: UpdateMemberEventBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> MemberEvent:
     now = clock.now()
-    event = await events.update_member_event(session, request.app.state.jobs, id, body, actor, now)
+    event = await events.update_member_event(session, jobs, id, body, actor, now)
     return await events.member_event_view(session, event, actor, now)
 
 
@@ -113,13 +114,11 @@ async def cancel_event(
     body: CancelMemberEventBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> MemberEvent:
     now = clock.now()
-    event = await events.cancel_member_event(
-        session, request.app.state.jobs, id, body.reason, actor, now
-    )
+    event = await events.cancel_member_event(session, jobs, id, body.reason, actor, now)
     return await events.member_event_view(session, event, actor, now)
 
 

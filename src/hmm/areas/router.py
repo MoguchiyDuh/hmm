@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, status
 
 from hmm.areas import service
 from hmm.areas.schemas import Area, CreateAreaBody, UpdateAreaBody
@@ -6,6 +6,7 @@ from hmm.common import AreaId
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.jobs import Jobs
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import AdminAuth, MemberAuth
 
@@ -19,10 +20,8 @@ async def list_areas(actor: MemberAuth, session: Session) -> list[Area]:
 
 
 @router.post("/admin/areas", status_code=status.HTTP_201_CREATED, summary="Create area")
-async def create_area(
-    body: CreateAreaBody, actor: AdminAuth, session: Session, request: Request
-) -> Area:
-    area = await service.create_area(session, request.app.state.jobs, body, actor.id)
+async def create_area(body: CreateAreaBody, actor: AdminAuth, session: Session, jobs: Jobs) -> Area:
+    area = await service.create_area(session, jobs, body, actor.id)
     return service.area_view(area, actor)
 
 

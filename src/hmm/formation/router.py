@@ -12,6 +12,7 @@ from hmm.formation import runs as formation_runs
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError, problem_response
+from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import AdminAuth, MemberAuth
@@ -184,12 +185,10 @@ async def request_formation_run(
     actor: AdminAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
     body: ReasonBody | None = None,
 ) -> schemas.FormationRun:
-    return await formation_runs.request_formation_run(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
+    return await formation_runs.request_formation_run(session, jobs, id, body, actor, clock.now())
 
 
 @router.get("/admin/events/{id}/formation/runs")

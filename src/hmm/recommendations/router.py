@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, status
 
 from hmm.common import HelpRequestId, ProjectId
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.jobs import Jobs
 from hmm.platform.security import MemberAuth
 from hmm.recommendations import service
 from hmm.recommendations.schemas import ProjectRecommendations, Recommendation
@@ -28,9 +29,9 @@ async def get_project_recommendations(
     summary="Refresh recommendations as lead, at most once per minute",
 )
 async def refresh_project_recommendations(
-    id: ProjectId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+    id: ProjectId, actor: MemberAuth, session: Session, jobs: Jobs, clock: CurrentClock
 ) -> None:
-    await service.request_refresh(session, request.app.state.jobs, id, actor, clock.now())
+    await service.request_refresh(session, jobs, id, actor, clock.now())
 
 
 @router.get(

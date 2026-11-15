@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 
 from hmm import models
@@ -17,6 +17,7 @@ from hmm.common import (
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import user_ref
 from hmm.platform.security import AdminAuth, MemberAuth
@@ -53,10 +54,10 @@ async def create_result(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> ProjectResult:
     return await submissions.submit_result(
-        session, request.app.state.jobs, id, body, actor, clock.now(), admin=actor.is_admin
+        session, jobs, id, body, actor, clock.now(), admin=actor.is_admin
     )
 
 
@@ -71,10 +72,10 @@ async def update_result(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> ProjectResult:
     return await submissions.update_result(
-        session, request.app.state.jobs, id, body, actor, clock.now(), admin=actor.is_admin
+        session, jobs, id, body, actor, clock.now(), admin=actor.is_admin
     )
 
 
@@ -106,11 +107,9 @@ async def verify_result(
     actor: AdminAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> ProjectResult:
-    return await verification.verify_result(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
+    return await verification.verify_result(session, jobs, id, body, actor, clock.now())
 
 
 @router.get(

@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, status
 
 from hmm import models
 from hmm.common import (
@@ -20,7 +20,7 @@ from hmm.platform.audit import record_audit
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError
-from hmm.platform.jobs import JobName, defer_job
+from hmm.platform.jobs import JobName, Jobs, defer_job
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import AdminAuth, MemberAuth
@@ -85,9 +85,9 @@ async def create_activity(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> ActivityEntry:
-    return await service.create_activity(session, request.app.state.jobs, actor, body, clock.now())
+    return await service.create_activity(session, jobs, actor, body, clock.now())
 
 
 @router.patch("/me/activity/{id}", status_code=status.HTTP_200_OK, summary="Edit own solo activity")
@@ -97,11 +97,9 @@ async def update_activity(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> ActivityEntry:
-    return await service.update_activity(
-        session, request.app.state.jobs, actor, id, body, clock.now()
-    )
+    return await service.update_activity(session, jobs, actor, id, body, clock.now())
 
 
 @router.delete(
@@ -112,9 +110,9 @@ async def delete_activity(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> None:
-    await service.delete_activity(session, request.app.state.jobs, actor, id, clock.now())
+    await service.delete_activity(session, jobs, actor, id, clock.now())
 
 
 @router.get("/users/{id}/metrics", status_code=status.HTTP_200_OK, summary="Get member metrics")
@@ -144,11 +142,11 @@ async def set_score_override(
     actor: AdminAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> MemberAreaScore:
     view = await service.set_score_override(
         session,
-        request.app.state.jobs,
+        jobs,
         id,
         area_key,
         body.value,
@@ -171,12 +169,12 @@ async def remove_score_override(
     actor: AdminAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
     body: ReasonBody | None = None,
 ) -> MemberAreaScore:
     view = await service.remove_score_override(
         session,
-        request.app.state.jobs,
+        jobs,
         id,
         area_key,
         body.reason if body is not None else None,
@@ -230,12 +228,10 @@ async def resolve_flag(
     body: ResolveFlagBody,
     actor: AdminAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> Flag:
-    row = await moderation.resolve_flag(
-        session, request.app.state.jobs, id, body, actor.id, clock.now()
-    )
+    row = await moderation.resolve_flag(session, jobs, id, body, actor.id, clock.now())
     return (await moderation.flag_views(session, [row]))[0]
 
 
@@ -263,12 +259,10 @@ async def lift_restriction(
     body: LiftRestrictionBody,
     actor: AdminAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> None:
-    await restrictions.lift_restriction(
-        session, request.app.state.jobs, id, actor.id, body.reason, clock.now()
-    )
+    await restrictions.lift_restriction(session, jobs, id, actor.id, body.reason, clock.now())
 
 
 @router.post(
@@ -280,7 +274,7 @@ async def recompute_member(
     id: UserId,
     actor: AdminAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     body: ReasonBody | None = None,
 ) -> None:
     if await session.get(models.User, id) is None:
@@ -294,4 +288,4 @@ async def recompute_member(
         entity_id=str(id),
         reason=body.reason if body is not None else None,
     )
-    await defer_job(session, request.app.state.jobs, JobName.RECOMPUTE_MEMBER, user_id=str(id))
+    await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(id))

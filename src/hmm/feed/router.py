@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, status
 
 from hmm.common import AreaKey, ConfirmationId, FactType, UserId
 from hmm.feed import confirmations as feed_confirmations
@@ -17,6 +17,7 @@ from hmm.feed.schemas import (
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.security import MemberAuth
 from hmm.platform.settings import load_settings
@@ -58,7 +59,7 @@ async def create_confirmation(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> Confirmation:
     now = clock.now()
     target = await feed_confirmations.confirmation_target(
@@ -66,7 +67,7 @@ async def create_confirmation(
     )
     row = await feed_confirmations.add_confirmation(
         session,
-        request.app.state.jobs,
+        jobs,
         fact_type=body.fact_type,
         fact_id=body.fact_id,
         subject_user_id=target.subject_user_id,
@@ -88,11 +89,9 @@ async def withdraw_confirmation(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> None:
-    await feed_confirmations.withdraw_confirmation(
-        session, request.app.state.jobs, id, actor.id, clock.now()
-    )
+    await feed_confirmations.withdraw_confirmation(session, jobs, id, actor.id, clock.now())
 
 
 @router.get(

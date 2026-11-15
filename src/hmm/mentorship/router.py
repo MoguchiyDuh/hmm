@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, status
 
 from hmm.common import (
     AreaKey,
@@ -33,6 +33,7 @@ from hmm.mentorship.schemas import (
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.security import MemberAuth
 
@@ -80,13 +81,11 @@ async def list_help_requests(
 async def create_help_request(
     body: CreateHelpRequestBody,
     actor: MemberAuth,
-    request: Request,
+    jobs: Jobs,
     session: Session,
     clock: CurrentClock,
 ) -> HelpRequest:
-    return await mentorship_requests.create_help_request(
-        session, request.app.state.jobs, actor, body, clock.now()
-    )
+    return await mentorship_requests.create_help_request(session, jobs, actor, body, clock.now())
 
 
 @router.get(
@@ -134,11 +133,9 @@ async def cancel_help_request(
     "Notify the learner, who may immediately open it to everyone without the three-day wait.",
 )
 async def decline_help_request(
-    id: HelpRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+    id: HelpRequestId, actor: MemberAuth, session: Session, jobs: Jobs, clock: CurrentClock
 ) -> HelpRequest:
-    return await mentorship_requests.decline_help_request(
-        session, request.app.state.jobs, actor, id, clock.now()
-    )
+    return await mentorship_requests.decline_help_request(session, jobs, actor, id, clock.now())
 
 
 @router.post(
@@ -147,11 +144,9 @@ async def decline_help_request(
     summary="Open direct help request to everyone as learner",
 )
 async def open_help_request(
-    id: HelpRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
+    id: HelpRequestId, actor: MemberAuth, session: Session, jobs: Jobs, clock: CurrentClock
 ) -> HelpRequest:
-    return await mentorship_requests.open_help_request(
-        session, request.app.state.jobs, actor, id, clock.now()
-    )
+    return await mentorship_requests.open_help_request(session, jobs, actor, id, clock.now())
 
 
 @router.post(
@@ -224,11 +219,9 @@ async def create_checkin(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> MentorshipCheckin:
-    return await mentorship_mentorships.create_checkin(
-        session, request.app.state.jobs, actor, id, body, clock.now()
-    )
+    return await mentorship_mentorships.create_checkin(session, jobs, actor, id, body, clock.now())
 
 
 @router.post(
@@ -240,10 +233,10 @@ async def close_mentorship(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> Mentorship:
     return await mentorship_mentorships.close_mentorship(
-        session, request.app.state.jobs, actor, id, body, clock.now()
+        session, jobs, actor, id, body, clock.now()
     )
 
 
@@ -253,11 +246,9 @@ async def close_mentorship(
     summary="Propose closing as mentor",
 )
 async def propose_close(
-    id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+    id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock, jobs: Jobs
 ) -> Mentorship:
-    return await mentorship_mentorships.propose_close(
-        session, request.app.state.jobs, actor, id, clock.now()
-    )
+    return await mentorship_mentorships.propose_close(session, jobs, actor, id, clock.now())
 
 
 @router.post(
@@ -271,10 +262,10 @@ async def acknowledge_outcome(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> Mentorship:
     return await mentorship_mentorships.acknowledge_outcome(
-        session, request.app.state.jobs, actor, id, body, clock.now()
+        session, jobs, actor, id, body, clock.now()
     )
 
 
@@ -284,8 +275,6 @@ async def acknowledge_outcome(
     summary="Cancel mentorship before first check-in as either participant",
 )
 async def cancel_mentorship(
-    id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+    id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock, jobs: Jobs
 ) -> Mentorship:
-    return await mentorship_mentorships.cancel_mentorship(
-        session, request.app.state.jobs, actor, id, clock.now()
-    )
+    return await mentorship_mentorships.cancel_mentorship(session, jobs, actor, id, clock.now())

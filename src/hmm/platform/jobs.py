@@ -4,10 +4,11 @@ import logging
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Concatenate, cast
+from typing import Annotated, Any, Concatenate, cast
 
 import httpx
 import procrastinate
+from fastapi import Depends, Request
 from procrastinate.exceptions import AlreadyEnqueued
 from procrastinate.job_context import JobContext
 from procrastinate.middleware import AsyncCallNext
@@ -309,3 +310,10 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def get_jobs(request: Request) -> procrastinate.App:
+    return request.app.state.jobs
+
+
+Jobs = Annotated[procrastinate.App, Depends(get_jobs)]

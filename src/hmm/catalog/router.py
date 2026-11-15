@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from pydantic import AwareDatetime
 
 from hmm.catalog import changes, review
@@ -28,6 +28,7 @@ from hmm.common import (
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError
+from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import AdminAuth, MemberAuth
@@ -96,12 +97,10 @@ async def create_event(
     body: CreateEventBody,
     actor: AdminAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> EventDetail:
-    event = await catalog_events.create_manual_event(
-        session, request.app.state.jobs, body, actor, clock.now()
-    )
+    event = await catalog_events.create_manual_event(session, jobs, body, actor, clock.now())
     return await catalog_events.event_detail(session, event, actor, clock.now())
 
 
@@ -124,12 +123,10 @@ async def update_event(
     body: UpdateEventBody,
     actor: AdminAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> EventDetail:
-    event = await changes.update_event(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
+    event = await changes.update_event(session, jobs, id, body, actor, clock.now())
     return await catalog_events.event_detail(session, event, actor, clock.now())
 
 
@@ -173,12 +170,12 @@ async def publish_event(
     id: EventId,
     actor: AdminAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
     body: ReasonBody | None = None,
 ) -> EventDetail:
     event = await review.publish_event(
-        session, request.app.state.jobs, id, actor, body.reason if body else None, clock.now()
+        session, jobs, id, actor, body.reason if body else None, clock.now()
     )
     return await catalog_events.event_detail(session, event, actor, clock.now())
 
@@ -190,12 +187,12 @@ async def reject_event(
     id: EventId,
     actor: AdminAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
     body: ReasonBody | None = None,
 ) -> EventDetail:
     event = await review.reject_event(
-        session, request.app.state.jobs, id, actor, body.reason if body else None, clock.now()
+        session, jobs, id, actor, body.reason if body else None, clock.now()
     )
     return await catalog_events.event_detail(session, event, actor, clock.now())
 
@@ -208,10 +205,10 @@ async def merge_event(
     body: MergeEventBody,
     actor: AdminAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> EventDetail:
-    event = await review.merge_event(session, request.app.state.jobs, id, body, actor, clock.now())
+    event = await review.merge_event(session, jobs, id, body, actor, clock.now())
     return await catalog_events.event_detail(session, event, actor, clock.now())
 
 
@@ -221,14 +218,14 @@ async def cancel_event(
     body: ReasonBody,
     actor: AdminAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> EventDetail:
     if body.reason is None:
         raise ProblemError(ErrorCode.VALIDATION_ERROR, "reason is required")
     event = await changes.cancel_event(
         session,
-        request.app.state.jobs,
+        jobs,
         id,
         reason=body.reason,
         actor=actor.id,

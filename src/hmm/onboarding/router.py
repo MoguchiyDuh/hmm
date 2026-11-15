@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Request, status
+from fastapi import APIRouter, Depends, Query, status
 
 from hmm.common import MemberReviewStatus, QuizId, UserId
 from hmm.onboarding import member_review, submissions
@@ -22,9 +22,11 @@ from hmm.onboarding.schemas import (
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
+from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import AdminAuth, UserAuth
+from hmm.platform.storage import Storage
 
 router = APIRouter(tags=["onboarding"], responses=PROBLEM_RESPONSES)
 
@@ -49,9 +51,9 @@ async def update_answers(body: UpdateAnswersBody, actor: UserAuth, session: Sess
     summary="Submit onboarding and unlock access",
 )
 async def submit_onboarding(
-    actor: UserAuth, session: Session, clock: CurrentClock, request: Request
+    actor: UserAuth, session: Session, clock: CurrentClock, jobs: Jobs
 ) -> Onboarding:
-    return await submissions.submit_onboarding(session, request.app.state.jobs, actor, clock.now())
+    return await submissions.submit_onboarding(session, jobs, actor, clock.now())
 
 
 @router.get("/admin/quizzes", status_code=status.HTTP_200_OK, summary="List quiz versions")
@@ -166,11 +168,9 @@ async def list_member_reviews(
     summary="Get full member review bundle",
 )
 async def get_member_review(
-    user_id: UserId, actor: AdminAuth, session: Session, request: Request
+    user_id: UserId, actor: AdminAuth, session: Session, storage: Storage
 ) -> MemberReviewDetail:
-    return await member_review.member_review_detail(
-        session, request.app.state.storage, user_id, actor
-    )
+    return await member_review.member_review_detail(session, storage, user_id, actor)
 
 
 @router.post(

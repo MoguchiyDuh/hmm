@@ -1,11 +1,12 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import timedelta
-from typing import Any, Protocol
+from typing import Annotated, Any, Protocol
 
 import aioboto3
 from botocore.config import Config as S3Config
 from botocore.exceptions import BotoCoreError, ClientError
+from fastapi import Depends, Request
 
 from hmm.platform.config import Config
 
@@ -102,3 +103,10 @@ def create_storage(config: Config) -> S3Storage | None:
         secret_key=config.s3_secret_key,
         bucket=config.s3_bucket,
     )
+
+
+def get_storage(request: Request) -> ObjectStore | None:
+    return request.app.state.storage
+
+
+Storage = Annotated[ObjectStore | None, Depends(get_storage)]

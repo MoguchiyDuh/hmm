@@ -19,6 +19,7 @@ from hmm.formation import teams as formation_teams
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError, problem_response
+from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import MemberAuth
@@ -83,10 +84,10 @@ async def create_project(
     body: CreateProjectBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> Project:
-    return await records.create_project(session, request.app.state.jobs, body, actor, clock.now())
+    return await records.create_project(session, jobs, body, actor, clock.now())
 
 
 @router.get(
@@ -116,12 +117,10 @@ async def update_project(
     body: UpdateProjectBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> Project:
-    return await lifecycle.update_project(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
+    return await lifecycle.update_project(session, jobs, id, body, actor, clock.now())
 
 
 @router.post(
@@ -171,7 +170,7 @@ async def create_invite(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> formation_schemas.Invite:
     project = await session.get(models.Project, id)
     if (
@@ -183,7 +182,7 @@ async def create_invite(
             session, id, formation_schemas.InviteBody(user_id=body.user_id), actor, clock.now()
         )
     invite = await invites.create_invite(session, id, body, actor, clock.now())
-    await recommendations.enqueue_project_refresh(session, request.app.state.jobs, id)
+    await recommendations.enqueue_project_refresh(session, jobs, id)
     return invite
 
 
@@ -198,10 +197,10 @@ async def create_join_request(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
+    jobs: Jobs,
 ) -> JoinRequest:
     join_request = await join_requests.create_join_request(session, id, body, actor, clock.now())
-    await recommendations.enqueue_project_refresh(session, request.app.state.jobs, id)
+    await recommendations.enqueue_project_refresh(session, jobs, id)
     return join_request
 
 
@@ -215,12 +214,12 @@ async def remove_member(
     user_id: UserId,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
     reason: Annotated[ReasonBody | None, Body()] = None,
 ) -> None:
     await projects_members.remove_project_member(
-        session, request.app.state.jobs, id, user_id, reason, actor, clock.now()
+        session, jobs, id, user_id, reason, actor, clock.now()
     )
 
 
@@ -231,13 +230,11 @@ async def leave_project(
     id: ProjectId,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
     body: formation_schemas.DeclinePlacementBody | None = None,
 ) -> None:
-    await projects_members.leave_project(
-        session, request.app.state.jobs, id, actor, clock.now(), body
-    )
+    await projects_members.leave_project(session, jobs, id, actor, clock.now(), body)
 
 
 @router.post(
@@ -250,7 +247,7 @@ async def transfer_lead(
     body: formation_schemas.TransferLeadBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> Project | formation_schemas.Team:
     project = await session.get(models.Project, id)
@@ -261,7 +258,7 @@ async def transfer_lead(
     ):
         return await formation_teams.transfer_lead(session, id, body, actor, clock.now())
     return await projects_members.transfer_project_lead(
-        session, request.app.state.jobs, id, body.user_id, actor, clock.now()
+        session, jobs, id, body.user_id, actor, clock.now()
     )
 
 
@@ -316,29 +313,27 @@ async def list_join_requests(
 
 @router.post("/join-requests/{id}/accept")
 async def accept_join_request(
-    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, jobs: Jobs
 ) -> JoinRequest:
     return await join_requests.respond_join_request(
-        session, request.app.state.jobs, id, actor, clock.now(), "accepted"
+        session, jobs, id, actor, clock.now(), "accepted"
     )
 
 
 @router.post("/join-requests/{id}/reject")
 async def reject_join_request(
-    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, jobs: Jobs
 ) -> JoinRequest:
     return await join_requests.respond_join_request(
-        session, request.app.state.jobs, id, actor, clock.now(), "rejected"
+        session, jobs, id, actor, clock.now(), "rejected"
     )
 
 
 @router.delete("/join-requests/{id}", status_code=204)
 async def withdraw_join_request(
-    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, jobs: Jobs
 ) -> Response:
-    await join_requests.respond_join_request(
-        session, request.app.state.jobs, id, actor, clock.now(), "withdrawn"
-    )
+    await join_requests.respond_join_request(session, jobs, id, actor, clock.now(), "withdrawn")
     return Response(status_code=204)
 
 
@@ -375,11 +370,11 @@ async def update_milestone(
     body: UpdateMilestoneBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> Milestone:
     return await projects_milestones.update_milestone(
-        session, request.app.state.jobs, id, mid, body, actor, clock.now()
+        session, jobs, id, mid, body, actor, clock.now()
     )
 
 
@@ -393,12 +388,10 @@ async def delete_milestone(
     mid: MilestoneId,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> None:
-    await projects_milestones.delete_milestone(
-        session, request.app.state.jobs, id, mid, actor, clock.now()
-    )
+    await projects_milestones.delete_milestone(session, jobs, id, mid, actor, clock.now())
 
 
 @router.get(
@@ -418,12 +411,10 @@ async def create_update(
     body: CreateProjectUpdateBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> ProjectUpdate:
-    return await projects_updates.create_update(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
+    return await projects_updates.create_update(session, jobs, id, body, actor, clock.now())
 
 
 @router.post(
@@ -434,12 +425,10 @@ async def create_release(
     body: CreateProjectReleaseBody,
     actor: MemberAuth,
     session: Session,
-    request: Request,
+    jobs: Jobs,
     clock: CurrentClock,
 ) -> ProjectRelease:
-    return await projects_releases.create_release(
-        session, request.app.state.jobs, id, body, actor, clock.now()
-    )
+    return await projects_releases.create_release(session, jobs, id, body, actor, clock.now())
 
 
 @router.get(
