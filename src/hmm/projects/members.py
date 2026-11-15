@@ -202,7 +202,7 @@ async def transfer_project_lead(
     if project.status in CLOSED_PROJECT_STATUSES:
         raise ProblemError(ErrorCode.INVALID_STATE)
     if project.lead_user_id == user_id:
-        return await project_response(session, project.id, actor, now)
+        return await project_response(session, project.id, actor)
     member = await session.scalar(
         select(models.ProjectMember).where(
             models.ProjectMember.project_id == project.id,
@@ -227,4 +227,4 @@ async def transfer_project_lead(
     await recommendations.enqueue_project_refresh(session, jobs, project.id)
     await session.flush()
     await session.refresh(project)
-    return await project_response(session, project.id, actor, now)
+    return await project_response(session, project.id, actor)

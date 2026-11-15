@@ -61,10 +61,10 @@ async def get_party(session: AsyncSession, party_id: UUID, actor: models.User) -
 
 
 async def locked_party(
-    session: AsyncSession, party_id: UUID, actor: models.User, now: datetime
+    session: AsyncSession, party_id: UUID, now: datetime
 ) -> tuple[models.Party, models.Event, models.EventFormation]:
     party = await get_or_404(session, models.Party, party_id)
-    event, formation = await participation_event(session, party.event_id, actor)
+    event, formation = await participation_event(session, party.event_id)
     await session.refresh(party)
     queue_open(event, formation, now)
     return party, event, formation
@@ -73,7 +73,7 @@ async def locked_party(
 async def create_party(
     session: AsyncSession, event_id: UUID, actor: models.User, now: datetime
 ) -> schemas.Party:
-    event, formation = await participation_event(session, event_id, actor)
+    event, formation = await participation_event(session, event_id)
     queue_open(event, formation, now)
     row = await queue_user(session, event, formation, actor.id, now)
     if row.party_id is not None:
@@ -96,7 +96,7 @@ async def update_party(
     actor: models.User,
     now: datetime,
 ) -> schemas.Party:
-    party, event, formation = await locked_party(session, party_id, actor, now)
+    party, event, formation = await locked_party(session, party_id, now)
     if actor.id != party.owner_user_id:
         raise ProblemError(ErrorCode.FORBIDDEN)
     _, minimum, _ = formation_sizes(event, formation, await load_settings(session))
@@ -133,7 +133,7 @@ async def detach_party(session: AsyncSession, row: models.Enrollment, now: datet
 async def leave_party(
     session: AsyncSession, party_id: UUID, actor: models.User, now: datetime
 ) -> None:
-    party, _, _ = await locked_party(session, party_id, actor, now)
+    party, _, _ = await locked_party(session, party_id, now)
     row = await live_enrollment_row(session, party.event_id, actor.id)
     if row is None or row.party_id != party_id:
         raise ProblemError(ErrorCode.FORBIDDEN)
@@ -143,7 +143,7 @@ async def leave_party(
 async def kick_party_member(
     session: AsyncSession, party_id: UUID, user_id: UUID, actor: models.User, now: datetime
 ) -> None:
-    party, _, _ = await locked_party(session, party_id, actor, now)
+    party, _, _ = await locked_party(session, party_id, now)
     if party.owner_user_id != actor.id or user_id == actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
     row = await live_enrollment_row(session, party.event_id, user_id)

@@ -46,10 +46,10 @@ async def led_projects_count(session: AsyncSession, user_id: UUID) -> int:
 
 
 async def get_project(
-    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
+    session: AsyncSession, project_id: UUID, actor: models.User
 ) -> schemas.ProjectView:
     project = await get_or_404(session, models.Project, project_id)
-    return (await project_views(session, [project], actor, now))[0]
+    return (await project_views(session, [project], actor))[0]
 
 
 async def list_projects(
@@ -62,7 +62,6 @@ async def list_projects(
     recruiting: bool | None,
     event_id: UUID | None,
     member_id: UUID | None,
-    now: datetime,
 ) -> schemas.ProjectListViewPage:
     statement = select(models.Project)
     if status is not None:
@@ -100,16 +99,13 @@ async def list_projects(
         descending=True,
     )
     return schemas.ProjectListViewPage(
-        items=await project_views(session, page.items, actor, now),
+        items=await project_views(session, page.items, actor),
         next_cursor=page.next_cursor,
     )
 
 
 async def list_my_projects(
-    session: AsyncSession,
-    actor: models.User,
-    status: ProjectStatus | TeamStatus | None,
-    now: datetime,
+    session: AsyncSession, actor: models.User, status: ProjectStatus | TeamStatus | None
 ) -> list[schemas.ProjectSummary]:
     statement = (
         select(models.Project)
@@ -125,7 +121,7 @@ async def list_my_projects(
             statement.order_by(models.Project.updated_at.desc(), models.Project.id.desc())
         )
     )
-    views = await project_views(session, rows, actor, now)
+    views = await project_views(session, rows, actor)
     return [
         schemas.ProjectSummary.model_validate(view)
         for view in views
@@ -209,4 +205,4 @@ async def create_project(
     )
     await recommendations.enqueue_project_refresh(session, jobs, project.id)
     await session.flush()
-    return await project_response(session, project.id, actor, now)
+    return await project_response(session, project.id, actor)

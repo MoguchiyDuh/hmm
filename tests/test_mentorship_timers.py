@@ -101,7 +101,7 @@ async def window_count(h: Harness, mentorship_id: UUID) -> int:
 
 async def idle(h: Harness) -> int:
     async with h.db() as session:
-        return await timers.send_idle_warnings(session, h.jobs, h.now)
+        return await timers.send_idle_warnings(session, h.now)
 
 
 async def stall(h: Harness) -> int:

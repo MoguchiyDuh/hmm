@@ -165,7 +165,7 @@ async def update_member_area(
     session: Session,
     clock: CurrentClock,
 ) -> schemas.Team:
-    return await teams.update_member_area(session, id, user_id, body, actor, clock.now())
+    return await teams.update_member_area(session, id, user_id, body, actor)
 
 
 @router.patch("/admin/events/{id}/formation")
@@ -195,7 +195,7 @@ async def request_formation_run(
 async def list_formation_runs(
     id: UUID, actor: AdminAuth, session: Session
 ) -> list[schemas.FormationRun]:
-    return await formation_runs.list_formation_runs(session, id, actor)
+    return await formation_runs.list_formation_runs(session, id)
 
 
 @router.post("/admin/projects/{id}/members")

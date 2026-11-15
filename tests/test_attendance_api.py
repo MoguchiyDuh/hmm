@@ -152,7 +152,6 @@ async def test_going_closes_at_event_end_and_cancelled_events(harness: Harness) 
     async with h.db() as session:
         await catalog_changes.cancel_event(
             session,
-            h.jobs,
             event.id,
             reason="Venue closed",
             actor=None,

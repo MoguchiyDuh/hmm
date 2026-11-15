@@ -47,9 +47,7 @@ def _check_in_action(mentorship: models.Mentorship) -> tuple[LinkAction, ...]:
     )
 
 
-async def send_idle_warnings(
-    session: AsyncSession, jobs: procrastinate.App, now: datetime, *, limit: int = 50
-) -> int:
+async def send_idle_warnings(session: AsyncSession, now: datetime, *, limit: int = 50) -> int:
     settings = await load_settings(session)
     idle = timedelta(days=settings.mentorship_idle_days)
     inactive_since = func.coalesce(models.Mentorship.last_checkin_at, models.Mentorship.started_at)
@@ -236,7 +234,7 @@ async def close_expired_proposals(
 async def run_mentorship_timers(
     session: AsyncSession, jobs: procrastinate.App, now: datetime, *, limit: int = 50
 ) -> None:
-    await send_idle_warnings(session, jobs, now, limit=limit)
+    await send_idle_warnings(session, now, limit=limit)
     await stall_mentorships(session, jobs, now, limit=limit)
     await close_stalled_mentorships(session, jobs, now, limit=limit)
     await close_expired_proposals(session, jobs, now, limit=limit)

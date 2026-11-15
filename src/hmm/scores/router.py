@@ -119,7 +119,7 @@ async def delete_activity(
 async def get_metrics(
     id: UserId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> MemberMetrics:
-    snapshot = await build_member_snapshot(session, id, clock.now())
+    snapshot = await build_member_snapshot(session, id)
     return MemberMetrics(
         xp=snapshot.xp,
         activity=snapshot.activity,

@@ -6,7 +6,6 @@ from decimal import ROUND_HALF_UP, Decimal
 from typing import Self
 from uuid import UUID
 
-import procrastinate
 from pydantic import JsonValue
 from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -350,7 +349,7 @@ class EventParticipation:
 
 
 async def participation_states(
-    session: AsyncSession, events: Sequence[models.Event], actor: models.User, now: datetime
+    session: AsyncSession, events: Sequence[models.Event], actor: models.User
 ) -> dict[UUID, EventParticipation]:
     if not events:
         return {}
@@ -567,7 +566,7 @@ async def event_detail(
     session: AsyncSession, event: models.Event, actor: models.User, now: datetime
 ) -> schemas.EventDetail:
     settings = await load_settings(session)
-    state = (await participation_states(session, [event], actor, now))[event.id]
+    state = (await participation_states(session, [event], actor))[event.id]
     summary = event_summary(
         event,
         actor=actor,
@@ -633,7 +632,6 @@ async def event_detail(
 
 async def create_manual_event(
     session: AsyncSession,
-    jobs: procrastinate.App,
     body: schemas.CreateEventBody,
     actor: models.User,
     now: datetime,
@@ -818,7 +816,7 @@ async def list_events(
     areas = await area_details(session, event_ids)
     counts = await attendance_counts(session, event_ids)
     phases = await formation_phases(session, event_ids)
-    states = await participation_states(session, items, actor, now)
+    states = await participation_states(session, items, actor)
     return schemas.EventSummaryPage(
         items=[
             event_summary(
@@ -839,7 +837,7 @@ async def list_events(
 
 
 async def list_event_projects(
-    session: AsyncSession, event_id: UUID, actor: models.User, now: datetime
+    session: AsyncSession, event_id: UUID, actor: models.User
 ) -> list[ProjectView]:
     event = await visible_event(session, event_id, actor)
     rows = await session.scalars(
@@ -847,4 +845,4 @@ async def list_event_projects(
         .where(models.Project.event_id == event.id)
         .order_by(models.Project.team_status.is_(None), models.Project.name, models.Project.id)
     )
-    return await projects_views.project_views(session, list(rows), actor, now)
+    return await projects_views.project_views(session, list(rows), actor)

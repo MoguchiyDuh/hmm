@@ -490,12 +490,7 @@ async def upload_cv(
 
 
 async def delete_cv(
-    session: AsyncSession,
-    jobs: procrastinate.App,
-    store: ObjectStore,
-    *,
-    user_id: UUID,
-    now: datetime,
+    session: AsyncSession, jobs: procrastinate.App, store: ObjectStore, *, user_id: UUID
 ) -> None:
     await lock_user(session, user_id)
     row = await locked(session, models.CvFile, user_id)
@@ -509,7 +504,7 @@ async def delete_cv(
 
 
 async def cv_download(
-    session: AsyncSession, store: ObjectStore, *, actor: models.User, user_id: UUID
+    session: AsyncSession, store: ObjectStore, *, user_id: UUID
 ) -> tuple[models.CvFile, str]:
     row = await get_or_404(session, models.CvFile, user_id)
     url = await store.presign_get(row.object_key, CV_URL_TTL)
@@ -544,7 +539,6 @@ async def write_cv_text(
     text: str | None,
     status: CvTextStatus,
     error: str | None,
-    now: datetime,
 ) -> bool:
     row = await locked(session, models.CvFile, user_id)
     if row is None or row.object_key != object_key:
@@ -580,7 +574,6 @@ async def extract_cv(runtime: Runtime, user_id: UUID) -> None:
                 text=None,
                 status=CvTextStatus.FAILED,
                 error=str(error)[:1000],
-                now=runtime.clock.now(),
             )
         return
     async with runtime.sessionmaker.begin() as session:
@@ -592,7 +585,6 @@ async def extract_cv(runtime: Runtime, user_id: UUID) -> None:
             text=text[:100_000],
             status=CvTextStatus.OK,
             error=None,
-            now=runtime.clock.now(),
         )
 
 

@@ -1,7 +1,6 @@
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime
 from uuid import UUID
 
 from pydantic import HttpUrl
@@ -349,10 +348,7 @@ def project_detail(
 
 
 async def project_views(
-    session: AsyncSession,
-    projects: Sequence[models.Project],
-    actor: models.User,
-    now: datetime,
+    session: AsyncSession, projects: Sequence[models.Project], actor: models.User
 ) -> list[schemas.ProjectView]:
     if not projects:
         return []
@@ -505,10 +501,10 @@ def lifecycle_open(project: models.Project) -> bool:
 
 
 async def project_response(
-    session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
+    session: AsyncSession, project_id: UUID, actor: models.User
 ) -> schemas.Project:
     project = await get_or_404(session, models.Project, project_id)
-    view = (await project_views(session, [project], actor, now))[0]
+    view = (await project_views(session, [project], actor))[0]
     if not isinstance(view, schemas.Project):
         raise ProblemError(ErrorCode.NOT_FOUND)
     return view

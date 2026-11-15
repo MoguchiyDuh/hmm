@@ -47,7 +47,6 @@ async def list_my_mentorships(
     actor: models.User,
     role: MentorshipSide | None,
     mentorship_status: MentorshipStatus | None,
-    now: datetime,
 ) -> list[schemas.Mentorship]:
     statement = select(models.Mentorship).where(
         or_(models.Mentorship.mentor_id == actor.id, models.Mentorship.learner_id == actor.id)
@@ -63,16 +62,16 @@ async def list_my_mentorships(
             statement.order_by(models.Mentorship.started_at.desc(), models.Mentorship.id.desc())
         )
     )
-    return [await views.mentorship_view(session, row, actor, now) for row in rows]
+    return [await views.mentorship_view(session, row, actor) for row in rows]
 
 
 async def get_mentorship(
-    session: AsyncSession, actor: models.User, mentorship_id: UUID, now: datetime
+    session: AsyncSession, actor: models.User, mentorship_id: UUID
 ) -> schemas.Mentorship:
     mentorship = await get_or_404(session, models.Mentorship, mentorship_id)
     if actor.id not in (mentorship.mentor_id, mentorship.learner_id) and not actor.is_admin:
         raise ProblemError(ErrorCode.NOT_FOUND)
-    return await views.mentorship_view(session, mentorship, actor, now)
+    return await views.mentorship_view(session, mentorship, actor)
 
 
 async def create_checkin(
@@ -258,7 +257,7 @@ async def close_mentorship(
     )
     await session.flush()
     await session.refresh(mentorship)
-    return await views.mentorship_view(session, mentorship, actor, now)
+    return await views.mentorship_view(session, mentorship, actor)
 
 
 async def propose_close(
@@ -305,7 +304,7 @@ async def propose_close(
     await recompute_participants(session, jobs, mentorship)
     await session.flush()
     await session.refresh(mentorship)
-    return await views.mentorship_view(session, mentorship, actor, now)
+    return await views.mentorship_view(session, mentorship, actor)
 
 
 async def acknowledge_outcome(
@@ -342,15 +341,11 @@ async def acknowledge_outcome(
     await recompute_participants(session, jobs, mentorship)
     await session.flush()
     await session.refresh(mentorship)
-    return await views.mentorship_view(session, mentorship, actor, now)
+    return await views.mentorship_view(session, mentorship, actor)
 
 
 async def cancel_mentorship(
-    session: AsyncSession,
-    jobs: procrastinate.App,
-    actor: models.User,
-    mentorship_id: UUID,
-    now: datetime,
+    session: AsyncSession, jobs: procrastinate.App, actor: models.User, mentorship_id: UUID
 ) -> schemas.Mentorship:
     mentorship = await lock_mentorship(session, actor, mentorship_id)
     if mentorship.last_checkin_at is not None or mentorship.status not in CLOSABLE_STATUSES:
@@ -362,4 +357,4 @@ async def cancel_mentorship(
     await session.flush()
     await recompute_participants(session, jobs, mentorship)
     await session.refresh(mentorship)
-    return await views.mentorship_view(session, mentorship, actor, now)
+    return await views.mentorship_view(session, mentorship, actor)

@@ -134,7 +134,7 @@ async def other_members(
     ids = [user.id for user in users if eligible_user(user, now) and user.id not in excluded][
         :RECOMMEND_LIMIT_OTHERS
     ]
-    snapshots = await build_member_snapshots(session, ids, now)
+    snapshots = await build_member_snapshots(session, ids)
     return [snapshots[user_id] for user_id in ids if user_id in snapshots]
 
 
@@ -166,7 +166,7 @@ async def team_candidates(
         )
     )
     member_ids = [row.user_id for row in team_rows]
-    snapshots = await build_member_snapshots(session, member_ids, now)
+    snapshots = await build_member_snapshots(session, member_ids)
     enrollments = await live_enrollment_map(session, event_id, member_ids)
     member_areas = await area_keys_by_id(
         session, [row.area_id for row in team_rows if row.area_id is not None]
@@ -202,7 +202,7 @@ async def team_candidates(
         and enrollment.user_id not in team_ids
         and enrollment.user_id not in project_member_ids
     ][:RECOMMEND_LIMIT_ENROLLED]
-    candidates = await build_member_snapshots(session, [row.user_id for row in kept], now)
+    candidates = await build_member_snapshots(session, [row.user_id for row in kept])
     areas = await area_keys_by_id(
         session, [row.preferred_area_id for row in kept if row.preferred_area_id is not None]
     )
@@ -256,7 +256,7 @@ async def standalone_candidates(
         if project.event_id is not None
         else {}
     )
-    candidates = await build_member_snapshots(session, kept_ids, now)
+    candidates = await build_member_snapshots(session, kept_ids)
     enrolled = [
         EnrolledMember(
             **candidates[join_request.user_id].model_dump(),

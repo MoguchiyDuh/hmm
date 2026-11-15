@@ -129,7 +129,6 @@ async def ensure_result_release(
     result: models.ProjectResult,
     *,
     actor_id: UUID,
-    now: datetime,
 ) -> models.ProjectRelease | None:
     title = f"Hackathon result: {event.title}"[:200]
     release = await session.scalar(
@@ -177,9 +176,7 @@ async def apply_result_effects(
             else ProjectStatus.ABANDONED.value
         )
         await session.flush()
-        release = await ensure_result_release(
-            session, project, event, result, actor_id=actor_id, now=now
-        )
+        release = await ensure_result_release(session, project, event, result, actor_id=actor_id)
         members = await team_member_rows(session, project.id)
         for key, value in cast(dict[str, bool], result.participants).items():
             uid = UUID(str(key))

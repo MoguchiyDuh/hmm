@@ -53,7 +53,7 @@ async def create_party_invite(
     actor: models.User,
     now: datetime,
 ) -> schemas.Invite:
-    _, event, _ = await locked_party(session, party_id, actor, now)
+    _, event, _ = await locked_party(session, party_id, now)
     if actor.id not in {row.user_id for row in await party_rows(session, party_id)}:
         raise ProblemError(ErrorCode.FORBIDDEN)
     if body.user_id in {row.user_id for row in await party_rows(session, party_id)}:
@@ -122,7 +122,7 @@ async def create_invite(
     actor: models.User,
     now: datetime,
 ) -> schemas.Invite:
-    project, event, formation = await locked_team(session, project_id, actor)
+    project, event, formation = await locked_team(session, project_id)
     require_lead(project, actor)
     queue_open(event, formation, now)
     if project.team_status != "formed":
@@ -229,12 +229,12 @@ async def close_invite(
 
 
 async def locked_invite(
-    session: AsyncSession, invite_id: UUID, actor: models.User
+    session: AsyncSession, invite_id: UUID
 ) -> tuple[models.Invite, models.Event, models.EventFormation]:
     row = await session.get(models.Invite, invite_id)
     if row is None or row.event_id is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
-    event, formation = await participation_event(session, row.event_id, actor)
+    event, formation = await participation_event(session, row.event_id)
     await session.refresh(row)
     return row, event, formation
 
@@ -242,7 +242,7 @@ async def locked_invite(
 async def accept_invite(
     session: AsyncSession, invite_id: UUID, actor: models.User, now: datetime
 ) -> schemas.Invite | ProblemError:
-    row, event, formation = await locked_invite(session, invite_id, actor)
+    row, event, formation = await locked_invite(session, invite_id)
     if row.user_id != actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
     if row.status == "accepted":
@@ -314,7 +314,7 @@ async def accept_invite(
 async def decline_invite(
     session: AsyncSession, invite_id: UUID, actor: models.User, now: datetime
 ) -> schemas.Invite | ProblemError:
-    row, event, _ = await locked_invite(session, invite_id, actor)
+    row, event, _ = await locked_invite(session, invite_id)
     if row.user_id != actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
     if row.status == "declined":
@@ -331,7 +331,7 @@ async def decline_invite(
 async def withdraw_invite(
     session: AsyncSession, invite_id: UUID, actor: models.User, now: datetime
 ) -> ProblemError | None:
-    row, event, _ = await locked_invite(session, invite_id, actor)
+    row, event, _ = await locked_invite(session, invite_id)
     if row.invited_by != actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
     if row.status == "withdrawn":

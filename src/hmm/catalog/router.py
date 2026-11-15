@@ -89,7 +89,7 @@ async def get_event(
 async def list_event_projects(
     id: EventId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> list[ProjectView]:
-    return await catalog_events.list_event_projects(session, id, actor, clock.now())
+    return await catalog_events.list_event_projects(session, id, actor)
 
 
 @router.post("/admin/events", status_code=status.HTTP_201_CREATED, summary="Create a manual event")
@@ -100,7 +100,7 @@ async def create_event(
     jobs: Jobs,
     clock: CurrentClock,
 ) -> EventDetail:
-    event = await catalog_events.create_manual_event(session, jobs, body, actor, clock.now())
+    event = await catalog_events.create_manual_event(session, body, actor, clock.now())
     return await catalog_events.event_detail(session, event, actor, clock.now())
 
 
@@ -150,7 +150,7 @@ async def unlock_event_field(
     clock: CurrentClock,
     reason: Annotated[str | None, Query()] = None,
 ) -> Response:
-    await changes.unlock_field(session, id, field, actor, reason, clock.now())
+    await changes.unlock_field(session, id, field, actor, reason)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -175,7 +175,7 @@ async def publish_event(
     body: ReasonBody | None = None,
 ) -> EventDetail:
     event = await review.publish_event(
-        session, jobs, id, actor, body.reason if body else None, clock.now()
+        session, id, actor, body.reason if body else None, clock.now()
     )
     return await catalog_events.event_detail(session, event, actor, clock.now())
 
@@ -191,9 +191,7 @@ async def reject_event(
     clock: CurrentClock,
     body: ReasonBody | None = None,
 ) -> EventDetail:
-    event = await review.reject_event(
-        session, jobs, id, actor, body.reason if body else None, clock.now()
-    )
+    event = await review.reject_event(session, id, actor, body.reason if body else None)
     return await catalog_events.event_detail(session, event, actor, clock.now())
 
 
@@ -225,7 +223,6 @@ async def cancel_event(
         raise ProblemError(ErrorCode.VALIDATION_ERROR, "reason is required")
     event = await changes.cancel_event(
         session,
-        jobs,
         id,
         reason=body.reason,
         actor=actor.id,

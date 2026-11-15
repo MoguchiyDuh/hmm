@@ -97,7 +97,7 @@ async def member_review_detail(
     cv: schemas.ReviewCv | None = None
     if await session.get(models.CvFile, user_id) is not None:
         row, url = await profiles.cv_download(
-            session, profiles.require_storage(store), actor=actor, user_id=user_id
+            session, profiles.require_storage(store), user_id=user_id
         )
         cv = schemas.ReviewCv(
             filename=row.filename,

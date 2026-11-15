@@ -279,9 +279,7 @@ async def import_event_item(
     if event is None or source_row is None:
         return await create_imported_event(session, jobs, index, item, digest, now)
     if item.status == "cancelled":
-        return await cancel_imported_event(
-            session, jobs, index, item, event, source_row, digest, now
-        )
+        return await cancel_imported_event(session, index, item, event, source_row, digest, now)
     return await update_imported_event(
         session,
         jobs,
@@ -347,7 +345,6 @@ async def team_size_conflict_count(session: AsyncSession, event: models.Event) -
 
 async def cancel_imported_event(
     session: AsyncSession,
-    jobs: procrastinate.App,
     index: int,
     item: EventImport,
     event: models.Event,
@@ -367,7 +364,6 @@ async def cancel_imported_event(
         )
     event = await cancel_event(
         session,
-        jobs,
         event.id,
         reason="Cancelled by the parser",
         actor=None,
@@ -500,7 +496,7 @@ async def update_imported_event(
             now,
         )
     if changed & DATE_FIELDS:
-        await formation_common.dates_changed(session, event, now)
+        await formation_common.dates_changed(session, event)
     if changed & TEAM_FIELDS:
         conflicts = await team_size_conflict_count(session, event)
         if conflicts:

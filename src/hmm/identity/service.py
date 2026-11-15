@@ -457,7 +457,7 @@ async def ban_user(
     from hmm.mentorship.bans import cancel_all_for_ban, withdraw_all_for_ban
 
     await withdraw_all_for_ban(session, user.id, now)
-    await cancel_all_for_ban(session, jobs, user.id, now)
+    await cancel_all_for_ban(session, jobs, user.id)
     await record_audit(
         session,
         actor=actor,

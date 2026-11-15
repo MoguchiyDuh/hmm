@@ -88,8 +88,8 @@ async def test_snapshot_profile_inputs(
             ]
         )
     async with h.db() as session:
-        snapshot = await build_member_snapshot(session, member.id, h.now)
-        repeated = await build_member_snapshot(session, member.id, h.now)
+        snapshot = await build_member_snapshot(session, member.id)
+        repeated = await build_member_snapshot(session, member.id)
     assert snapshot.user_id == member.id
     assert snapshot.display_name == "Octo"
     assert snapshot.about_md == "About Octo"
@@ -211,7 +211,7 @@ async def test_snapshot_scores_metrics_offers_and_reviews(harness: Harness) -> N
         qa.archived_at = h.now
         data.sort = areas["backend"].sort
     async with h.db() as session:
-        snapshots = await build_member_snapshots(session, [member.id, other.id], h.now)
+        snapshots = await build_member_snapshots(session, [member.id, other.id])
     snapshot = snapshots[member.id]
     assert snapshot.area_scores == {
         "backend": EffectiveScore(
@@ -355,7 +355,7 @@ async def test_snapshot_project_counts(harness: Harness) -> None:
             ]
         )
     async with h.db() as session:
-        snapshot = await build_member_snapshot(session, member.id, h.now)
+        snapshot = await build_member_snapshot(session, member.id)
     assert snapshot.hackathons_finished == 1
     assert snapshot.times_led == 1
     assert snapshot.projects_shipped == 1
@@ -404,7 +404,7 @@ async def test_snapshot_mentorship_counts(harness: Harness) -> None:
                 )
             )
     async with h.db() as session:
-        snapshots = await build_member_snapshots(session, [member.id, other.id], h.now)
+        snapshots = await build_member_snapshots(session, [member.id, other.id])
     assert snapshots[member.id].mentorships_completed == 2
     assert snapshots[member.id].mentor_active == 1
     assert snapshots[other.id].mentorships_completed == 2
@@ -422,14 +422,14 @@ async def test_snapshot_batch_membership_and_defaults(harness: Harness) -> None:
         assert reopened is not None
         reopened.onboarding_status = OnboardingStatus.REOPENED
         snapshots = await build_member_snapshots(
-            session, [second.id, first.id, first.id, missing_id, pending.id], h.now
+            session, [second.id, first.id, first.id, missing_id, pending.id]
         )
         assert set(snapshots) == {first.id, second.id}
-        assert await build_member_snapshots(session, [], h.now) == {}
-        assert await build_member_snapshots(session, [missing_id, pending.id], h.now) == {}
+        assert await build_member_snapshots(session, []) == {}
+        assert await build_member_snapshots(session, [missing_id, pending.id]) == {}
         for user_id in (missing_id, pending.id):
             with pytest.raises(ProblemError) as error:
-                await build_member_snapshot(session, user_id, h.now)
+                await build_member_snapshot(session, user_id)
             assert error.value.code == ErrorCode.NOT_FOUND
     assert snapshots[first.id].user_id == first.id
     assert snapshots[second.id].user_id == second.id

@@ -1,5 +1,4 @@
 from collections.abc import Sequence
-from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import distinct, func, select
@@ -24,17 +23,15 @@ from hmm.profiles.github import github_summary
 from hmm.scores.reputation import reputation_summaries
 
 
-async def build_member_snapshot(
-    session: AsyncSession, user_id: UUID, now: datetime
-) -> MemberSnapshot:
-    snapshots = await build_member_snapshots(session, [user_id], now)
+async def build_member_snapshot(session: AsyncSession, user_id: UUID) -> MemberSnapshot:
+    snapshots = await build_member_snapshots(session, [user_id])
     if user_id not in snapshots:
         raise ProblemError(ErrorCode.NOT_FOUND)
     return snapshots[user_id]
 
 
 async def build_member_snapshots(
-    session: AsyncSession, user_ids: Sequence[UUID], now: datetime
+    session: AsyncSession, user_ids: Sequence[UUID]
 ) -> dict[UUID, MemberSnapshot]:
     ids = list(dict.fromkeys(user_ids))
     users = {

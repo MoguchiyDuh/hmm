@@ -102,7 +102,7 @@ def string_list(value: Any) -> list[str]:
 
 
 async def load_member_history(session: AsyncSession, user_id: UUID, now: datetime) -> MemberHistory:
-    snapshot = await build_member_snapshot(session, user_id, now)
+    snapshot = await build_member_snapshot(session, user_id)
     onboarding = await load_onboarding_baseline(session, user_id)
     areas = {area.id: area for area in await session.scalars(select(models.Area))}
 

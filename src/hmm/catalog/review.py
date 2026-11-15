@@ -47,7 +47,6 @@ async def review_queue(
 
 async def publish_event(
     session: AsyncSession,
-    jobs: procrastinate.App,
     event_id: UUID,
     actor: models.User,
     reason: str | None,
@@ -84,12 +83,7 @@ async def publish_event(
 
 
 async def reject_event(
-    session: AsyncSession,
-    jobs: procrastinate.App,
-    event_id: UUID,
-    actor: models.User,
-    reason: str | None,
-    now: datetime,
+    session: AsyncSession, event_id: UUID, actor: models.User, reason: str | None
 ) -> models.Event:
     event = await catalog_events.load_event(session, event_id, for_update=True)
     if event.status not in (EventStatus.DRAFT, EventStatus.PUBLISHED):

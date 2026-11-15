@@ -188,7 +188,7 @@ async def update_setting(
 async def get_system_status(
     request: Request, actor: AdminAuth, session: Session, clock: CurrentClock
 ) -> SystemStatus:
-    return await admin.system_status(session, request.app.state.config, clock.now())
+    return await admin.system_status(session, request.app.state.config)
 
 
 @router.post(

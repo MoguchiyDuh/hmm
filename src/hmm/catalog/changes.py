@@ -125,7 +125,6 @@ async def notify_event_cancelled(
 
 async def cancel_event(
     session: AsyncSession,
-    jobs: procrastinate.App,
     event_id: UUID,
     *,
     reason: str,
@@ -244,7 +243,6 @@ async def update_event(
         if body.status == EventStatus.CANCELLED:
             return await cancel_event(
                 session,
-                jobs,
                 event_id,
                 reason=body.reason or "Cancelled by admin",
                 actor=actor.id,
@@ -426,7 +424,7 @@ async def update_event(
             now,
         )
     if changes.keys() & {"starts_at", "ends_at", "registration_deadline"}:
-        await formation_common.dates_changed(session, event, now)
+        await formation_common.dates_changed(session, event)
     from hmm.recommendations import service as recommendations
 
     await recommendations.enqueue_event_refresh(session, jobs, event_id)
@@ -458,12 +456,7 @@ async def list_locks(session: AsyncSession, event_id: UUID) -> list[schemas.Even
 
 
 async def unlock_field(
-    session: AsyncSession,
-    event_id: UUID,
-    field: str,
-    actor: models.User,
-    reason: str | None,
-    now: datetime,
+    session: AsyncSession, event_id: UUID, field: str, actor: models.User, reason: str | None
 ) -> None:
     event = await load_event(session, event_id)
     lock = await session.scalar(

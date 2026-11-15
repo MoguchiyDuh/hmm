@@ -142,20 +142,12 @@ async def upload_cv(
 async def delete_cv(
     actor: UserAuth, jobs: Jobs, storage: Storage, session: Session, clock: CurrentClock
 ) -> None:
-    await service.delete_cv(
-        session,
-        jobs,
-        service.require_storage(storage),
-        user_id=actor.id,
-        now=clock.now(),
-    )
+    await service.delete_cv(session, jobs, service.require_storage(storage), user_id=actor.id)
 
 
 @router.get("/users/{id}/cv", status_code=status.HTTP_200_OK, summary="Get short-lived CV download")
 async def get_cv(id: UserId, actor: MemberAuth, storage: Storage, session: Session) -> Cv:
-    row, url = await service.cv_download(
-        session, service.require_storage(storage), actor=actor, user_id=id
-    )
+    row, url = await service.cv_download(session, service.require_storage(storage), user_id=id)
     privileged = actor.id == id or actor.is_admin
     return Cv(
         filename=row.filename,

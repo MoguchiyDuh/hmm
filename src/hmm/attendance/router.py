@@ -100,7 +100,7 @@ async def update_event(
     clock: CurrentClock,
 ) -> MemberEvent:
     now = clock.now()
-    event = await events.update_member_event(session, jobs, id, body, actor, now)
+    event = await events.update_member_event(session, id, body, actor, now)
     return await events.member_event_view(session, event, actor, now)
 
 
@@ -118,7 +118,7 @@ async def cancel_event(
     clock: CurrentClock,
 ) -> MemberEvent:
     now = clock.now()
-    event = await events.cancel_member_event(session, jobs, id, body.reason, actor, now)
+    event = await events.cancel_member_event(session, id, body.reason, actor, now)
     return await events.member_event_view(session, event, actor, now)
 
 

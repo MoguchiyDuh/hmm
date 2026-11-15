@@ -128,7 +128,7 @@ async def match_mentors(runtime: Runtime, request_id: str) -> None:
             .limit(CANDIDATE_LIMIT)
         )
         candidate_ids = list(await session.scalars(statement))
-        snapshots = await build_member_snapshots(session, [learner.id, *candidate_ids], now)
+        snapshots = await build_member_snapshots(session, [learner.id, *candidate_ids])
         if learner.id not in snapshots:
             return None
         payload = MentorMatchRequest(

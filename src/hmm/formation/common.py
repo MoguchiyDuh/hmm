@@ -71,9 +71,7 @@ async def formation_event(
     return event
 
 
-async def locked_formation_event(
-    session: AsyncSession, event_id: UUID, actor: models.User | None = None
-) -> models.Event:
+async def locked_formation_event(session: AsyncSession, event_id: UUID) -> models.Event:
     event = await locked(session, models.Event, event_id)
     if event is None or not event.formation_enabled:
         raise ProblemError(ErrorCode.NOT_FOUND)
@@ -92,9 +90,9 @@ async def formation_row(session: AsyncSession, event_id: UUID) -> models.EventFo
 
 
 async def participation_event(
-    session: AsyncSession, event_id: UUID, actor: models.User | None = None
+    session: AsyncSession, event_id: UUID
 ) -> tuple[models.Event, models.EventFormation]:
-    event = await locked_formation_event(session, event_id, actor)
+    event = await locked_formation_event(session, event_id)
     formation = await formation_row(session, event_id)
     if formation.phase == "forming":
         raise ProblemError(ErrorCode.FORMATION_IN_PROGRESS)
@@ -130,7 +128,7 @@ async def ensure_formation(
     return row
 
 
-async def dates_changed(session: AsyncSession, event: models.Event, now: datetime) -> None:
+async def dates_changed(session: AsyncSession, event: models.Event) -> None:
     if not event.formation_enabled:
         return
     await locked_formation_event(session, event.id)
@@ -212,12 +210,12 @@ async def membership_row(
 
 
 async def locked_team(
-    session: AsyncSession, project_id: UUID, actor: models.User | None = None
+    session: AsyncSession, project_id: UUID
 ) -> tuple[models.Project, models.Event, models.EventFormation]:
     project = await session.get(models.Project, project_id)
     if project is None or project.event_id is None or project.team_status is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
-    event, formation = await participation_event(session, project.event_id, actor)
+    event, formation = await participation_event(session, project.event_id)
     await session.refresh(project)
     return project, event, formation
 

@@ -450,7 +450,6 @@ def change_text(value: Any) -> str | None:
 
 async def update_member_event(
     session: AsyncSession,
-    jobs: procrastinate.App,
     event_id: UUID,
     body: schemas.UpdateMemberEventBody,
     actor: models.User,
@@ -559,7 +558,7 @@ async def update_member_event(
         ]
         await catalog_changes.notify_event_changed(session, event, changes, now)
     if {"starts_at", "ends_at"} & changed.keys():
-        await formation_common.dates_changed(session, event, now)
+        await formation_common.dates_changed(session, event)
     await session.flush()
     await session.refresh(event)
     return event
@@ -567,7 +566,6 @@ async def update_member_event(
 
 async def cancel_member_event(
     session: AsyncSession,
-    jobs: procrastinate.App,
     event_id: UUID,
     reason: str,
     actor: models.User,
@@ -580,7 +578,6 @@ async def cancel_member_event(
         raise ProblemError(ErrorCode.FORBIDDEN)
     event = await catalog_changes.cancel_event(
         session,
-        jobs,
         event_id,
         reason=reason,
         actor=actor.id,

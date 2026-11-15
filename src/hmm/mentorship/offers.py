@@ -66,7 +66,7 @@ async def create_help_offer(
     )
     if offer is not None:
         if offer.status == HelpOfferStatus.PENDING.value:
-            return (await views.help_offer_views(session, request, [offer], actor, now))[0]
+            return (await views.help_offer_views(session, request, [offer], actor))[0]
         if offer.status == HelpOfferStatus.ACCEPTED.value:
             raise ProblemError(ErrorCode.INVALID_STATE)
     settings = await load_settings(session)
@@ -133,12 +133,10 @@ async def create_help_offer(
         now,
         dedupe_key=f"help_offer_received:{offer.id}",
     )
-    return (await views.help_offer_views(session, request, [offer], actor, now))[0]
+    return (await views.help_offer_views(session, request, [offer], actor))[0]
 
 
-async def withdraw_help_offer(
-    session: AsyncSession, actor: models.User, offer_id: UUID, now: datetime
-) -> None:
+async def withdraw_help_offer(session: AsyncSession, actor: models.User, offer_id: UUID) -> None:
     offer = await get_or_404(session, models.HelpOffer, offer_id, lock=True)
     request = await session.get(models.HelpRequest, offer.request_id)
     if request is None or actor.id not in {offer.mentor_id, request.learner_id}:
@@ -227,4 +225,4 @@ async def accept_help_offer(
         dedupe_key=f"help_offer_accepted:{offer.id}",
     )
     await session.flush()
-    return await views.mentorship_view(session, mentorship, actor, now)
+    return await views.mentorship_view(session, mentorship, actor)

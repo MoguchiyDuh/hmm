@@ -55,7 +55,5 @@ async def unarchive_area(
     clock: CurrentClock,
     body: ReasonBody | None = None,
 ) -> Area:
-    area = await service.unarchive_area(
-        session, id, actor.id, body.reason if body else None, clock.now()
-    )
+    area = await service.unarchive_area(session, id, actor.id, body.reason if body else None)
     return service.area_view(area, actor)

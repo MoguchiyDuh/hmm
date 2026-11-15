@@ -60,7 +60,7 @@ async def _transition(
         )
     await _sync_recruiting(session, project, actor.id, now)
     await session.flush()
-    return await project_response(session, project.id, actor, now)
+    return await project_response(session, project.id, actor)
 
 
 async def start_project(
@@ -188,7 +188,7 @@ async def update_project(
             project.recruiting = new_recruiting
             changed = True
     if not changed:
-        return await project_response(session, project.id, actor, now)
+        return await project_response(session, project.id, actor)
     await session.flush()
     await session.refresh(project)
     if became_members:
@@ -196,7 +196,7 @@ async def update_project(
     await _sync_recruiting(session, project, actor.id, now)
     await recommendations.enqueue_project_refresh(session, jobs, project.id)
     await session.flush()
-    return await project_response(session, project.id, actor, now)
+    return await project_response(session, project.id, actor)
 
 
 async def resolve_project_areas(session: AsyncSession, keys: Sequence[str]) -> list[UUID]:

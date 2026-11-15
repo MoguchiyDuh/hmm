@@ -54,12 +54,11 @@ async def build_formation_request(
     event: models.Event,
     units: list[Unit],
     grouped: dict[UUID, list[models.Enrollment]],
-    now: datetime,
 ) -> FormationRequest:
     from hmm.scores.snapshot import build_member_snapshots
 
     snapshots = await build_member_snapshots(
-        session, [row.user_id for unit in units for row in grouped[unit.id]], now
+        session, [row.user_id for unit in units for row in grouped[unit.id]]
     )
     areas = {row.id: row.key for row in await session.scalars(select(models.Area))}
     event_areas = [
@@ -326,7 +325,7 @@ async def start_run(
     if formation.phase != "open" or event.status != "published":
         return None
     units, grouped, parties = await queue_units(session, event_id)
-    request = await build_formation_request(session, event, units, grouped, now)
+    request = await build_formation_request(session, event, units, grouped)
     baseline = pack(units, [], request.target, request.min_size, request.max_size)
     run = await session.get(models.FormationRun, run_id) if run_id else None
     if run is None:
@@ -498,7 +497,7 @@ async def request_formation_run(
     actor: models.User,
     now: datetime,
 ) -> schemas.FormationRun:
-    event, formation = await participation_event(session, event_id, actor)
+    event, formation = await participation_event(session, event_id)
     if formation.phase != "open" or event.status != "published":
         raise ProblemError(ErrorCode.INVALID_STATE)
     run = await session.scalar(
@@ -540,7 +539,7 @@ async def update_formation(
     actor: models.User,
     now: datetime,
 ) -> schemas.Formation:
-    event, formation = await participation_event(session, event_id, actor)
+    event, formation = await participation_event(session, event_id)
     if formation.phase != "open":
         raise ProblemError(ErrorCode.INVALID_STATE)
     settings = await load_settings(session)
@@ -565,9 +564,7 @@ async def update_formation(
     return view
 
 
-async def list_formation_runs(
-    session: AsyncSession, event_id: UUID, actor: models.User
-) -> list[schemas.FormationRun]:
+async def list_formation_runs(session: AsyncSession, event_id: UUID) -> list[schemas.FormationRun]:
     return [
         schemas.FormationRun.model_validate(row, from_attributes=True)
         for row in await session.scalars(

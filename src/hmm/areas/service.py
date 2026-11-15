@@ -111,7 +111,7 @@ async def archive_area(
 
 
 async def unarchive_area(
-    session: AsyncSession, area_id: UUID, actor: UUID, reason: str | None, now: datetime
+    session: AsyncSession, area_id: UUID, actor: UUID, reason: str | None
 ) -> models.Area:
     area = await get_area(session, area_id, for_update=True)
     if area.archived_at is None:

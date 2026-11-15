@@ -33,7 +33,7 @@ async def admin_add_member(
     actor: models.User,
     now: datetime,
 ) -> schemas.Team:
-    project, event, formation = await locked_team(session, project_id, actor)
+    project, event, formation = await locked_team(session, project_id)
     rows = await members(session, project_id)
     existing = next((row for row in rows if row.user_id == body.user_id), None)
     if existing is not None:
@@ -92,7 +92,7 @@ async def admin_remove_member(
     now: datetime,
     reason: str | None = None,
 ) -> schemas.Team:
-    project, event, _ = await locked_team(session, project_id, actor)
+    project, event, _ = await locked_team(session, project_id)
     row = await membership_row(session, project_id, user_id)
     if row is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
@@ -121,7 +121,7 @@ async def admin_set_lead(
     actor: models.User,
     now: datetime,
 ) -> schemas.Team:
-    project, event, _ = await locked_team(session, project_id, actor)
+    project, event, _ = await locked_team(session, project_id)
     if not any(row.user_id == body.user_id for row in await members(session, project_id)):
         raise ProblemError(ErrorCode.INVALID_STATE)
     user = await session.get(models.User, body.user_id)
@@ -136,7 +136,7 @@ async def admin_set_lead(
 async def admin_disband(
     session: AsyncSession, project_id: UUID, body: ReasonBody, actor: models.User, now: datetime
 ) -> schemas.Team:
-    project, event, _ = await locked_team(session, project_id, actor)
+    project, event, _ = await locked_team(session, project_id)
     if project.team_status == "disbanded":
         return await team_view(session, project)
     if project.team_status != "formed":

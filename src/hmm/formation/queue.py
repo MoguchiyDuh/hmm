@@ -65,7 +65,7 @@ async def enroll(
     actor: models.User,
     now: datetime,
 ) -> schemas.Enrollment:
-    event, formation = await participation_event(session, event_id, actor)
+    event, formation = await participation_event(session, event_id)
     queue_open(event, formation, now)
     await eligible_user(session, actor.id, event_id, now)
     if await live_enrollment_row(session, event_id, actor.id) is not None:
@@ -86,7 +86,7 @@ async def update_enrollment(
     actor: models.User,
     now: datetime,
 ) -> schemas.Enrollment:
-    event, formation = await participation_event(session, event_id, actor)
+    event, formation = await participation_event(session, event_id)
     queue_open(event, formation, now)
     row = await live_enrollment_row(session, event_id, actor.id)
     if row is None:
@@ -107,7 +107,7 @@ async def withdraw_enrollment(
 ) -> None:
     from hmm.formation.parties import detach_party
 
-    event, _ = await participation_event(session, event_id, actor)
+    event, _ = await participation_event(session, event_id)
     if now >= event.starts_at:
         raise ProblemError(ErrorCode.ENROLLMENT_CLOSED)
     if await team_member(session, event_id, actor.id) is not None:

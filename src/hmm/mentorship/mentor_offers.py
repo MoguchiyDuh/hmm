@@ -1,4 +1,3 @@
-from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import delete, func, select
@@ -20,9 +19,7 @@ async def load_area(session: AsyncSession, key: str) -> models.Area:
     return area
 
 
-async def mentor_offers_view(
-    session: AsyncSession, user: models.User, now: datetime
-) -> schemas.MentorOffers:
+async def mentor_offers_view(session: AsyncSession, user: models.User) -> schemas.MentorOffers:
     rows = await session.execute(
         select(models.MentorOffer, models.Area)
         .join(models.Area, models.Area.id == models.MentorOffer.area_id)
@@ -40,10 +37,7 @@ async def mentor_offers_view(
 
 
 async def replace_mentor_offers(
-    session: AsyncSession,
-    user: models.User,
-    body: schemas.ReplaceMentorOffersBody,
-    now: datetime,
+    session: AsyncSession, user: models.User, body: schemas.ReplaceMentorOffersBody
 ) -> schemas.MentorOffers:
     resolved: list[tuple[schemas.MentorOfferInput, models.Area]] = []
     seen: set[str] = set()
@@ -70,7 +64,7 @@ async def replace_mentor_offers(
         row.active = offer.active
     locked.mentor_capacity = body.capacity
     await session.flush()
-    return await mentor_offers_view(session, locked, now)
+    return await mentor_offers_view(session, locked)
 
 
 async def effective_area_score(session: AsyncSession, user_id: UUID, area_id: UUID) -> float:

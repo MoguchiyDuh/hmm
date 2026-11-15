@@ -39,7 +39,7 @@ async def remove_user_from_formation(
             if event_id is not None
         }
     )
-    events = [await participation_event(session, event_id, actor) for event_id in event_ids]
+    events = [await participation_event(session, event_id) for event_id in event_ids]
     for event, _ in events:
         for row in await session.scalars(
             select(models.Enrollment).where(

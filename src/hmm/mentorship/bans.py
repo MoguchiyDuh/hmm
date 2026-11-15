@@ -44,9 +44,7 @@ async def withdraw_all_for_ban(session: AsyncSession, user_id: UUID, now: dateti
     await session.flush()
 
 
-async def cancel_all_for_ban(
-    session: AsyncSession, jobs: procrastinate.App, user_id: UUID, now: datetime
-) -> None:
+async def cancel_all_for_ban(session: AsyncSession, jobs: procrastinate.App, user_id: UUID) -> None:
     rows = list(
         await session.scalars(
             select(models.Mentorship)

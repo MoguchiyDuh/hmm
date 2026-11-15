@@ -86,7 +86,6 @@ async def help_offer_views(
     request: models.HelpRequest,
     offers: Sequence[models.HelpOffer],
     actor: models.User,
-    now: datetime,
 ) -> list[schemas.HelpOffer]:
     ids = [offer.mentor_id for offer in offers]
     if not ids:
@@ -167,7 +166,7 @@ async def help_request_view(
                 .order_by(models.HelpOffer.created_at, models.HelpOffer.id)
             )
         ).all()
-        offers = await help_offer_views(session, request, rows, actor, now)
+        offers = await help_offer_views(session, request, rows, actor)
     return schemas.HelpRequest(
         id=request.id,
         learner_id=request.learner_id,
@@ -230,7 +229,7 @@ def mentorship_actions(
 
 
 async def mentorship_view(
-    session: AsyncSession, mentorship: models.Mentorship, actor: models.User, now: datetime
+    session: AsyncSession, mentorship: models.Mentorship, actor: models.User
 ) -> schemas.Mentorship:
     mentor = await session.get(models.User, mentorship.mentor_id)
     learner = await session.get(models.User, mentorship.learner_id)

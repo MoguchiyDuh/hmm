@@ -318,7 +318,7 @@ async def check_parser_down(
         await resolve_alerts(session, "parser_down", now)
 
 
-async def system_status(session: AsyncSession, config: Config, now: datetime) -> SystemStatus:
+async def system_status(session: AsyncSession, config: Config) -> SystemStatus:
     heartbeats = await session.scalars(
         select(models.ParserHeartbeat)
         .where(models.ParserHeartbeat.finished_at.is_not(None))

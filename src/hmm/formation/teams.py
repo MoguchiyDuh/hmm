@@ -194,7 +194,7 @@ async def remove_member(
 async def accept_placement(
     session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
 ) -> schemas.Team | ProblemError:
-    project, event, _ = await locked_team(session, project_id, actor)
+    project, event, _ = await locked_team(session, project_id)
     member = next(
         (row for row in await members(session, project_id) if row.user_id == actor.id), None
     )
@@ -235,7 +235,7 @@ async def decline_placement(
     actor: models.User,
     now: datetime,
 ) -> schemas.Team | ProblemError:
-    project, event, _ = await locked_team(session, project_id, actor)
+    project, event, _ = await locked_team(session, project_id)
     row = await membership_row(session, project_id, actor.id)
     if row is not None and row.left_at is not None and row.left_reason == "declined":
         return await team_view(session, project)
@@ -264,7 +264,7 @@ async def leave_team(
     actor: models.User,
     now: datetime,
 ) -> schemas.Team:
-    project, event, _ = await locked_team(session, project_id, actor)
+    project, event, _ = await locked_team(session, project_id)
     member = await membership_row(session, project_id, actor.id)
     if member is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
@@ -288,7 +288,7 @@ async def leave_team(
 async def kick_member(
     session: AsyncSession, project_id: UUID, user_id: UUID, actor: models.User, now: datetime
 ) -> schemas.Team:
-    project, event, _ = await locked_team(session, project_id, actor)
+    project, event, _ = await locked_team(session, project_id)
     require_lead(project, actor)
     row = await membership_row(session, project_id, user_id)
     if row is not None and row.left_at is not None and row.left_reason == "removed":
@@ -310,7 +310,7 @@ async def set_seats(
     actor: models.User,
     now: datetime,
 ) -> schemas.Team:
-    project, event, formation = await locked_team(session, project_id, actor)
+    project, event, formation = await locked_team(session, project_id)
     require_lead(project, actor)
     if project.team_status != "formed":
         raise ProblemError(ErrorCode.INVALID_STATE)
@@ -329,7 +329,7 @@ async def transfer_lead(
     actor: models.User,
     now: datetime,
 ) -> schemas.Team:
-    project, event, _ = await locked_team(session, project_id, actor)
+    project, event, _ = await locked_team(session, project_id)
     require_lead(project, actor)
     target = next(
         (
@@ -354,9 +354,8 @@ async def update_member_area(
     user_id: UUID,
     body: schemas.UpdateMemberBody,
     actor: models.User,
-    now: datetime,
 ) -> schemas.Team:
-    project, _, _ = await locked_team(session, project_id, actor)
+    project, _, _ = await locked_team(session, project_id)
     require_lead(project, actor)
     row = next((row for row in await members(session, project_id) if row.user_id == user_id), None)
     if row is None:

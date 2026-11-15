@@ -152,7 +152,6 @@ async def test_extract_ignores_stale_work(harness: Harness) -> None:
                 text="A text",
                 status=CvTextStatus.OK,
                 error=None,
-                now=harness.now,
             )
             is False
         )

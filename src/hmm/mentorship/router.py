@@ -44,7 +44,7 @@ router = APIRouter(tags=["mentorship"], responses=PROBLEM_RESPONSES)
 async def get_mentor_offers(
     actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> MentorOffers:
-    return await mentor_offers.mentor_offers_view(session, actor, clock.now())
+    return await mentor_offers.mentor_offers_view(session, actor)
 
 
 @router.put(
@@ -55,7 +55,7 @@ async def get_mentor_offers(
 async def replace_mentor_offers(
     body: ReplaceMentorOffersBody, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> MentorOffers:
-    return await mentor_offers.replace_mentor_offers(session, actor, body, clock.now())
+    return await mentor_offers.replace_mentor_offers(session, actor, body)
 
 
 @router.get("/help-requests", status_code=status.HTTP_200_OK, summary="List help requests")
@@ -170,7 +170,7 @@ async def create_help_offer(
 async def withdraw_help_offer(
     id: HelpOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> None:
-    await mentorship_offers.withdraw_help_offer(session, actor, id, clock.now())
+    await mentorship_offers.withdraw_help_offer(session, actor, id)
 
 
 @router.post(
@@ -192,9 +192,7 @@ async def list_my_mentorships(
     role: Annotated[MentorshipSide | None, Query()] = None,
     mentorship_status: Annotated[MentorshipStatus | None, Query(alias="status")] = None,
 ) -> list[Mentorship]:
-    return await mentorship_mentorships.list_my_mentorships(
-        session, actor, role, mentorship_status, clock.now()
-    )
+    return await mentorship_mentorships.list_my_mentorships(session, actor, role, mentorship_status)
 
 
 @router.get(
@@ -205,7 +203,7 @@ async def list_my_mentorships(
 async def get_mentorship(
     id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Mentorship:
-    return await mentorship_mentorships.get_mentorship(session, actor, id, clock.now())
+    return await mentorship_mentorships.get_mentorship(session, actor, id)
 
 
 @router.post(
@@ -277,4 +275,4 @@ async def acknowledge_outcome(
 async def cancel_mentorship(
     id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock, jobs: Jobs
 ) -> Mentorship:
-    return await mentorship_mentorships.cancel_mentorship(session, jobs, actor, id, clock.now())
+    return await mentorship_mentorships.cancel_mentorship(session, jobs, actor, id)

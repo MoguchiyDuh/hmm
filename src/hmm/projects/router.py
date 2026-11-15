@@ -73,7 +73,6 @@ async def list_projects(
         recruiting=recruiting,
         event_id=event,
         member_id=member_id,
-        now=clock.now(),
     )
 
 
@@ -99,7 +98,7 @@ async def list_my_projects(
     clock: CurrentClock,
     project_status: Annotated[ProjectStatus | TeamStatus | None, Query(alias="status")] = None,
 ) -> list[ProjectSummary]:
-    return await records.list_my_projects(session, actor, project_status, clock.now())
+    return await records.list_my_projects(session, actor, project_status)
 
 
 @router.get(
@@ -108,7 +107,7 @@ async def list_my_projects(
 async def get_project(
     id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> ProjectView:
-    return await records.get_project(session, id, actor, clock.now())
+    return await records.get_project(session, id, actor)
 
 
 @router.patch("/projects/{id}", status_code=status.HTTP_200_OK, summary="Edit project as lead")
