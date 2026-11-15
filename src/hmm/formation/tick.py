@@ -14,7 +14,8 @@ from hmm.formation.common import (
     reg_deadline,
 )
 from hmm.formation.invites import expire_invites
-from hmm.formation.teams import finalize_event, refill_event, remove_member
+from hmm.formation.runs import refill_event
+from hmm.formation.teams import finalize_event, remove_member
 from hmm.notifications.payloads import (
     AcceptReminderPayload,
     ActionKey,

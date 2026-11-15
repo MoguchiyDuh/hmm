@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.common import ActorKind, AuditAction, AuditEntityType, ProjectStatus
+from hmm.feed import timeline as feed_timeline
 from hmm.notifications.payloads import ProjectIdlePayload, ProjectPausedPayload
 from hmm.notifications.service import notify, notify_many
 from hmm.platform.audit import record_audit
@@ -90,7 +91,6 @@ async def warn_idle_projects(session: AsyncSession, now: datetime, *, limit: int
 
 
 async def pause_idle_projects(session: AsyncSession, now: datetime, *, limit: int = 50) -> int:
-    from hmm.feed import timeline as feed_timeline
 
     idle_days = (await load_settings(session)).project_idle_days
     threshold = now - timedelta(days=IDLE_PAUSE_FACTOR * idle_days)

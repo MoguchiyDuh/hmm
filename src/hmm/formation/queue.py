@@ -10,11 +10,13 @@ from hmm.common import ErrorCode, FormationPhase
 from hmm.formation import schemas
 from hmm.formation.common import (
     area_id,
+    detach_party,
     eligible_user,
     enrollment_view,
     formation_event,
     formation_sizes,
     live_enrollment_row,
+    open_teams,
     participation_event,
     queue_open,
     queue_units,
@@ -105,8 +107,6 @@ async def update_enrollment(
 async def withdraw_enrollment(
     session: AsyncSession, event_id: UUID, actor: models.User, now: datetime
 ) -> None:
-    from hmm.formation.parties import detach_party
-
     event, _ = await participation_event(session, event_id)
     if now >= event.starts_at:
         raise ProblemError(ErrorCode.ENROLLMENT_CLOSED)
@@ -181,8 +181,6 @@ async def formation_participation(
         return None
     target, minimum, maximum = formation_sizes(event, formation, await load_settings(session))
     units, grouped, parties = await queue_units(session, event.id)
-    from hmm.formation.teams import open_teams
-
     teams = (
         await open_teams(session, event.id, target, grouped) if formation.phase == "formed" else []
     )

@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.algo.pack import Unit
+from hmm.algo.pack import OpenTeam, Unit
 from hmm.common import (
     ActorKind,
     AuditAction,
@@ -391,3 +391,76 @@ async def audit(
         after={"state": state, "at": now.isoformat()},
         reason=reason,
     )
+
+
+async def party_rows(session: AsyncSession, party_id: UUID) -> list[models.Enrollment]:
+    return list(
+        await session.scalars(
+            select(models.Enrollment)
+            .where(models.Enrollment.party_id == party_id)
+            .order_by(models.Enrollment.status_at, models.Enrollment.id)
+        )
+    )
+
+
+async def detach_party(session: AsyncSession, row: models.Enrollment, now: datetime) -> None:
+    if row.party_id is None:
+        return None
+    party = await session.get(models.Party, row.party_id)
+    row.party_id = None
+    row.status_at = now
+    await session.flush()
+    if party is None:
+        return None
+    remaining = await party_rows(session, party.id)
+    if not remaining:
+        await session.delete(party)
+    else:
+        if party.owner_user_id == row.user_id:
+            party.owner_user_id = remaining[0].user_id
+        event = await session.get(models.Event, party.event_id)
+        formation = await session.get(models.EventFormation, party.event_id)
+        if event is not None and formation is not None:
+            _, minimum, _ = formation_sizes(event, formation, await load_settings(session))
+            if len(remaining) < minimum:
+                party.closed = False
+    await session.flush()
+
+
+async def open_teams(
+    session: AsyncSession, event_id: UUID, target: int, grouped: dict[UUID, list[models.Enrollment]]
+) -> list[OpenTeam]:
+    result: list[OpenTeam] = []
+    teams = await session.scalars(
+        select(models.Project)
+        .where(
+            models.Project.event_id == event_id,
+            models.Project.team_status == "formed",
+            models.Project.seats_closed_at.is_(None),
+        )
+        .order_by(models.Project.created_at, models.Project.id)
+    )
+    for team in teams:
+        size = len(await members(session, team.id))
+        if size >= target:
+            continue
+        departed = set(
+            await session.scalars(
+                select(models.ProjectMember.user_id).where(
+                    models.ProjectMember.project_id == team.id,
+                    models.ProjectMember.left_at.is_not(None),
+                )
+            )
+        )
+        result.append(
+            OpenTeam(
+                id=team.id,
+                size=size,
+                banned_unit_ids=frozenset(
+                    key
+                    for key, group in grouped.items()
+                    if any(row.user_id in departed for row in group)
+                ),
+            )
+        )
+    return result

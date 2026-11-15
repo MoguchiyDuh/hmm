@@ -5,19 +5,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.algo.pack import OpenTeam, pack
 from hmm.common import AuditAction, ErrorCode
 from hmm.formation import schemas
 from hmm.formation.common import (
     area_id,
     audit,
+    formation_row,
     formation_sizes,
     live_enrollment_row,
     locked_team,
     members,
     membership_row,
     pick_lead,
-    queue_units,
     reg_deadline,
     require_lead,
     set_enrollment_status,
@@ -365,73 +364,7 @@ async def update_member_area(
     return await team_view(session, project)
 
 
-async def open_teams(
-    session: AsyncSession, event_id: UUID, target: int, grouped: dict[UUID, list[models.Enrollment]]
-) -> list[OpenTeam]:
-    result: list[OpenTeam] = []
-    teams = await session.scalars(
-        select(models.Project)
-        .where(
-            models.Project.event_id == event_id,
-            models.Project.team_status == "formed",
-            models.Project.seats_closed_at.is_(None),
-        )
-        .order_by(models.Project.created_at, models.Project.id)
-    )
-    for team in teams:
-        size = len(await members(session, team.id))
-        if size >= target:
-            continue
-        departed = set(
-            await session.scalars(
-                select(models.ProjectMember.user_id).where(
-                    models.ProjectMember.project_id == team.id,
-                    models.ProjectMember.left_at.is_not(None),
-                )
-            )
-        )
-        result.append(
-            OpenTeam(
-                id=team.id,
-                size=size,
-                banned_unit_ids=frozenset(
-                    key
-                    for key, group in grouped.items()
-                    if any(row.user_id in departed for row in group)
-                ),
-            )
-        )
-    return result
-
-
-async def refill_event(session: AsyncSession, event: models.Event, now: datetime) -> None:
-    from hmm.formation.common import participation_event
-    from hmm.formation.runs import apply_packing
-
-    event, formation = await participation_event(session, event.id)
-    if formation.phase != "formed" or event.status != "published" or now >= reg_deadline(event):
-        return None
-    target, minimum, maximum = formation_sizes(event, formation, await load_settings(session))
-    units, grouped, parties = await queue_units(session, event.id)
-    packing = pack(
-        units, await open_teams(session, event.id, target, grouped), target, minimum, maximum
-    )
-    packing = packing.model_copy(
-        update={
-            "new_teams": [
-                [party.id]
-                for party in parties
-                if party.closed and len(grouped.get(party.id, [])) >= minimum
-            ]
-            + packing.new_teams
-        }
-    )
-    await apply_packing(session, event, packing, grouped, parties, now, refill=True)
-
-
 async def finalize_event(session: AsyncSession, event: models.Event, now: datetime) -> None:
-    from hmm.formation.common import formation_row
-
     formation = await formation_row(session, event.id)
     for project in await session.scalars(
         select(models.Project).where(

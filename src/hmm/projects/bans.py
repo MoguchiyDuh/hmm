@@ -11,6 +11,7 @@ from hmm.notifications.service import notify_many
 from hmm.platform.audit import record_audit
 from hmm.platform.db import locked
 from hmm.platform.schemas import notification_person
+from hmm.projects import succession
 from hmm.projects.common import project_member_ids
 
 
@@ -21,7 +22,6 @@ async def remove_user_from_standalone_projects(
     actor_kind: ActorKind,
     now: datetime,
 ) -> None:
-    from hmm.projects.succession import standalone_lead_succession
 
     user = await session.get(models.User, user_id)
     if user is None:
@@ -71,7 +71,7 @@ async def remove_user_from_standalone_projects(
                 reason="banned",
             )
         if project.lead_user_id is None:
-            await standalone_lead_succession(
+            await succession.standalone_lead_succession(
                 session,
                 project,
                 now,

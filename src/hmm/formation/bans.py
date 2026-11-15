@@ -5,9 +5,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.formation.common import participation_event, set_enrollment_status
+from hmm.formation.common import detach_party, participation_event, set_enrollment_status
 from hmm.formation.invites import close_invite
-from hmm.formation.parties import detach_party
 from hmm.formation.teams import reassign_lead, remove_member
 from hmm.notifications.payloads import AlertKind
 from hmm.notifications.service import raise_alert

@@ -21,6 +21,7 @@ from hmm.admin.schemas import (
     UpdateUserBody,
 )
 from hmm.common import OnboardingStatus, SubjectId, UserId
+from hmm.identity import bans as identity_bans
 from hmm.identity import service as identity
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
@@ -123,7 +124,7 @@ async def ban_user(
     clock: CurrentClock,
 ) -> AdminUser:
     target = await identity.lock_user(session, id)
-    await identity.ban_user(session, jobs, target, body.reason, actor.id, clock.now())
+    await identity_bans.ban_user(session, jobs, target, body.reason, actor.id, clock.now())
     return await admin_user(session, target)
 
 
@@ -137,7 +138,7 @@ async def unban_user(
     body: UnbanUserBody | None = None,
 ) -> AdminUser:
     target = await identity.lock_user(session, id)
-    await identity.unban_user(
+    await identity_bans.unban_user(
         session,
         jobs,
         target,

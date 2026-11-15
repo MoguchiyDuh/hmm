@@ -15,7 +15,9 @@ from hmm.common import (
     LeftReason,
     MemberState,
 )
+from hmm.formation import teams as formation_teams
 from hmm.formation.schemas import DeclinePlacementBody
+from hmm.identity import service as identity_service
 from hmm.notifications.payloads import (
     ProjectMemberLeftPayload,
     ProjectMemberRemovedPayload,
@@ -26,7 +28,7 @@ from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.schemas import ReasonBody, notification_person
 from hmm.platform.settings import load_settings
-from hmm.projects import schemas
+from hmm.projects import schemas, succession
 from hmm.projects.common import project_member_ids
 from hmm.projects.records import led_projects_count
 from hmm.projects.views import (
@@ -34,6 +36,7 @@ from hmm.projects.views import (
     POST_RESULT_TEAM_STATUSES,
     project_response,
 )
+from hmm.recommendations import service as recommendations
 
 
 async def remove_project_member(
@@ -45,8 +48,6 @@ async def remove_project_member(
     actor: models.User,
     now: datetime,
 ) -> None:
-    from hmm.formation import teams as formation_teams
-    from hmm.recommendations import service as recommendations
 
     project = await get_or_404(session, models.Project, project_id)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
@@ -114,8 +115,6 @@ async def leave_project(
     now: datetime,
     body: DeclinePlacementBody | None = None,
 ) -> None:
-    from hmm.formation import teams as formation_teams
-    from hmm.recommendations import service as recommendations
 
     project = await get_or_404(session, models.Project, project_id)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
@@ -166,9 +165,7 @@ async def leave_project(
         dedupe_key=f"project_member_left:{member.id}",
     )
     if was_lead:
-        from hmm.projects.succession import standalone_lead_succession
-
-        await standalone_lead_succession(
+        await succession.standalone_lead_succession(
             session,
             project,
             now,
@@ -186,14 +183,11 @@ async def transfer_project_lead(
     actor: models.User,
     now: datetime,
 ) -> schemas.Project:
-    from hmm.identity.service import lock_user
-    from hmm.projects.succession import assign_project_lead
-    from hmm.recommendations import service as recommendations
 
     project = await get_or_404(session, models.Project, project_id)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
         raise ProblemError(ErrorCode.INVALID_STATE)
-    await lock_user(session, user_id)
+    await identity_service.lock_user(session, user_id)
     project = await get_or_404(session, models.Project, project_id, lock=True)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
         raise ProblemError(ErrorCode.INVALID_STATE)
@@ -223,7 +217,7 @@ async def transfer_project_lead(
         raise ProblemError(
             ErrorCode.PROJECTS_LED_LIMIT, "You already lead the maximum number of projects"
         )
-    await assign_project_lead(session, project, member, now, actor)
+    await succession.assign_project_lead(session, project, member, now, actor)
     await recommendations.enqueue_project_refresh(session, jobs, project.id)
     await session.flush()
     await session.refresh(project)

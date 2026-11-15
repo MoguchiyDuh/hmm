@@ -46,6 +46,7 @@ from hmm.notifications.payloads import (
 from hmm.notifications.service import notify, raise_alert
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
+from hmm.recommendations import service as recommendations
 
 
 async def event_recipients(session: AsyncSession, event_id: UUID) -> list[UUID]:
@@ -425,7 +426,6 @@ async def update_event(
         )
     if changes.keys() & {"starts_at", "ends_at", "registration_deadline"}:
         await formation_common.dates_changed(session, event)
-    from hmm.recommendations import service as recommendations
 
     await recommendations.enqueue_event_refresh(session, jobs, event_id)
     await session.flush()

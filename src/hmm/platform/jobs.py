@@ -19,6 +19,7 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from hmm.algo.models import AlgoContext, Algorithm
+from hmm.platform import settings
 from hmm.platform.algo import DatabaseAlgoCache, load_algorithm
 from hmm.platform.clock import Clock, SystemClock
 from hmm.platform.config import Config
@@ -111,11 +112,10 @@ class Runtime:
     storage: ObjectStore | None
 
     async def algo_context(self, session: AsyncSession) -> AlgoContext:
-        from hmm.platform.settings import load_settings
 
         return AlgoContext(
             now=self.clock.now(),
-            settings=await load_settings(session),
+            settings=await settings.load_settings(session),
             llm=self.config.llm(),
             cache=DatabaseAlgoCache(self.sessionmaker, self.clock),
             log=self.log,

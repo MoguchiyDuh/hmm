@@ -26,9 +26,11 @@ from hmm.formation.common import (
     formation_time,
     locked_formation_event,
     members,
+    open_teams,
     participation_event,
     pick_lead,
     queue_units,
+    reg_deadline,
 )
 from hmm.formation.invites import close_invite
 from hmm.formation.queue import formation_participation
@@ -47,6 +49,7 @@ from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, Runtime, defer_job
 from hmm.platform.schemas import ReasonBody, notification_person
 from hmm.platform.settings import load_settings
+from hmm.scores import snapshot as scores_snapshot
 
 
 async def build_formation_request(
@@ -55,9 +58,8 @@ async def build_formation_request(
     units: list[Unit],
     grouped: dict[UUID, list[models.Enrollment]],
 ) -> FormationRequest:
-    from hmm.scores.snapshot import build_member_snapshots
 
-    snapshots = await build_member_snapshots(
+    snapshots = await scores_snapshot.build_member_snapshots(
         session, [row.user_id for unit in units for row in grouped[unit.id]]
     )
     areas = {row.id: row.key for row in await session.scalars(select(models.Area))}
@@ -574,3 +576,25 @@ async def list_formation_runs(session: AsyncSession, event_id: UUID) -> list[sch
             .limit(50)
         )
     ]
+
+
+async def refill_event(session: AsyncSession, event: models.Event, now: datetime) -> None:
+    event, formation = await participation_event(session, event.id)
+    if formation.phase != "formed" or event.status != "published" or now >= reg_deadline(event):
+        return None
+    target, minimum, maximum = formation_sizes(event, formation, await load_settings(session))
+    units, grouped, parties = await queue_units(session, event.id)
+    packing = pack(
+        units, await open_teams(session, event.id, target, grouped), target, minimum, maximum
+    )
+    packing = packing.model_copy(
+        update={
+            "new_teams": [
+                [party.id]
+                for party in parties
+                if party.closed and len(grouped.get(party.id, [])) >= minimum
+            ]
+            + packing.new_teams
+        }
+    )
+    await apply_packing(session, event, packing, grouped, parties, now, refill=True)

@@ -15,6 +15,9 @@ from hmm.common import (
     ProjectStatus,
     ReviewWindowSubjectType,
 )
+from hmm.feed import confirmations as feed_confirmations
+from hmm.feed import digests as feed_digests
+from hmm.feed import timeline as feed_timeline
 from hmm.notifications.payloads import ProjectReleasedPayload
 from hmm.notifications.service import notify_many
 from hmm.platform.db import get_or_404
@@ -28,6 +31,7 @@ from hmm.projects.lifecycle import (
     resolve_project_areas,
 )
 from hmm.projects.views import project_closed
+from hmm.results import windows as results_windows
 
 CONTRIBUTION_MEMBER_WINDOW = timedelta(days=30)
 RELEASE_WINDOW_REPEAT = timedelta(days=30)
@@ -94,10 +98,6 @@ async def create_release(
     actor: models.User,
     now: datetime,
 ) -> schemas.ProjectRelease:
-    from hmm.feed import confirmations as feed_confirmations
-    from hmm.feed import digests as feed_digests
-    from hmm.feed import timeline as feed_timeline
-    from hmm.results.windows import open_review_window, release_review_participants
 
     project = await get_or_404(session, models.Project, project_id, lock=True)
     if project_closed(project):
@@ -209,8 +209,10 @@ async def create_release(
         )
     )
     if last_opened is None or last_opened <= now - RELEASE_WINDOW_REPEAT:
-        participants = await release_review_participants(session, project_id=project.id, now=now)
-        await open_review_window(
+        participants = await results_windows.release_review_participants(
+            session, project_id=project.id, now=now
+        )
+        await results_windows.open_review_window(
             session,
             subject_type=ReviewWindowSubjectType.PROJECT,
             subject_id=project.id,

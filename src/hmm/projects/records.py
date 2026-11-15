@@ -20,6 +20,7 @@ from hmm.common import (
     TeamStatus,
     Trust,
 )
+from hmm.identity import service as identity_service
 from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
@@ -28,6 +29,7 @@ from hmm.platform.settings import load_settings
 from hmm.projects import schemas
 from hmm.projects.lifecycle import resolve_project_areas
 from hmm.projects.views import CLOSED_PROJECT_STATUSES, project_response, project_views
+from hmm.recommendations import service as recommendations
 from hmm.scores.restrictions import require_unrestricted
 
 
@@ -136,14 +138,12 @@ async def create_project(
     actor: models.User,
     now: datetime,
 ) -> schemas.Project:
-    from hmm.identity.service import lock_user
-    from hmm.recommendations import service as recommendations
 
     await require_unrestricted(session, actor.id, RestrictionKind.CREATING_PROJECTS, now)
     if body.event_id is not None and await session.get(models.Event, body.event_id) is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
     area_ids = await resolve_project_areas(session, body.area_keys)
-    await lock_user(session, actor.id)
+    await identity_service.lock_user(session, actor.id)
     if (
         await led_projects_count(session, actor.id)
         >= (await load_settings(session)).projects_led_max

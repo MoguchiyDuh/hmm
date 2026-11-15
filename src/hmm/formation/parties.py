@@ -8,26 +8,18 @@ from hmm import models
 from hmm.common import ErrorCode
 from hmm.formation import schemas
 from hmm.formation.common import (
+    detach_party,
     enrollment_view,
     formation_sizes,
     live_enrollment_row,
     participation_event,
+    party_rows,
     queue_open,
 )
 from hmm.formation.queue import queue_user
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
 from hmm.platform.settings import load_settings
-
-
-async def party_rows(session: AsyncSession, party_id: UUID) -> list[models.Enrollment]:
-    return list(
-        await session.scalars(
-            select(models.Enrollment)
-            .where(models.Enrollment.party_id == party_id)
-            .order_by(models.Enrollment.status_at, models.Enrollment.id)
-        )
-    )
 
 
 async def party_view(session: AsyncSession, party: models.Party) -> schemas.Party:
@@ -104,30 +96,6 @@ async def update_party(
         raise ProblemError(ErrorCode.PARTY_TOO_SMALL)
     party.closed = body.closed
     return await party_view(session, party)
-
-
-async def detach_party(session: AsyncSession, row: models.Enrollment, now: datetime) -> None:
-    if row.party_id is None:
-        return None
-    party = await session.get(models.Party, row.party_id)
-    row.party_id = None
-    row.status_at = now
-    await session.flush()
-    if party is None:
-        return None
-    remaining = await party_rows(session, party.id)
-    if not remaining:
-        await session.delete(party)
-    else:
-        if party.owner_user_id == row.user_id:
-            party.owner_user_id = remaining[0].user_id
-        event = await session.get(models.Event, party.event_id)
-        formation = await session.get(models.EventFormation, party.event_id)
-        if event is not None and formation is not None:
-            _, minimum, _ = formation_sizes(event, formation, await load_settings(session))
-            if len(remaining) < minimum:
-                party.closed = False
-    await session.flush()
 
 
 async def leave_party(

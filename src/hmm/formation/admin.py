@@ -8,6 +8,7 @@ from hmm.common import AuditAction, ErrorCode
 from hmm.formation import schemas
 from hmm.formation.common import (
     audit,
+    detach_party,
     eligible_user,
     formation_sizes,
     locked_team,
@@ -16,7 +17,6 @@ from hmm.formation.common import (
     set_enrollment_status,
     team_view,
 )
-from hmm.formation.parties import detach_party
 from hmm.formation.queue import queue_user
 from hmm.formation.teams import assign_lead, reassign_lead, remove_member
 from hmm.notifications.payloads import TeamDisbandedPayload

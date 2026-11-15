@@ -8,18 +8,20 @@ from hmm import models
 from hmm.common import ErrorCode, InviteKind
 from hmm.formation import schemas
 from hmm.formation.common import (
+    detach_party,
     eligible_user,
     formation_sizes,
     live_enrollment_row,
     locked_team,
     members,
     participation_event,
+    party_rows,
     queue_open,
     reg_deadline,
     require_lead,
     set_enrollment_status,
 )
-from hmm.formation.parties import detach_party, locked_party, party_rows
+from hmm.formation.parties import locked_party
 from hmm.formation.queue import queue_user
 from hmm.formation.teams import reassign_lead
 from hmm.notifications.payloads import (

@@ -26,7 +26,8 @@ from hmm.feed.confirmations import (
     refresh_confirmation,
     refresh_member_confirmations,
 )
-from hmm.identity.service import ban_user, lock_user
+from hmm.identity.bans import ban_user
+from hmm.identity.service import lock_user
 from hmm.notifications.payloads import PenaltyAppliedPayload
 from hmm.notifications.service import notify, resolve_alerts
 from hmm.platform.audit import record_audit

@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.common import ErrorCode, ProjectStatus, ProjectVisibility, TeamStatus
+from hmm.feed import timeline as feed_timeline
 from hmm.notifications.payloads import ProjectPausedPayload
 from hmm.notifications.service import notify_many
 from hmm.platform.db import get_or_404
@@ -17,6 +18,7 @@ from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
 from hmm.projects.idle import PAUSE_MANUAL
 from hmm.projects.views import CLOSED_PROJECT_STATUSES, lifecycle_open, project_response
+from hmm.recommendations import service as recommendations
 
 
 async def _transition(
@@ -131,8 +133,6 @@ async def update_project(
     actor: models.User,
     now: datetime,
 ) -> schemas.Project:
-    from hmm.feed import timeline as feed_timeline
-    from hmm.recommendations import service as recommendations
 
     project = await get_or_404(session, models.Project, project_id, lock=True)
     if project.status in CLOSED_PROJECT_STATUSES:
@@ -224,6 +224,5 @@ async def resolve_project_areas(session: AsyncSession, keys: Sequence[str]) -> l
 async def _sync_recruiting(
     session: AsyncSession, project: models.Project, actor_id: UUID, now: datetime
 ) -> None:
-    from hmm.feed import timeline as feed_timeline
 
     await feed_timeline.record_project_recruiting(session, project, actor_id, now)

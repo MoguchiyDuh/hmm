@@ -23,6 +23,7 @@ from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
 from hmm.projects.invites import add_member
 from hmm.projects.views import CLOSED_PROJECT_STATUSES, join_request_view
+from hmm.recommendations import service as recommendations_service
 
 
 async def request_view(
@@ -115,7 +116,6 @@ async def respond_join_request(
     now: datetime,
     action: str,
 ) -> schemas.JoinRequest:
-    from hmm.recommendations.service import enqueue_project_refresh
 
     row = await get_or_404(session, models.JoinRequest, request_id)
     project = await get_or_404(session, models.Project, row.project_id, lock=True)
@@ -133,7 +133,7 @@ async def respond_join_request(
     if action == "accepted":
         await require_eligible(session, row.user_id, now, invite=True)
         await add_member(session, project, row.user_id, JoinedVia.JOIN_REQUEST, now)
-        await enqueue_project_refresh(session, jobs, project.id)
+        await recommendations_service.enqueue_project_refresh(session, jobs, project.id)
     row.status = action
     row.responded_at = now
     user = await session.get(models.User, row.user_id)
