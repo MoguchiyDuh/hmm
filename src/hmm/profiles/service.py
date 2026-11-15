@@ -25,7 +25,6 @@ from hmm.common import (
     Locale,
     MemberReviewStatus,
     ReviewContext,
-    ReviewSubjectType,
 )
 from hmm.identity.service import ONBOARDED, dnd_active, dnd_until, lock_user
 from hmm.notifications.payloads import NotificationType
@@ -49,6 +48,7 @@ from hmm.profiles.schemas import (
     UpdateNotificationSettingsBody,
     UpdateProfileBody,
 )
+from hmm.results.reviews import review_in
 from hmm.scores.reputation import reputation_summaries
 
 
@@ -288,23 +288,7 @@ async def visible_reviews(session: AsyncSession, user_id: UUID) -> list[ReviewIn
         .order_by(models.Review.created_at.desc(), models.Review.id.desc())
         .limit(20)
     )
-    return [
-        ReviewIn(
-            id=row.id,
-            reviewer_id=row.reviewer_id,
-            reviewee_id=row.reviewee_id,
-            context=ReviewContext(row.context),
-            rating=row.rating,
-            subject_type=ReviewSubjectType(row.subject_type),
-            subject_id=row.subject_id,
-            comment=row.comment,
-            created_at=row.created_at,
-            revealed_at=row.revealed_at,
-            removed_at=row.removed_at,
-            flag_status=FlagStatus.PARDONED if row.id in pardoned else None,
-        )
-        for row in rows
-    ]
+    return [review_in(row, FlagStatus.PARDONED if row.id in pardoned else None) for row in rows]
 
 
 async def user_profile(

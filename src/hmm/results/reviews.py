@@ -16,7 +16,6 @@ from hmm.common import (
     AuditEntityType,
     ErrorCode,
     FlagStatus,
-    FlagSubjectType,
     MentorshipKind,
     ReviewContext,
     ReviewReportStatus,
@@ -327,48 +326,21 @@ async def user_reviews(
     )
 
 
-async def load_reviews_received(
-    session: AsyncSession, user_ids: Sequence[UUID]
-) -> dict[UUID, list[ReviewIn]]:
-    if not user_ids:
-        return {}
-    flags = {
-        subject_id: FlagStatus(status)
-        for subject_id, status in await session.execute(
-            select(models.Flag.subject_id, models.Flag.status).where(
-                models.Flag.subject_type == FlagSubjectType.REVIEW,
-                models.Flag.status == FlagStatus.TO_CHECK,
-            )
-        )
-    }
-    reviews = await session.scalars(
-        select(models.Review)
-        .where(
-            models.Review.reviewee_id.in_(user_ids),
-            models.Review.revealed_at.is_not(None),
-            models.Review.removed_at.is_(None),
-        )
-        .order_by(models.Review.created_at)
+def review_in(row: models.Review, flag_status: FlagStatus | None) -> ReviewIn:
+    return ReviewIn(
+        id=row.id,
+        reviewer_id=row.reviewer_id,
+        reviewee_id=row.reviewee_id,
+        context=ReviewContext(row.context),
+        rating=row.rating,
+        subject_type=ReviewSubjectType(row.subject_type),
+        subject_id=row.subject_id,
+        comment=row.comment,
+        created_at=row.created_at,
+        revealed_at=row.revealed_at,
+        removed_at=row.removed_at,
+        flag_status=flag_status,
     )
-    received: dict[UUID, list[ReviewIn]] = {user_id: [] for user_id in user_ids}
-    for review in reviews:
-        received[review.reviewee_id].append(
-            ReviewIn(
-                id=review.id,
-                reviewer_id=review.reviewer_id,
-                reviewee_id=review.reviewee_id,
-                context=ReviewContext(review.context),
-                rating=review.rating,
-                subject_type=ReviewSubjectType(review.subject_type),
-                subject_id=review.subject_id,
-                comment=review.comment,
-                created_at=review.created_at,
-                revealed_at=review.revealed_at,
-                removed_at=review.removed_at,
-                flag_status=flags.get(review.id),
-            )
-        )
-    return received
 
 
 def build_report(report: models.ReviewReport) -> schemas.ReviewReport:

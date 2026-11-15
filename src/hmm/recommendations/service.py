@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 import procrastinate
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -66,7 +66,7 @@ def recommendation_refreshable(project: models.Project) -> bool:
     return project.recruiting is not None
 
 
-def hash_recommendations(request: RecommendRequest, algo_version: str) -> str:
+def hash_recommendations(request: BaseModel, algo_version: str) -> str:
     payload = {"algo_version": algo_version, "request": request.model_dump(mode="json")}
     return hashlib.sha256(
         json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
@@ -600,66 +600,30 @@ async def replace_recommendation_set(
     subject_id: UUID,
     input_hash: str,
     algo_version: str,
-    enrolled: Sequence[Rec] | None,
     others: Sequence[Rec] | None,
+    error: str | None,
     now: datetime,
-) -> models.RecommendationSet:
-    return await _store_recommendation_set(
-        session,
-        models.RecommendationSet(
-            subject_type=subject_type.value,
-            subject_id=subject_id,
-            input_hash=input_hash,
-            status=RecommendationStatus.READY.value,
-            error=None,
-            enrolled=None
-            if enrolled is None
-            else [rec.model_dump(mode="json") for rec in enrolled],
-            others=None if others is None else [rec.model_dump(mode="json") for rec in others],
-            algo_version=algo_version,
-            completed_at=now,
-        ),
-    )
-
-
-async def mark_recommendation_set_failed(
-    session: AsyncSession,
-    *,
-    subject_type: RecommendationSubjectType,
-    subject_id: UUID,
-    input_hash: str,
-    algo_version: str,
-    error: str,
-) -> models.RecommendationSet:
-    return await _store_recommendation_set(
-        session,
-        models.RecommendationSet(
-            subject_type=subject_type.value,
-            subject_id=subject_id,
-            input_hash=input_hash,
-            status=RecommendationStatus.FAILED.value,
-            error=error,
-            enrolled=None,
-            others=None,
-            algo_version=algo_version,
-            completed_at=None,
-        ),
-    )
-
-
-async def _store_recommendation_set(
-    session: AsyncSession, row: models.RecommendationSet
-) -> models.RecommendationSet:
+) -> None:
     await session.execute(
         delete(models.RecommendationSet).where(
-            models.RecommendationSet.subject_type == row.subject_type,
-            models.RecommendationSet.subject_id == row.subject_id,
+            models.RecommendationSet.subject_type == subject_type.value,
+            models.RecommendationSet.subject_id == subject_id,
         )
     )
-    session.add(row)
+    session.add(
+        models.RecommendationSet(
+            subject_type=subject_type.value,
+            subject_id=subject_id,
+            input_hash=input_hash,
+            status=(RecommendationStatus.FAILED if error else RecommendationStatus.READY).value,
+            error=error,
+            enrolled=None,
+            others=None if others is None else [rec.model_dump(mode="json") for rec in others],
+            algo_version=algo_version,
+            completed_at=None if error else now,
+        )
+    )
     await session.flush()
-    await session.refresh(row)
-    return row
 
 
 async def latest_recommendation_set(

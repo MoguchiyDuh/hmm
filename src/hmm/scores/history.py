@@ -28,7 +28,6 @@ from hmm.algo.models import (
     Recruiting,
     ReleaseContext,
     ReleaseContribution,
-    ReviewIn,
 )
 from hmm.common import (
     ActivityType,
@@ -51,12 +50,11 @@ from hmm.common import (
     ProjectStatus,
     RestrictionKind,
     ResultOutcome,
-    ReviewContext,
-    ReviewSubjectType,
     TeamStatus,
     Trust,
 )
 from hmm.onboarding.baseline import load_onboarding_baseline
+from hmm.results.reviews import review_in
 from hmm.scores.snapshot import build_member_snapshot
 
 IMPORTANCE_ORDER = (AreaImportance.PRIMARY, AreaImportance.REQUIRED, AreaImportance.NICE)
@@ -706,21 +704,7 @@ async def load_member_history(session: AsyncSession, user_id: UUID, now: datetim
     facts.sort(key=lambda fact: (fact.started_at, fact.type.value, str(fact.id)))
 
     reviews_received = [
-        ReviewIn(
-            id=row.id,
-            reviewer_id=row.reviewer_id,
-            reviewee_id=row.reviewee_id,
-            context=ReviewContext(row.context),
-            rating=row.rating,
-            subject_type=ReviewSubjectType(row.subject_type),
-            subject_id=row.subject_id,
-            comment=row.comment,
-            created_at=row.created_at,
-            revealed_at=row.revealed_at,
-            removed_at=row.removed_at,
-            flag_status=flag_status(subject_flag(FlagSubjectType.REVIEW, row.id)),
-        )
-        for row in reviews
+        review_in(row, flag_status(subject_flag(FlagSubjectType.REVIEW, row.id))) for row in reviews
     ]
     adjustments_total = await session.scalar(
         select(func.coalesce(func.sum(models.XpAdjustment.amount), 0)).where(

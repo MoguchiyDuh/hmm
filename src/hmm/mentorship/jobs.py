@@ -1,5 +1,3 @@
-import hashlib
-import json
 from collections.abc import Sequence
 from uuid import UUID
 
@@ -148,23 +146,20 @@ async def match_mentors(runtime: Runtime, request_id: str) -> None:
             limit=settings.mentor_notify_top_n,
         )
         algo_version = runtime.algorithm.version
-        input_hash = hashlib.sha256(
-            json.dumps(
-                {"request": payload.model_dump(mode="json"), "algo_version": algo_version},
-                sort_keys=True,
-            ).encode()
-        ).hexdigest()
+        input_hash = recommendations.hash_recommendations(payload, algo_version)
         ctx = await runtime.algo_context(session)
         try:
             raw = await call_algo("match_mentors", runtime.algorithm.match_mentors(ctx, payload))
         except Exception as error:
-            await recommendations.mark_recommendation_set_failed(
+            await recommendations.replace_recommendation_set(
                 session,
                 subject_type=RecommendationSubjectType.HELP_REQUEST,
                 subject_id=request.id,
                 input_hash=input_hash,
                 algo_version=algo_version,
+                others=None,
                 error=str(error)[:1000],
+                now=now,
             )
             await raise_alert(
                 session,
@@ -191,8 +186,8 @@ async def match_mentors(runtime: Runtime, request_id: str) -> None:
             subject_id=request.id,
             input_hash=input_hash,
             algo_version=algo_version,
-            enrolled=None,
             others=recs,
+            error=None,
             now=now,
         )
         for rec in recs:
