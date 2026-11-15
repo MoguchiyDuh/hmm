@@ -106,9 +106,22 @@ def setting_value_schema(key: SettingKey) -> dict[str, JsonValue]:
     return TypeAdapter(RuntimeSettings.model_fields[key.value].rebuild_annotation()).json_schema()
 
 
-async def load_settings(session: AsyncSession) -> RuntimeSettings:
+async def read_settings(session: AsyncSession) -> RuntimeSettings:
     rows = await session.execute(select(Setting.key, Setting.value))
-    return RuntimeSettings.model_validate({key: value for key, value in rows})
+    return _cache(session, RuntimeSettings.model_validate({key: value for key, value in rows}))
+
+
+async def load_settings(session: AsyncSession) -> RuntimeSettings:
+    match session.info.get(RuntimeSettings):
+        case (transaction, settings) if transaction is session.sync_session.get_transaction():
+            return settings
+        case _:
+            return await read_settings(session)
+
+
+def _cache(session: AsyncSession, settings: RuntimeSettings) -> RuntimeSettings:
+    session.info[RuntimeSettings] = (session.sync_session.get_transaction(), settings)
+    return settings
 
 
 async def set_setting(
@@ -119,7 +132,7 @@ async def set_setting(
     reason: str | None = None,
 ) -> RuntimeSettings:
     await session.execute(text("SELECT pg_advisory_xact_lock(hashtext('settings'))"))
-    before = await load_settings(session)
+    before = await read_settings(session)
     after = apply_setting(before, key, value)
     normalized = after.model_dump(mode="json")[key.value]
     statement = insert(Setting).values(key=key.value, value=normalized, updated_by=actor)
@@ -140,4 +153,4 @@ async def set_setting(
         after=normalized,
         reason=reason,
     )
-    return after
+    return _cache(session, after)
