@@ -196,7 +196,7 @@ async def remove_member(
 
 async def accept_placement(
     session: AsyncSession, project_id: UUID, actor: models.User, now: datetime
-) -> schemas.Team | ProblemError:
+) -> schemas.Team:
     project, event, _ = await locked_team(session, project_id)
     member = next(
         (row for row in await members(session, project_id) if row.user_id == actor.id), None
@@ -207,7 +207,7 @@ async def accept_placement(
         return await team_view(session, project)
     if member.accept_by is None or now >= member.accept_by or now >= event.starts_at:
         await remove_member(session, project, event, member, now, "lapsed", "lapsed")
-        return ProblemError(ErrorCode.INVALID_STATE, "Placement has expired")
+        raise ProblemError(ErrorCode.INVALID_STATE, "Placement has expired", commit=True)
     member.state = "confirmed"
     member.confirmed_at = now
     member.accept_by = None
@@ -237,7 +237,7 @@ async def decline_placement(
     body: schemas.DeclinePlacementBody,
     actor: models.User,
     now: datetime,
-) -> schemas.Team | ProblemError:
+) -> schemas.Team:
     project, event, _ = await locked_team(session, project_id)
     row = await membership_row(session, project_id, actor.id)
     if row is not None and row.left_at is not None and row.left_reason == "declined":
@@ -246,7 +246,7 @@ async def decline_placement(
         raise ProblemError(ErrorCode.INVALID_STATE)
     if row.accept_by is None or now >= row.accept_by or now >= event.starts_at:
         await remove_member(session, project, event, row, now, "lapsed", "lapsed")
-        return ProblemError(ErrorCode.INVALID_STATE, "Placement has expired")
+        raise ProblemError(ErrorCode.INVALID_STATE, "Placement has expired", commit=True)
     await remove_member(
         session,
         project,

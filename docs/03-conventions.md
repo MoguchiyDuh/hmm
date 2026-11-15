@@ -75,6 +75,7 @@ Rules:
 - That lock is never held across an algo or network call: `run_formation` locks only to switch phase and to apply the plan (§12.5).
 - Standalone project mutations lock the `projects` row. Help request and mentorship mutations lock the help request row, plus the mentor's `users` row when capacity is checked.
 - Jobs are enqueued in the same transaction as the state change (procrastinate uses the same connection), so a rolled-back change emits no job.
+- One request is one transaction (`platform.db.transaction`); a `ProblemError` rolls it back unless raised with `commit=True`, which keeps side effects such as lapsing an expired placement or invite.
 - DB constraints back every invariant (partial unique indexes, check constraints; see §5).
 - A mutation whose target state already holds returns 200 with the current resource and no side effects. Any other wrong-state transition → 409.
 

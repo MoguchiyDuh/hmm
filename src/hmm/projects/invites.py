@@ -415,7 +415,7 @@ async def respond_invite(
     actor: models.User,
     now: datetime,
     action: InviteResponse,
-) -> formation_schemas.Invite | ProblemError:
+) -> formation_schemas.Invite:
     row = await get_or_404(session, models.Invite, invite_id)
     event: models.Event | None = None
     formation: models.EventFormation | None = None
@@ -435,7 +435,7 @@ async def respond_invite(
         raise ProblemError(ErrorCode.INVALID_STATE)
     if invite_expired(row, event, now):
         await close_invite(session, row, event, now, "expired")
-        return ProblemError(ErrorCode.INVALID_STATE, "Invite has expired")
+        raise ProblemError(ErrorCode.INVALID_STATE, "Invite has expired", commit=True)
     if action == "accepted":
         if event is not None and formation is not None:
             await join_event_target(session, row, event, formation, actor, now)

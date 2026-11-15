@@ -15,12 +15,10 @@ from hmm.mentorship import mentorships as mentorship_mentorships
 from hmm.mentorship import requests as mentorship_requests
 from hmm.mentorship import schemas as mentorship_schemas
 from hmm.notifications.payloads import ACTION_ROUTES, ActionKey
-from hmm.platform.errors import ProblemError
 from hmm.projects import invites, join_requests
 
-type ActionResult = BaseModel | ProblemError
 type ActionHandler = Callable[
-    [AsyncSession, procrastinate.App, models.User, UUID, datetime], Awaitable[ActionResult]
+    [AsyncSession, procrastinate.App, models.User, UUID, datetime], Awaitable[BaseModel]
 ]
 
 
@@ -89,5 +87,5 @@ async def run_action(
     key: ActionKey,
     entity_id: UUID,
     now: datetime,
-) -> ActionResult:
+) -> BaseModel:
     return await ACTION_HANDLERS[key](session, jobs, actor, entity_id, now)

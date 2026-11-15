@@ -1,4 +1,5 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
+from contextlib import asynccontextmanager
 from datetime import datetime
 from enum import StrEnum
 from functools import cache
@@ -88,11 +89,23 @@ def create_sessionmaker(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]
     return async_sessionmaker(engine, expire_on_commit=False)
 
 
+@asynccontextmanager
+async def transaction(factory: async_sessionmaker[AsyncSession]) -> AsyncGenerator[AsyncSession]:
+    async with factory() as session:
+        try:
+            yield session
+        except ProblemError as error:
+            if error.commit:
+                await session.commit()
+            raise
+        await session.commit()
+
+
 async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     factory: async_sessionmaker[AsyncSession] | None = request.app.state.sessionmaker
     if factory is None:
         raise RuntimeError("DATABASE_URL is not configured")
-    async with factory.begin() as session:
+    async with transaction(factory) as session:
         yield session
 
 

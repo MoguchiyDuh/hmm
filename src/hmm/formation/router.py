@@ -1,7 +1,7 @@
-from typing import Annotated, cast
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, Request, Response
+from fastapi import APIRouter, Depends, Query, Response
 
 from hmm.common import EnrollmentStatus, ErrorCode, InviteStatus
 from hmm.formation import admin as formation_admin
@@ -10,7 +10,7 @@ from hmm.formation import parties as formation_parties
 from hmm.formation import runs as formation_runs
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
-from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError, problem_response
+from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError
 from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
@@ -126,12 +126,9 @@ async def my_invites(
 
 @router.post("/projects/{id}/placement/accept")
 async def accept_placement(
-    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> schemas.Team:
-    result = await teams.accept_placement(session, id, actor, clock.now())
-    if isinstance(result, ProblemError):
-        return cast(schemas.Team, problem_response(request, result.code, result.detail))
-    return result
+    return await teams.accept_placement(session, id, actor, clock.now())
 
 
 @router.post("/projects/{id}/placement/decline")
@@ -141,12 +138,8 @@ async def decline_placement(
     actor: MemberAuth,
     session: Session,
     clock: CurrentClock,
-    request: Request,
 ) -> schemas.Team:
-    result = await teams.decline_placement(session, id, body, actor, clock.now())
-    if isinstance(result, ProblemError):
-        return cast(schemas.Team, problem_response(request, result.code, result.detail))
-    return result
+    return await teams.decline_placement(session, id, body, actor, clock.now())
 
 
 @router.patch("/projects/{id}/seats")

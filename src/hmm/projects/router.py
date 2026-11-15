@@ -1,7 +1,7 @@
-from typing import Annotated, cast
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Body, Depends, Query, Response, status
 
 from hmm import models
 from hmm.common import (
@@ -17,7 +17,7 @@ from hmm.formation import schemas as formation_schemas
 from hmm.formation import teams as formation_teams
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
-from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError, problem_response
+from hmm.platform.errors import PROBLEM_RESPONSES
 from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
@@ -251,31 +251,23 @@ async def transfer_lead(
 
 @router.post("/invites/{id}/accept")
 async def accept_invite(
-    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> formation_schemas.Invite:
-    result = await invites.respond_invite(session, id, actor, clock.now(), "accepted")
-    if isinstance(result, ProblemError):
-        return cast(formation_schemas.Invite, problem_response(request, result.code, result.detail))
-    return result
+    return await invites.respond_invite(session, id, actor, clock.now(), "accepted")
 
 
 @router.post("/invites/{id}/decline")
 async def decline_invite(
-    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> formation_schemas.Invite:
-    result = await invites.respond_invite(session, id, actor, clock.now(), "declined")
-    if isinstance(result, ProblemError):
-        return cast(formation_schemas.Invite, problem_response(request, result.code, result.detail))
-    return result
+    return await invites.respond_invite(session, id, actor, clock.now(), "declined")
 
 
 @router.delete("/invites/{id}", status_code=204)
 async def withdraw_invite(
-    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
+    id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Response:
-    result = await invites.respond_invite(session, id, actor, clock.now(), "withdrawn")
-    if isinstance(result, ProblemError):
-        return problem_response(request, result.code, result.detail)
+    await invites.respond_invite(session, id, actor, clock.now(), "withdrawn")
     return Response(status_code=204)
 
 

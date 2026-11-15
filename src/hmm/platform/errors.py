@@ -40,11 +40,14 @@ class ProblemError(Exception):
         code: ErrorCode,
         detail: str | None = None,
         errors: list[ValidationIssue] | None = None,
+        *,
+        commit: bool = False,
     ) -> None:
         super().__init__(code)
         self.code = code
         self.detail = detail
         self.errors = errors
+        self.commit = commit
 
 
 def problem_response(
