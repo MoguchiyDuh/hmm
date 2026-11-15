@@ -87,6 +87,10 @@ After the result, the lead can **continue** the team as a regular project (`acti
 | POST | `/api/v1/projects/{id}/continue` | lead | – |
 | POST | `/api/v1/projects/{id}/invites` | lead | Same endpoint as §12.10; `kind = team` for standalone projects |
 | POST | `/api/v1/projects/{id}/join-requests` | member | `{note}`; project must have `recruiting` set |
+| GET | `/api/v1/projects/{id}/join-requests` | lead | Pending join requests |
+| POST | `/api/v1/join-requests/{id}/accept` | lead | Adds the requester as a confirmed member |
+| POST | `/api/v1/join-requests/{id}/reject` | lead | – |
+| DELETE | `/api/v1/join-requests/{id}` | requester | Withdraw, 204 |
 | DELETE | `/api/v1/projects/{id}/members/{user_id}` | lead | `{reason?}` |
 | POST | `/api/v1/projects/{id}/leave` | project member | – |
 | GET | `/api/v1/projects/{id}/milestones` | member | Milestones |

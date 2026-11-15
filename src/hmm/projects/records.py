@@ -28,7 +28,12 @@ from hmm.platform.pagination import CursorParams, keyset_page
 from hmm.platform.settings import load_settings
 from hmm.projects import schemas
 from hmm.projects.lifecycle import resolve_project_areas
-from hmm.projects.views import CLOSED_PROJECT_STATUSES, project_response, project_views
+from hmm.projects.views import (
+    CLOSED_PROJECT_STATUSES,
+    POST_RESULT_TEAM_STATUSES,
+    project_response,
+    project_views,
+)
 from hmm.recommendations import service as recommendations
 from hmm.scores.restrictions import require_unrestricted
 
@@ -41,6 +46,10 @@ async def led_projects_count(session: AsyncSession, user_id: UUID) -> int:
             .where(
                 models.Project.lead_user_id == user_id,
                 models.Project.status.notin_(sorted(CLOSED_PROJECT_STATUSES)),
+                or_(
+                    models.Project.team_status.is_(None),
+                    models.Project.team_status.in_(sorted(POST_RESULT_TEAM_STATUSES)),
+                ),
             )
         )
         or 0

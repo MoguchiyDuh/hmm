@@ -184,7 +184,7 @@ async def test_admin_disband(harness: Harness) -> None:
         )
         assert again.status_code == 200, again.text
     stored = next(row for row in await teams(h, event) if row.id == team.id)
-    assert stored.team_status == "disbanded"
+    assert (stored.team_status, stored.status) == ("disbanded", "disbanded")
     for user in users:
         assert (await stored_member(h, team, user)).left_reason == "disbanded"
         assert (await enrollment_row(h, event, user)).status == "reserve"

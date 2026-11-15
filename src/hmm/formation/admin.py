@@ -4,7 +4,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.common import AuditAction, ErrorCode
+from hmm.common import AuditAction, ErrorCode, TeamStatus
 from hmm.formation import schemas
 from hmm.formation.common import (
     audit,
@@ -13,6 +13,7 @@ from hmm.formation.common import (
     locked_team,
     members,
     membership_row,
+    set_team_status,
     team_view,
 )
 from hmm.formation.teams import assign_lead, place_member, remove_member
@@ -140,7 +141,7 @@ async def admin_disband(
             "disbanded",
             actor,
         )
-    project.team_status = "disbanded"
+    set_team_status(project, TeamStatus.DISBANDED)
     project.lead_user_id = None
     await audit(
         session, project_id, now, "disbanded", actor, AuditAction.PROJECT_DISBAND, body.reason

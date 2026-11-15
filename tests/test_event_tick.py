@@ -94,7 +94,22 @@ async def test_tick_lapses_proposals(harness: Harness) -> None:
         assert (await enrollment_row(h, event, user)).status == "lapsed"
         assert len(await notices(h, user=user, kind="placement_lapsed")) == 1
     [stored] = await teams(h, event)
-    assert stored.team_status == "disbanded"
+    assert (stored.team_status, stored.status) == ("disbanded", "disbanded")
+
+
+async def test_date_change_with_teams_alerts_admins(harness: Harness) -> None:
+    h = harness
+    admin = await h.admin()
+    event, _, _ = await formed(h, admin)
+    async with await h.client(admin) as client:
+        for days in (1, 2):
+            response = await client.patch(
+                f"/api/v1/admin/events/{event.id}",
+                json={"starts_at": (event.starts_at + timedelta(days=days)).isoformat()},
+            )
+            assert response.status_code == 200, response.text
+    [alert] = await alerts(h, "event_dates_changed")
+    assert (alert.status, alert.severity, alert.subject_id) == ("open", "info", event.id)
 
 
 async def test_tick_refills_before_reg_deadline_only(harness: Harness) -> None:
@@ -198,10 +213,15 @@ async def test_tick_finalizes_at_start(harness: Harness) -> None:
         assert (await stored_member(h, team, user)).left_reason == "lapsed"
         assert (await enrollment_row(h, event, user)).status == "lapsed"
     stored = {row.id: row for row in await teams(h, event)}
-    assert stored[team.id].team_status == "active"
+    assert (stored[team.id].team_status, stored[team.id].status) == ("active", "active")
     assert stored[team.id].lead_user_id == users[0].id
     empty = next(row for row in stored.values() if row.id != team.id)
-    assert empty.team_status == "disbanded"
+    assert (empty.team_status, empty.status) == ("disbanded", "disbanded")
+    [changed] = await notices(h, user=users[0], kind="team_status_changed")
+    assert isinstance(changed.payload, dict)
+    assert (changed.payload["previous_status"], changed.payload["status"]) == ("formed", "active")
+    for user in users[1:]:
+        assert await notices(h, user=user, kind="team_status_changed") == []
     assert (await enrollment_row(h, event, late)).status == "expired"
 
 

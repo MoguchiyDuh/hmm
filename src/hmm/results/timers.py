@@ -13,6 +13,7 @@ from hmm.common import (
     ResultOutcome,
     TeamStatus,
 )
+from hmm.formation import common as formation_common
 from hmm.notifications.payloads import AlertKind, ResultDuePayload
 from hmm.notifications.service import notify, raise_alert, resolve_alerts
 from hmm.platform.audit import record_audit
@@ -171,8 +172,7 @@ async def auto_close_result_teams(
                 edited_at=None,
             )
         )
-        row.team_status = TeamStatus.WITHDRAWN.value
-        row.status = ProjectStatus.ABANDONED.value
+        formation_common.set_team_status(row, TeamStatus.WITHDRAWN, ProjectStatus.ABANDONED)
         await session.flush()
         for user_id in await team_member_ids(session, project.id):
             await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(user_id))

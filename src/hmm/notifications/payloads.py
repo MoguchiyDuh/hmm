@@ -82,7 +82,6 @@ class NotificationType(StrEnum):
     HELP_OFFER_ACCEPTED = "help_offer_accepted"
     HELP_OFFER_CLOSED = "help_offer_closed"
     HELP_REQUEST_EXPIRED = "help_request_expired"
-    MENTORSHIP_STARTED = "mentorship_started"
     MENTORSHIP_IDLE = "mentorship_idle"
     MENTORSHIP_STALLED = "mentorship_stalled"
     MENTORSHIP_CLOSE_PROPOSED = "mentorship_close_proposed"
@@ -199,7 +198,6 @@ ALLOWED_ACTIONS: dict[NotificationType, tuple[ActionKey, ...]] = {
     NotificationType.HELP_OFFER_ACCEPTED: (),
     NotificationType.HELP_OFFER_CLOSED: (),
     NotificationType.HELP_REQUEST_EXPIRED: (),
-    NotificationType.MENTORSHIP_STARTED: (),
     NotificationType.MENTORSHIP_IDLE: (),
     NotificationType.MENTORSHIP_STALLED: (),
     NotificationType.MENTORSHIP_CLOSE_PROPOSED: (),
@@ -651,11 +649,6 @@ class _MentorshipPayload(_Payload):
     kind: MentorshipKind
 
 
-class MentorshipStartedPayload(_MentorshipPayload):
-    type: Literal[NotificationType.MENTORSHIP_STARTED] = NotificationType.MENTORSHIP_STARTED
-    started_at: AwareDatetime
-
-
 class MentorshipIdlePayload(_MentorshipPayload):
     type: Literal[NotificationType.MENTORSHIP_IDLE] = NotificationType.MENTORSHIP_IDLE
     idle_days: int = Field(ge=0)
@@ -821,7 +814,6 @@ type NotificationPayload = Annotated[
     | HelpOfferAcceptedPayload
     | HelpOfferClosedPayload
     | HelpRequestExpiredPayload
-    | MentorshipStartedPayload
     | MentorshipIdlePayload
     | MentorshipStalledPayload
     | MentorshipCloseProposedPayload

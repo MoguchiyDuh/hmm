@@ -11,6 +11,7 @@ from hmm.admin.jobs import admin_digest, digest_period
 from hmm.common import AlertStatus
 from hmm.notifications.payloads import AdminDigestPayload, AlertKind, NotificationType
 from hmm.platform.jobs import JOBS, JobName
+from hmm.ticks import community_tick
 
 
 async def add_event(
@@ -83,10 +84,13 @@ async def test_admin_digest_counts_recipients_and_no_alerts(harness: Harness) ->
     member = await h.user()
     other = await h.user()
     async with h.db() as session:
-        session.add(
-            models.MemberReview(
-                user_id=member.id, status="pending", opened_at=h.now, discrepancies=[]
-            )
+        session.add_all(
+            [
+                models.MemberReview(
+                    user_id=user.id, status="pending", opened_at=opened_at, discrepancies=[]
+                )
+                for user, opened_at in ((member, h.now - timedelta(days=8)), (other, h.now))
+            ]
         )
         session.add_all(
             [flag(member, h.now - timedelta(days=8)), flag(other, h.now - timedelta(days=6))]
@@ -177,7 +181,7 @@ async def test_admin_digest_is_repeat_safe_per_period(harness: Harness) -> None:
         ]
 
 
-async def test_admin_digest_checks_parser_down(harness: Harness) -> None:
+async def test_community_tick_checks_parser_down(harness: Harness) -> None:
     h = harness
     admins = [await h.admin(), await h.admin()]
     last = h.now - timedelta(hours=27)
@@ -192,24 +196,16 @@ async def test_admin_digest_checks_parser_down(harness: Harness) -> None:
             )
         )
     for _ in range(2):
-        await admin_digest(h.runtime)
+        await community_tick(h.runtime)
     async with h.db() as session:
         alert = (await session.scalars(select(models.AdminAlert))).one()
         assert alert.type == AlertKind.PARSER_DOWN
         assert alert.status == AlertStatus.OPEN
         notifications = list(await session.scalars(select(models.Notification)))
-    by_type: dict[str, set[object]] = {}
-    for row in notifications:
-        by_type.setdefault(row.type, set()).add(row.user_id)
-    assert len(notifications) == 4
-    assert by_type == {
-        NotificationType.ADMIN_ALERT.value: {actor.id for actor in admins},
-        NotificationType.ADMIN_DIGEST.value: {actor.id for actor in admins},
+    assert {(row.type, row.user_id) for row in notifications} == {
+        (NotificationType.ADMIN_ALERT.value, actor.id) for actor in admins
     }
-    for row in notifications:
-        if row.type == NotificationType.ADMIN_DIGEST.value:
-            payload = AdminDigestPayload.model_validate(row.payload)
-            assert payload.open_alerts[AlertKind.PARSER_DOWN] == 1
+    assert len(notifications) == 2
 
 
 def test_admin_digest_registration() -> None:

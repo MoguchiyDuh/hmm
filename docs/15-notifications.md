@@ -19,10 +19,11 @@
 | `team_proposed` | placed member (with `accept_by`) | accept / decline |
 | `accept_reminder` | proposed member 6 h before `accept_by` | accept / decline |
 | `placement_lapsed` | removed silent member | enroll again |
-| `reserve_placed` | queue member placed by a refill (with `accept_by`) | accept / decline |
+| `reserve_placed` | queued members left in `reserve` by the formation run (§12.5) | – |
 | `team_member_joined`, `team_member_left` | lead / team | – |
 | `lead_assigned` | new lead, on every lead change (§12.7) | – |
-| `team_disbanded`, `team_status_changed` | team | – |
+| `team_disbanded` | team | – |
+| `team_status_changed` | team, when it becomes `active` at `starts_at` | – |
 | `event_changed`, `event_cancelled` | team members, queued members, `going` attendees | – |
 | `attendance_confirm_digest` | attendees after `ends_at`; member organizer/host | confirm attendees |
 | `project_invite_received` | invitee | accept / decline |
@@ -37,7 +38,6 @@
 | `help_offer_received` | learner | accept |
 | `help_offer_accepted`, `help_offer_closed` | offer author | – |
 | `help_request_expired` | learner | reopen |
-| `mentorship_started` | both sides | – |
 | `mentorship_idle`, `mentorship_stalled` | both sides | check in |
 | `mentorship_close_proposed` | learner | close with outcome |
 | `mentorship_closed` | mentor | acknowledge / endorse |
@@ -57,7 +57,7 @@ Defaults: every type is on for web and Telegram, except that `score_changed`, `t
 
 ## 15.2 Telegram delivery (bot pulls)
 
-- `notifications.service.lease_deliveries(now, limit)`: returns up to `limit` Telegram deliveries with `next_attempt_at ≤ now` and leases them for 60 s. Items: `{delivery_id, notification_id, telegram_chat_id, type, payload, created_at}`.
+- `notifications.service.lease_deliveries(now, limit)`: returns up to `limit` Telegram deliveries with `next_attempt_at ≤ now` and leases them for 60 s. A notification has at most one Telegram delivery, so `delivery_id` equals `notification_id`. Items: `{delivery_id, notification_id, telegram_chat_id, type, payload, created_at}`.
 - `notifications.service.acknowledge(now, [{delivery_id, status, external_id?, error?}])`:
 
 | `status` | Effect |

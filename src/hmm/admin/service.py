@@ -37,7 +37,6 @@ from hmm.common import (
     PlaceStatus,
 )
 from hmm.notifications.payloads import AlertKind
-from hmm.notifications.service import raise_alert, resolve_alerts
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName
@@ -293,28 +292,6 @@ async def update_setting(
         RuntimeSettings().model_dump(mode="json")[key.value],
         row,
     )
-
-
-async def check_parser_down(
-    session: AsyncSession, now: datetime, settings: RuntimeSettings
-) -> None:
-    last = await session.scalar(select(func.max(models.ParserHeartbeat.finished_at)))
-    if last is None:
-        return
-    if now - last > timedelta(hours=settings.parser_heartbeat_max_age_hours):
-        await raise_alert(
-            session,
-            AlertKind.PARSER_DOWN,
-            now,
-            title="Parser is down",
-            message=f"No parser heartbeat since {last.isoformat()}",
-            link="/admin/system",
-            subject_type="parser",
-            subject_title="Parser",
-            dedupe_key="parser_down",
-        )
-    else:
-        await resolve_alerts(session, "parser_down", now)
 
 
 async def system_status(session: AsyncSession) -> SystemStatus:

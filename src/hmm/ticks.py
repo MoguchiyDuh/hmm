@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.attendance.service import expire_going_attendances
+from hmm.catalog.parser import check_parser_down
 from hmm.feed.digests import send_pending_attendance_digests
 from hmm.formation.tick import tick_event
 from hmm.mentorship.requests import expire_help_requests
@@ -29,6 +30,7 @@ COMMUNITY_SWEEPS: tuple[Sweep, ...] = (
     lambda session, jobs, now: run_project_timers(session, now),
     lambda session, jobs, now: send_pending_attendance_digests(session, now),
     lambda session, jobs, now: expire_going_attendances(session, now),
+    lambda session, jobs, now: check_parser_down(session, now),
 )
 
 

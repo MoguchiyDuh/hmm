@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, select
 
 from hmm import models
-from hmm.admin.service import check_parser_down, dashboard
-from hmm.common import FlagStatus
+from hmm.admin.service import dashboard
+from hmm.common import FlagStatus, MemberReviewStatus
 from hmm.notifications.payloads import AdminDigestPayload
 from hmm.notifications.service import notify_many
 from hmm.platform.jobs import JobName, Runtime, job
@@ -24,8 +24,14 @@ async def admin_digest(runtime: Runtime) -> None:
         now = runtime.clock.now()
         start, end = digest_period(now)
         settings = await load_settings(session)
-        await check_parser_down(session, now, settings)
         counters = await dashboard(session, now)
+        stale_member_reviews = await session.scalar(
+            select(func.count(models.MemberReview.user_id)).where(
+                models.MemberReview.status == MemberReviewStatus.PENDING.value,
+                models.MemberReview.opened_at
+                < now - timedelta(days=settings.member_review_reminder_days),
+            )
+        )
         overdue_to_check_items = await session.scalar(
             select(func.count(models.Flag.id)).where(
                 models.Flag.status == FlagStatus.TO_CHECK.value,
@@ -36,7 +42,7 @@ async def admin_digest(runtime: Runtime) -> None:
             link="/admin/dashboard",
             period_starts_at=start,
             period_ends_at=end,
-            pending_member_reviews=counters.pending_member_reviews,
+            pending_member_reviews=stale_member_reviews or 0,
             overdue_to_check_items=overdue_to_check_items or 0,
             member_event_duplicates=counters.member_event_duplicates,
             results_to_verify=counters.results_to_verify,

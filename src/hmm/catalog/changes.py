@@ -202,7 +202,6 @@ async def cancel_event(
         .where(models.Invite.event_id == event_id, models.Invite.status == InviteStatus.PENDING)
         .values(status=InviteStatus.CLOSED.value, closed_reason="event_cancelled")
     )
-    await formation_common.cancel_formation(session, event, now)
     await notify_event_cancelled(session, event, recipients, reason, now)
     if team_ids:
         await raise_alert(
@@ -452,7 +451,7 @@ async def update_event(
         await formation_common.ensure_formation(session, event, now)
     await notify_field_changes(session, event, before_values, changes.keys() & NOTIFY_FIELDS, now)
     if changes.keys() & DATE_FIELDS:
-        await formation_common.dates_changed(session, event)
+        await formation_common.dates_changed(session, event, now)
 
     await recommendations.enqueue_event_refresh(session, jobs, event_id)
     await session.flush()

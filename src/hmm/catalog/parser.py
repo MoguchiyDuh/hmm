@@ -1,13 +1,16 @@
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.catalog.import_schema import ParserHeartbeat as ParserHeartbeatBody
 from hmm.catalog.import_schema import TrackedEvent, TrackedEventsResponse
 from hmm.common import EventStatus
+from hmm.notifications.payloads import AlertKind
+from hmm.notifications.service import raise_alert, resolve_alerts
 from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
+from hmm.platform.settings import load_settings
 
 
 async def tracked_events(
@@ -61,3 +64,24 @@ async def record_heartbeat(session: AsyncSession, body: ParserHeartbeatBody) -> 
         row.stats = body.stats.model_dump(mode="json")
         row.errors = list(body.errors)
     await session.flush()
+
+
+async def check_parser_down(session: AsyncSession, now: datetime) -> None:
+    settings = await load_settings(session)
+    last = await session.scalar(select(func.max(models.ParserHeartbeat.finished_at)))
+    if last is None:
+        return
+    if now - last > timedelta(hours=settings.parser_heartbeat_max_age_hours):
+        await raise_alert(
+            session,
+            AlertKind.PARSER_DOWN,
+            now,
+            title="Parser is down",
+            message=f"No parser heartbeat since {last.isoformat()}",
+            link="/admin/system",
+            subject_type="parser",
+            subject_title="Parser",
+            dedupe_key="parser_down",
+        )
+    else:
+        await resolve_alerts(session, "parser_down", now)

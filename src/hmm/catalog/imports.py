@@ -474,7 +474,7 @@ async def update_imported_event(
     changed = set(applied) | ({"areas"} if area_change else set())
     await notify_field_changes(session, event, before, changed & NOTIFY_FIELDS, now)
     if changed & DATE_FIELDS:
-        await formation_common.dates_changed(session, event)
+        await formation_common.dates_changed(session, event, now)
     if changed & TEAM_FIELDS:
         conflicts = await team_size_conflict_count(session, event)
         if conflicts:

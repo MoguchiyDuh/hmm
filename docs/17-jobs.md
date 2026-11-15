@@ -3,7 +3,7 @@
 ## 17.1 Rules
 
 - Every job is idempotent and retried with exponential backoff, at most 5 times, unless noted.
-- A job that exhausts its retries → admin alert `job_failing` (deduped per task name per hour).
+- A job that exhausts its retries → admin alert `job_failing` (deduped per task name per hour); the next successful run of that task resolves it.
 - Algo timeouts: `score_onboarding` 60 s, `compute_member` 60 s, `recommend` 60 s, `form_teams` 120 s, `match_mentors` 60 s, `scan_community` 600 s. A timeout counts as a failure and is retried.
 
 ## 17.2 Jobs
@@ -20,8 +20,8 @@
 | `run_formation(hackathon)` | §12.9, form now | `formation:<hid>` | Algo `form_teams` → validate → apply; `pack()` on failure (§12.5) |
 | `match_mentors(request)` | Help request opened | `mentor:<rid>` | Algo `match_mentors` → notify |
 | `scan_community` | Cron 02:00 | singleton | Algo `scan_community` → to-check flags |
-| `community_tick` | Every 15 min | singleton | Help request expiry; mentorship idle, stalled and close timers; project idle and pause; confirmation and review digests; attendance `going` expiry |
+| `community_tick` | Every 15 min | singleton | Help request expiry; mentorship idle, stalled and close timers; project idle and pause; attendance confirmation digests and `going` expiry; parser heartbeat check (§11.2) |
 | `event_tick` | Every 5 min | singleton | §12.9 per hackathon (formation due, `formation_soon`, accept reminder and lapse, refill, `reg_deadline`, `starts_at`, invite expiry), result auto-close (§13.1), review windows (§13.2), reminders |
-| `admin_digest` | Weekly, Monday 09:00 UTC | singleton | Pending member reviews, to-check items older than 7 days, member-event duplicates, results to verify, open alerts summary |
+| `admin_digest` | Weekly, Monday 09:00 UTC | singleton | Member reviews pending longer than `member_review_reminder_days`, to-check items older than 7 days, member-event duplicates, results to verify, open alerts summary |
 | `archive_old_events` | Nightly | singleton | §11.3 |
 | `cleanup` | Nightly | singleton | Expired sessions, link codes, old deliveries, `algo_cache` expiry |

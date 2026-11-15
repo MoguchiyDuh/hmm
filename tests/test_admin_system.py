@@ -6,13 +6,13 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.admin import service as admin
 from hmm.admin.schemas import JobStatus, SystemStatus
+from hmm.catalog import parser as catalog_parser
 from hmm.common import ActorKind, AlertStatus, AuditAction, AuditEntityType, ErrorCode
 from hmm.notifications.payloads import AdminAlertPayload, AlertKind, NotificationType
 from hmm.notifications.service import alert_contract
 from hmm.platform.jobs import JobName
-from hmm.platform.settings import RuntimeSettings
+from hmm.platform.settings import SettingKey, set_setting
 
 SYSTEM = "/api/v1/admin/system"
 
@@ -278,7 +278,7 @@ async def test_system_get_does_not_raise_or_resolve_parser_alerts(harness: Harne
         assert await session.scalar(select(func.count()).select_from(models.AdminAlert)) == 0
         assert await session.scalar(select(func.count()).select_from(models.Notification)) == 0
         assert await session.scalar(select(func.count()).select_from(models.AuditLog)) == 0
-        await admin.check_parser_down(session, h.now, RuntimeSettings())
+        await catalog_parser.check_parser_down(session, h.now)
         session.add(heartbeat("fresh", h.now - timedelta(minutes=1), h.now))
     await get_system(h, actor)
     async with h.db() as session:
@@ -299,7 +299,7 @@ async def test_parser_down_deduplicates_notifies_and_recovers(harness: Harness) 
         session.add(heartbeat("stale", last - timedelta(hours=1), last))
     for _ in range(2):
         async with h.db() as session:
-            await admin.check_parser_down(session, h.now, RuntimeSettings())
+            await catalog_parser.check_parser_down(session, h.now)
     async with h.db() as session:
         alert = (await session.scalars(select(models.AdminAlert))).one()
         assert alert.type == AlertKind.PARSER_DOWN
@@ -319,7 +319,7 @@ async def test_parser_down_deduplicates_notifies_and_recovers(harness: Harness) 
             assert AdminAlertPayload.model_validate(row.payload).alert == contract
         session.add(heartbeat("fresh", h.now - timedelta(minutes=1), h.now))
     async with h.db() as session:
-        await admin.check_parser_down(session, h.now, RuntimeSettings())
+        await catalog_parser.check_parser_down(session, h.now)
     async with h.db() as session:
         alert = (await session.scalars(select(models.AdminAlert))).one()
         assert alert.status == AlertStatus.RESOLVED
@@ -334,21 +334,21 @@ async def test_parser_down_uses_finished_heartbeat_and_configured_threshold(
     harness: Harness, age_hours: int | None
 ) -> None:
     h = harness
-    await h.admin()
+    actor = await h.admin()
     async with h.db() as session:
         if age_hours is not None:
             last = h.now - timedelta(hours=age_hours)
             session.add(heartbeat("finished", last - timedelta(hours=1), last))
         session.add(heartbeat("unfinished", h.now, None))
     async with h.db() as session:
-        await admin.check_parser_down(session, h.now, RuntimeSettings())
+        await catalog_parser.check_parser_down(session, h.now)
         assert await session.scalar(select(func.count()).select_from(models.AdminAlert)) == (
             1 if age_hours == 27 else 0
         )
     async with h.db() as session:
-        await admin.check_parser_down(
-            session, h.now, RuntimeSettings(parser_heartbeat_max_age_hours=28)
-        )
+        await set_setting(session, SettingKey.PARSER_HEARTBEAT_MAX_AGE_HOURS, 28, actor.id)
+    async with h.db() as session:
+        await catalog_parser.check_parser_down(session, h.now)
     async with h.db() as session:
         assert (
             await session.scalar(
@@ -360,7 +360,7 @@ async def test_parser_down_uses_finished_heartbeat_and_configured_threshold(
 
 async def test_parser_down_without_heartbeats(harness: Harness) -> None:
     async with harness.db() as session:
-        await admin.check_parser_down(session, harness.now, RuntimeSettings())
+        await catalog_parser.check_parser_down(session, harness.now)
         assert await session.scalar(select(func.count()).select_from(models.AdminAlert)) == 0
 
 

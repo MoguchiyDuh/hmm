@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
@@ -12,10 +12,13 @@ from hmm.common import (
     AuditEntityType,
     EnrollmentStatus,
     ErrorCode,
+    ProjectStatus,
     TeamStatus,
 )
 from hmm.formation import schemas
 from hmm.identity.service import require_eligible
+from hmm.notifications.payloads import AlertKind
+from hmm.notifications.service import raise_alert
 from hmm.platform.audit import record_audit
 from hmm.platform.db import locked
 from hmm.platform.errors import ProblemError
@@ -25,6 +28,19 @@ LIVE_ENROLLMENT_STATES = frozenset(
     {EnrollmentStatus.ACTIVE, EnrollmentStatus.PLACED, EnrollmentStatus.RESERVE}
 )
 CAPACITY_TEAM_STATES = frozenset({TeamStatus.FORMED})
+TEAM_PROJECT_STATUS = {
+    TeamStatus.FORMED: ProjectStatus.IDEA,
+    TeamStatus.ACTIVE: ProjectStatus.ACTIVE,
+    TeamStatus.DISBANDED: ProjectStatus.DISBANDED,
+    TeamStatus.CANCELLED: ProjectStatus.CANCELLED,
+}
+
+
+def set_team_status(
+    project: models.Project, team_status: TeamStatus, status: ProjectStatus | None = None
+) -> None:
+    project.team_status = team_status.value
+    project.status = (status or TEAM_PROJECT_STATUS[team_status]).value
 
 
 def formation_sizes(
@@ -128,7 +144,7 @@ async def ensure_formation(
     return row
 
 
-async def dates_changed(session: AsyncSession, event: models.Event) -> None:
+async def dates_changed(session: AsyncSession, event: models.Event, now: datetime) -> None:
     if not event.formation_enabled:
         return
     await locked_formation_event(session, event.id)
@@ -138,21 +154,27 @@ async def dates_changed(session: AsyncSession, event: models.Event) -> None:
             event, await load_settings(session), row.created_at, row.formation_at_override
         )
         await session.flush()
-
-
-async def cancel_formation(session: AsyncSession, event: models.Event, now: datetime) -> None:
-    if not event.formation_enabled:
-        return
-    await locked_formation_event(session, event.id)
-    for team in await session.scalars(
-        select(models.Project).where(
+    teams = await session.scalar(
+        select(func.count())
+        .select_from(models.Project)
+        .where(
             models.Project.event_id == event.id,
-            models.Project.team_status.in_(["formed", "active"]),
+            models.Project.team_status.in_([TeamStatus.FORMED, TeamStatus.ACTIVE]),
         )
-    ):
-        team.team_status = "cancelled"
-        await audit(session, team.id, now, "cancelled")
-    await session.flush()
+    )
+    if teams:
+        await raise_alert(
+            session,
+            AlertKind.EVENT_DATES_CHANGED,
+            now,
+            title=f"Event dates changed: {event.title}",
+            message=f"Dates changed while {teams} teams are formed or active",
+            link=f"/admin/events/{event.id}",
+            subject_type="event",
+            subject_id=event.id,
+            subject_title=event.title,
+            dedupe_key=f"event_dates_changed:{event.id}",
+        )
 
 
 async def live_enrollment_row(

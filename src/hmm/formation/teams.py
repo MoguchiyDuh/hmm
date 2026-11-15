@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.common import AuditAction, ErrorCode
+from hmm.common import AuditAction, ErrorCode, TeamStatus
 from hmm.formation import schemas
 from hmm.formation.common import (
     area_id,
@@ -21,6 +21,7 @@ from hmm.formation.common import (
     reg_deadline,
     require_lead,
     set_enrollment_status,
+    set_team_status,
     team_view,
 )
 from hmm.formation.queue import queue_user
@@ -29,6 +30,7 @@ from hmm.notifications.payloads import (
     PlacementLapsedPayload,
     TeamMemberJoinedPayload,
     TeamMemberLeftPayload,
+    TeamStatusChangedPayload,
 )
 from hmm.notifications.service import notify, notify_many, resolve_alerts
 from hmm.platform.errors import ProblemError
@@ -98,7 +100,7 @@ async def reassign_lead(
     ]
     if not rows:
         await assign_lead(session, project, event, None, now, actor)
-        project.team_status = "disbanded"
+        set_team_status(project, TeamStatus.DISBANDED)
         await audit(session, project.id, now, "disbanded", actor)
         await resolve_alerts(session, f"team_below_min:{project.id}", now)
         return None
@@ -376,8 +378,25 @@ async def finalize_event(session: AsyncSession, event: models.Event, now: dateti
         for row in await members(session, project.id):
             if row.state == "proposed":
                 await remove_member(session, project, event, row, now, "lapsed", "lapsed")
-        project.team_status = "active" if await members(session, project.id) else "disbanded"
+        remaining = [row.user_id for row in await members(session, project.id)]
+        set_team_status(project, TeamStatus.ACTIVE if remaining else TeamStatus.DISBANDED)
         await audit(session, project.id, now, str(project.team_status))
+        await notify_many(
+            session,
+            remaining,
+            TeamStatusChangedPayload(
+                link=f"/projects/{project.id}",
+                event_id=event.id,
+                event_title=event.title,
+                project_id=project.id,
+                team_name=project.name,
+                previous_status=TeamStatus.FORMED,
+                status=TeamStatus.ACTIVE,
+                reason="The event has started",
+            ),
+            now,
+            dedupe_key=f"team_status_changed:{project.id}:active",
+        )
     for row in await session.scalars(
         select(models.Enrollment).where(
             models.Enrollment.event_id == event.id,

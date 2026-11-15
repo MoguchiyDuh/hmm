@@ -26,6 +26,7 @@ from hmm.common import (
 )
 from hmm.feed import confirmations as feed_confirmations
 from hmm.feed import timeline as feed_timeline
+from hmm.formation import common as formation_common
 from hmm.notifications.service import resolve_alerts
 from hmm.platform.audit import record_audit
 from hmm.platform.db import get_or_404
@@ -169,11 +170,12 @@ async def apply_result_effects(
     now: datetime,
 ) -> None:
     if result.outcome == ResultOutcome.FINISHED.value:
-        project.team_status = TeamStatus.FINISHED.value
-        project.status = (
-            ProjectStatus.SHIPPED.value
+        formation_common.set_team_status(
+            project,
+            TeamStatus.FINISHED,
+            ProjectStatus.SHIPPED
             if result.repo_url or result.demo_url
-            else ProjectStatus.ABANDONED.value
+            else ProjectStatus.ABANDONED,
         )
         await session.flush()
         release = await ensure_result_release(session, project, event, result, actor_id=actor_id)
@@ -211,8 +213,7 @@ async def apply_result_effects(
                 now=now,
             )
     else:
-        project.team_status = TeamStatus.WITHDRAWN.value
-        project.status = ProjectStatus.ABANDONED.value
+        formation_common.set_team_status(project, TeamStatus.WITHDRAWN, ProjectStatus.ABANDONED)
     for user_id in await team_member_ids(session, project.id):
         await defer_job(session, jobs, JobName.RECOMPUTE_MEMBER, user_id=str(user_id))
 

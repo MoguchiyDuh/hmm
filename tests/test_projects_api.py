@@ -119,13 +119,17 @@ async def test_create_project_lead_limit(harness: Harness) -> None:
     h = harness
     await h.seed_areas()
     a = await h.user()
-    projects = [await seed_project(h, a, name=f"P{index}") for index in range(5)]
+    projects = [await seed_project(h, a, name=f"P{index}") for index in range(4)]
+    event = await make_hackathon(h)
+    await seed_project(h, a, event_id=event.id, team_status="active", name="Team")
     async with await h.client(a) as c:
+        assert (await c.post("/api/v1/projects", json=BODY)).status_code == 201
+
         assert_problem(
             await c.post("/api/v1/projects", json=BODY), 409, ErrorCode.PROJECTS_LED_LIMIT
         )
         async with h.db() as session:
-            assert await session.scalar(select(func.count()).select_from(models.Project)) == 5
+            assert await session.scalar(select(func.count()).select_from(models.Project)) == 6
             await session.execute(
                 update(models.Project)
                 .where(models.Project.id == projects[0].id)

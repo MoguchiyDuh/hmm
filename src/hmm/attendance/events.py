@@ -527,7 +527,7 @@ async def update_member_event(
         now,
     )
     if {"starts_at", "ends_at"} & changed.keys():
-        await formation_common.dates_changed(session, event)
+        await formation_common.dates_changed(session, event, now)
     await session.flush()
     await session.refresh(event)
     return event
