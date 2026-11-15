@@ -17,7 +17,7 @@ from hmm.parser.config import (
     parse_rate,
     source_from_table,
 )
-from hmm.parser.fetch import Fetcher, FetchError
+from hmm.parser.fetch import Fetcher, FetchError, crawl_delay
 from hmm.parser.normalize import guess_kind, money, summary_of, team_size
 from hmm.parser.pipeline import SourceRun, dedupe, relevant
 from hmm.parser.sources.devpost import listing_dates
@@ -28,7 +28,11 @@ from hmm.parser.sources.luma import to_markdown
 def fetcher(handler: Any, **kwargs: Any) -> tuple[Fetcher, httpx.AsyncClient]:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     return Fetcher(
-        client=client, resolve=kwargs.pop("resolve", public_resolve), sleep=no_sleep, **kwargs
+        client=client,
+        resolve=kwargs.pop("resolve", public_resolve),
+        sleep=no_sleep,
+        robots=kwargs.pop("robots", False),
+        **kwargs,
     ), client
 
 
@@ -128,7 +132,7 @@ async def test_fetch_spaces_requests_per_host() -> None:
         waits.append(delay)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200)))
-    target = Fetcher(client=client, resolve=public_resolve, sleep=sleep)
+    target = Fetcher(client=client, resolve=public_resolve, sleep=sleep, robots=False)
     async with client:
         for _ in range(3):
             await target.get("https://a.example/", spacing=10, request_timeout=5, max_bytes=10)
@@ -181,7 +185,7 @@ async def test_fetch_rate_key_spaces_across_hosts() -> None:
         waits.append(delay)
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(lambda _: httpx.Response(200)))
-    target = Fetcher(client=client, resolve=public_resolve, sleep=sleep)
+    target = Fetcher(client=client, resolve=public_resolve, sleep=sleep, robots=False)
     async with client:
         for host in ("a.devpost.example", "b.devpost.example"):
             await target.get(
@@ -192,6 +196,61 @@ async def test_fetch_rate_key_spaces_across_hosts() -> None:
                 rate_key="devpost.example",
             )
     assert len(waits) == 1
+
+
+ROBOTS = """
+User-agent: Googlebot
+Crawl-delay: 1
+
+User-agent: *
+Disallow: /admin
+Crawl-delay: 10 # be gentle
+
+User-agent: hmm-parser
+User-agent: other-bot
+Crawl-delay: 4
+"""
+
+
+@pytest.mark.parametrize(
+    "robots,agent,expected",
+    [
+        (ROBOTS, "hmm-parser/0.1 (+https://github.com/)", 4.0),
+        (ROBOTS, "curl/8.0", 10.0),
+        ("User-agent: *\nDisallow: /\n", "hmm-parser/0.1", 0.0),
+        ("User-agent: *\nCrawl-delay: soon\n", "hmm-parser/0.1", 0.0),
+        ("Crawl-delay: 5\n", "hmm-parser/0.1", 0.0),
+        ("", "hmm-parser/0.1", 0.0),
+    ],
+)
+def test_crawl_delay(robots: str, agent: str, expected: float) -> None:
+    assert crawl_delay(robots, agent) == expected
+
+
+async def test_fetch_uses_crawl_delay_as_minimum_spacing() -> None:
+    waits: list[float] = []
+    seen: list[str] = []
+
+    async def sleep(delay: float) -> None:
+        waits.append(delay)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        if request.url.path == "/robots.txt":
+            if request.url.host == "slow.example":
+                return httpx.Response(200, text="User-agent: *\nCrawl-delay: 500\n")
+            return httpx.Response(404)
+        return httpx.Response(200)
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    target = Fetcher(client=client, resolve=public_resolve, sleep=sleep)
+    async with client:
+        for host in ("slow.example", "slow.example", "fast.example", "fast.example"):
+            await target.get(f"https://{host}/", spacing=0, request_timeout=5, max_bytes=10)
+    assert seen.count("https://slow.example/robots.txt") == 1
+    assert seen.count("https://fast.example/robots.txt") == 1
+    assert len(waits) == 1
+    assert 59 < waits[0] <= 60
 
 
 @pytest.mark.parametrize(
@@ -341,7 +400,13 @@ def test_dedupe_merges_across_sources() -> None:
         inferred_fields=["timezone"],
     )
     other = item("dev:2", "DevFest Belgrade", start + timedelta(days=3), location={"country": "RS"})
-    same_source = item("gdg:2", "DevFest Belgrade", start, location={"country": "RS"})
+    same_source = item(
+        "gdg:2",
+        "DevFest Belgrade",
+        start,
+        ends_at=start + timedelta(hours=8),
+        location={"country": "RS"},
+    )
     items, merged = dedupe(
         [run_of("dev", 30, follower, other), run_of("gdg", 80, leader, same_source)]
     )
@@ -498,3 +563,21 @@ def test_guess_kind_prefers_a_trailing_kind_segment() -> None:
     assert hackathon == EventKind.HACKATHON
     assert guess_kind("GameJam Europe 2026", [], EventKind.MEETUP) == EventKind.CONTEST
     assert guess_kind("Rust Belgrade: Workshops", [], EventKind.MEETUP) == EventKind.WORKSHOP
+
+
+def test_dedupe_merges_exact_twins_within_a_source() -> None:
+    start = datetime(2027, 6, 1, 22, tzinfo=UTC)
+    place = {"country": "PL"}
+    later = item("dev:rmlc6jen", "Update Conference Krakow 2027", start, location=place)
+    first = item("dev:kswvb12b", "Update Conference Krakow 2027", start, location=place)
+    shifted = item(
+        "dev:other", "Update Conference Krakow 2027", start + timedelta(hours=1), location=place
+    )
+    part = item("dev:part", "Day One | Update Conference Krakow 2027", start, location=place)
+    items, merged = dedupe([run_of("dev", 30, later, first, shifted, part)])
+    assert merged == 1
+    assert sorted(entry.source.source_id for entry in items) == [
+        "dev:kswvb12b",
+        "dev:other",
+        "dev:part",
+    ]

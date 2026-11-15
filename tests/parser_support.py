@@ -38,6 +38,8 @@ class Router:
         self.requests: list[httpx.Request] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/robots.txt" and str(request.url) not in self.routes:
+            return httpx.Response(404)
         self.requests.append(request)
         url = str(request.url.copy_with(query=None))
         handler = self.routes.get(url)

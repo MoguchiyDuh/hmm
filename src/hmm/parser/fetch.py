@@ -14,6 +14,9 @@ import httpx
 USER_AGENT = "hmm-parser/0.1 (+https://github.com/)"
 MAX_REDIRECTS = 5
 RETRY_STATUSES = frozenset({429, 500, 502, 503, 504})
+ROBOTS_MAX_BYTES = 512 * 1024
+ROBOTS_TIMEOUT = 10.0
+MAX_CRAWL_DELAY = 60.0
 
 type Resolver = Callable[[str, int], Awaitable[list[str]]]
 type Sleeper = Callable[[float], Awaitable[None]]
@@ -62,9 +65,11 @@ class Fetcher:
     sleep: Sleeper = asyncio.sleep
     user_agent: str = USER_AGENT
     retries: int = 2
+    robots: bool = True
     requests: int = 0
     _next: dict[str, float] = field(default_factory=dict)
     _locks: dict[str, asyncio.Lock] = field(default_factory=dict)
+    _delays: dict[str, float] = field(default_factory=dict)
 
     async def get(
         self,
@@ -152,7 +157,8 @@ class Fetcher:
         follow = method == "GET"
         for _ in range(MAX_REDIRECTS + 1):
             await self._guard(current)
-            await self._wait(rate_key or urlsplit(current).hostname or "", spacing)
+            delay = await self.crawl_delay(current)
+            await self._wait(rate_key or urlsplit(current).hostname or "", max(spacing, delay))
             request = self.client.build_request(
                 method,
                 current,
@@ -197,6 +203,37 @@ class Fetcher:
         if not addresses or not all(ipaddress.ip_address(value).is_global for value in addresses):
             raise FetchError(url, "blocked non-public address")
 
+    async def crawl_delay(self, url: str) -> float:
+        if not self.robots:
+            return 0.0
+        parts = urlsplit(url)
+        origin = f"{parts.scheme}://{parts.netloc}"
+        if origin not in self._delays:
+            async with self._locks.setdefault(f"robots {origin}", asyncio.Lock()):
+                if origin not in self._delays:
+                    self._delays[origin] = await self._read_robots(origin)
+        return self._delays[origin]
+
+    async def _read_robots(self, origin: str) -> float:
+        url = f"{origin}/robots.txt"
+        try:
+            await self._guard(url)
+            request = self.client.build_request(
+                "GET", url, headers={"User-Agent": self.user_agent}, timeout=ROBOTS_TIMEOUT
+            )
+            self.requests += 1
+            response = await self.client.send(request, stream=True, follow_redirects=False)
+            try:
+                if response.status_code != 200:
+                    return 0.0
+                content = await read_capped(response, ROBOTS_MAX_BYTES, url)
+            finally:
+                await response.aclose()
+        except (FetchError, httpx.HTTPError):
+            return 0.0
+        found = crawl_delay(content.decode("utf-8", errors="replace"), self.user_agent)
+        return min(found, MAX_CRAWL_DELAY)
+
     async def _wait(self, host: str, spacing: float) -> None:
         lock = self._locks.setdefault(host, asyncio.Lock())
         async with lock:
@@ -219,6 +256,36 @@ async def read_capped(response: httpx.Response, max_bytes: int, url: str) -> byt
             raise FetchError(url, f"response larger than {max_bytes} bytes", response.status_code)
         chunks.append(chunk)
     return b"".join(chunks)
+
+
+def crawl_delay(robots: str, user_agent: str) -> float:
+    token = user_agent.split("/", 1)[0].strip().casefold()
+    groups: list[tuple[set[str], float | None]] = []
+    agents: set[str] = set()
+    delay: float | None = None
+    rules = False
+    for raw in robots.splitlines():
+        key, _, value = raw.split("#", 1)[0].partition(":")
+        key, value = key.strip().casefold(), value.strip()
+        if key == "user-agent":
+            if rules:
+                groups.append((agents, delay))
+                agents, delay, rules = set(), None, False
+            agents.add(value.casefold())
+        elif agents and key:
+            rules = True
+            if key == "crawl-delay":
+                try:
+                    delay = float(value)
+                except ValueError:
+                    continue
+    if agents:
+        groups.append((agents, delay))
+    for wanted in (lambda name: name != "*" and name in token, lambda name: name == "*"):
+        matched = [found for names, found in groups if any(wanted(name) for name in names)]
+        if matched:
+            return max((found for found in matched if found is not None and found > 0), default=0.0)
+    return 0.0
 
 
 def retry_after(headers: httpx.Headers) -> float | None:

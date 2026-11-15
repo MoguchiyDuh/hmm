@@ -2,7 +2,7 @@ import html
 import re
 import unicodedata
 from collections.abc import Iterable
-from datetime import UTC, date, datetime, time, timedelta
+from datetime import UTC, date, datetime, time
 from html.parser import HTMLParser
 from itertools import pairwise
 from typing import Any
@@ -537,7 +537,3 @@ def guess_kind(title: str, terms: Iterable[str], default: EventKind) -> EventKin
         if re.search(rf"(?<![a-zа-я]){re.escape(term)}", text):
             return kind
     return default
-
-
-def within(value: datetime, other: datetime, delta: timedelta) -> bool:
-    return abs(value - other) <= delta

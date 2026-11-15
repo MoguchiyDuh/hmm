@@ -203,10 +203,18 @@ def identities(item: EventImport) -> list[tuple[str, str | None]]:
     return [(title, country) for title in dict.fromkeys(titles) if title]
 
 
+def same_event(leader: EventImport, item: EventImport) -> bool:
+    if prefix(leader) != prefix(item):
+        return abs(leader.starts_at - item.starts_at) <= DEDUPE_WINDOW
+    return (leader.starts_at, leader.ends_at) == (item.starts_at, item.ends_at) and normalize_title(
+        leader.title
+    ) == normalize_title(item.title)
+
+
 def dedupe(runs: Iterable[SourceRun]) -> tuple[list[EventImport], int]:
     ranked = sorted(
         ((run.source.priority, item) for run in runs for item in run.items),
-        key=lambda pair: (-pair[0], -pair[1].confidence),
+        key=lambda pair: (-pair[0], -pair[1].confidence, pair[1].source.source_id),
     )
     leaders: list[EventImport] = []
     buckets: dict[tuple[str, str | None], list[int]] = {}
@@ -218,8 +226,7 @@ def dedupe(runs: Iterable[SourceRun]) -> tuple[list[EventImport], int]:
                 index
                 for key in keys
                 for index in buckets.get(key, [])
-                if prefix(leaders[index]) != prefix(item)
-                and abs(leaders[index].starts_at - item.starts_at) <= DEDUPE_WINDOW
+                if same_event(leaders[index], item)
             ),
             None,
         )

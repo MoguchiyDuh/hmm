@@ -158,7 +158,6 @@ class HackathonHub(Adapter[HackathonHubOptions]):
         site = self.options.site.rstrip("/")
         website = f"{site}/events/{slug}" if slug else None
         fields: dict[str, Any] = {
-            "status": "cancelled" if row.get("status") == "cancelled" else "announced",
             "kind": kind,
             "title": title,
             "summary": summary_of(description),
