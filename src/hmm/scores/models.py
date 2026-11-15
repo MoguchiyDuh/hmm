@@ -6,6 +6,7 @@ from pydantic import JsonValue
 from sqlalchemy import (
     ARRAY,
     CheckConstraint,
+    ColumnElement,
     Date,
     DateTime,
     ForeignKey,
@@ -13,6 +14,8 @@ from sqlalchemy import (
     Numeric,
     Text,
     Uuid,
+    and_,
+    or_,
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -245,3 +248,10 @@ class MemberRestriction(Mutable, Base):
         Uuid, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
     lifted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    @classmethod
+    def active(cls, now: datetime) -> ColumnElement[bool]:
+        return and_(cls.lifted_at.is_(None), or_(cls.until.is_(None), cls.until > now))
+
+    def is_active(self, now: datetime) -> bool:
+        return self.lifted_at is None and (self.until is None or self.until > now)

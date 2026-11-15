@@ -25,8 +25,7 @@ async def _mentor_areas(
         .where(
             models.MemberRestriction.user_id == viewer.id,
             models.MemberRestriction.kind == "mentoring",
-            models.MemberRestriction.lifted_at.is_(None),
-            or_(models.MemberRestriction.until.is_(None), models.MemberRestriction.until > now),
+            models.MemberRestriction.active(now),
         )
         .limit(1)
     )

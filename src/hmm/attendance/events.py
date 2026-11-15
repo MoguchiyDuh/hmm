@@ -7,7 +7,7 @@ from uuid import UUID
 
 import procrastinate
 from pydantic import JsonValue
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
@@ -338,8 +338,7 @@ async def create_member_event(
         .where(
             models.MemberRestriction.user_id == actor.id,
             models.MemberRestriction.kind == RestrictionKind.CREATING_EVENTS.value,
-            models.MemberRestriction.lifted_at.is_(None),
-            or_(models.MemberRestriction.until.is_(None), models.MemberRestriction.until > now),
+            models.MemberRestriction.active(now),
         )
         .limit(1)
     )

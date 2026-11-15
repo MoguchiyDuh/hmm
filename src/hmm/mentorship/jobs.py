@@ -107,8 +107,7 @@ async def match_mentors(runtime: Runtime, request_id: str) -> None:
         )
         restricted = select(models.MemberRestriction.user_id).where(
             models.MemberRestriction.kind == RestrictionKind.MENTORING.value,
-            models.MemberRestriction.lifted_at.is_(None),
-            or_(models.MemberRestriction.until.is_(None), models.MemberRestriction.until > now),
+            models.MemberRestriction.active(now),
         )
         statement = (
             select(models.User.id)

@@ -302,8 +302,7 @@ async def load_member_history(session: AsyncSession, user_id: UUID, now: datetim
     for row in await session.scalars(
         select(models.MemberRestriction).where(
             models.MemberRestriction.user_id.in_(confirmer_ids),
-            models.MemberRestriction.lifted_at.is_(None),
-            or_(models.MemberRestriction.until.is_(None), models.MemberRestriction.until > now),
+            models.MemberRestriction.active(now),
         )
     ):
         confirmer_restrictions[row.user_id].add(RestrictionKind(row.kind))

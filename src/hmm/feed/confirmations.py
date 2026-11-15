@@ -118,8 +118,7 @@ async def _ignore_reasons(
             .where(
                 models.MemberRestriction.user_id.in_(confirmer_ids),
                 models.MemberRestriction.kind == "confirming",
-                models.MemberRestriction.lifted_at.is_(None),
-                or_(models.MemberRestriction.until.is_(None), models.MemberRestriction.until > now),
+                models.MemberRestriction.active(now),
             )
             .distinct()
         )

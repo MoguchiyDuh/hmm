@@ -58,8 +58,7 @@ async def account_state(session: AsyncSession, actor: models.User, now: datetime
         await session.scalars(
             select(models.MemberRestriction.kind).where(
                 models.MemberRestriction.user_id == actor.id,
-                models.MemberRestriction.lifted_at.is_(None),
-                (models.MemberRestriction.until.is_(None)) | (models.MemberRestriction.until > now),
+                models.MemberRestriction.active(now),
             )
         )
     )

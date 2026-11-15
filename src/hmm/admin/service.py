@@ -97,8 +97,7 @@ async def dashboard(session: AsyncSession, now: datetime) -> AdminDashboard:
     )
     active_restrictions = await session.scalar(
         select(func.count(models.MemberRestriction.id)).where(
-            models.MemberRestriction.lifted_at.is_(None),
-            models.MemberRestriction.until.is_(None) | (models.MemberRestriction.until > now),
+            models.MemberRestriction.active(now),
         )
     )
     phase_counts = dict(

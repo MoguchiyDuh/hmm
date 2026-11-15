@@ -246,11 +246,7 @@ async def _load_accounts(
     result = await session.execute(
         select(models.MemberRestriction.user_id, models.MemberRestriction.kind).where(
             models.MemberRestriction.user_id.in_(ids),
-            models.MemberRestriction.lifted_at.is_(None),
-            or_(
-                models.MemberRestriction.until.is_(None),
-                models.MemberRestriction.until > now,
-            ),
+            models.MemberRestriction.active(now),
         )
     )
     for user_id, kind in result:

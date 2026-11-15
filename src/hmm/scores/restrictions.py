@@ -2,7 +2,7 @@ from datetime import datetime
 from uuid import UUID
 
 import procrastinate
-from sqlalchemy import ColumnElement, and_, or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
@@ -23,23 +23,12 @@ from hmm.scores import schemas
 from hmm.scores.schemas import RestrictionAction
 
 
-def _active_predicate(now: datetime) -> ColumnElement[bool]:
-    return and_(
-        models.MemberRestriction.lifted_at.is_(None),
-        or_(models.MemberRestriction.until.is_(None), models.MemberRestriction.until > now),
-    )
-
-
-def _is_active(row: models.MemberRestriction, now: datetime) -> bool:
-    return row.lifted_at is None and (row.until is None or row.until > now)
-
-
 async def active_restrictions(
     session: AsyncSession, user_id: UUID, now: datetime
 ) -> set[RestrictionKind]:
     values = await session.scalars(
         select(models.MemberRestriction.kind).where(
-            models.MemberRestriction.user_id == user_id, _active_predicate(now)
+            models.MemberRestriction.user_id == user_id, models.MemberRestriction.active(now)
         )
     )
     return {RestrictionKind(value) for value in values}
@@ -148,7 +137,7 @@ async def list_restrictions(
     if user_id is not None:
         query = query.where(models.MemberRestriction.user_id == user_id)
     if active is True:
-        query = query.where(_active_predicate(now))
+        query = query.where(models.MemberRestriction.active(now))
     elif active is False:
         query = query.where(
             or_(
@@ -176,5 +165,5 @@ def restriction_view(row: models.MemberRestriction, now: datetime) -> schemas.Re
         created_by=row.created_by,
         lifted_at=row.lifted_at,
         created_at=row.created_at,
-        allowed_actions=[RestrictionAction.LIFT] if _is_active(row, now) else [],
+        allowed_actions=[RestrictionAction.LIFT] if row.is_active(now) else [],
     )
