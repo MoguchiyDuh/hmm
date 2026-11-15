@@ -13,6 +13,7 @@ class EventOp(StrEnum):
     ENROLL = "enroll"
     WITHDRAW = "withdraw"
     PARTY = "party"
+    LIST = "list"
 
 
 class ActionCallback(CallbackData, prefix="a"):
@@ -45,3 +46,22 @@ class OutcomeCallback(CallbackData, prefix="o"):
 class ConfirmCallback(CallbackData, prefix="c"):
     fact_type: ConfirmationFactType
     fact_id: UUID
+
+
+class MenuItem(StrEnum):
+    EVENTS = "events"
+    TEAM = "team"
+    MENTORSHIPS = "mentorships"
+    PROFILE = "profile"
+
+
+class MenuCallback(CallbackData, prefix="m"):
+    item: MenuItem
+
+
+class AskAreaCallback(CallbackData, prefix="aa"):
+    area_key: str
+
+
+class CancelCallback(CallbackData, prefix="x"):
+    pass

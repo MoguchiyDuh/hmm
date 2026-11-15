@@ -1,7 +1,9 @@
 import re
+from datetime import timedelta
 from html.parser import HTMLParser
 from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 from aiogram.types import InlineKeyboardButton
@@ -15,13 +17,14 @@ from hmm.bot.callbacks import (
     HelpCallback,
 )
 from hmm.bot.delivery import Throttle
-from hmm.bot.templates import API_LABELS, TEMPLATES, render
+from hmm.bot.templates import API_LABELS, FALLBACK_TEXT, SILENT, TEMPLATES, render
 from hmm.notifications.payloads import (
     ApiAction,
     EventCancelledPayload,
     Notification,
     NotificationPayload,
     NotificationType,
+    PartyInvitePayload,
 )
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures/notifications"
@@ -102,7 +105,7 @@ def test_fixture_renders(path: Path) -> None:
     ]
     urls = [button.url for button in buttons(rendered) if button.url]
     assert all(url.startswith(PUBLIC_URL) for url in urls)
-    assert f"{PUBLIC_URL}{payload.link}" in urls
+    assert "Open in hmm" not in rendered.text
 
 
 @pytest.mark.parametrize("path", sorted(FIXTURES.glob("*.json")), ids=lambda path: path.stem)
@@ -111,7 +114,7 @@ def test_local_public_url_moves_links_into_text(path: Path) -> None:
     local = "http://localhost:8000"
     rendered = render(payload, local)
     assert all(button.url is None for button in buttons(rendered))
-    assert f'<a href="{local}{payload.link}">' in rendered.text
+    assert f'<a href="{local}' not in rendered.text
     assert_html(rendered.text)
 
 
@@ -141,8 +144,8 @@ def test_unknown_type_falls_back(monkeypatch: pytest.MonkeyPatch) -> None:
     )
     monkeypatch.delitem(TEMPLATES, NotificationType.EVENT_CANCELLED)
     rendered = render(payload, PUBLIC_URL)
-    assert rendered.text == "🔔 You have a new notification."
-    assert [button.url for button in buttons(rendered)] == [f"{PUBLIC_URL}/events"]
+    assert rendered.text == FALLBACK_TEXT
+    assert rendered.markup is None
 
 
 def test_user_text_is_escaped() -> None:
@@ -156,6 +159,30 @@ def test_user_text_is_escaped() -> None:
     assert "&lt;b&gt;Hack&lt;/b&gt; &amp; &lt;script&gt;" in rendered.text
     assert "a &lt; b &gt; c" in rendered.text
     assert_html(rendered.text)
+
+
+def test_subject_links_inline_only_on_https() -> None:
+    payload = EventCancelledPayload(
+        link="/events/1", event_id=uuid4(), event_title="Hack", reason="Venue closed"
+    )
+    assert '<a href="https://hmm.test/events/1"><b>Hack</b></a>' in render(payload, PUBLIC_URL).text
+    assert render(payload, "http://localhost:8000").text.startswith("❌ <b>Hack</b>")
+
+
+def test_times_use_user_timezone_and_relative_hint() -> None:
+    payload = fixture(FIXTURES / "party_invite.json")
+    assert isinstance(payload, PartyInvitePayload)
+    now = payload.expires_at - timedelta(days=3, hours=1)
+    text = render(payload, PUBLIC_URL, now=now, timezone="Asia/Tokyo").text
+    local = payload.expires_at.astimezone(ZoneInfo("Asia/Tokyo"))
+    assert f"{local:%a %d %b %H:%M} JST (in 3 days)" in text
+    assert "(in " not in render(payload, PUBLIC_URL).text
+
+
+def test_quiet_types_are_silent() -> None:
+    for path in sorted(FIXTURES.glob("*.json")):
+        payload = fixture(path)
+        assert render(payload, PUBLIC_URL).silent is (payload.type in SILENT)
 
 
 async def test_throttle_spaces_sends() -> None:

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID
 
@@ -10,22 +11,46 @@ from hmm.attendance import events as attendance_events
 from hmm.attendance.schemas import SetAttendanceBody
 from hmm.bot.callbacks import (
     ActionCallback,
+    AskAreaCallback,
+    CancelCallback,
     CheckinCallback,
     CloseCallback,
     ConfirmCallback,
     EventCallback,
     EventOp,
     HelpCallback,
+    MenuCallback,
+    MenuItem,
     OutcomeCallback,
 )
-from hmm.bot.fmt import bold, clip, day, esc, humanize, italic, lines, link, plural, quote, when
+from hmm.bot.fmt import (
+    View,
+    bold,
+    clip,
+    day,
+    esc,
+    headcount,
+    humanize,
+    italic,
+    lines,
+    plural,
+    quote,
+    span,
+    subject,
+    viewing,
+    web_url,
+    when,
+)
 from hmm.bot.runtime import LINK_PATH, BotRuntime, Reply
 from hmm.catalog import views as catalog_views
 from hmm.common import (
     AttendanceStatus,
     ConfirmationFactType,
+    EnrollmentStatus,
     ErrorCode,
+    EventFormat,
     EventPhase,
+    FormationPhase,
     HelpRequestFormat,
     HelpRequestStatus,
     MemberState,
@@ -37,7 +62,7 @@ from hmm.feed import confirmations as feed_confirmations
 from hmm.feed import history as feed_history
 from hmm.formation import parties as formation_parties
 from hmm.formation import queue as formation_queue
-from hmm.formation.schemas import CreateEnrollmentBody
+from hmm.formation.schemas import CreateEnrollmentBody, Formation
 from hmm.identity import service as identity
 from hmm.mentorship import help_offers, mentor_offers
 from hmm.mentorship import mentorships as mentorship_mentorships
@@ -61,28 +86,40 @@ from hmm.projects import records as project_records
 from hmm.scores import service as scores
 from hmm.scores.snapshot import member_metrics
 
-COMMANDS: tuple[tuple[str, str, str], ...] = (
-    ("events", "", "hackathons with open registration"),
-    ("event", " <id>", "event card"),
-    ("enroll", " <id>", "join the team formation queue"),
-    ("team", "", "your teams and pending placements"),
-    ("invites", "", "pending invites"),
-    ("me", "", "your profile"),
-    ("ask", " <area> <topic>", "ask for help"),
-    ("requests", "", "help requests you could take"),
-    ("mentorships", "", "your mentorships"),
-    ("confirm", "", "confirm people you worked with"),
-    ("dnd", " [off|<days>]", "do not disturb"),
-    ("settings", "", "notification settings"),
-    ("unlink", "", "disconnect this Telegram account"),
-    ("cancel", "", "stop the current question"),
-    ("help", "", "this list"),
+
+@dataclass(frozen=True, slots=True)
+class Command:
+    name: str
+    args: str
+    text: str
+    listed: bool = True
+
+
+COMMANDS: tuple[Command, ...] = (
+    Command("events", "", "hackathons with open registration"),
+    Command("team", "", "your teams and pending placements"),
+    Command("invites", "", "pending invites"),
+    Command("profile", "", "your profile"),
+    Command("ask", "", "ask for help"),
+    Command("requests", "", "help requests you could take"),
+    Command("mentorships", "", "your mentorships"),
+    Command("confirm", "", "confirm people you worked with"),
+    Command("dnd", " [off|<days>]", "do not disturb"),
+    Command("settings", "", "notification settings"),
+    Command("unlink", "", "disconnect this Telegram account"),
+    Command("help", "", "this list"),
+    Command("event", " <slug>", "event card", listed=False),
+    Command("enroll", " <slug>", "join the team formation queue", listed=False),
 )
+
+MENU_COMMANDS = tuple(command for command in COMMANDS if command.listed)
 
 HELP_TEXT = lines(
     bold("hmm bot"),
-    *(f"/{name}{esc(args)} — {esc(text)}" for name, args, text in COMMANDS),
+    *(f"/{command.name}{esc(command.args)} — {esc(command.text)}" for command in MENU_COMMANDS),
 )
+
+UNKNOWN_TEXT = "Didn't get that. Send /help to see what I can do."
 
 ACTION_DONE: dict[ActionKey, str] = {
     ActionKey.INVITE_ACCEPT: "✅ Invite accepted.",
@@ -104,37 +141,84 @@ OUTCOME_LABELS: dict[MentorshipOutcome, str] = {
     MentorshipOutcome.NOT_REACHED: "Not reached",
 }
 
+ENROLLMENT_LABELS: dict[EnrollmentStatus, str] = {
+    EnrollmentStatus.ACTIVE: "✅ You're in the queue.",
+    EnrollmentStatus.PLACED: "✅ You're placed on a team.",
+    EnrollmentStatus.RESERVE: "You're in the reserve.",
+}
+
+FORMAT_LABELS: dict[EventFormat, str] = {
+    EventFormat.ONLINE: "online",
+    EventFormat.OFFLINE: "in person",
+    EventFormat.HYBRID: "hybrid",
+}
+
+MENU_LABELS: dict[MenuItem, str] = {
+    MenuItem.EVENTS: "📅 Events",
+    MenuItem.TEAM: "👥 My teams",
+    MenuItem.MENTORSHIPS: "🤝 Mentorships",
+    MenuItem.PROFILE: "👤 Profile",
+}
+
 CURRENT_TEAM_STATUSES = frozenset({TeamStatus.FORMED, TeamStatus.ACTIVE})
 LIVE_MENTORSHIP_STATUSES = frozenset(
     {MentorshipStatus.ACTIVE, MentorshipStatus.STALLED, MentorshipStatus.CLOSING}
 )
 LIST_LIMIT = 10
 DND_MAX_DAYS = 365
+BUTTON_TITLE = 40
+AREA_COLUMNS = 2
 
 
 def button(text: str, data: str) -> InlineKeyboardButton:
     return InlineKeyboardButton(text=text, callback_data=data)
 
 
-def with_web(
-    runtime: BotRuntime,
-    text: str,
-    rows: list[list[InlineKeyboardButton]],
-    path: str,
-    label: str = "Open in hmm",
-) -> Reply:
-    url = runtime.url(path)
-    if url.startswith("https://"):
+def numbered(index: int, total: int, label: str) -> str:
+    return f"{index} · {label}" if total > 1 else label
+
+
+def marker(index: int, total: int) -> str:
+    return f"{index}." if total > 1 else "•"
+
+
+def keyboard(rows: list[list[InlineKeyboardButton]]) -> InlineKeyboardMarkup | None:
+    rows = [row for row in rows if row]
+    return InlineKeyboardMarkup(inline_keyboard=rows) if rows else None
+
+
+def with_web(text: str, rows: list[list[InlineKeyboardButton]], path: str, label: str) -> Reply:
+    url = web_url(path)
+    if url is not None:
         rows = [*rows, [InlineKeyboardButton(text=label, url=url)]]
-    else:
-        text = f"{text}\n\n{link(url, label)}"
-    return Reply(text, InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+    return Reply(text, keyboard(rows))
+
+
+def cancel_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(inline_keyboard=[[button("Cancel", CancelCallback().pack())]])
+
+
+def prompt(text: str) -> Reply:
+    return Reply(text, cancel_markup())
+
+
+def menu_markup() -> InlineKeyboardMarkup:
+    items = list(MENU_LABELS.items())
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                button(label, MenuCallback(item=item).pack())
+                for item, label in items[start : start + 2]
+            ]
+            for start in range(0, len(items), 2)
+        ]
+    )
 
 
 def usage(command: str) -> Reply:
-    for name, args, text in COMMANDS:
-        if name == command:
-            return Reply(f"Usage: /{name}{esc(args)} — {esc(text)}")
+    for item in COMMANDS:
+        if item.name == command:
+            return Reply(f"Usage: /{item.name}{esc(item.args)} — {esc(item.text)}")
     raise KeyError(command)
 
 
@@ -175,26 +259,40 @@ async def link_account(
     return Reply(
         lines(
             f"✅ Linked to {bold(actor.display_name)}.",
-            "Notifications will arrive here. Send /help for commands.",
+            "Notifications will arrive here. Where to start:",
+        ),
+        menu_markup(),
+    )
+
+
+async def linked_name(session: AsyncSession, telegram_user_id: int) -> str | None:
+    return await session.scalar(
+        select(models.User.display_name)
+        .join(models.TelegramLink, models.TelegramLink.user_id == models.User.id)
+        .where(models.TelegramLink.telegram_user_id == telegram_user_id)
+    )
+
+
+def link_instructions(runtime: BotRuntime) -> Reply:
+    return Reply(
+        lines(
+            "👋 This is the hmm bot.",
+            f"To link your account, open {esc(runtime.url(LINK_PATH))} and tap “Link Telegram”.",
         )
     )
 
 
 async def greet(runtime: BotRuntime, session: AsyncSession, telegram_user_id: int) -> Reply:
-    linked = await session.scalar(
-        select(models.User.display_name)
-        .join(models.TelegramLink, models.TelegramLink.user_id == models.User.id)
-        .where(models.TelegramLink.telegram_user_id == telegram_user_id)
-    )
-    if linked is None:
-        return Reply(
-            lines(
-                "👋 This is the hmm bot.",
-                f"To link your account, open {link(runtime.url(LINK_PATH), 'hmm settings')} "
-                "and tap “Link Telegram”.",
-            )
-        )
-    return Reply(lines(f"👋 Hi, {bold(linked)}.", "", HELP_TEXT))
+    name = await linked_name(session, telegram_user_id)
+    if name is None:
+        return link_instructions(runtime)
+    return Reply(f"👋 Hi, {bold(name)}. What do you need?", menu_markup())
+
+
+async def unknown(runtime: BotRuntime, session: AsyncSession, telegram_user_id: int) -> Reply:
+    if await linked_name(session, telegram_user_id) is None:
+        return link_instructions(runtime)
+    return Reply(UNKNOWN_TEXT)
 
 
 async def unlink(session: AsyncSession, telegram_user_id: int) -> Reply:
@@ -203,13 +301,13 @@ async def unlink(session: AsyncSession, telegram_user_id: int) -> Reply:
 
 
 def settings_reply(runtime: BotRuntime) -> Reply:
-    return with_web(
-        runtime,
-        "Choose which notifications reach Telegram in your hmm settings.",
-        [],
-        "/settings#notifications",
-        "Notification settings",
-    )
+    with viewing(View(public_url=runtime.config.public_url)):
+        return with_web(
+            "Choose which notifications reach Telegram in your hmm settings.",
+            [],
+            "/settings#notifications",
+            "Notification settings",
+        )
 
 
 async def events(
@@ -225,31 +323,51 @@ async def events(
     if not page.items:
         return Reply("No events have open registration right now.")
     parts: list[str] = [bold("Open registration")]
-    rows: list[list[InlineKeyboardButton]] = []
-    for index, event in enumerate(page.items, 1):
-        deadline = (
-            f", register by {when(event.registration_deadline, event.timezone)}"
-            if event.registration_deadline
-            else ""
-        )
+    for event in page.items:
         parts.append(
             lines(
-                f"{index}. {bold(event.title)} · {esc(humanize(event.kind))}",
-                f"{day(event.starts_at, event.timezone)} to "
-                f"{day(event.ends_at, event.timezone)}{deadline}",
+                f"• {subject(event.title, f'/events/{event.id}')} · {esc(humanize(event.kind))}",
+                f"  {span(event.starts_at, event.ends_at, event.timezone)}",
+                f"  Register by {when(event.registration_deadline, event.timezone)}"
+                if event.registration_deadline
+                else None,
             )
         )
-        row = [
-            button(f"{index} · {label}", EventCallback(op=op, event_id=event.id).pack())
-            for action, op, label in (
-                (None, EventOp.SHOW, "Details"),
-                (EventAction.GOING, EventOp.GOING, "Going"),
-                (EventAction.ENROLL, EventOp.ENROLL, "Enroll"),
+    rows = [
+        [
+            button(
+                clip(event.title, BUTTON_TITLE),
+                EventCallback(op=EventOp.SHOW, event_id=event.id).pack(),
             )
-            if action is None or action in event.allowed_actions
         ]
-        rows.append(row)
-    return with_web(runtime, "\n\n".join(parts), rows, "/events", "All events")
+        for event in page.items
+    ]
+    return Reply("\n\n".join(parts), keyboard(rows))
+
+
+def formation_lines(formation: Formation | None, timezone: str) -> list[str | None]:
+    if formation is None:
+        return []
+    projected = len(formation.projection.new_teams) + len(formation.projection.fills)
+    queued = formation.counts.get("queued", 0)
+    match formation.phase:
+        case FormationPhase.OPEN:
+            timing = f"Teams form {when(formation.formation_at, timezone)}."
+        case FormationPhase.FORMING:
+            timing = "Teams are being formed now."
+        case _:
+            timing = "Teams are formed."
+    status = formation.my_enrollment.status if formation.my_enrollment else None
+    return [
+        timing,
+        f"{headcount(queued)} in the queue, about {plural(projected, 'team')} so far."
+        if queued and formation.phase == FormationPhase.OPEN
+        else None,
+        ENROLLMENT_LABELS.get(status) if status else None,
+        f"Your team: {subject(formation.my_team.name, f'/projects/{formation.my_team.id}')}"
+        if formation.my_team
+        else None,
+    ]
 
 
 async def event_card(
@@ -258,54 +376,48 @@ async def event_card(
     actor: models.User,
     now: datetime,
     event_id: UUID,
+    notice: str | None = None,
 ) -> Reply:
     event = await catalog_views.visible_event(session, event_id, actor)
     detail = await catalog_views.event_detail(session, event, actor, now)
     tz = detail.timezone
-    team_size = (
-        f"Teams of {detail.team_size_min} to {detail.team_size_max}"
+    facts = [
+        FORMAT_LABELS[detail.format] if detail.format else None,
+        f"teams of {detail.team_size_min} to {detail.team_size_max}"
         if detail.team_size_min and detail.team_size_max
-        else None
+        else None,
+        f"{detail.attendance_counts.going} going" if detail.attendance_counts.going else None,
+    ]
+    going = (
+        detail.my_attendance is not None and detail.my_attendance.status == AttendanceStatus.GOING
     )
-    parts: list[str | None] = [
-        f"{bold(detail.title)} · {esc(humanize(detail.kind))}",
-        f"{when(detail.starts_at, tz)} to {when(detail.ends_at, tz)}",
+    text = lines(
+        f"{notice}\n" if notice else None,
+        f"{subject(detail.title, f'/events/{detail.id}')} · {esc(humanize(detail.kind))}",
+        span(detail.starts_at, detail.ends_at, tz),
         f"Register by {when(detail.registration_deadline, tz)}"
         if detail.registration_deadline
         else None,
-        esc(humanize(detail.format)) if detail.format else None,
-        team_size,
+        esc(" · ".join(fact for fact in facts if fact)) or None,
         quote(detail.summary, 300),
-        f"Going: {detail.attendance_counts.going}",
-    ]
-    formation = detail.formation
-    if formation is not None:
-        projection = formation.projection
-        parts.extend(
-            [
-                f"Formation: {bold(humanize(formation.phase))}, "
-                f"teams form {when(formation.formation_at, tz)}",
-                f"Live projection: {plural(len(projection.new_teams), 'new team')}, "
-                f"{plural(len(projection.fills), 'refilled team')}, "
-                f"{plural(len(projection.queue), 'unit')} in the queue",
-                f"Your enrollment: {bold(humanize(formation.my_enrollment.status))}"
-                if formation.my_enrollment
-                else None,
-                f"Your team: {bold(formation.my_team.name)}" if formation.my_team else None,
-            ]
-        )
+        "✅ You're going." if going else None,
+        *formation_lines(detail.formation, tz),
+    )
     ops = [
-        (EventAction.GOING, EventOp.GOING, "Going"),
-        (EventAction.ENROLL, EventOp.ENROLL, "Enroll"),
-        (EventAction.WITHDRAW, EventOp.WITHDRAW, "Withdraw"),
+        (EventAction.GOING, EventOp.GOING, "I'm going"),
+        (EventAction.ENROLL, EventOp.ENROLL, "Find me a team"),
         (EventAction.CREATE_PARTY, EventOp.PARTY, "Start a party"),
+        (EventAction.WITHDRAW, EventOp.WITHDRAW, "Leave the queue"),
     ]
-    row = [
+    actions = [
         button(label, EventCallback(op=op, event_id=detail.id).pack())
         for action, op, label in ops
-        if action in detail.allowed_actions
+        if action in detail.allowed_actions and not (op == EventOp.GOING and going)
     ]
-    return with_web(runtime, lines(*parts), [row] if row else [], f"/events/{detail.id}")
+    rows = [actions[start : start + 2] for start in range(0, len(actions), 2)]
+    back = EventCallback(op=EventOp.LIST, event_id=detail.id).pack()
+    rows.append([button("⬅️ All events", back)])
+    return Reply(text, keyboard(rows))
 
 
 async def event_op(
@@ -316,11 +428,11 @@ async def event_op(
     op: EventOp,
     event_id: UUID,
 ) -> Reply:
-    if op == EventOp.SHOW:
-        return await event_card(runtime, session, actor, now, event_id)
-    event = await catalog_views.visible_event(session, event_id, actor)
-    title = bold(event.title)
     match op:
+        case EventOp.LIST:
+            return await events(runtime, session, actor, now)
+        case EventOp.SHOW:
+            return await event_card(runtime, session, actor, now, event_id)
         case EventOp.GOING:
             await attendance_events.set_attendance(
                 session,
@@ -330,21 +442,24 @@ async def event_op(
                 actor,
                 now,
             )
-            return Reply(f"✅ You're going to {title}.")
+            notice = "✅ Marked as going."
         case EventOp.ENROLL:
-            return await enroll(session, actor, now, event_id)
+            await formation_queue.enroll(session, event_id, CreateEnrollmentBody(), actor, now)
+            notice = "✅ You're in the queue. I'll message you when teams form."
         case EventOp.WITHDRAW:
             await formation_queue.withdraw_enrollment(session, event_id, actor, now)
-            return Reply(f"You left the formation queue for {title}.")
+            notice = "You left the queue."
         case EventOp.PARTY:
             await formation_parties.create_party(session, event_id, actor, now)
-            return with_web(
-                runtime,
-                f"✅ Party created for {title}. Invite teammates on the web.",
-                [],
-                f"/events/{event_id}",
-            )
-    raise AssertionError(op)
+            notice = "✅ Party created. Invite teammates on the web."
+    card = await event_card(runtime, session, actor, now, event_id, notice)
+    if op != EventOp.PARTY:
+        return card
+    url = web_url(f"/events/{event_id}")
+    if url is None or card.markup is None:
+        return card
+    rows = [[InlineKeyboardButton(text="Invite teammates", url=url)], *card.markup.inline_keyboard]
+    return Reply(card.text, InlineKeyboardMarkup(inline_keyboard=rows))
 
 
 async def enroll(session: AsyncSession, actor: models.User, now: datetime, event_id: UUID) -> Reply:
@@ -353,11 +468,11 @@ async def enroll(session: AsyncSession, actor: models.User, now: datetime, event
     formation_at = await session.scalar(
         select(models.EventFormation.formation_at).where(models.EventFormation.event_id == event_id)
     )
-    title = bold(event.title) if event else "the event"
+    title = subject(event.title, f"/events/{event_id}") if event else "the event"
     timezone = event.timezone if event else None
     return Reply(
         lines(
-            f"✅ Enrolled in {title}.",
+            f"✅ You're in the queue for {title}.",
             f"Teams form {when(formation_at, timezone)}." if formation_at else None,
         )
     )
@@ -392,42 +507,43 @@ async def teams(
     }
     parts: list[str] = [bold("Your teams")]
     rows: list[list[InlineKeyboardButton]] = []
+    total = len(projects)
     for index, project in enumerate(projects, 1):
         event = events_by_id.get(project.event_id) if project.event_id else None
         member = memberships.get(project.id)
-        pending = (
-            member is not None
+        accept_by = (
+            member.accept_by
+            if member is not None
             and member.state == MemberState.PROPOSED
             and member.accept_by is not None
             and member.accept_by > now
+            else None
         )
         parts.append(
             lines(
-                f"{index}. {bold(project.name)}"
-                + (f" · {esc(event.title)}" if event else "")
-                + f" · {esc(humanize(project.team_status))}",
-                f"⏳ Placement waiting for you until "
-                f"{when(member.accept_by, event.timezone if event else None)}"
-                if pending and member is not None and member.accept_by is not None
+                f"• {subject(project.name, f'/projects/{project.id}')}"
+                + (f" · {esc(event.title)}" if event else ""),
+                f"  ⏳ Accept your place by {when(accept_by, event.timezone if event else None)}"
+                if accept_by
                 else None,
             )
         )
-        if pending:
+        if accept_by:
             rows.append(
                 [
                     button(
-                        f"{index} · Accept",
+                        numbered(index, total, "Accept"),
                         ActionCallback(key=ActionKey.PLACEMENT_ACCEPT, entity_id=project.id).pack(),
                     ),
                     button(
-                        f"{index} · Decline",
+                        numbered(index, total, "Decline"),
                         ActionCallback(
                             key=ActionKey.PLACEMENT_DECLINE, entity_id=project.id
                         ).pack(),
                     ),
                 ]
             )
-    return with_web(runtime, "\n\n".join(parts), rows, "/projects")
+    return Reply("\n".join(parts), keyboard(rows))
 
 
 async def invites(
@@ -439,33 +555,66 @@ async def invites(
     inviters = await names(session, {row.invited_by for row in pending if row.invited_by})
     parts: list[str] = [bold("Pending invites")]
     rows: list[list[InlineKeyboardButton]] = []
+    total = len(pending)
     for index, invite in enumerate(pending, 1):
         if invite.project_id is not None:
             project = await session.get(models.Project, invite.project_id)
-            target = f"team {bold(project.name)}" if project else "a team"
+            target = (
+                f"team {subject(project.name, f'/projects/{project.id}')}" if project else "a team"
+            )
         else:
             event = await session.get(models.Event, invite.event_id) if invite.event_id else None
-            target = f"a party for {bold(event.title)}" if event else "a party"
+            target = (
+                f"a party for {subject(event.title, f'/events/{event.id}')}" if event else "a party"
+            )
         inviter = inviters.get(invite.invited_by) if invite.invited_by else None
         parts.append(
             lines(
-                f"{index}. {bold(inviter) if inviter else 'Someone'} invited you to {target}.",
+                f"{marker(index, total)} {bold(inviter) if inviter else 'Someone'} "
+                f"invited you to {target}.",
                 f"Expires {when(invite.expires_at)}.",
             )
         )
         rows.append(
             [
                 button(
-                    f"{index} · Accept",
+                    numbered(index, total, "Accept"),
                     ActionCallback(key=ActionKey.INVITE_ACCEPT, entity_id=invite.id).pack(),
                 ),
                 button(
-                    f"{index} · Decline",
+                    numbered(index, total, "Decline"),
                     ActionCallback(key=ActionKey.INVITE_DECLINE, entity_id=invite.id).pack(),
                 ),
             ]
         )
-    return Reply("\n\n".join(parts), InlineKeyboardMarkup(inline_keyboard=rows))
+    return Reply("\n\n".join(parts), keyboard(rows))
+
+
+async def ask_areas(session: AsyncSession) -> Reply:
+    rows = list(
+        await session.execute(
+            select(models.Area.key, models.Area.name)
+            .where(models.Area.archived_at.is_(None))
+            .order_by(models.Area.sort, models.Area.key)
+        )
+    )
+    buttons = [button(name, AskAreaCallback(area_key=key).pack()) for key, name in rows]
+    grid = [buttons[start : start + AREA_COLUMNS] for start in range(0, len(buttons), AREA_COLUMNS)]
+    grid.append([button("Cancel", CancelCallback().pack())])
+    return Reply("What do you need help with? Pick an area.", keyboard(grid))
+
+
+async def ask_topic(session: AsyncSession, area_key: str) -> tuple[Reply, dict[str, str]]:
+    area = await mentor_offers.load_area(session, area_key)
+    return (
+        prompt(
+            lines(
+                f"Help with {bold(area.name)}.",
+                "What's the topic? A few words, like “Async Python” or “System design”.",
+            )
+        ),
+        {"area_key": area.key},
+    )
 
 
 async def start_ask(
@@ -474,24 +623,14 @@ async def start_ask(
     area = await mentor_offers.load_area(session, area_key)
     CreateHelpRequestBody(area_key=area.key, topic=topic, goal="-", format=HelpRequestFormat.ANY)
     return (
-        Reply(
+        prompt(
             lines(
                 f"Asking for help with {bold(topic)} in {bold(area.name)}.",
-                "What do you want to achieve? Send it as one message, or /cancel.",
+                "What do you want to achieve? Send it as one message.",
             )
         ),
         {"area_key": area.key, "topic": topic},
     )
-
-
-async def ask_areas(session: AsyncSession) -> Reply:
-    rows = await session.execute(
-        select(models.Area.key, models.Area.name)
-        .where(models.Area.archived_at.is_(None))
-        .order_by(models.Area.sort, models.Area.key)
-    )
-    areas = ", ".join(f"<code>{esc(key)}</code> ({esc(name)})" for key, name in rows)
-    return Reply(lines(usage("ask").text, f"Areas: {areas}" if areas else None))
 
 
 async def create_help_request(
@@ -508,14 +647,11 @@ async def create_help_request(
         area_key=area_key, topic=topic, goal=goal, format=HelpRequestFormat.ANY
     )
     request = await mentorship_requests.create_help_request(session, runtime.jobs, actor, body, now)
-    return with_web(
-        runtime,
+    return Reply(
         lines(
-            f"✅ Help request {bold(request.topic)} created.",
+            f"✅ Help request {subject(request.topic, f'/help-requests/{request.id}')} created.",
             "Matching mentors will be notified, and offers will arrive here.",
-        ),
-        [],
-        f"/help-requests/{request.id}",
+        )
     )
 
 
@@ -526,15 +662,13 @@ async def requests(
     area_keys = [offer.area_key for offer in offers.offers if offer.active]
     if not area_keys:
         return with_web(
-            runtime,
-            "You don't offer mentoring in any area yet. Set it up on the web.",
+            "You don't offer mentoring yet. Pick your areas on the web to see requests here.",
             [],
             "/mentorship",
+            "Set up mentoring",
         )
     areas = await area_names(session)
-    seen: set[UUID] = set()
-    parts: list[str] = [bold("Open help requests in your areas")]
-    rows: list[list[InlineKeyboardButton]] = []
+    found: list[tuple[UUID, str, str | None, bool]] = []
     for area_key in area_keys:
         page = await mentorship_requests.list_help_requests(
             session,
@@ -545,23 +679,33 @@ async def requests(
             now=now,
         )
         for request in page.items:
-            if request.id in seen or len(seen) >= LIST_LIMIT:
+            if len(found) >= LIST_LIMIT or any(item[0] == request.id for item in found):
                 continue
-            seen.add(request.id)
-            index = len(seen)
             area = areas.get(request.area_key, request.area_key)
-            parts.append(
-                lines(
-                    f"{index}. {bold(request.topic)} · {esc(area)} · "
-                    f"{esc(request.learner.display_name)}",
+            found.append(
+                (
+                    request.id,
+                    f"{bold(request.topic)} · {esc(area)} · {esc(request.learner.display_name)}",
                     quote(request.goal, 200),
+                    HelpRequestAction.OFFER_HELP in request.allowed_actions,
                 )
             )
-            if HelpRequestAction.OFFER_HELP in request.allowed_actions:
-                rows.append([button(f"{index} · Help", HelpCallback(request_id=request.id).pack())])
-    if not seen:
+    if not found:
         return Reply("No open help requests in your areas right now.")
-    return Reply("\n\n".join(parts), InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+    total = len(found)
+    rows = [
+        [button(numbered(index, total, "Help"), HelpCallback(request_id=request_id).pack())]
+        for index, (request_id, _, _, can_help) in enumerate(found, 1)
+        if can_help
+    ]
+    text = "\n\n".join(
+        [bold("Open help requests in your areas")]
+        + [
+            lines(f"{marker(index, total)} {title}", goal)
+            for index, (_, title, goal, _) in enumerate(found, 1)
+        ]
+    )
+    return Reply(text, keyboard(rows))
 
 
 async def help_prompt(
@@ -570,10 +714,10 @@ async def help_prompt(
     request = await mentorship_requests.get_help_request(session, actor, request_id, now)
     if HelpRequestAction.OFFER_HELP not in request.allowed_actions:
         raise ProblemError(ErrorCode.INVALID_STATE, "You can't offer help on this request")
-    return Reply(
+    return prompt(
         lines(
             f"Offering help with {bold(request.topic)} to {bold(request.learner.display_name)}.",
-            "Send a short message for the learner, or /cancel.",
+            "Send a short message for the learner.",
         )
     )
 
@@ -597,10 +741,11 @@ async def mentorships(
         if mentorship.status in LIVE_MENTORSHIP_STATUSES
     ]
     if not live:
-        return Reply("No active mentorships. See /requests or /ask.")
+        return Reply("No active mentorships. Ask for help with /ask or offer it with /requests.")
     areas = await area_names(session)
     parts: list[str] = [bold("Your mentorships")]
     rows: list[list[InlineKeyboardButton]] = []
+    total = len(live)
     for index, mentorship in enumerate(live, 1):
         request = await session.get(models.HelpRequest, mentorship.request_id)
         topic = request.topic if request else areas.get(mentorship.area_key, mentorship.area_key)
@@ -611,32 +756,38 @@ async def mentorships(
             if mentorship.last_checkin_at
             else "no check-ins yet"
         )
+        state = "" if mentorship.status == MentorshipStatus.ACTIVE else f"{mentorship.status} · "
         parts.append(
             lines(
-                f"{index}. {bold(topic)} · {'mentoring' if mentoring else 'learning from'} "
-                f"{esc(other.display_name)}",
-                italic(f"{humanize(mentorship.status)} · {last}"),
+                f"{marker(index, total)} {subject(topic, f'/mentorships/{mentorship.id}')} · "
+                f"{'mentoring' if mentoring else 'learning from'} {esc(other.display_name)}",
+                f"  {italic(state + last)}",
             )
         )
         row: list[InlineKeyboardButton] = []
         if MentorshipAction.CHECK_IN in mentorship.allowed_actions:
             row.append(
-                button(f"{index} · Check in", CheckinCallback(mentorship_id=mentorship.id).pack())
+                button(
+                    numbered(index, total, "Check in"),
+                    CheckinCallback(mentorship_id=mentorship.id).pack(),
+                )
             )
         if MentorshipAction.CLOSE in mentorship.allowed_actions:
             row.append(
-                button(f"{index} · Close", CloseCallback(mentorship_id=mentorship.id).pack())
+                button(
+                    numbered(index, total, "Close"),
+                    CloseCallback(mentorship_id=mentorship.id).pack(),
+                )
             )
-        if row:
-            rows.append(row)
-    return Reply("\n\n".join(parts), InlineKeyboardMarkup(inline_keyboard=rows) if rows else None)
+        rows.append(row)
+    return Reply("\n".join(parts), keyboard(rows))
 
 
 async def checkin_prompt(session: AsyncSession, actor: models.User, mentorship_id: UUID) -> Reply:
     mentorship = await mentorship_mentorships.get_mentorship(session, actor, mentorship_id)
     if MentorshipAction.CHECK_IN not in mentorship.allowed_actions:
         raise ProblemError(ErrorCode.INVALID_STATE, "You can't check in on this mentorship")
-    return Reply("What did you work on? Send a short note, or /cancel.")
+    return prompt("What did you work on? Send a short note.")
 
 
 async def checkin(
@@ -660,7 +811,8 @@ def outcome_keyboard(mentorship_id: UUID) -> InlineKeyboardMarkup:
             [
                 button(label, OutcomeCallback(outcome=outcome, mentorship_id=mentorship_id).pack())
                 for outcome, label in OUTCOME_LABELS.items()
-            ]
+            ],
+            [button("Cancel", CancelCallback().pack())],
         ]
     )
 
@@ -698,7 +850,7 @@ async def confirmations(
         facts = [fact for fact in group.facts if fact.type.value in confirmable]
         if not facts:
             continue
-        parts.append(f"{bold(group.title)} · {esc(humanize(group.subject_type))}")
+        parts.append(f"• {bold(group.title)}")
         rows.extend(
             [
                 button(
@@ -713,7 +865,7 @@ async def confirmations(
     if not rows:
         return Reply("Nothing to confirm right now.")
     parts.append("Tap everyone you actually worked with.")
-    return Reply("\n".join(parts), InlineKeyboardMarkup(inline_keyboard=rows[:50]))
+    return Reply("\n".join(parts), keyboard(rows[:50]))
 
 
 async def confirm(
@@ -728,52 +880,66 @@ async def confirm(
     return Reply("✅ Confirmed.")
 
 
-async def me(
+async def profile(
     runtime: BotRuntime, session: AsyncSession, actor: models.User, now: datetime
 ) -> Reply:
     current = await identity.current_user(session, actor, now)
     metrics = await member_metrics(session, actor.id)
     area_scores = sorted(
-        await scores.list_scores(session, actor.id, actor),
+        (item for item in await scores.list_scores(session, actor.id, actor) if item.effective > 0),
         key=lambda item: item.effective,
         reverse=True,
     )
     areas = await area_names(session)
     current_teams = [
-        project.name
+        subject(project.name, f"/projects/{project.id}")
         for project in await project_records.list_my_projects(session, actor, None)
         if project.team_status in CURRENT_TEAM_STATUSES
+    ]
+    totals = [
+        plural(count, noun)
+        for count, noun in (
+            (metrics.hackathons_finished, "hackathon"),
+            (metrics.projects_shipped, "shipped project"),
+            (metrics.mentorships_completed, "completed mentorship"),
+        )
+        if count
+    ]
+    level = [
+        part
+        for part in (
+            f"XP {metrics.xp:.0f}" if metrics.xp else None,
+            f"activity {metrics.activity:.1f}" if metrics.activity else None,
+        )
+        if part
     ]
     top = ", ".join(
         f"{esc(areas.get(item.area_key, item.area_key))} {item.effective:.1f}"
         for item in area_scores[:6]
     )
-    return with_web(
-        runtime,
-        lines(
-            f"👤 {bold(current.display_name)} · @{esc(current.github_login)}",
-            f"XP {metrics.xp:.0f} · activity {metrics.activity:.1f}",
-            f"{plural(metrics.hackathons_finished, 'hackathon')} finished · "
-            f"{plural(metrics.projects_shipped, 'project')} shipped · "
-            f"{plural(metrics.mentorships_completed, 'mentorship')} completed",
-            f"Scores: {top}" if top else None,
-            f"Teams: {', '.join(esc(name) for name in current_teams)}" if current_teams else None,
-            dnd_line(current.dnd_until, now),
-        ),
-        [],
-        f"/users/{actor.id}",
-        "Profile",
+    dnd_until = current.dnd_until
+    dnd_on = dnd_until is not None and (isinstance(dnd_until, str) or dnd_until > now)
+    body = lines(
+        f"👤 {subject(current.display_name, f'/users/{actor.id}')} · @{esc(current.github_login)}",
+        " · ".join(level) or None,
+        " · ".join(totals) or None,
+        f"Top areas: {top}" if top else None,
+        f"Teams: {', '.join(current_teams)}" if current_teams else None,
+        dnd_line(dnd_until, now) if dnd_on else None,
     )
+    if not (level or totals or top or current_teams):
+        body = lines(body, "Nothing here yet. Join an event with /events.")
+    return Reply(body)
 
 
 def dnd_line(value: datetime | str | None, now: datetime) -> str:
     if value is None:
-        return "Do not disturb: off"
+        return "🔔 Do not disturb is off."
     if isinstance(value, str):
-        return "Do not disturb: on until you turn it off"
+        return "🔕 Do not disturb is on until you turn it off."
     if value <= now:
-        return "Do not disturb: off"
-    return f"Do not disturb: on until {when(value)}"
+        return "🔔 Do not disturb is off."
+    return f"🔕 Do not disturb is on until {when(value)}."
 
 
 async def dnd(
@@ -787,7 +953,7 @@ async def dnd(
         return Reply(
             lines(
                 dnd_line(profiles.availability_view(actor).dnd_until, now),
-                esc("Use /dnd <days> to turn it on, /dnd off to turn it off."),
+                esc("/dnd <days> turns it on, /dnd off turns it off."),
             )
         )
     if argument.lower() == "off":
@@ -809,3 +975,17 @@ async def action(
 ) -> Reply:
     await run_action(session, runtime.jobs, actor, key, entity_id, now)
     return Reply(ACTION_DONE[key])
+
+
+async def menu(
+    runtime: BotRuntime, session: AsyncSession, actor: models.User, now: datetime, item: MenuItem
+) -> Reply:
+    match item:
+        case MenuItem.EVENTS:
+            return await events(runtime, session, actor, now)
+        case MenuItem.TEAM:
+            return await teams(runtime, session, actor, now)
+        case MenuItem.MENTORSHIPS:
+            return await mentorships(runtime, session, actor, now)
+        case MenuItem.PROFILE:
+            return await profile(runtime, session, actor, now)

@@ -7,7 +7,7 @@ from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand
 
-from hmm.bot.commands import COMMANDS
+from hmm.bot.commands import MENU_COMMANDS
 from hmm.bot.delivery import Deliverer
 from hmm.bot.handlers import build_router
 from hmm.bot.runtime import BotRuntime
@@ -46,13 +46,21 @@ async def run(config: Config) -> None:
     )
 
     async def send(chat_id: int, rendered: Rendered) -> int:
-        message = await bot.send_message(chat_id, rendered.text, reply_markup=rendered.markup)
+        message = await bot.send_message(
+            chat_id,
+            rendered.text,
+            reply_markup=rendered.markup,
+            disable_notification=rendered.silent,
+        )
         return message.message_id
 
     delivery = asyncio.create_task(Deliverer(runtime, send).run())
     try:
         await bot.set_my_commands(
-            [BotCommand(command=name, description=text) for name, _, text in COMMANDS]
+            [
+                BotCommand(command=command.name, description=command.text)
+                for command in MENU_COMMANDS
+            ]
         )
         await build_dispatcher().start_polling(bot, runtime=runtime, close_bot_session=False)
     finally:

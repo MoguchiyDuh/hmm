@@ -15,7 +15,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.bot import commands
-from hmm.bot.callbacks import ActionCallback, EventCallback, EventOp
+from hmm.bot.callbacks import (
+    ActionCallback,
+    AskAreaCallback,
+    CancelCallback,
+    EventCallback,
+    EventOp,
+    MenuItem,
+)
 from hmm.bot.delivery import Deliverer, Throttle
 from hmm.bot.runtime import (
     ERROR_TEXT,
@@ -205,7 +212,7 @@ async def test_linking(harness: Harness) -> None:
     runtime = bot_runtime(h)
     first = await h.user(display_name="Ada")
     second = await h.user()
-    unknown = await respond(runtime, 777, lambda s, a, n: commands.me(runtime, s, a, n))
+    unknown = await respond(runtime, 777, lambda s, a, n: commands.profile(runtime, s, a, n))
     assert not unknown.ok
     assert unknown.text == ERROR_TEXT[ErrorCode.UNAUTHENTICATED].format(
         url=runtime.config.public_url
@@ -225,10 +232,12 @@ async def test_linking(harness: Harness) -> None:
     await add_code(h, second, "second-code")
     taken = await link_with(h, "second-code", 777)
     assert taken.text == ERROR_TEXT[ErrorCode.TELEGRAM_ALREADY_LINKED]
-    me = await respond(runtime, 777, lambda s, a, n: commands.me(runtime, s, a, n))
+    me = await respond(runtime, 777, lambda s, a, n: commands.profile(runtime, s, a, n))
     assert me.ok and "Ada" in me.text
     greeting = await respond_anonymous(runtime, lambda s, n: commands.greet(runtime, s, 777))
     assert "Hi, <b>Ada</b>" in greeting.text
+    other = await respond_anonymous(runtime, lambda s, n: commands.unknown(runtime, s, 777))
+    assert other.text == commands.UNKNOWN_TEXT
     await respond_anonymous(runtime, lambda s, n: commands.unlink(s, 777))
     assert await telegram_link(h, first) is None
 
@@ -270,7 +279,7 @@ async def test_events_and_enroll(harness: Harness) -> None:
         runtime, telegram_user_id, lambda s, a, n: commands.events(runtime, s, a, n)
     )
     assert event.title in listing.text
-    assert EventCallback(op=EventOp.ENROLL, event_id=event.id).pack() in callbacks(listing)
+    assert EventCallback(op=EventOp.SHOW, event_id=event.id).pack() in callbacks(listing)
 
     async def card(session: AsyncSession, actor: models.User, now: datetime) -> Reply:
         event_id = await commands.resolve_event_id(session, event.slug)
@@ -283,7 +292,22 @@ async def test_events_and_enroll(harness: Harness) -> None:
         telegram_user_id,
         lambda s, a, n: commands.event_op(runtime, s, a, n, EventOp.ENROLL, event.id),
     )
-    assert enrolled.ok and "Enrolled" in enrolled.text
+    assert enrolled.ok and enrolled.text.startswith("✅ You're in the queue.")
+    assert event.title in enrolled.text
+    back = EventCallback(op=EventOp.LIST, event_id=event.id).pack()
+    assert back in callbacks(enrolled)
+    listed = await respond(
+        runtime,
+        telegram_user_id,
+        lambda s, a, n: commands.event_op(runtime, s, a, n, EventOp.LIST, event.id),
+    )
+    assert listed.text == listing.text
+    menu = await respond(
+        runtime,
+        telegram_user_id,
+        lambda s, a, n: commands.menu(runtime, s, a, n, MenuItem.EVENTS),
+    )
+    assert menu.text == listing.text
     async with h.db() as session:
         enrollment = await session.scalar(
             select(models.Enrollment).where(
@@ -301,7 +325,20 @@ async def test_ask_flow(harness: Harness) -> None:
     await h.seed_areas()
     user = await h.user()
     telegram_user_id = await h.link_telegram(user)
+    areas = await respond(runtime, telegram_user_id, lambda s, a, n: commands.ask_areas(s))
+    assert AskAreaCallback(area_key="backend").pack() in callbacks(areas)
+    assert CancelCallback().pack() in callbacks(areas)
     data: dict[str, str] = {}
+
+    async def topic(session: AsyncSession, actor: models.User, now: datetime) -> Reply:
+        reply, values = await commands.ask_topic(session, "backend")
+        data.update(values)
+        return reply
+
+    prompted = await respond(runtime, telegram_user_id, topic)
+    assert prompted.ok and callbacks(prompted) == [CancelCallback().pack()]
+    assert data == {"area_key": "backend"}
+    data.clear()
 
     def start(area_key: str) -> Body:
         async def body(session: AsyncSession, actor: models.User, now: datetime) -> Reply:
@@ -347,4 +384,4 @@ async def test_dnd(harness: Harness) -> None:
         stored = await session.get(models.User, user.id)
     assert stored is not None and stored.dnd_until == h.now + timedelta(days=3)
     assert (await dnd("abc")).text.startswith("Usage: /dnd")
-    assert (await dnd("off")).text == "Do not disturb: off"
+    assert (await dnd("off")).text == "🔔 Do not disturb is off."

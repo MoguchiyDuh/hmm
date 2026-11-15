@@ -11,7 +11,10 @@ from aiogram.exceptions import (
     TelegramForbiddenError,
     TelegramRetryAfter,
 )
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from hmm import models
 from hmm.bot.runtime import BotRuntime
 from hmm.bot.templates import Rendered, render
 from hmm.common import DeliveryStatus
@@ -62,6 +65,17 @@ class Throttle:
             self.next_chat = {chat: at for chat, at in self.next_chat.items() if at > now}
 
 
+async def chat_timezones(session: AsyncSession, chat_ids: set[int]) -> dict[int, str]:
+    if not chat_ids:
+        return {}
+    rows = await session.execute(
+        select(models.TelegramLink.chat_id, models.User.timezone)
+        .join(models.User, models.User.id == models.TelegramLink.user_id)
+        .where(models.TelegramLink.chat_id.in_(chat_ids), models.User.timezone.is_not(None))
+    )
+    return {chat_id: timezone for chat_id, timezone in rows if timezone}
+
+
 def ack(
     delivery: PendingDelivery,
     status: DeliveryStatus | str,
@@ -100,12 +114,19 @@ class Deliverer:
         while len(self.sent) > LRU_SIZE:
             self.sent.popitem(last=False)
 
-    async def deliver(self, delivery: PendingDelivery) -> DeliveryAckResult:
+    async def deliver(
+        self, delivery: PendingDelivery, timezone: str | None = None
+    ) -> DeliveryAckResult:
         known = self.sent.get(delivery.notification_id)
         if known is not None:
             return ack(delivery, DeliveryStatus.SENT, external_id=known)
         try:
-            rendered = render(delivery.payload, self.runtime.config.public_url)
+            rendered = render(
+                delivery.payload,
+                self.runtime.config.public_url,
+                now=self.runtime.clock.now(),
+                timezone=timezone,
+            )
         except Exception as error:
             log.exception("Rendering %s failed", delivery.notification_id)
             return ack(delivery, DeliveryStatus.FAILED, error=f"render: {error}")
@@ -134,11 +155,12 @@ class Deliverer:
         sessionmaker = self.runtime.sessionmaker
         async with transaction(sessionmaker) as session:
             deliveries = await lease_deliveries(session, self.runtime.clock.now(), BATCH)
+            zones = await chat_timezones(session, {item.telegram_chat_id for item in deliveries})
         started = time.monotonic()
         for delivery in deliveries:
             if time.monotonic() - started > LEASE_BUDGET_SECONDS:
                 break
-            result = await self.deliver(delivery)
+            result = await self.deliver(delivery, zones.get(delivery.telegram_chat_id))
             async with transaction(sessionmaker) as session:
                 await acknowledge(session, self.runtime.clock.now(), [result])
         return len(deliveries)

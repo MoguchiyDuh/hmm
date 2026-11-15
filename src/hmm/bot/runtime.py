@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from hmm import models
+from hmm.bot.fmt import View, viewing
 from hmm.common import ErrorCode, Problem
 from hmm.identity.service import telegram_actor
 from hmm.platform.clock import Clock
@@ -91,7 +92,9 @@ async def respond(
     try:
         async with transaction(runtime.sessionmaker) as session:
             actor = await telegram_actor(session, telegram_user_id, now, member=member)
-            return await body(session, actor, now)
+            view = View(public_url=runtime.config.public_url, now=now, timezone=actor.timezone)
+            with viewing(view):
+                return await body(session, actor, now)
     except (ProblemError, ValidationError) as error:
         return failure(error, runtime.config.public_url)
 
@@ -103,6 +106,7 @@ async def respond_anonymous(runtime: BotRuntime, body: AnonymousBody) -> Reply:
     now = runtime.clock.now()
     try:
         async with transaction(runtime.sessionmaker) as session:
-            return await body(session, now)
+            with viewing(View(public_url=runtime.config.public_url, now=now)):
+                return await body(session, now)
     except (ProblemError, ValidationError) as error:
         return failure(error, runtime.config.public_url)
