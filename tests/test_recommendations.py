@@ -5,19 +5,13 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
-from harness import NOW, Harness, assert_problem
-from sqlalchemy import delete, func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from factories import count, enroll, make_hackathon
+from harness import Harness, assert_problem
+from sqlalchemy import delete, update
 
 from hmm import models
-from hmm.catalog import events as catalog_events
 from hmm.common import (
-    AreaImportance,
-    EnrollmentSource,
     ErrorCode,
-    EventKind,
-    EventOrigin,
-    EventStatus,
     InviteKind,
     InviteStatus,
     JoinRequestStatus,
@@ -31,34 +25,6 @@ from hmm.platform.db import get_or_404
 from hmm.recommendations import candidates, service
 
 _titles = itertools.count(1)
-
-
-async def make_hackathon(
-    h: Harness,
-    *,
-    starts_in: timedelta = timedelta(days=30),
-    areas: tuple[tuple[str, AreaImportance], ...] = (("backend", AreaImportance.PRIMARY),),
-) -> models.Event:
-    async with h.db() as session:
-        return await catalog_events.create_event(
-            session,
-            catalog_events.EventInput(
-                kind=EventKind.HACKATHON,
-                title=f"Rec Hack {next(_titles)}",
-                starts_at=h.now + starts_in,
-                ends_at=h.now + starts_in + timedelta(days=2),
-                timezone="UTC",
-                registration_deadline=None,
-                areas=[
-                    catalog_events.EventAreaInput(key=key, importance=importance)
-                    for key, importance in areas
-                ],
-            ),
-            origin=EventOrigin.MANUAL,
-            status=EventStatus.PUBLISHED,
-            created_by=None,
-            now=h.now,
-        )
 
 
 async def team(
@@ -103,27 +69,6 @@ async def team(
         await session.flush()
         await session.refresh(project)
         return project
-
-
-async def enroll(
-    session: AsyncSession,
-    event: models.Event,
-    user: models.User,
-    status: str = "active",
-    **fields: Any,
-) -> models.Enrollment:
-    enrollment = models.Enrollment(
-        event_id=event.id,
-        user_id=user.id,
-        status=status,
-        source=EnrollmentSource.SELF.value,
-        status_at=NOW,
-        **fields,
-    )
-    session.add(enrollment)
-    await session.flush()
-    await session.refresh(enrollment)
-    return enrollment
 
 
 async def standalone(
@@ -190,11 +135,6 @@ async def invite(h: Harness, project: models.Project, user: models.User) -> None
                 expires_at=h.now + timedelta(days=3),
             )
         )
-
-
-async def recommendation_rows(h: Harness) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(models.RecommendationSet)) or 0
 
 
 def rec(user_id: Any, score: float) -> dict[str, Any]:
@@ -367,7 +307,7 @@ async def test_read_without_rows(harness: Harness) -> None:
         response = await c.get(f"/api/v1/projects/{project.id}/recommendations")
     assert response.status_code == 200, response.text
     assert response.json()["allowed_actions"] == []
-    assert await recommendation_rows(h) == 0
+    assert await count(h, models.RecommendationSet) == 0
     assert await h.pending_jobs() == jobs_before
 
 

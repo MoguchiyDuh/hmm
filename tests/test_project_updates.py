@@ -1,68 +1,12 @@
-from collections.abc import Sequence
 from datetime import datetime, timedelta
-from typing import Any
 from uuid import uuid4
 
+from factories import seed_project
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
 from hmm import models
 from hmm.common import ErrorCode
-
-
-async def seed_project(
-    h: Harness,
-    lead: models.User,
-    *,
-    members: Sequence[models.User] = (),
-    name: str = "Project",
-    visibility: str = "public",
-    status: str = "idea",
-    event_id: Any = None,
-    area_keys: Sequence[str] = (),
-    recruiting: dict[str, Any] | None = None,
-    team_status: str | None = None,
-) -> models.Project:
-    async with h.db() as session:
-        project = models.Project(
-            event_id=event_id,
-            name=name,
-            description_md="",
-            goal="",
-            links=[],
-            visibility=visibility,
-            recruiting=recruiting,
-            lead_user_id=lead.id,
-            status=status,
-            team_status=team_status,
-            origin="standalone" if team_status is None else "formation",
-            last_progress_at=h.now,
-        )
-        session.add(project)
-        await session.flush()
-        for key in area_keys:
-            area_id = await session.scalar(select(models.Area.id).where(models.Area.key == key))
-            assert area_id is not None
-            session.add(models.ProjectArea(project_id=project.id, area_id=area_id))
-        for user in (lead, *members):
-            is_lead = user.id == lead.id
-            session.add(
-                models.ProjectMember(
-                    project_id=project.id,
-                    event_id=event_id if team_status is not None else None,
-                    user_id=user.id,
-                    role="lead" if is_lead else "member",
-                    state="confirmed",
-                    trust="self",
-                    joined_via="create",
-                    is_team_row=False,
-                    joined_at=h.now,
-                    confirmed_at=h.now,
-                )
-            )
-        await session.flush()
-        await session.refresh(project)
-        return project
 
 
 async def test_create_update(harness: Harness) -> None:

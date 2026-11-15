@@ -1,16 +1,31 @@
 import itertools
+from collections.abc import Generator, Sequence
+from contextlib import contextmanager
 from datetime import datetime, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from harness import Harness
-from sqlalchemy import select
+import httpx
+import pytest
+from harness import NOW, Harness
+from sqlalchemy import func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.algo.models import FormationPlan, PlannedTeam
 from hmm.catalog import events as catalog_events
-from hmm.common import AreaImportance, EventKind, EventOrigin, EventStatus
+from hmm.common import (
+    AreaImportance,
+    EnrollmentSource,
+    ErrorCode,
+    EventKind,
+    EventOrigin,
+    EventStatus,
+    QuizStatus,
+)
 from hmm.formation import tick
+from hmm.platform.errors import ProblemError
 
 _titles = itertools.count(1)
 
@@ -376,3 +391,344 @@ def plan(*teams: list[UUID]) -> FormationPlan:
         teams=[PlannedTeam(units=list(units), reason="test plan") for units in teams],
         summary="test plan",
     )
+
+
+async def count(h: Harness, model: Any, *where: Any) -> int:
+    async with h.db() as session:
+        return await session.scalar(select(func.count()).select_from(model).where(*where)) or 0
+
+
+@contextmanager
+def problem(code: ErrorCode) -> Generator[None]:
+    with pytest.raises(ProblemError) as error:
+        yield
+    assert error.value.code == code
+
+
+async def add_active_mentorship(
+    h: Harness, learner: models.User, mentor: models.User, area: models.Area
+) -> None:
+    async with h.db() as session:
+        request = models.HelpRequest(
+            learner_id=learner.id,
+            area_id=area.id,
+            topic="Past",
+            goal="Past goal",
+            format="online",
+            status="matched",
+            expires_at=h.now + timedelta(days=14),
+        )
+        session.add(request)
+        await session.flush()
+        session.add(
+            models.Mentorship(
+                request_id=request.id,
+                mentor_id=mentor.id,
+                learner_id=learner.id,
+                area_id=area.id,
+                kind="mentoring",
+                mentor_score_at_start=Decimal("7.00"),
+                learner_score_at_start=Decimal("2.00"),
+                status="active",
+                started_at=h.now,
+                mentor_trust="self",
+                learner_trust="self",
+            )
+        )
+
+
+async def mentorship_row(h: Harness, mentorship_id: UUID) -> models.Mentorship:
+    async with h.db() as session:
+        row = await session.get(models.Mentorship, mentorship_id)
+        assert row is not None
+        return row
+
+
+async def add_offers(h: Harness, request_id: str, *mentors: models.User) -> list[UUID]:
+    async with h.db() as session:
+        offers = [
+            models.HelpOffer(
+                request_id=UUID(request_id),
+                mentor_id=mentor.id,
+                message=f"I can help {mentor.display_name}",
+                status="pending",
+            )
+            for mentor in mentors
+        ]
+        session.add_all(offers)
+        await session.flush()
+        return [offer.id for offer in offers]
+
+
+REQUESTS = "/api/v1/help-requests"
+
+
+def request_body(area_key: str = "backend", **fields: Any) -> dict[str, Any]:
+    return {
+        "area_key": area_key,
+        "topic": "FastAPI auth",
+        "goal": "ship a login flow",
+        "format": "online",
+        **fields,
+    }
+
+
+async def create_request(
+    c: httpx.AsyncClient, area_key: str = "backend", **fields: Any
+) -> dict[str, Any]:
+    response = await c.post(REQUESTS, json=request_body(area_key, **fields))
+    assert response.status_code == 201, response.text
+    return response.json()
+
+
+async def enroll(
+    session: AsyncSession,
+    event: models.Event,
+    user: models.User,
+    status: str = "active",
+    **fields: Any,
+) -> models.Enrollment:
+    enrollment = models.Enrollment(
+        event_id=event.id,
+        user_id=user.id,
+        status=status,
+        source=EnrollmentSource.SELF.value,
+        status_at=NOW,
+        **fields,
+    )
+    session.add(enrollment)
+    await session.flush()
+    await session.refresh(enrollment)
+    return enrollment
+
+
+async def make_hackathon(
+    h: Harness,
+    *,
+    starts_in: timedelta = timedelta(days=30),
+    areas: tuple[tuple[str, AreaImportance], ...] = (("backend", AreaImportance.PRIMARY),),
+) -> models.Event:
+    async with h.db() as session:
+        return await catalog_events.create_event(
+            session,
+            catalog_events.EventInput(
+                kind=EventKind.HACKATHON,
+                title=f"Rec Hack {next(_titles)}",
+                starts_at=h.now + starts_in,
+                ends_at=h.now + starts_in + timedelta(days=2),
+                timezone="UTC",
+                registration_deadline=None,
+                areas=[
+                    catalog_events.EventAreaInput(key=key, importance=importance)
+                    for key, importance in areas
+                ],
+            ),
+            origin=EventOrigin.MANUAL,
+            status=EventStatus.PUBLISHED,
+            created_by=None,
+            now=h.now,
+        )
+
+
+QUESTIONS: list[dict[str, Any]] = [
+    {
+        "key": "languages",
+        "type": "multi_choice",
+        "section": "general",
+        "required": True,
+        "visible_if": None,
+        "config": {"min": 1, "max": 2, "allow_other": True},
+        "options": [("python", {"backend": 1.0}), ("react", {"frontend": 0.8})],
+    },
+    {
+        "key": "years",
+        "type": "number",
+        "section": "general",
+        "required": False,
+        "visible_if": None,
+        "config": {"min": 0, "max": 50, "unit": "years"},
+        "options": [],
+    },
+    {
+        "key": "direction",
+        "type": "single_choice",
+        "section": "general",
+        "required": True,
+        "visible_if": {"q": "languages", "op": "includes", "value": "python"},
+        "config": {"allow_other": False},
+        "options": [("backend", {"backend": 1.0}), ("frontend", {"frontend": 1.0})],
+    },
+    {
+        "key": "about",
+        "type": "text",
+        "section": "advanced",
+        "required": False,
+        "visible_if": {"not": {"q": "years", "op": "gte", "value": 2}},
+        "config": {"max_length": 20, "multiline": False},
+        "options": [],
+    },
+    {
+        "key": "rating",
+        "type": "scale",
+        "section": "general",
+        "required": False,
+        "visible_if": None,
+        "config": {"min": 1, "max": 10, "min_label": "new", "max_label": "expert"},
+        "options": [],
+    },
+    {
+        "key": "link",
+        "type": "url",
+        "section": "general",
+        "required": False,
+        "visible_if": None,
+        "config": {},
+        "options": [],
+    },
+]
+
+
+async def archive_published_quizzes(session: Any) -> None:
+    await session.execute(
+        update(models.Quiz)
+        .where(models.Quiz.status == QuizStatus.PUBLISHED)
+        .values(status=QuizStatus.ARCHIVED)
+    )
+    await session.flush()
+
+
+async def next_quiz_version(session: Any) -> int:
+    return (await session.scalar(select(func.coalesce(func.max(models.Quiz.version), 0)))) + 1
+
+
+async def seed_quiz(h: Harness, admin: models.User, *, drop: str | None = None) -> models.Quiz:
+    async with h.db() as session:
+        await archive_published_quizzes(session)
+        quiz = models.Quiz(
+            version=await next_quiz_version(session),
+            title="Onboarding",
+            status=QuizStatus.PUBLISHED,
+            created_by=admin.id,
+            published_at=h.now,
+        )
+        session.add(quiz)
+        await session.flush()
+        session.add_all(
+            [
+                models.QuizSectionDef(quiz_id=quiz.id, key="general", position=0, visible_if=None),
+                models.QuizSectionDef(
+                    quiz_id=quiz.id,
+                    key="advanced",
+                    position=1,
+                    visible_if={
+                        "any": [
+                            {"q": "languages", "op": "includes", "value": "python"},
+                            {"q": "years", "op": "gte", "value": 2},
+                        ]
+                    },
+                ),
+            ]
+        )
+        rows: dict[str, models.Question] = {}
+        for position, spec in enumerate(QUESTIONS):
+            if spec["key"] == drop:
+                continue
+            rows[spec["key"]] = models.Question(
+                quiz_id=quiz.id,
+                section=spec["section"],
+                key=spec["key"],
+                type=spec["type"],
+                text=spec["key"].title(),
+                help=None,
+                required=spec["required"],
+                position=position,
+                visible_if=spec["visible_if"],
+                config=spec["config"],
+            )
+        session.add_all(rows.values())
+        await session.flush()
+        session.add_all(
+            models.QuestionOption(
+                question_id=rows[spec["key"]].id,
+                key=key,
+                label=key.title(),
+                position=index,
+                area_hints=hints,
+            )
+            for spec in QUESTIONS
+            if spec["key"] in rows
+            for index, (key, hints) in enumerate(spec["options"])
+        )
+        await session.flush()
+        await session.refresh(quiz)
+        return quiz
+
+
+async def onboarding_setup(h: Harness) -> tuple[models.User, models.Quiz, models.User]:
+    await h.seed_areas(("backend", "frontend"))
+    admin = await h.admin()
+    quiz = await seed_quiz(h, admin)
+    member = await h.user(onboarded=False)
+    return admin, quiz, member
+
+
+async def onboarding_status(h: Harness, user_id: UUID) -> str:
+    async with h.db() as session:
+        user = await session.get(models.User, user_id)
+        assert user is not None
+        return user.onboarding_status
+
+
+async def seed_project(
+    h: Harness,
+    lead: models.User,
+    *,
+    members: Sequence[models.User] = (),
+    name: str = "Project",
+    visibility: str = "public",
+    status: str = "idea",
+    event_id: Any = None,
+    area_keys: Sequence[str] = (),
+    recruiting: dict[str, Any] | None = None,
+    team_status: str | None = None,
+) -> models.Project:
+    async with h.db() as session:
+        project = models.Project(
+            event_id=event_id,
+            name=name,
+            description_md="",
+            goal="",
+            links=[],
+            visibility=visibility,
+            recruiting=recruiting,
+            lead_user_id=lead.id,
+            status=status,
+            team_status=team_status,
+            origin="standalone" if team_status is None else "formation",
+            last_progress_at=h.now,
+        )
+        session.add(project)
+        await session.flush()
+        for key in area_keys:
+            area_id = await session.scalar(select(models.Area.id).where(models.Area.key == key))
+            assert area_id is not None
+            session.add(models.ProjectArea(project_id=project.id, area_id=area_id))
+        for user in (lead, *members):
+            is_lead = user.id == lead.id
+            session.add(
+                models.ProjectMember(
+                    project_id=project.id,
+                    event_id=event_id if team_status is not None else None,
+                    user_id=user.id,
+                    role="lead" if is_lead else "member",
+                    state="confirmed",
+                    trust="self",
+                    joined_via="create",
+                    is_team_row=False,
+                    joined_at=h.now,
+                    confirmed_at=h.now,
+                )
+            )
+        await session.flush()
+        await session.refresh(project)
+        return project

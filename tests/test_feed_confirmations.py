@@ -1,11 +1,10 @@
 import random
-from collections.abc import Generator
-from contextlib import contextmanager
 from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from factories import problem
 from harness import Harness
 from sqlalchemy import func, select
 
@@ -30,19 +29,11 @@ from hmm.feed.confirmations import (
     withdraw_confirmation,
 )
 from hmm.feed.schemas import ConfirmationAction
-from hmm.platform.errors import ProblemError
 
 ATTENDANCE = ConfirmationFactType.ATTENDANCE
 PROJECT_MEMBER = ConfirmationFactType.PROJECT_MEMBER
 MENTORSHIP_SIDE = ConfirmationFactType.MENTORSHIP_SIDE
 PEER = ConfirmationSource.PEER
-
-
-@contextmanager
-def problem(code: ErrorCode) -> Generator[None]:
-    with pytest.raises(ProblemError) as error:
-        yield
-    assert error.value.code == code
 
 
 async def event_facts(

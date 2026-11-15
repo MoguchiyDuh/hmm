@@ -4,8 +4,9 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from factories import count
 from harness import Harness, assert_problem
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from hmm import models
 from hmm.common import AuditAction, ErrorCode
@@ -146,11 +147,6 @@ async def audits(harness: Harness, action: AuditAction) -> list[models.AuditLog]
         )
 
 
-async def notification_count(harness: Harness) -> int:
-    async with harness.db() as session:
-        return await session.scalar(select(func.count()).select_from(models.Notification)) or 0
-
-
 async def todo_jobs(harness: Harness) -> list[str]:
     return sorted(
         job["args"]["user_id"]
@@ -213,7 +209,7 @@ async def test_queue_pagination(harness: Harness, queue: Queue) -> None:
 
 
 async def test_verify_and_repeat(harness: Harness, queue: Queue) -> None:
-    notifications = await notification_count(harness)
+    notifications = await count(harness, models.Notification)
     response = await decide(
         harness, queue.admin, queue.unverified, decision="verify", note="checked devpost"
     )
@@ -235,7 +231,7 @@ async def test_verify_and_repeat(harness: Harness, queue: Queue) -> None:
     assert audit.after["place_status"] == "verified"
     expected = sorted(str(user.id) for user in (queue.lead, queue.a, queue.b))
     assert await todo_jobs(harness) == expected
-    assert await notification_count(harness) == notifications
+    assert await count(harness, models.Notification) == notifications
     jobs = await harness.pending_jobs("recompute_member")
     repeat = await decide(
         harness, queue.admin, queue.unverified, decision="verify", note="checked devpost"

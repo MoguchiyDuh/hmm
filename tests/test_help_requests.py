@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
-from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
+from factories import add_active_mentorship, add_offers
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
@@ -32,22 +32,6 @@ async def create(c: httpx.AsyncClient, area_key: str = "ml_ai", **fields: Any) -
 
 def parse_time(value: str) -> datetime:
     return datetime.fromisoformat(value.replace("Z", "+00:00"))
-
-
-async def add_offers(h: Harness, request_id: str, *mentors: models.User) -> list[UUID]:
-    async with h.db() as session:
-        offers = [
-            models.HelpOffer(
-                request_id=UUID(request_id),
-                mentor_id=mentor.id,
-                message=f"I can help {mentor.display_name}",
-                status="pending",
-            )
-            for mentor in mentors
-        ]
-        session.add_all(offers)
-        await session.flush()
-        return [offer.id for offer in offers]
 
 
 async def notifications(h: Harness, user_id: UUID, type: str) -> list[models.Notification]:
@@ -84,38 +68,6 @@ async def set_status(h: Harness, request_id: str, status: str) -> None:
             update(models.HelpRequest)
             .where(models.HelpRequest.id == UUID(request_id))
             .values(status=status)
-        )
-
-
-async def add_active_mentorship(
-    h: Harness, learner: models.User, mentor: models.User, area: models.Area
-) -> None:
-    async with h.db() as session:
-        request = models.HelpRequest(
-            learner_id=learner.id,
-            area_id=area.id,
-            topic="Past",
-            goal="Past goal",
-            format="online",
-            status="matched",
-            expires_at=h.now + timedelta(days=14),
-        )
-        session.add(request)
-        await session.flush()
-        session.add(
-            models.Mentorship(
-                request_id=request.id,
-                mentor_id=mentor.id,
-                learner_id=learner.id,
-                area_id=area.id,
-                kind="mentoring",
-                mentor_score_at_start=Decimal("7.00"),
-                learner_score_at_start=Decimal("2.00"),
-                status="active",
-                started_at=h.now,
-                mentor_trust="self",
-                learner_trust="self",
-            )
         )
 
 

@@ -4,8 +4,9 @@ from typing import Any
 
 import httpx
 import pytest
+from factories import count
 from harness import Harness, assert_problem
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from hmm import models
 from hmm.common import AuditAction, ErrorCode
@@ -118,11 +119,6 @@ async def patch(harness: Harness, user: models.User, team: Team, **body: Any) ->
 async def rows(harness: Harness, model: type[models.Base], *where: Any) -> list[Any]:
     async with harness.db() as session:
         return list(await session.scalars(select(model).where(*where)))
-
-
-async def count(harness: Harness, model: type[models.Base], *where: Any) -> int:
-    async with harness.db() as session:
-        return await session.scalar(select(func.count()).select_from(model).where(*where)) or 0
 
 
 async def live_system(harness: Harness, user: models.User) -> list[str]:

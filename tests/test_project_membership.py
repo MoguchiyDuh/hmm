@@ -1,98 +1,18 @@
 import asyncio
 import itertools
-from collections.abc import Sequence
 from datetime import timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from factories import make_hackathon, seed_project
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
 from hmm import models
-from hmm.catalog import events as catalog_events
-from hmm.common import AreaImportance, ErrorCode, EventKind, EventOrigin, EventStatus
+from hmm.common import ErrorCode
 
 _titles = itertools.count(1)
-
-
-async def make_hackathon(h: Harness, *, starts_in: timedelta = timedelta(days=30)) -> models.Event:
-    async with h.db() as session:
-        return await catalog_events.create_event(
-            session,
-            catalog_events.EventInput(
-                kind=EventKind.HACKATHON,
-                title=f"Hack {next(_titles)}",
-                starts_at=h.now + starts_in,
-                ends_at=h.now + starts_in + timedelta(days=2),
-                timezone="UTC",
-                team_size_min=None,
-                team_size_max=None,
-                registration_deadline=None,
-                areas=[
-                    catalog_events.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY)
-                ],
-            ),
-            origin=EventOrigin.MANUAL,
-            status=EventStatus.PUBLISHED,
-            created_by=None,
-            now=h.now,
-        )
-
-
-async def seed_project(
-    h: Harness,
-    lead: models.User,
-    *,
-    members: Sequence[models.User] = (),
-    name: str = "Project",
-    visibility: str = "public",
-    status: str = "idea",
-    event_id: Any = None,
-    area_keys: Sequence[str] = ("backend",),
-    recruiting: dict[str, Any] | None = None,
-    team_status: str | None = None,
-) -> models.Project:
-    async with h.db() as session:
-        project = models.Project(
-            event_id=event_id,
-            name=name,
-            description_md="",
-            goal="",
-            links=[],
-            visibility=visibility,
-            recruiting=recruiting,
-            lead_user_id=lead.id,
-            status=status,
-            team_status=team_status,
-            origin="standalone" if team_status is None else "formation",
-            last_progress_at=h.now,
-        )
-        session.add(project)
-        await session.flush()
-        for key in area_keys:
-            area_id = await session.scalar(select(models.Area.id).where(models.Area.key == key))
-            assert area_id is not None
-            session.add(models.ProjectArea(project_id=project.id, area_id=area_id))
-        for user in (lead, *members):
-            is_lead = user.id == lead.id
-            session.add(
-                models.ProjectMember(
-                    project_id=project.id,
-                    event_id=event_id if team_status is not None else None,
-                    user_id=user.id,
-                    role="lead" if is_lead else "member",
-                    state="confirmed",
-                    trust="self",
-                    joined_via="create",
-                    is_team_row=False,
-                    joined_at=h.now,
-                    confirmed_at=h.now,
-                )
-            )
-        await session.flush()
-        await session.refresh(project)
-        return project
 
 
 async def set_formation(h: Harness, event: models.Event, **values: Any) -> None:

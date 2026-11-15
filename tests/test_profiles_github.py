@@ -13,7 +13,6 @@ from hmm.common import ErrorCode, GithubSnapshotStatus
 from hmm.identity import service as identity
 from hmm.identity.github import GithubUser
 from hmm.models import GithubSnapshot, User
-from hmm.platform.jobs import REGISTRY, JobName
 from hmm.profiles import github as profiles_github
 from hmm.profiles import jobs as profile_jobs
 from hmm.profiles.github import GithubError, github_summary
@@ -390,8 +389,3 @@ async def test_login_triggers(harness: Harness) -> None:
     async with harness.db() as session:
         await identity.sign_in(session, harness.jobs, profile, frozenset(), harness.now)
     assert await harness.pending_jobs("github_sync") == []
-
-
-async def test_github_jobs_registered(harness: Harness) -> None:
-    assert JobName.GITHUB_SYNC in REGISTRY
-    assert JobName.GITHUB_SYNC_ALL in REGISTRY

@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID
 
+from factories import mentorship_row
 from harness import Harness
 from sqlalchemy import func, select
 
@@ -54,13 +55,6 @@ async def add_mentorship(
         session.add(row)
         await session.flush()
         return row.id
-
-
-async def mentorship_row(h: Harness, mentorship_id: UUID) -> models.Mentorship:
-    async with h.db() as session:
-        row = await session.get(models.Mentorship, mentorship_id)
-        assert row is not None
-        return row
 
 
 async def notices(h: Harness, user: models.User, type: str) -> list[dict[str, Any]]:

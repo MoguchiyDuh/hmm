@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-import httpx
+from factories import REQUESTS, add_active_mentorship, create_request
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
@@ -15,31 +15,12 @@ from hmm.algo.models import AlgoContext, MentorMatchRequest, Rec
 from hmm.common import ErrorCode
 from hmm.mentorship.jobs import match_mentors
 
-REQUESTS = "/api/v1/help-requests"
 TOP_N = 5
 
 
 class FailingAlgorithm(FakeAlgorithm):
     async def match_mentors(self, ctx: AlgoContext, request: MentorMatchRequest) -> list[Rec]:
         raise RuntimeError("boom")
-
-
-def request_body(area_key: str = "backend", **fields: Any) -> dict[str, Any]:
-    return {
-        "area_key": area_key,
-        "topic": "FastAPI auth",
-        "goal": "ship a login flow",
-        "format": "online",
-        **fields,
-    }
-
-
-async def create_request(
-    c: httpx.AsyncClient, area_key: str = "backend", **fields: Any
-) -> dict[str, Any]:
-    response = await c.post(REQUESTS, json=request_body(area_key, **fields))
-    assert response.status_code == 201, response.text
-    return response.json()
 
 
 async def scored(
@@ -53,38 +34,6 @@ async def scored(
             )
         )
     return user
-
-
-async def add_active_mentorship(
-    h: Harness, learner: models.User, mentor: models.User, area: models.Area
-) -> None:
-    async with h.db() as session:
-        request = models.HelpRequest(
-            learner_id=learner.id,
-            area_id=area.id,
-            topic="Past",
-            goal="Past goal",
-            format="online",
-            status="matched",
-            expires_at=h.now + timedelta(days=14),
-        )
-        session.add(request)
-        await session.flush()
-        session.add(
-            models.Mentorship(
-                request_id=request.id,
-                mentor_id=mentor.id,
-                learner_id=learner.id,
-                area_id=area.id,
-                kind="mentoring",
-                mentor_score_at_start=Decimal("7.00"),
-                learner_score_at_start=Decimal("2.00"),
-                status="active",
-                started_at=h.now,
-                mentor_trust="self",
-                learner_trust="self",
-            )
-        )
 
 
 async def recommendation_sets(h: Harness, request_id: str) -> list[models.RecommendationSet]:

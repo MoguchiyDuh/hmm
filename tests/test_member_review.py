@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import uuid4
 
+from factories import count
 from harness import Harness, MemoryObjectStore, assert_problem
 from sqlalchemy import func, select
 
@@ -79,11 +80,6 @@ async def seed_submission(
         await session.flush()
         await session.refresh(submission)
         return submission
-
-
-async def count(h: Harness, model: type[models.Base], *where: Any) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(model).where(*where)) or 0
 
 
 async def load_review(h: Harness, member: models.User) -> models.MemberReview:

@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from factories import QUESTIONS
 from harness import Harness
 from sqlalchemy import func, select, update
 
@@ -15,63 +16,6 @@ from hmm.onboarding.baseline import load_onboarding_baseline
 from hmm.onboarding.jobs import score_onboarding
 from hmm.platform.jobs import JobName, defer_job
 from hmm.scores.service import write_calculated_scores
-
-QUESTIONS: list[dict[str, Any]] = [
-    {
-        "key": "languages",
-        "type": "multi_choice",
-        "section": "general",
-        "required": True,
-        "visible_if": None,
-        "config": {"min": 1, "max": 2, "allow_other": True},
-        "options": [("python", {"backend": 1.0}), ("react", {"frontend": 0.8})],
-    },
-    {
-        "key": "years",
-        "type": "number",
-        "section": "general",
-        "required": False,
-        "visible_if": None,
-        "config": {"min": 0, "max": 50, "unit": "years"},
-        "options": [],
-    },
-    {
-        "key": "direction",
-        "type": "single_choice",
-        "section": "general",
-        "required": True,
-        "visible_if": {"q": "languages", "op": "includes", "value": "python"},
-        "config": {"allow_other": False},
-        "options": [("backend", {"backend": 1.0}), ("frontend", {"frontend": 1.0})],
-    },
-    {
-        "key": "about",
-        "type": "text",
-        "section": "advanced",
-        "required": False,
-        "visible_if": {"not": {"q": "years", "op": "gte", "value": 2}},
-        "config": {"max_length": 20, "multiline": False},
-        "options": [],
-    },
-    {
-        "key": "rating",
-        "type": "scale",
-        "section": "general",
-        "required": False,
-        "visible_if": None,
-        "config": {"min": 1, "max": 10, "min_label": "new", "max_label": "expert"},
-        "options": [],
-    },
-    {
-        "key": "link",
-        "type": "url",
-        "section": "general",
-        "required": False,
-        "visible_if": None,
-        "config": {},
-        "options": [],
-    },
-]
 
 
 async def seed_quiz(h: Harness, admin: models.User, *, drop: str | None = None) -> models.Quiz:

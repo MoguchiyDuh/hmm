@@ -175,7 +175,7 @@ async def test_lead_leave_without_members_pauses(harness: Harness) -> None:
         assert await session.scalar(select(func.count()).select_from(models.Notification)) == 0
 
 
-async def test_transfer_lead_is_immediate(harness: Harness) -> None:
+async def test_standalone_transfer_lead_is_immediate(harness: Harness) -> None:
     h = harness
     lead, target, other = await h.user(), await h.user(), await h.user()
     project = await seed_project(h, lead, members=(target, other))

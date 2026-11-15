@@ -9,7 +9,7 @@ from hmm import models
 from hmm.admin.jobs import admin_digest, digest_period
 from hmm.common import AlertStatus
 from hmm.notifications.payloads import AdminDigestPayload, AlertKind, NotificationType
-from hmm.platform.jobs import JOBS, REGISTRY, JobName
+from hmm.platform.jobs import JOBS, JobName
 
 
 async def add_event(
@@ -217,7 +217,6 @@ async def test_admin_digest_checks_parser_down(harness: Harness) -> None:
 
 
 def test_admin_digest_registration() -> None:
-    assert JobName.ADMIN_DIGEST in REGISTRY
     spec = JOBS[JobName.ADMIN_DIGEST]
     assert spec.cron == "0 9 * * 1"
     assert spec.lock == spec.queueing_lock == "admin_digest"

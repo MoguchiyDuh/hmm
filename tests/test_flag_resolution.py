@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from factories import count
 from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
@@ -187,12 +188,6 @@ async def recomputes(h: Harness, user: models.User) -> int:
     return sum(
         1 for row in rows if row["status"] == "todo" and row["args"] == {"user_id": str(user.id)}
     )
-
-
-async def count(h: Harness, model: type[Any]) -> int:
-    async with h.db() as session:
-        value = await session.scalar(select(func.count()).select_from(model))
-        return int(value or 0)
 
 
 async def counts(h: Harness) -> tuple[int, int, int, int]:

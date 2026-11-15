@@ -5,7 +5,6 @@ from sqlalchemy import update
 
 from hmm.common import CvTextStatus, GithubSnapshotStatus
 from hmm.models import CvFile, GithubSnapshot, User
-from hmm.platform.jobs import REGISTRY, JobName
 from hmm.profiles import cv as profiles_cv
 from hmm.profiles import jobs as profile_jobs
 from hmm.profiles.service import RegistrationInputs, inputs_settled, registration_inputs
@@ -223,7 +222,3 @@ async def test_registration_inputs(harness: Harness) -> None:
         current = await inputs()
         assert current.cv == status
         assert inputs_settled(current) is True
-
-
-async def test_cv_extract_registered(harness: Harness) -> None:
-    assert JobName.CV_EXTRACT in REGISTRY

@@ -2,8 +2,9 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
+from factories import count
 from harness import Harness, assert_problem
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from hmm import models
 from hmm.common import ErrorCode
@@ -55,11 +56,6 @@ async def add_event(
         session.add(row)
         await session.flush()
         return row
-
-
-async def count(h: Harness, model: Any, *conditions: Any) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(model).where(*conditions)) or 0
 
 
 async def test_create_member_event(harness: Harness) -> None:

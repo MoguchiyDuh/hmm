@@ -5,9 +5,10 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from factories import count
 from harness import Harness
 from pydantic import JsonValue, ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from hmm import models
 from hmm.catalog import events as catalog_events
@@ -82,11 +83,6 @@ async def post_import(h: Harness, *items: JsonValue) -> EventImportResponse:
 async def import_results(h: Harness, *items: JsonValue) -> list[dict[str, Any]]:
     response = await post_import(h, *items)
     return [result.model_dump(mode="json") for result in response.results]
-
-
-async def count(h: Harness, model: Any, *where: Any) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(model).where(*where)) or 0
 
 
 async def existing_event(h: Harness, starts_at: datetime, ends_at: datetime) -> UUID:

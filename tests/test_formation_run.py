@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
-from formation_support import (
+from factories import (
     accept_invite,
     alerts,
     create_party,

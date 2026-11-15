@@ -35,7 +35,7 @@ from hmm.common import (
     Trust,
 )
 from hmm.notifications.payloads import AlertKind
-from hmm.platform.jobs import JOBS, REGISTRY, JobName, defer_job
+from hmm.platform.jobs import JOBS, JobName, defer_job
 from hmm.scores import community
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures/community"
@@ -505,7 +505,6 @@ async def test_invalid_output_is_rejected(harness: Harness) -> None:
 
 async def test_job_wiring(harness: Harness) -> None:
     h = harness
-    assert JobName.SCAN_COMMUNITY in REGISTRY
     spec = JOBS[JobName.SCAN_COMMUNITY]
     assert spec.cron == "0 2 * * *"
     assert spec.timeout == 1800

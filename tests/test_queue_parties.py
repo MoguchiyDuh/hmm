@@ -1,7 +1,7 @@
 from datetime import timedelta
 from uuid import UUID
 
-from formation_support import (
+from factories import (
     accept_invite,
     create_party,
     enrollment_row,

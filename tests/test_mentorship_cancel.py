@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
+from factories import count
 from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
@@ -121,11 +122,6 @@ async def closed_notices(h: Harness, *users: models.User) -> int:
             )
         )
         return int(count or 0)
-
-
-async def count(h: Harness, model: type[models.Confirmation] | type[models.AuditLog]) -> int:
-    async with h.db() as session:
-        return int(await session.scalar(select(func.count()).select_from(model)) or 0)
 
 
 async def audits(h: Harness, action: AuditAction) -> list[models.AuditLog]:
@@ -271,7 +267,7 @@ async def test_second_ban_changes_nothing(harness: Harness) -> None:
     assert await count(h, models.AuditLog) == audit_rows
 
 
-async def test_unban_restores_nothing(harness: Harness) -> None:
+async def test_unban_keeps_mentorship_cancelled(harness: Harness) -> None:
     h = harness
     s = await scenario(h)
     mentorship_id = await s.mentorship()

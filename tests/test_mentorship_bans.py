@@ -3,13 +3,12 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from factories import REQUESTS, count
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
 from hmm import models
 from hmm.common import AuditAction, ErrorCode
-
-REQUESTS = "/api/v1/help-requests"
 
 
 def ban_url(user: models.User) -> str:
@@ -61,11 +60,6 @@ async def request_row(h: Harness, request_id: str | UUID) -> models.HelpRequest:
         row = await session.get(models.HelpRequest, UUID(str(request_id)))
         assert row is not None
         return row
-
-
-async def count(h: Harness, model: type[models.Notification] | type[models.AuditLog]) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(model)) or 0
 
 
 async def notifications(h: Harness, user_id: UUID, type: str) -> list[models.Notification]:
@@ -245,7 +239,7 @@ async def test_ban_keeps_settled_rows(harness: Harness) -> None:
     assert await count(h, models.Notification) == before
 
 
-async def test_unban_restores_nothing(harness: Harness) -> None:
+async def test_unban_keeps_requests_and_offers_closed(harness: Harness) -> None:
     h = harness
     areas = await h.seed_areas()
     admin = await h.admin()

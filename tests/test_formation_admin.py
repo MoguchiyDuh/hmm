@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from formation_support import (
+from factories import (
     confirm,
     enrollment_row,
     formation,

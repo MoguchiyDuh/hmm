@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
+from factories import mentorship_row
 from harness import Harness, assert_problem
 from sqlalchemy import select
 
@@ -60,13 +61,6 @@ async def add_mentorship(
         session.add(row)
         await session.flush()
         return row.id
-
-
-async def mentorship_row(h: Harness, mentorship_id: UUID) -> models.Mentorship:
-    async with h.db() as session:
-        row = await session.get(models.Mentorship, mentorship_id)
-        assert row is not None
-        return row
 
 
 def checkin(occurred_on: str, **fields: Any) -> dict[str, Any]:

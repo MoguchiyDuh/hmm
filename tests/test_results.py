@@ -4,8 +4,9 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from factories import count
 from harness import Harness, assert_problem
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from hmm import models
 from hmm.common import AuditAction, AuditEntityType, ErrorCode
@@ -111,11 +112,6 @@ async def submit(harness: Harness, user: models.User, team: Team, **overrides: A
 async def rows(harness: Harness, model: type[models.Base], *where: Any) -> list[Any]:
     async with harness.db() as session:
         return list(await session.scalars(select(model).where(*where)))
-
-
-async def count(harness: Harness, model: type[models.Base]) -> int:
-    async with harness.db() as session:
-        return await session.scalar(select(func.count()).select_from(model)) or 0
 
 
 async def test_lead_submits_finished_result(harness: Harness, team: Team) -> None:

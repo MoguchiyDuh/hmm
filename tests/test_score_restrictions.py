@@ -1,17 +1,14 @@
-from collections.abc import Generator
-from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import timedelta
 from uuid import UUID, uuid4
 
-import pytest
+from factories import problem
 from harness import Harness, assert_problem
 from sqlalchemy import select
 
 from hmm import models
 from hmm.common import ActorKind, AuditAction, AuditEntityType, ErrorCode, RestrictionKind
 from hmm.notifications.payloads import NotificationType
-from hmm.platform.errors import ProblemError
 from hmm.scores.restrictions import (
     active_restrictions,
     apply_restriction,
@@ -33,13 +30,6 @@ class Seed:
     admin: models.User
     attendance_id: UUID
     confirmation_id: UUID
-
-
-@contextmanager
-def problem(code: ErrorCode) -> Generator[None]:
-    with pytest.raises(ProblemError) as error:
-        yield
-    assert error.value.code == code
 
 
 async def seed(h: Harness) -> Seed:

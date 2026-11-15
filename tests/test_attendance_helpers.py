@@ -2,8 +2,9 @@ from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from factories import count
 from harness import Harness
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from hmm import models
 from hmm.attendance.service import ensure_attended, expire_going_attendances
@@ -69,12 +70,6 @@ async def attendance_of(harness: Harness, event_id: UUID, user_id: UUID) -> mode
         )
         assert row is not None
         return row
-
-
-async def count(harness: Harness, model: type[models.Base]) -> int:
-    async with harness.db() as session:
-        value = await session.scalar(select(func.count()).select_from(model))
-        return value or 0
 
 
 async def system_confirmations(harness: Harness) -> list[models.Confirmation]:

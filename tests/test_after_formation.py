@@ -3,7 +3,7 @@ from datetime import timedelta
 from typing import Any
 from uuid import UUID
 
-from formation_support import (
+from factories import (
     accept_invite,
     alerts,
     create_party,
@@ -167,7 +167,7 @@ async def test_lead_edits_rename_and_areas(harness: Harness) -> None:
         assert_problem(denied, 403, ErrorCode.FORBIDDEN)
 
 
-async def test_transfer_lead_is_immediate(harness: Harness) -> None:
+async def test_team_transfer_lead_is_immediate(harness: Harness) -> None:
     h = harness
     admin = await h.admin()
     _event, users, team = await formed(h, admin)

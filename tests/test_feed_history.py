@@ -1,11 +1,9 @@
-from collections.abc import Generator
-from contextlib import contextmanager
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-import pytest
+from factories import problem
 from harness import Harness
 
 from hmm import models
@@ -26,15 +24,7 @@ from hmm.common import (
 from hmm.feed.confirmations import add_confirmation
 from hmm.feed.history import list_pending_confirmations, list_user_facts
 from hmm.feed.schemas import Fact, FactPage
-from hmm.platform.errors import ProblemError
 from hmm.platform.pagination import CursorParams
-
-
-@contextmanager
-def problem(code: ErrorCode) -> Generator[None]:
-    with pytest.raises(ProblemError) as error:
-        yield
-    assert error.value.code == code
 
 
 async def facts(

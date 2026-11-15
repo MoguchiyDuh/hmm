@@ -3,6 +3,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
+from factories import add_offers, count
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
@@ -38,22 +39,6 @@ async def write_request(h: Harness, request_id: str, **values: Any) -> None:
         )
 
 
-async def add_offers(h: Harness, request_id: str, *mentors: models.User) -> list[UUID]:
-    async with h.db() as session:
-        offers = [
-            models.HelpOffer(
-                request_id=UUID(request_id),
-                mentor_id=mentor.id,
-                message=f"I can help {mentor.display_name}",
-                status="pending",
-            )
-            for mentor in mentors
-        ]
-        session.add_all(offers)
-        await session.flush()
-        return [offer.id for offer in offers]
-
-
 async def offer_statuses(h: Harness, offer_ids: list[UUID]) -> set[str]:
     async with h.db() as session:
         return set(
@@ -71,11 +56,6 @@ async def notifications(
         if user_id is not None:
             statement = statement.where(models.Notification.user_id == user_id)
         return list(await session.scalars(statement))
-
-
-async def notification_count(h: Harness) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(models.Notification)) or 0
 
 
 async def feed_items(h: Harness, request_id: str, *, live: bool) -> int:
@@ -106,7 +86,7 @@ async def test_cancel_open_request(harness: Harness) -> None:
     async with await h.client(learner) as c:
         opened = await create(c)
         direct = await create(c, "backend", target_mentor_id=str(target.id))
-    before = await notification_count(h)
+    before = await count(h, models.Notification)
     async with await h.client(target) as c:
         assert_problem(await c.post(f"{URL}/{opened['id']}/cancel"), 403, ErrorCode.FORBIDDEN)
     async with await h.client(other) as c:
@@ -122,7 +102,7 @@ async def test_cancel_open_request(harness: Harness) -> None:
         assert again.json() == cancelled
     assert await feed_items(h, opened["id"], live=True) == 0
     assert await feed_items(h, opened["id"], live=False) == 1
-    assert await notification_count(h) == before
+    assert await count(h, models.Notification) == before
 
 
 async def test_cancel_closes_pending_offers(harness: Harness) -> None:

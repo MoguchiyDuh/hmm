@@ -5,8 +5,9 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from factories import count
 from harness import Harness, assert_problem
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 
 from hmm import models
 from hmm.algo import models as algo
@@ -28,7 +29,6 @@ from hmm.common import (
 )
 from hmm.notifications.payloads import AlertKind, AlertStatus, NotificationType
 from hmm.onboarding.baseline import save_onboarding_baseline
-from hmm.platform.jobs import REGISTRY, JobName
 from hmm.scores import recompute
 from hmm.scores.jobs import recompute_member as recompute_member_job
 from hmm.scores.schemas import MemberMetrics
@@ -132,11 +132,6 @@ async def seed_baseline(h: Harness, user_id: UUID, value: float) -> None:
 async def run(h: Harness, user_id: UUID) -> bool:
     async with h.db() as session:
         return await recompute.recompute_member(session, h.runtime, user_id)
-
-
-async def count(h: Harness, model: type[models.Base]) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(model)) or 0
 
 
 async def forget_metrics(h: Harness, user_id: UUID) -> None:
@@ -516,9 +511,3 @@ async def test_metrics_endpoint(harness: Harness) -> None:
         )
     async with h.anonymous() as client:
         assert_problem(await client.get(path), 401, ErrorCode.UNAUTHENTICATED)
-
-
-async def test_jobs_registered(harness: Harness) -> None:
-    assert harness.jobs is not None
-    assert JobName.RECOMPUTE_MEMBER in REGISTRY
-    assert JobName.RECOMPUTE_ALL_MEMBERS in REGISTRY

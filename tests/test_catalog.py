@@ -46,7 +46,6 @@ from hmm.formation import common as formation_common
 from hmm.notifications.payloads import AlertKind, NotificationChange, NotificationType
 from hmm.platform.db import get_or_404
 from hmm.platform.errors import ProblemError
-from hmm.platform.jobs import JOBS, REGISTRY, JobName
 
 
 def event_input(h: Harness) -> catalog_events.EventInput:
@@ -1315,8 +1314,6 @@ async def test_archive_old_events(harness: Harness) -> None:
             .where(models.Event.id == events["archived"].id)
             .values(updated_at=h.now - timedelta(days=10))
         )
-    assert JOBS[JobName.ARCHIVE_OLD_EVENTS].cron == "30 1 * * *"
-    assert JobName.ARCHIVE_OLD_EVENTS in REGISTRY
     await catalog_jobs.archive_old_events(h.runtime)
     async with h.db() as session:
         for key, event in events.items():

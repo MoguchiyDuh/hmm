@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any, cast
 from uuid import uuid4
 
+from factories import count
 from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
@@ -97,11 +98,6 @@ def contributions(
 async def rows(h: Harness, model: type[Any], *where: Any) -> list[Any]:
     async with h.db() as session:
         return list(await session.scalars(select(model).where(*where)))
-
-
-async def count(h: Harness, model: type[Any], *where: Any) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(model).where(*where)) or 0
 
 
 async def notices(h: Harness, user: models.User, type: str) -> list[models.Notification]:

@@ -1,11 +1,11 @@
 import asyncio
-from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
 import pytest
+from factories import REQUESTS, add_active_mentorship, create_request
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
@@ -14,26 +14,7 @@ from hmm.common import ErrorCode
 from hmm.mentorship import help_offers
 from hmm.platform.errors import ProblemError
 
-REQUESTS = "/api/v1/help-requests"
 OFFERS = "/api/v1/help-offers"
-
-
-def request_body(area_key: str = "backend", **fields: Any) -> dict[str, Any]:
-    return {
-        "area_key": area_key,
-        "topic": "FastAPI auth",
-        "goal": "ship a login flow",
-        "format": "online",
-        **fields,
-    }
-
-
-async def create_request(
-    c: httpx.AsyncClient, area_key: str = "backend", **fields: Any
-) -> dict[str, Any]:
-    response = await c.post(REQUESTS, json=request_body(area_key, **fields))
-    assert response.status_code == 201, response.text
-    return response.json()
 
 
 async def offer(c: httpx.AsyncClient, request_id: str, message: str = "Happy to help") -> Any:
@@ -60,38 +41,6 @@ async def set_score(
             session.add(row)
         row.calculated = Decimal(calculated)
         row.override = Decimal(override) if override is not None else None
-
-
-async def add_active_mentorship(
-    h: Harness, learner: models.User, mentor: models.User, area: models.Area
-) -> None:
-    async with h.db() as session:
-        request = models.HelpRequest(
-            learner_id=learner.id,
-            area_id=area.id,
-            topic="Past",
-            goal="Past goal",
-            format="online",
-            status="matched",
-            expires_at=h.now + timedelta(days=14),
-        )
-        session.add(request)
-        await session.flush()
-        session.add(
-            models.Mentorship(
-                request_id=request.id,
-                mentor_id=mentor.id,
-                learner_id=learner.id,
-                area_id=area.id,
-                kind="mentoring",
-                mentor_score_at_start=Decimal("7.00"),
-                learner_score_at_start=Decimal("2.00"),
-                status="active",
-                started_at=h.now,
-                mentor_trust="self",
-                learner_trust="self",
-            )
-        )
 
 
 async def notifications(h: Harness, user_id: UUID, type: str) -> list[models.Notification]:

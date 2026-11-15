@@ -5,8 +5,9 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
+from factories import count
 from harness import Harness
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from hmm import models
 from hmm.catalog import imports as catalog_imports
@@ -41,11 +42,6 @@ async def import_one(h: Harness, item: dict[str, Any]) -> dict[str, Any]:
             session, h.jobs, EventImportBatch(items=[item]), h.now
         )
     return response.results[0].model_dump(mode="json")
-
-
-async def count(h: Harness, model: Any, *where: Any) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(model).where(*where)) or 0
 
 
 async def members(h: Harness) -> tuple[models.User, models.User]:

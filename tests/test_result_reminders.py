@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
+from factories import count
 from harness import Harness
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from hmm import models
 from hmm.common import AuditAction, AuditEntityType
@@ -118,11 +119,6 @@ async def due(harness: Harness, *, limit: int = 500) -> int:
 async def close(harness: Harness, *, limit: int = 500) -> int:
     async with harness.db() as session:
         return await auto_close_result_teams(session, harness.jobs, harness.now, limit=limit)
-
-
-async def count(harness: Harness, model: type[models.Base]) -> int:
-    async with harness.db() as session:
-        return await session.scalar(select(func.count()).select_from(model)) or 0
 
 
 async def load_project(harness: Harness, project_id: UUID) -> models.Project:

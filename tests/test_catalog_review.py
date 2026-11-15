@@ -3,19 +3,15 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
+from factories import count
 from harness import Harness, assert_problem
-from sqlalchemy import func, select
+from sqlalchemy import select
 from test_catalog_import import import_item, import_results
 
 from hmm import models
 from hmm.common import ErrorCode
 
 ADMIN_EVENTS = "/api/v1/admin/events"
-
-
-async def count(h: Harness, model: Any, *where: Any) -> int:
-    async with h.db() as session:
-        return await session.scalar(select(func.count()).select_from(model).where(*where)) or 0
 
 
 async def seed_event(

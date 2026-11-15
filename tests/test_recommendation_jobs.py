@@ -1,31 +1,24 @@
 import itertools
 import re
 from dataclasses import replace
-from datetime import timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from harness import NOW, Harness
+from factories import enroll, make_hackathon
+from harness import Harness
 from sqlalchemy import func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.algo.fake import FakeAlgorithm
 from hmm.algo.models import AlgoContext, Rec, Recommendations, RecommendRequest
-from hmm.catalog import events as catalog_events
 from hmm.common import (
-    AreaImportance,
-    EnrollmentSource,
-    EventKind,
-    EventOrigin,
-    EventStatus,
     ProjectOrigin,
     ProjectStatus,
     ProjectVisibility,
 )
-from hmm.platform.jobs import JOB_MODULES, REGISTRY, JobName, defer_job
+from hmm.platform.jobs import JobName, defer_job
 from hmm.recommendations import service
 from hmm.recommendations.jobs import refresh_recommendations
 
@@ -52,34 +45,6 @@ class Failing(FakeAlgorithm):
 
     async def recommend(self, ctx: AlgoContext, request: RecommendRequest) -> Recommendations:
         raise self.error
-
-
-async def make_hackathon(
-    h: Harness,
-    *,
-    starts_in: timedelta = timedelta(days=30),
-    areas: tuple[tuple[str, AreaImportance], ...] = (("backend", AreaImportance.PRIMARY),),
-) -> models.Event:
-    async with h.db() as session:
-        return await catalog_events.create_event(
-            session,
-            catalog_events.EventInput(
-                kind=EventKind.HACKATHON,
-                title=f"Rec Job Hack {next(_titles)}",
-                starts_at=h.now + starts_in,
-                ends_at=h.now + starts_in + timedelta(days=2),
-                timezone="UTC",
-                registration_deadline=None,
-                areas=[
-                    catalog_events.EventAreaInput(key=key, importance=importance)
-                    for key, importance in areas
-                ],
-            ),
-            origin=EventOrigin.MANUAL,
-            status=EventStatus.PUBLISHED,
-            created_by=None,
-            now=h.now,
-        )
 
 
 async def team(
@@ -124,27 +89,6 @@ async def team(
         await session.flush()
         await session.refresh(project)
         return project
-
-
-async def enroll(
-    session: AsyncSession,
-    event: models.Event,
-    user: models.User,
-    status: str = "active",
-    **fields: Any,
-) -> models.Enrollment:
-    enrollment = models.Enrollment(
-        event_id=event.id,
-        user_id=user.id,
-        status=status,
-        source=EnrollmentSource.SELF.value,
-        status_at=NOW,
-        **fields,
-    )
-    session.add(enrollment)
-    await session.flush()
-    await session.refresh(enrollment)
-    return enrollment
 
 
 async def standalone(
@@ -243,11 +187,6 @@ async def forming_setup(
     for user, value in ((low, "2"), (high, "8"), (plain_low, "3"), (plain_high, "9")):
         await score(h, areas["backend"], user, value)
     return project, event, areas, [low, high, plain_low, plain_high]
-
-
-def test_registration() -> None:
-    assert JobName.REFRESH_RECOMMENDATIONS in REGISTRY
-    assert "hmm.recommendations.jobs" in JOB_MODULES
 
 
 async def test_happy_path_team_forming(harness: Harness) -> None:

@@ -1,8 +1,14 @@
 from typing import Any
 from uuid import UUID
 
+from factories import (
+    next_quiz_version,
+    onboarding_setup,
+    onboarding_status,
+    seed_quiz,
+)
 from harness import Harness, assert_problem
-from sqlalchemy import func, select, update
+from sqlalchemy import select
 
 from hmm import models
 from hmm.common import (
@@ -19,147 +25,6 @@ ONBOARDING = "/api/v1/onboarding"
 ANSWERS = "/api/v1/onboarding/answers"
 SUBMIT = "/api/v1/onboarding/submit"
 
-QUESTIONS: list[dict[str, Any]] = [
-    {
-        "key": "languages",
-        "type": "multi_choice",
-        "section": "general",
-        "required": True,
-        "visible_if": None,
-        "config": {"min": 1, "max": 2, "allow_other": True},
-        "options": [("python", {"backend": 1.0}), ("react", {"frontend": 0.8})],
-    },
-    {
-        "key": "years",
-        "type": "number",
-        "section": "general",
-        "required": False,
-        "visible_if": None,
-        "config": {"min": 0, "max": 50, "unit": "years"},
-        "options": [],
-    },
-    {
-        "key": "direction",
-        "type": "single_choice",
-        "section": "general",
-        "required": True,
-        "visible_if": {"q": "languages", "op": "includes", "value": "python"},
-        "config": {"allow_other": False},
-        "options": [("backend", {"backend": 1.0}), ("frontend", {"frontend": 1.0})],
-    },
-    {
-        "key": "about",
-        "type": "text",
-        "section": "advanced",
-        "required": False,
-        "visible_if": {"not": {"q": "years", "op": "gte", "value": 2}},
-        "config": {"max_length": 20, "multiline": False},
-        "options": [],
-    },
-    {
-        "key": "rating",
-        "type": "scale",
-        "section": "general",
-        "required": False,
-        "visible_if": None,
-        "config": {"min": 1, "max": 10, "min_label": "new", "max_label": "expert"},
-        "options": [],
-    },
-    {
-        "key": "link",
-        "type": "url",
-        "section": "general",
-        "required": False,
-        "visible_if": None,
-        "config": {},
-        "options": [],
-    },
-]
-
-
-async def _archive_published(session: Any) -> None:
-    await session.execute(
-        update(models.Quiz)
-        .where(models.Quiz.status == QuizStatus.PUBLISHED)
-        .values(status=QuizStatus.ARCHIVED)
-    )
-    await session.flush()
-
-
-async def _next_version(session: Any) -> int:
-    return (await session.scalar(select(func.coalesce(func.max(models.Quiz.version), 0)))) + 1
-
-
-async def seed_quiz(h: Harness, admin: models.User, *, drop: str | None = None) -> models.Quiz:
-    async with h.db() as session:
-        await _archive_published(session)
-        quiz = models.Quiz(
-            version=await _next_version(session),
-            title="Onboarding",
-            status=QuizStatus.PUBLISHED,
-            created_by=admin.id,
-            published_at=h.now,
-        )
-        session.add(quiz)
-        await session.flush()
-        session.add_all(
-            [
-                models.QuizSectionDef(quiz_id=quiz.id, key="general", position=0, visible_if=None),
-                models.QuizSectionDef(
-                    quiz_id=quiz.id,
-                    key="advanced",
-                    position=1,
-                    visible_if={
-                        "any": [
-                            {"q": "languages", "op": "includes", "value": "python"},
-                            {"q": "years", "op": "gte", "value": 2},
-                        ]
-                    },
-                ),
-            ]
-        )
-        rows: dict[str, models.Question] = {}
-        for position, spec in enumerate(QUESTIONS):
-            if spec["key"] == drop:
-                continue
-            rows[spec["key"]] = models.Question(
-                quiz_id=quiz.id,
-                section=spec["section"],
-                key=spec["key"],
-                type=spec["type"],
-                text=spec["key"].title(),
-                help=None,
-                required=spec["required"],
-                position=position,
-                visible_if=spec["visible_if"],
-                config=spec["config"],
-            )
-        session.add_all(rows.values())
-        await session.flush()
-        session.add_all(
-            models.QuestionOption(
-                question_id=rows[spec["key"]].id,
-                key=key,
-                label=key.title(),
-                position=index,
-                area_hints=hints,
-            )
-            for spec in QUESTIONS
-            if spec["key"] in rows
-            for index, (key, hints) in enumerate(spec["options"])
-        )
-        await session.flush()
-        await session.refresh(quiz)
-        return quiz
-
-
-async def _setup(h: Harness) -> tuple[models.User, models.Quiz, models.User]:
-    await h.seed_areas(("backend", "frontend"))
-    admin = await h.admin()
-    quiz = await seed_quiz(h, admin)
-    member = await h.user(onboarded=False)
-    return admin, quiz, member
-
 
 async def _submissions(h: Harness, user_id: UUID) -> list[models.OnboardingSubmission]:
     async with h.db() as session:
@@ -170,13 +35,6 @@ async def _submissions(h: Harness, user_id: UUID) -> list[models.OnboardingSubmi
                 .order_by(models.OnboardingSubmission.created_at)
             )
         )
-
-
-async def _status(h: Harness, user_id: UUID) -> str:
-    async with h.db() as session:
-        user = await session.get(models.User, user_id)
-        assert user is not None
-        return user.onboarding_status
 
 
 def _answer(value: Any, other: str | None = None) -> dict[str, Any]:
@@ -198,7 +56,7 @@ async def test_before_publication(harness: Harness) -> None:
         response = await client.put(ANSWERS, json={"answers": {"years": {"value": 1}}})
         assert_problem(response, 409, ErrorCode.INVALID_STATE)
         assert_problem(await client.post(SUBMIT), 409, ErrorCode.INVALID_STATE)
-    assert await _status(harness, member.id) == OnboardingStatus.NOT_STARTED
+    assert await onboarding_status(harness, member.id) == OnboardingStatus.NOT_STARTED
     assert await _submissions(harness, member.id) == []
     assert await harness.pending_jobs() == []
 
@@ -230,7 +88,7 @@ async def test_owner_sees_cv_text_failure(harness: Harness) -> None:
 
 
 async def test_first_save_and_merge(harness: Harness) -> None:
-    _, quiz, member = await _setup(harness)
+    _, quiz, member = await onboarding_setup(harness)
     async with await harness.client(member) as client:
         response = await client.put(ANSWERS, json={"answers": {"languages": {"value": ["python"]}}})
         assert response.status_code == 200, response.text
@@ -254,7 +112,7 @@ async def test_first_save_and_merge(harness: Harness) -> None:
 
 
 async def test_validation_errors_keep_draft(harness: Harness) -> None:
-    _, _, member = await _setup(harness)
+    _, _, member = await onboarding_setup(harness)
     async with await harness.client(member) as client:
         response = await client.put(ANSWERS, json={"answers": {"languages": {"value": ["python"]}}})
         assert response.status_code == 200, response.text
@@ -281,11 +139,11 @@ async def test_validation_errors_keep_draft(harness: Harness) -> None:
     rows = await _submissions(harness, member.id)
     assert len(rows) == 1
     assert rows[0].answers == {"languages": _answer(["python"])}
-    assert await _status(harness, member.id) == OnboardingStatus.IN_PROGRESS
+    assert await onboarding_status(harness, member.id) == OnboardingStatus.IN_PROGRESS
 
 
 async def test_unknown_keys_dropped(harness: Harness) -> None:
-    _, _, member = await _setup(harness)
+    _, _, member = await onboarding_setup(harness)
     async with await harness.client(member) as client:
         response = await client.put(
             ANSWERS, json={"answers": {"nope": {"value": 1}, "years": {"value": 2}}}
@@ -297,7 +155,7 @@ async def test_unknown_keys_dropped(harness: Harness) -> None:
 
 
 async def test_draft_migration_on_load_and_save(harness: Harness) -> None:
-    admin, _, member = await _setup(harness)
+    admin, _, member = await onboarding_setup(harness)
     async with await harness.client(member) as client:
         response = await client.put(
             ANSWERS,
@@ -328,7 +186,7 @@ async def test_draft_migration_on_load_and_save(harness: Harness) -> None:
 
 
 async def test_submit_success(harness: Harness) -> None:
-    _, quiz, member = await _setup(harness)
+    _, quiz, member = await onboarding_setup(harness)
     answers = {
         "languages": {"value": ["python"]},
         "years": {"value": 1},
@@ -352,7 +210,7 @@ async def test_submit_success(harness: Harness) -> None:
     assert row.answers == expected
     assert row.quiz_id == quiz.id
     assert row.submitted_at == harness.now
-    assert await _status(harness, member.id) == OnboardingStatus.COMPLETED
+    assert await onboarding_status(harness, member.id) == OnboardingStatus.COMPLETED
     async with harness.db() as session:
         review = await session.get(models.MemberReview, member.id)
         assert review is not None
@@ -376,7 +234,7 @@ async def test_submit_success(harness: Harness) -> None:
 
 
 async def test_submit_drops_hidden_answers(harness: Harness) -> None:
-    _, _, member = await _setup(harness)
+    _, _, member = await onboarding_setup(harness)
     async with await harness.client(member) as client:
         response = await client.put(
             ANSWERS,
@@ -400,7 +258,7 @@ async def test_submit_drops_hidden_answers(harness: Harness) -> None:
 
 
 async def test_submit_missing_required(harness: Harness) -> None:
-    _, _, member = await _setup(harness)
+    _, _, member = await onboarding_setup(harness)
     async with await harness.client(member) as client:
         response = await client.put(
             ANSWERS,
@@ -412,7 +270,7 @@ async def test_submit_missing_required(harness: Harness) -> None:
     assert response.json()["errors"] == [
         {"loc": ["answers", "direction"], "msg": "Required question is not answered"}
     ]
-    assert await _status(harness, member.id) == OnboardingStatus.IN_PROGRESS
+    assert await onboarding_status(harness, member.id) == OnboardingStatus.IN_PROGRESS
     rows = await _submissions(harness, member.id)
     assert [row.status for row in rows] == [SubmissionStatus.DRAFT]
     assert await harness.pending_jobs("score_onboarding") == []
@@ -421,7 +279,7 @@ async def test_submit_missing_required(harness: Harness) -> None:
 
 
 async def test_submit_hidden_required_not_required(harness: Harness) -> None:
-    _, _, member = await _setup(harness)
+    _, _, member = await onboarding_setup(harness)
     async with await harness.client(member) as client:
         response = await client.put(
             ANSWERS,
@@ -439,7 +297,7 @@ async def test_submit_without_any_draft(harness: Harness) -> None:
     admin = await harness.admin()
     async with harness.db() as session:
         quiz = models.Quiz(
-            version=await _next_version(session),
+            version=await next_quiz_version(session),
             title="Onboarding",
             status=QuizStatus.PUBLISHED,
             created_by=admin.id,
@@ -472,11 +330,11 @@ async def test_submit_without_any_draft(harness: Harness) -> None:
     assert rows[0].status == SubmissionStatus.SUBMITTED
     assert rows[0].answers == {}
     assert len(await harness.pending_jobs("score_onboarding")) == 1
-    assert await _status(harness, member.id) == OnboardingStatus.COMPLETED
+    assert await onboarding_status(harness, member.id) == OnboardingStatus.COMPLETED
 
 
 async def test_access_and_edit_lock(harness: Harness) -> None:
-    _, _, member = await _setup(harness)
+    _, _, member = await onboarding_setup(harness)
     async with await harness.client(member) as client:
         assert_problem(await client.get("/api/v1/areas"), 403, ErrorCode.ONBOARDING_REQUIRED)
         response = await client.put(
@@ -495,7 +353,7 @@ async def test_access_and_edit_lock(harness: Harness) -> None:
 
 
 async def test_repeated_submit_is_isolated(harness: Harness) -> None:
-    _, quiz, first = await _setup(harness)
+    _, quiz, first = await onboarding_setup(harness)
     second = await harness.user(onboarded=False)
     for member in (first, second):
         async with await harness.client(member) as client:
