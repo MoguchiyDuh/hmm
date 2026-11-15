@@ -61,7 +61,7 @@ Missing facts → `None`, never invented. `people` only lists identities publish
 
 ## 19.5 Deliverables
 
-- Parser jobs registered in `platform/jobs.py`, with sources, schedule and config documented here.
+- Parser jobs registered in `platform/jobs.py`, with sources, schedule and config documented here. Source survey and adapter design: [19-parser-sources.md](19-parser-sources.md).
 - `tests/fixtures/imports/*.json`: ≥ 30 real-world extracted examples across kinds, incl. edge cases (no dates, cancelled, multi-source duplicate, unknown area, winner list with GitHub logins).
 - A dry-run mode writing imports to stdout/JSONL without importing.
 - Quality report: precision on a hand-labeled sample of ≥ 50 pages (event vs not), field accuracy for dates/format/team size.
