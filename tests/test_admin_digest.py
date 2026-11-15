@@ -1,6 +1,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from factories import new_row
 from harness import NOW, Harness
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,20 +16,16 @@ from hmm.platform.jobs import JOBS, JobName
 async def add_event(
     session: AsyncSession, now: datetime, slug: str, *, origin: str, review_reasons: list[str]
 ) -> models.Event:
-    event = models.Event(
+    event = new_row(
+        models.Event,
         slug=slug,
-        kind="hackathon",
         formation_enabled=True,
         title=slug,
         starts_at=now + timedelta(days=5),
         ends_at=now + timedelta(days=6),
-        timezone="UTC",
         language=["en"],
-        themes=[],
-        status="published",
         review_reasons=review_reasons,
         origin=origin,
-        unmapped_areas=[],
     )
     session.add(event)
     await session.flush()
@@ -36,15 +33,14 @@ async def add_event(
 
 
 def flag(user: models.User, created_at: datetime) -> models.Flag:
-    return models.Flag(
+    return new_row(
+        models.Flag,
         user_id=user.id,
         subject_type="profile",
         subject_id=user.id,
-        related_user_ids=[],
         reason="Review profile",
         severity="low",
         status="to_check",
-        algo_version="test",
         created_at=created_at,
     )
 

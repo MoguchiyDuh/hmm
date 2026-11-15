@@ -3,6 +3,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from factories import new_row
 from harness import Harness
 from sqlalchemy import func, select
 
@@ -68,20 +69,13 @@ async def test_open_result_window_snapshots_and_notifies(
 ) -> None:
     lead, a, b, project = review_project
     async with harness.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug="nl-2026",
-            kind="hackathon",
-            formation_enabled=False,
             title="NL 2026",
             starts_at=harness.now - timedelta(days=3),
             ends_at=harness.now,
-            timezone="UTC",
             language=["en"],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
@@ -224,7 +218,8 @@ async def test_release_participants_use_tenure_and_live_confirmed_members(
             (departed_now, "member", harness.now - timedelta(days=10), harness.now, "confirmed"),
         ):
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=project.id,
                     user_id=user.id,
                     role=role,
@@ -264,18 +259,19 @@ async def test_mentorship_participants_and_window(
     areas = await harness.seed_areas()
     area = next(iter(areas.values()))
     async with harness.db() as session:
-        request = models.HelpRequest(
+        request = new_row(
+            models.HelpRequest,
             learner_id=learner.id,
             area_id=area.id,
             topic="ML basics",
             goal="g",
             format="any",
-            status="matched",
             expires_at=harness.now + timedelta(days=7),
         )
         session.add(request)
         await session.flush()
-        mentorship = models.Mentorship(
+        mentorship = new_row(
+            models.Mentorship,
             request_id=request.id,
             mentor_id=mentor.id,
             learner_id=learner.id,

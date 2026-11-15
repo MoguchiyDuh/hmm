@@ -1,6 +1,7 @@
 import itertools
 from collections.abc import Generator, Sequence
 from contextlib import contextmanager
+from copy import deepcopy
 from datetime import datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -26,6 +27,30 @@ from hmm.common import (
 )
 from hmm.formation import tick
 from hmm.platform.errors import ProblemError
+
+ROW_DEFAULTS: dict[type[models.Base], dict[str, Any]] = {
+    models.Event: {
+        "kind": "hackathon",
+        "formation_enabled": False,
+        "timezone": "UTC",
+        "language": [],
+        "themes": [],
+        "status": "published",
+        "review_reasons": [],
+        "origin": "manual",
+        "unmapped_areas": [],
+    },
+    models.ProjectMember: {"state": "confirmed", "trust": "self"},
+    models.HelpRequest: {"format": "online", "status": "matched"},
+    models.Mentorship: {"kind": "mentoring", "mentor_trust": "self", "learner_trust": "self"},
+    models.EventAttendance: {"proof_links": []},
+    models.Flag: {"algo_version": "test", "related_user_ids": [], "severity": "medium"},
+}
+
+
+def new_row[M: models.Base](model: type[M], **fields: Any) -> M:
+    return model(**{**deepcopy(ROW_DEFAULTS.get(model, {})), **fields})
+
 
 _titles = itertools.count(1)
 
@@ -165,13 +190,13 @@ async def seed_team(
         await session.flush()
         for user in (lead, *members):
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=project.id,
                     event_id=event.id,
                     user_id=user.id,
                     role="lead" if user.id == lead.id else "member",
                     state=state,
-                    trust="self",
                     joined_via="formation",
                     accept_by=None
                     if state == "confirmed"
@@ -409,30 +434,27 @@ async def add_active_mentorship(
     h: Harness, learner: models.User, mentor: models.User, area: models.Area
 ) -> None:
     async with h.db() as session:
-        request = models.HelpRequest(
+        request = new_row(
+            models.HelpRequest,
             learner_id=learner.id,
             area_id=area.id,
             topic="Past",
             goal="Past goal",
-            format="online",
-            status="matched",
             expires_at=h.now + timedelta(days=14),
         )
         session.add(request)
         await session.flush()
         session.add(
-            models.Mentorship(
+            new_row(
+                models.Mentorship,
                 request_id=request.id,
                 mentor_id=mentor.id,
                 learner_id=learner.id,
                 area_id=area.id,
-                kind="mentoring",
                 mentor_score_at_start=Decimal("7.00"),
                 learner_score_at_start=Decimal("2.00"),
                 status="active",
                 started_at=h.now,
-                mentor_trust="self",
-                learner_trust="self",
             )
         )
 
@@ -716,13 +738,12 @@ async def seed_project(
         for user in (lead, *members):
             is_lead = user.id == lead.id
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=project.id,
                     event_id=event_id if team_status is not None else None,
                     user_id=user.id,
                     role="lead" if is_lead else "member",
-                    state="confirmed",
-                    trust="self",
                     joined_via="create",
                     is_team_row=False,
                     joined_at=h.now,

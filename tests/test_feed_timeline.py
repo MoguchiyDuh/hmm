@@ -3,6 +3,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from factories import new_row
 from harness import Harness
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,32 +33,26 @@ def project(*, status: str = "idea", visibility: str = "public") -> models.Proje
 
 
 def event(h: Harness, *, status: str = "published") -> models.Event:
-    return models.Event(
+    return new_row(
+        models.Event,
         slug=f"event-{uuid4()}",
         kind="meetup",
-        formation_enabled=False,
         title="Feed meetup",
         starts_at=h.now + timedelta(days=3),
         ends_at=h.now + timedelta(days=3, hours=2),
-        timezone="UTC",
-        language=[],
-        themes=[],
         status=status,
-        review_reasons=[],
-        origin="manual",
-        unmapped_areas=[],
     )
 
 
 def attendance(
     h: Harness, event_id: UUID, user_id: UUID, *, status: str = "going"
 ) -> models.EventAttendance:
-    return models.EventAttendance(
+    return new_row(
+        models.EventAttendance,
         event_id=event_id,
         user_id=user_id,
         status=status,
         role="attendee",
-        proof_links=[],
         trust="self",
         status_at=h.now,
     )
@@ -204,12 +199,12 @@ async def test_help_request_open_only_and_hiding(harness: Harness, status: str) 
     areas = await h.seed_areas()
     learner = await h.user()
     async with h.db() as session:
-        request = models.HelpRequest(
+        request = new_row(
+            models.HelpRequest,
             learner_id=learner.id,
             area_id=areas["backend"].id,
             topic="Database transactions",
             goal="Understand isolation",
-            format="online",
             status=status,
             expires_at=h.now + timedelta(days=7),
         )
@@ -368,29 +363,26 @@ async def test_mentorship_completed_names_sides_and_deduplicates_hidden(
     mentor = await h.user(display_name="Mentor Name")
     learner = await h.user(display_name="Learner Name")
     async with h.db() as session:
-        request = models.HelpRequest(
+        request = new_row(
+            models.HelpRequest,
             learner_id=learner.id,
             area_id=areas["backend"].id,
             topic="Transactions",
             goal="Learn transactions",
-            format="online",
-            status="matched",
             expires_at=h.now + timedelta(days=7),
         )
         session.add(request)
         await session.flush()
-        row = models.Mentorship(
+        row = new_row(
+            models.Mentorship,
             request_id=request.id,
             mentor_id=mentor.id,
             learner_id=learner.id,
             area_id=request.area_id,
-            kind="mentoring",
             mentor_score_at_start=Decimal("8"),
             learner_score_at_start=Decimal("3"),
             status=status,
             started_at=h.now - timedelta(days=7),
-            mentor_trust="self",
-            learner_trust="self",
             outcome=outcome,
         )
         session.add(row)

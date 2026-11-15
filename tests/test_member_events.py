@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
-from factories import count
+from factories import count, new_row
 from harness import Harness, assert_problem
 from sqlalchemy import select
 
@@ -37,21 +37,16 @@ async def add_event(
     origin: str = "manual",
 ) -> models.Event:
     async with h.db() as session:
-        row = models.Event(
+        row = new_row(
+            models.Event,
             slug=f"existing-{uuid4()}",
             kind="meetup",
-            formation_enabled=False,
             title=title,
             starts_at=starts_at,
             ends_at=ends_at,
-            timezone="UTC",
             website_url=website_url,
-            language=[],
-            themes=[],
             status=status,
-            review_reasons=[],
             origin=origin,
-            unmapped_areas=[],
         )
         session.add(row)
         await session.flush()
@@ -319,12 +314,12 @@ async def seed_attendance(
     h: Harness, event_id: str, user: models.User, status: str
 ) -> models.EventAttendance:
     async with h.db() as session:
-        row = models.EventAttendance(
+        row = new_row(
+            models.EventAttendance,
             event_id=UUID(event_id),
             user_id=user.id,
             status=status,
             role="attendee",
-            proof_links=[],
             trust="self",
             status_at=h.now - timedelta(hours=1),
         )

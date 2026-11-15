@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from factories import new_row
 from harness import NOW, Harness
 from sqlalchemy import select
 
@@ -47,20 +48,12 @@ async def seed_project(
 ) -> models.Project:
     async with h.db() as session:
         if team_status is not None and event_id is None:
-            event = models.Event(
+            event = new_row(
+                models.Event,
                 slug=f"idle-{uuid4()}",
-                kind="hackathon",
-                formation_enabled=False,
                 title="Hackathon",
                 starts_at=h.now,
                 ends_at=h.now + timedelta(days=2),
-                timezone="UTC",
-                language=[],
-                themes=[],
-                status="published",
-                review_reasons=[],
-                origin="manual",
-                unmapped_areas=[],
             )
             session.add(event)
             await session.flush()
@@ -84,12 +77,11 @@ async def seed_project(
         await session.flush()
         for user in (lead, *members):
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=project.id,
                     user_id=user.id,
                     role="lead" if user.id == lead.id else "member",
-                    state="confirmed",
-                    trust="self",
                     joined_via="create",
                     is_team_row=False,
                     joined_at=h.now,

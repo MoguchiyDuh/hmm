@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
-from factories import count
+from factories import count, new_row
 from harness import Harness, assert_problem
 from sqlalchemy import delete, select
 
@@ -74,30 +74,23 @@ async def seed_attendance(
     h: Harness, user_id: UUID, areas: dict[str, models.Area]
 ) -> models.EventAttendance:
     async with h.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=f"event-{uuid4().hex[:8]}",
-            kind="hackathon",
             formation_enabled=True,
             title="Hackathon",
             starts_at=h.now - timedelta(days=3),
             ends_at=h.now - timedelta(days=2),
-            timezone="UTC",
             format="offline",
-            language=[],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
-        attendance = models.EventAttendance(
+        attendance = new_row(
+            models.EventAttendance,
             event_id=event.id,
             user_id=user_id,
             status=AttendanceStatus.ATTENDED,
             role=AttendanceRole.ATTENDEE,
-            proof_links=[],
             trust=Trust.TRUSTED,
             status_at=h.now,
         )
@@ -209,11 +202,11 @@ async def test_recompute_replaces_awards(harness: Harness) -> None:
     assert await run(h, member.id) is True
     async with h.db() as session:
         session.add(
-            models.Flag(
+            new_row(
+                models.Flag,
                 user_id=member.id,
                 subject_type=FlagSubjectType.ATTENDANCE,
                 subject_id=attendance.id,
-                related_user_ids=[],
                 reason="Fake proof",
                 severity=Severity.HIGH,
                 status=FlagStatus.PUNISHED,
@@ -268,11 +261,11 @@ async def test_flag_persistence(harness: Harness) -> None:
     first_subject = uuid4()
     second_subject = uuid4()
     async with h.db() as session:
-        pardoned = models.Flag(
+        pardoned = new_row(
+            models.Flag,
             user_id=member.id,
             subject_type=FlagSubjectType.PROFILE,
             subject_id=first_subject,
-            related_user_ids=[],
             reason="Old",
             severity=Severity.LOW,
             status=FlagStatus.PARDONED,

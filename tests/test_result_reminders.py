@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
-from factories import count
+from factories import count, new_row
 from harness import Harness
 from sqlalchemy import select
 
@@ -33,20 +33,14 @@ async def seed_team(
     left = await harness.user()
     end = ends_at or harness.now - timedelta(days=1)
     async with harness.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=str(uuid4()),
-            kind="hackathon",
             formation_enabled=True,
             title="NL 2026",
             starts_at=end - timedelta(days=2),
             ends_at=end,
-            timezone="UTC",
             language=["en"],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
@@ -66,26 +60,24 @@ async def seed_team(
         await session.flush()
         for user, role in ((lead, "lead"), *((member, "member") for member in members)):
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=project.id,
                     event_id=event.id,
                     user_id=user.id,
                     role=role,
-                    state="confirmed",
-                    trust="self",
                     joined_via="formation",
                     is_team_row=True,
                     joined_at=end - timedelta(days=2),
                 )
             )
         session.add(
-            models.ProjectMember(
+            new_row(
+                models.ProjectMember,
                 project_id=project.id,
                 event_id=event.id,
                 user_id=left.id,
                 role="member",
-                state="confirmed",
-                trust="self",
                 joined_via="formation",
                 is_team_row=True,
                 joined_at=end - timedelta(days=2),

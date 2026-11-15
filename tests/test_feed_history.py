@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from factories import problem
+from factories import new_row, problem
 from harness import Harness
 
 from hmm import models
@@ -65,21 +65,16 @@ async def add_event(
 ) -> models.Event:
     async with h.db() as session:
         start = starts_at or h.now - timedelta(days=2)
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=str(uuid4()),
             kind="meetup",
-            formation_enabled=False,
             title=title,
             description_md=description_md,
             starts_at=start,
             ends_at=ends_at or start + timedelta(hours=3),
             timezone="Europe/Berlin",
-            language=[],
-            themes=[],
             status=status,
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
@@ -153,31 +148,28 @@ async def add_mentorship(
     status: str = "closed",
 ) -> models.Mentorship:
     async with h.db() as session:
-        request = models.HelpRequest(
+        request = new_row(
+            models.HelpRequest,
             learner_id=learner.id,
             area_id=area_id,
             topic="Topic",
             goal="Goal",
-            format="online",
-            status="matched",
             expires_at=h.now + timedelta(days=7),
         )
         session.add(request)
         await session.flush()
-        row = models.Mentorship(
+        row = new_row(
+            models.Mentorship,
             request_id=request.id,
             mentor_id=mentor.id,
             learner_id=learner.id,
             area_id=area_id,
-            kind="mentoring",
             mentor_score_at_start=Decimal("6"),
             learner_score_at_start=Decimal("3"),
             status=status,
             started_at=h.now - timedelta(days=30),
             closed_at=h.now - timedelta(days=1) if status == "closed" else None,
             outcome="reached" if status == "closed" else None,
-            mentor_trust="self",
-            learner_trust="self",
         )
         session.add(row)
         await session.flush()
@@ -210,15 +202,13 @@ async def add_flag(
 ) -> None:
     async with h.db() as session:
         session.add(
-            models.Flag(
+            new_row(
+                models.Flag,
                 user_id=user.id,
                 subject_type=subject_type,
                 subject_id=subject_id,
-                related_user_ids=[],
                 reason="Review",
-                severity="medium",
                 status=status,
-                algo_version="test",
                 penalty=penalty,
             )
         )

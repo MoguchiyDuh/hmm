@@ -4,7 +4,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
-from factories import count
+from factories import count, new_row
 from harness import Harness, assert_problem
 from sqlalchemy import select
 
@@ -32,20 +32,14 @@ async def team(harness: Harness) -> Team:
     outsider = await harness.user(login="outsider")
     admin = await harness.admin()
     async with harness.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug="nl-2026",
-            kind="hackathon",
             formation_enabled=True,
             title="NL 2026",
             starts_at=harness.now - timedelta(days=3),
             ends_at=harness.now,
-            timezone="UTC",
             language=["en"],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
@@ -69,13 +63,12 @@ async def team(harness: Harness) -> Team:
             (b, "member", "formation"),
         ):
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=project.id,
                     event_id=event.id,
                     user_id=user.id,
                     role=role,
-                    state="confirmed",
-                    trust="self",
                     joined_via=via,
                     is_team_row=True,
                     joined_at=harness.now - timedelta(days=2),

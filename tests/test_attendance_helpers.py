@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from factories import count
+from factories import count, new_row
 from harness import Harness
 from sqlalchemy import select
 
@@ -15,20 +15,12 @@ from hmm.platform.errors import ProblemError
 async def seed_event(harness: Harness, *, ends_at: datetime | None = None) -> UUID:
     end = ends_at or harness.now + timedelta(days=3)
     async with harness.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=str(uuid4()),
-            kind="hackathon",
-            formation_enabled=False,
             title="Event",
             starts_at=end - timedelta(days=1),
             ends_at=end,
-            timezone="UTC",
-            language=[],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
@@ -45,7 +37,8 @@ async def seed_attendance(
     proof_links: list[str] | None = None,
 ) -> UUID:
     async with harness.db() as session:
-        row = models.EventAttendance(
+        row = new_row(
+            models.EventAttendance,
             event_id=event_id,
             user_id=user_id,
             status=status,

@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 import pytest
+from factories import new_row
 from harness import Harness, assert_problem
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,20 +24,16 @@ async def add_event(
     minimum: int | None = None,
     maximum: int | None = None,
 ) -> models.Event:
-    event = models.Event(
+    event = new_row(
+        models.Event,
         slug=slug,
-        kind="hackathon",
         formation_enabled=True,
         title=slug,
         starts_at=now + timedelta(days=5),
         ends_at=now + timedelta(days=6),
-        timezone="UTC",
         language=["en"],
-        themes=[],
-        status="published",
         review_reasons=review_reasons or [],
         origin=origin,
-        unmapped_areas=[],
         team_size_min=minimum,
         team_size_max=maximum,
     )
@@ -73,13 +70,12 @@ async def add_team(
         session.add(project)
         await session.flush()
         session.add_all(
-            models.ProjectMember(
+            new_row(
+                models.ProjectMember,
                 project_id=project.id,
                 event_id=event.id,
                 user_id=user.id,
                 role="lead" if lead and index == 0 else "member",
-                state="confirmed",
-                trust="self",
                 joined_via="formation",
                 is_team_row=True,
                 joined_at=h.now - timedelta(days=1),
@@ -144,15 +140,14 @@ async def test_dashboard_alerts_and_moderation(harness: Harness) -> None:
             ]
         )
         session.add_all(
-            models.Flag(
+            new_row(
+                models.Flag,
                 user_id=user.id,
                 subject_type="profile",
                 subject_id=user.id,
-                related_user_ids=[],
                 reason="Review profile",
                 severity="low",
                 status=status,
-                algo_version="test",
                 created_at=h.now - timedelta(days=2),
             )
             for status in ["to_check", "pardoned"]
@@ -329,12 +324,12 @@ async def test_dashboard_results_and_help(harness: Harness) -> None:
             )
         )
         requests = [
-            models.HelpRequest(
+            new_row(
+                models.HelpRequest,
                 learner_id=learner.id,
                 area_id=area.id,
                 topic="Backend",
                 goal="Improve",
-                format="online",
                 status=status,
                 expires_at=h.now + timedelta(days=1),
             )

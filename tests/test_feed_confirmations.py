@@ -4,7 +4,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
-from factories import problem
+from factories import new_row, problem
 from harness import Harness
 from sqlalchemy import func, select
 
@@ -48,31 +48,25 @@ async def event_facts(
     event_status: str = "published",
 ) -> list[models.EventAttendance]:
     async with h.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=str(uuid4()),
-            kind="hackathon",
-            formation_enabled=False,
             title="Ended event",
             starts_at=h.now - timedelta(days=2),
             ends_at=ends_at or h.now,
-            timezone="UTC",
-            language=[],
-            themes=[],
             status=event_status,
-            review_reasons=[],
             origin=origin,
             created_by=creator.id if creator else None,
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
         rows = [
-            models.EventAttendance(
+            new_row(
+                models.EventAttendance,
                 event_id=event.id,
                 user_id=user.id,
                 status=statuses[index] if statuses else "attended",
                 role=roles[index] if roles else "attendee",
-                proof_links=[],
                 trust="self",
                 status_at=h.now,
             )
@@ -97,12 +91,11 @@ async def project_facts(h: Harness, users: list[models.User]) -> list[models.Pro
         session.add(project)
         await session.flush()
         rows = [
-            models.ProjectMember(
+            new_row(
+                models.ProjectMember,
                 project_id=project.id,
                 user_id=user.id,
                 role="lead" if index == 0 else "member",
-                state="confirmed",
-                trust="self",
                 joined_via="create",
                 is_team_row=False,
                 joined_at=h.now,
@@ -124,18 +117,18 @@ async def mentorship_fact(
     status: str = "active",
 ) -> models.Mentorship:
     async with h.db() as session:
-        request = models.HelpRequest(
+        request = new_row(
+            models.HelpRequest,
             learner_id=learner.id,
             area_id=area_id,
             topic="Topic",
             goal="Goal",
-            format="online",
-            status="matched",
             expires_at=h.now + timedelta(days=7),
         )
         session.add(request)
         await session.flush()
-        row = models.Mentorship(
+        row = new_row(
+            models.Mentorship,
             request_id=request.id,
             mentor_id=mentor.id,
             learner_id=learner.id,
@@ -145,8 +138,6 @@ async def mentorship_fact(
             learner_score_at_start=Decimal("5"),
             status=status,
             started_at=h.now,
-            mentor_trust="self",
-            learner_trust="self",
         )
         session.add(row)
         await session.flush()
@@ -154,15 +145,13 @@ async def mentorship_fact(
 
 
 def flag(user_id: UUID, subject_type: str, subject_id: UUID) -> models.Flag:
-    return models.Flag(
+    return new_row(
+        models.Flag,
         user_id=user_id,
         subject_type=subject_type,
         subject_id=subject_id,
-        related_user_ids=[],
         reason="Review",
-        severity="medium",
         status="to_check",
-        algo_version="test",
     )
 
 

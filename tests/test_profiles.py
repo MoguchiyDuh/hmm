@@ -4,6 +4,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from factories import new_row
 from harness import Harness, assert_problem
 
 from hmm import models
@@ -239,7 +240,8 @@ async def test_profile_review_visibility_order_and_flags(harness: Harness) -> No
         await session.flush()
         for row, status in ((hidden, FlagStatus.TO_CHECK), (lead_review, FlagStatus.PARDONED)):
             session.add(
-                models.Flag(
+                new_row(
+                    models.Flag,
                     user_id=member.id,
                     subject_type=FlagSubjectType.REVIEW,
                     subject_id=row.id,
@@ -247,7 +249,6 @@ async def test_profile_review_visibility_order_and_flags(harness: Harness) -> No
                     reason="Flagged review",
                     severity=Severity.LOW,
                     status=status,
-                    algo_version="test",
                 )
             )
         await session.refresh(member_review)

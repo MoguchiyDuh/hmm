@@ -3,6 +3,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from factories import new_row
 from harness import Harness
 
 from hmm import models
@@ -246,20 +247,14 @@ async def test_snapshot_project_counts(harness: Harness) -> None:
     await h.seed_areas()
     member = await h.user()
     async with h.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug="finished-hackathon",
-            kind="hackathon",
             formation_enabled=True,
             title="Finished hackathon",
             starts_at=h.now - timedelta(days=2),
             ends_at=h.now - timedelta(days=1),
-            timezone="UTC",
             language=["en"],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
@@ -296,7 +291,8 @@ async def test_snapshot_project_counts(harness: Harness) -> None:
         await session.flush()
         session.add_all(
             [
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=team.id,
                     event_id=event.id,
                     user_id=member.id,
@@ -308,7 +304,8 @@ async def test_snapshot_project_counts(harness: Harness) -> None:
                     joined_at=h.now - timedelta(days=3),
                     left_at=h.now,
                 ),
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=team.id,
                     event_id=event.id,
                     user_id=member.id,
@@ -320,7 +317,8 @@ async def test_snapshot_project_counts(harness: Harness) -> None:
                     joined_at=h.now - timedelta(days=4),
                     left_at=h.now - timedelta(days=3),
                 ),
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=shipped.id,
                     user_id=member.id,
                     role=MemberRole.MEMBER,
@@ -331,7 +329,8 @@ async def test_snapshot_project_counts(harness: Harness) -> None:
                     joined_at=h.now - timedelta(days=2),
                     left_at=h.now,
                 ),
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=shipped.id,
                     user_id=member.id,
                     role=MemberRole.MEMBER,
@@ -341,7 +340,8 @@ async def test_snapshot_project_counts(harness: Harness) -> None:
                     is_team_row=False,
                     joined_at=h.now,
                 ),
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=proposed.id,
                     user_id=member.id,
                     role=MemberRole.LEAD,
@@ -376,7 +376,8 @@ async def test_snapshot_mentorship_counts(harness: Harness) -> None:
     ]
     async with h.db() as session:
         for mentor_id, learner_id, area_key, status in cases:
-            request = models.HelpRequest(
+            request = new_row(
+                models.HelpRequest,
                 learner_id=learner_id,
                 area_id=areas[area_key].id,
                 topic="Learn",
@@ -388,7 +389,8 @@ async def test_snapshot_mentorship_counts(harness: Harness) -> None:
             session.add(request)
             await session.flush()
             session.add(
-                models.Mentorship(
+                new_row(
+                    models.Mentorship,
                     request_id=request.id,
                     mentor_id=mentor_id,
                     learner_id=learner_id,

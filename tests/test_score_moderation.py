@@ -2,6 +2,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+from factories import new_row
 from harness import Harness, assert_problem
 from sqlalchemy import select
 
@@ -26,13 +27,13 @@ def flag(
     related: list[UUID] | None = None,
     minutes: int = 0,
 ) -> models.Flag:
-    return models.Flag(
+    return new_row(
+        models.Flag,
         user_id=user_id,
         subject_type=subject_type,
         subject_id=subject_id,
         related_user_ids=related or [],
         reason="Suspicious",
-        severity="medium",
         status=status,
         algo_version="fake-1",
         created_at=h.now - timedelta(minutes=minutes),
@@ -185,20 +186,12 @@ async def test_flag_subject_content(harness: Harness) -> None:
     gone = await h.user(display_name="Gone")
     area = next(iter(areas.values()))
     async with h.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=str(uuid4()),
-            kind="hackathon",
-            formation_enabled=False,
             title="Hack",
             starts_at=h.now - timedelta(days=2),
             ends_at=h.now - timedelta(days=1),
-            timezone="UTC",
-            language=[],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         project = models.Project(
             name="Proj",
@@ -209,48 +202,44 @@ async def test_flag_subject_content(harness: Harness) -> None:
             status="idea",
             origin="standalone",
         )
-        request = models.HelpRequest(
+        request = new_row(
+            models.HelpRequest,
             learner_id=amy.id,
             area_id=area.id,
             topic="Topic",
             goal="Goal",
-            format="online",
-            status="matched",
             expires_at=h.now + timedelta(days=7),
         )
         session.add_all([event, project, request])
         await session.flush()
-        attendance = models.EventAttendance(
+        attendance = new_row(
+            models.EventAttendance,
             event_id=event.id,
             user_id=zed.id,
             status="attended",
             role="attendee",
-            proof_links=[],
             trust="self",
             status_at=h.now,
         )
-        member = models.ProjectMember(
+        member = new_row(
+            models.ProjectMember,
             project_id=project.id,
             user_id=zed.id,
             role="lead",
-            state="confirmed",
-            trust="self",
             joined_via="create",
             is_team_row=False,
             joined_at=h.now,
         )
-        mentorship = models.Mentorship(
+        mentorship = new_row(
+            models.Mentorship,
             request_id=request.id,
             mentor_id=zed.id,
             learner_id=amy.id,
             area_id=area.id,
-            kind="mentoring",
             mentor_score_at_start=Decimal(5),
             learner_score_at_start=Decimal(5),
             status="active",
             started_at=h.now,
-            mentor_trust="self",
-            learner_trust="self",
         )
         entry = models.ActivityEntry(
             user_id=zed.id,

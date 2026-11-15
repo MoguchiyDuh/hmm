@@ -2,6 +2,7 @@ from datetime import timedelta
 from typing import Any
 
 import pytest
+from factories import new_row
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
@@ -60,13 +61,12 @@ async def seed_project(
         for index, user in enumerate((lead, *members)):
             is_lead = user.id == lead.id
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=project.id,
                     event_id=event_id,
                     user_id=user.id,
                     role="lead" if is_lead else "member",
-                    state="confirmed",
-                    trust="self",
                     joined_via="create" if is_lead else "invite",
                     is_team_row=team_status is not None,
                     joined_at=h.now - timedelta(days=10 - index),
@@ -93,12 +93,12 @@ async def add_member(
             await session.execute(
                 update(models.User).where(models.User.id == user.id).values(banned_at=h.now)
             )
-        row = models.ProjectMember(
+        row = new_row(
+            models.ProjectMember,
             project_id=project.id,
             user_id=user.id,
             role="member",
             state=state,
-            trust="self",
             joined_via="invite",
             is_team_row=False,
             joined_at=h.now - timedelta(days=joined_days_ago),

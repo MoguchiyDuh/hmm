@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
+from factories import new_row
 from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
@@ -23,20 +24,14 @@ async def add_event(
 ) -> models.Event:
     async with h.db() as session:
         end = ends_at or h.now - timedelta(hours=1)
-        row = models.Event(
+        row = new_row(
+            models.Event,
             slug=str(uuid4()),
             kind="meetup",
-            formation_enabled=False,
             title=title,
             starts_at=end - timedelta(hours=3),
             ends_at=end,
-            timezone="UTC",
-            language=[],
-            themes=[],
             status=status,
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(row)
         await session.flush()
@@ -47,12 +42,12 @@ async def attend(
     h: Harness, event: models.Event, user: models.User, status: str = "attended"
 ) -> models.EventAttendance:
     async with h.db() as session:
-        row = models.EventAttendance(
+        row = new_row(
+            models.EventAttendance,
             event_id=event.id,
             user_id=user.id,
             status=status,
             role="attendee",
-            proof_links=[],
             trust="self",
             status_at=h.now,
         )
@@ -80,12 +75,11 @@ async def add_project(h: Harness, name: str, **fields: Any) -> models.Project:
 
 async def join(h: Harness, project: models.Project, user: models.User) -> models.ProjectMember:
     async with h.db() as session:
-        row = models.ProjectMember(
+        row = new_row(
+            models.ProjectMember,
             project_id=project.id,
             user_id=user.id,
             role="member",
-            state="confirmed",
-            trust="self",
             joined_via="invite",
             is_team_row=False,
             joined_at=h.now - timedelta(days=3),
@@ -165,29 +159,26 @@ async def test_create_confirmation_errors(harness: Harness) -> None:
     fact = await attend(h, event, b)
     going = await attend(h, await add_event(h), b, status="going")
     async with h.db() as session:
-        request = models.HelpRequest(
+        request = new_row(
+            models.HelpRequest,
             learner_id=b.id,
             area_id=(await h.seed_areas(("backend",)))["backend"].id,
             topic="Topic",
             goal="Goal",
-            format="online",
-            status="matched",
             expires_at=h.now + timedelta(days=7),
         )
         session.add(request)
         await session.flush()
-        mentorship = models.Mentorship(
+        mentorship = new_row(
+            models.Mentorship,
             request_id=request.id,
             mentor_id=a.id,
             learner_id=b.id,
             area_id=request.area_id,
-            kind="mentoring",
             mentor_score_at_start=Decimal("6"),
             learner_score_at_start=Decimal("3"),
             status="active",
             started_at=h.now,
-            mentor_trust="self",
-            learner_trust="self",
         )
         session.add(mentorship)
         await session.flush()

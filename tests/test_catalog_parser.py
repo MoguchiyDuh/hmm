@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
+from factories import new_row
 from harness import Harness
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -18,21 +19,14 @@ from hmm.platform.pagination import CursorParams
 
 async def seed_source(h: Harness, name: str, ends_at: datetime, status: str) -> None:
     async with h.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=name,
-            kind="hackathon",
-            formation_enabled=False,
             title=name.title(),
             starts_at=ends_at - timedelta(days=1),
             ends_at=ends_at,
-            timezone="UTC",
             format="offline",
-            language=[],
-            themes=[],
             status=status,
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()

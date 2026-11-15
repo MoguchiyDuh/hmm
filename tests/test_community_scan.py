@@ -7,6 +7,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
+from factories import new_row
 from fixtures import CommunityCase
 from harness import Harness
 from sqlalchemy import select
@@ -117,7 +118,8 @@ async def add_mentorship(
     started_at: datetime,
     **fields: Any,
 ) -> models.Mentorship:
-    request = models.HelpRequest(
+    request = new_row(
+        models.HelpRequest,
         learner_id=learner_id,
         area_id=area_id,
         topic="Learn",

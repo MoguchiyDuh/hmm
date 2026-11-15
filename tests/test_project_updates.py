@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from uuid import uuid4
 
-from factories import seed_project
+from factories import new_row, seed_project
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
@@ -112,20 +112,12 @@ async def test_update_automatic_start_and_resume(harness: Harness) -> None:
             .where(models.Project.id == manual.id)
             .values(paused_reason="manual")
         )
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug="update-team",
-            kind="hackathon",
-            formation_enabled=False,
             title="Hackathon",
             starts_at=h.now,
             ends_at=h.now + timedelta(days=2),
-            timezone="UTC",
-            language=[],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()

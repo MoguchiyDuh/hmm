@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from uuid import uuid4
 
 import pytest
+from factories import new_row
 from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
@@ -23,20 +24,14 @@ class HostReviewSetup:
 
 async def create_event(harness: Harness, *, slug: str, starts_at: datetime) -> models.Event:
     async with harness.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=slug,
             kind="meetup",
-            formation_enabled=False,
             title="NL 2026",
             starts_at=starts_at,
             ends_at=starts_at + timedelta(hours=2),
-            timezone="UTC",
             language=["en"],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
@@ -58,12 +53,12 @@ async def host_review_setup(harness: Harness) -> HostReviewSetup:
             (no_show, "going", "attendee"),
         ):
             session.add(
-                models.EventAttendance(
+                new_row(
+                    models.EventAttendance,
                     event_id=event.id,
                     user_id=user.id,
                     status=status,
                     role=role,
-                    proof_links=[],
                     trust="self",
                     status_at=harness.now,
                 )
@@ -204,12 +199,12 @@ async def test_host_reviews_open_exactly_when_event_starts(
     async with harness.db() as session:
         for user, role in ((case.host, "host"), (case.attendee, "attendee")):
             session.add(
-                models.EventAttendance(
+                new_row(
+                    models.EventAttendance,
                     event_id=event.id,
                     user_id=user.id,
                     status="attended",
                     role=role,
-                    proof_links=[],
                     trust="self",
                     status_at=harness.now,
                 )

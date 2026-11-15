@@ -5,12 +5,14 @@ from uuid import UUID
 
 import httpx
 import pytest
+from factories import new_row
 from pydantic import ValidationError
 from sqlalchemy import CheckConstraint, func, select, text
 from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from hmm import models
 from hmm.app import create_app
 from hmm.common import ActorKind, AuditAction, AuditEntityType, OnboardingStatus
 from hmm.models import (
@@ -49,9 +51,9 @@ async def add_user(session: AsyncSession, github_id: int = 1) -> User:
 
 async def add_event(session: AsyncSession) -> Event:
     now = datetime.now(UTC)
-    event = Event(
+    event = new_row(
+        models.Event,
         slug="test-event",
-        kind="hackathon",
         formation_enabled=True,
         title="Test event",
         summary="Summary",
@@ -59,17 +61,11 @@ async def add_event(session: AsyncSession) -> Event:
         organizer="Organizer",
         starts_at=now + timedelta(days=5),
         ends_at=now + timedelta(days=6),
-        timezone="UTC",
         format="online",
         location={},
         language=["en"],
         eligibility="",
-        themes=[],
-        status="published",
-        review_reasons=[],
-        origin="manual",
         confidence=1,
-        unmapped_areas=[],
     )
     session.add(event)
     await session.flush()

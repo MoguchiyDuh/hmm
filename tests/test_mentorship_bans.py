@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 import httpx
-from factories import REQUESTS, count
+from factories import REQUESTS, count, new_row
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
@@ -207,22 +207,20 @@ async def test_ban_keeps_settled_rows(harness: Harness) -> None:
     learner = await h.user(login="learner")
     banned = await h.user(login="banned")
     async with h.db() as session:
-        own = models.HelpRequest(
+        own = new_row(
+            models.HelpRequest,
             learner_id=banned.id,
             area_id=areas["backend"].id,
             topic="Own",
             goal="Own goal",
-            format="online",
-            status="matched",
             expires_at=h.now + timedelta(days=14),
         )
-        other = models.HelpRequest(
+        other = new_row(
+            models.HelpRequest,
             learner_id=learner.id,
             area_id=areas["data"].id,
             topic="Other",
             goal="Other goal",
-            format="online",
-            status="matched",
             expires_at=h.now + timedelta(days=14),
         )
         session.add_all([own, other])

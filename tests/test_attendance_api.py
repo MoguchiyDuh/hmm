@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
+from factories import new_row
 from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
@@ -21,21 +22,16 @@ async def add_event(
     creator: models.User | None = None,
 ) -> models.Event:
     async with h.db() as session:
-        row = models.Event(
+        row = new_row(
+            models.Event,
             slug=f"attendance-{uuid4()}",
             kind="meetup",
-            formation_enabled=False,
             title="Attendance meetup",
             starts_at=starts_at,
             ends_at=ends_at,
-            timezone="UTC",
-            language=[],
-            themes=[],
             status=status,
-            review_reasons=[],
             origin="member" if creator is not None else "manual",
             created_by=creator.id if creator is not None else None,
-            unmapped_areas=[],
         )
         session.add(row)
         await session.flush()
@@ -58,12 +54,12 @@ async def attend(
     trust: str = "self",
 ) -> models.EventAttendance:
     async with h.db() as session:
-        row = models.EventAttendance(
+        row = new_row(
+            models.EventAttendance,
             event_id=event.id,
             user_id=user.id,
             status=status,
             role="attendee",
-            proof_links=[],
             trust=trust,
             status_at=status_at or h.now,
         )

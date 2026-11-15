@@ -6,7 +6,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from factories import enroll, make_hackathon
+from factories import enroll, make_hackathon, new_row
 from harness import Harness
 from sqlalchemy import func, select, update
 
@@ -74,13 +74,12 @@ async def team(
         await session.flush()
         for user in (lead, *members):
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=project.id,
                     event_id=event.id,
                     user_id=user.id,
                     role="lead" if user is lead else "member",
-                    state="confirmed",
-                    trust="self",
                     joined_via="formation",
                     is_team_row=True,
                     joined_at=h.now,
@@ -117,12 +116,11 @@ async def standalone(
         session.add(project)
         await session.flush()
         session.add(
-            models.ProjectMember(
+            new_row(
+                models.ProjectMember,
                 project_id=project.id,
                 user_id=lead.id,
                 role="lead",
-                state="confirmed",
-                trust="self",
                 joined_via="create",
                 is_team_row=False,
                 joined_at=h.now,

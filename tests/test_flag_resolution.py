@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from factories import count
+from factories import count, new_row
 from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
@@ -49,30 +49,22 @@ async def world(h: Harness) -> World:
     c = await h.user(display_name="Amy")
     d = await h.user(display_name="Dan")
     async with h.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=str(uuid4()),
-            kind="hackathon",
-            formation_enabled=False,
             title="Hack",
             starts_at=h.now - timedelta(days=2),
             ends_at=h.now - timedelta(days=1),
-            timezone="UTC",
-            language=[],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
         rows = {
-            user.id: models.EventAttendance(
+            user.id: new_row(
+                models.EventAttendance,
                 event_id=event.id,
                 user_id=user.id,
                 status="attended",
                 role="attendee",
-                proof_links=[],
                 trust="self",
                 status_at=h.now,
             )
@@ -109,13 +101,13 @@ async def add_flag(
     related: list[UUID] | None = None,
 ) -> UUID:
     async with h.db() as session:
-        row = models.Flag(
+        row = new_row(
+            models.Flag,
             user_id=owner.id,
             subject_type=subject_type,
             subject_id=subject_id,
             related_user_ids=related or [],
             reason="dup",
-            severity="medium",
             status="to_check",
             algo_version="fake-1",
         )

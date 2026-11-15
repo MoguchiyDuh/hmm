@@ -4,6 +4,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
+from factories import new_row
 from harness import Harness, assert_problem
 from pydantic import JsonValue
 from sqlalchemy import func, select
@@ -59,18 +60,19 @@ async def create_mentorship_window(
     learner = await harness.user(login="learner")
     area = next(iter((await harness.seed_areas()).values()))
     async with harness.db() as session:
-        request = models.HelpRequest(
+        request = new_row(
+            models.HelpRequest,
             learner_id=learner.id,
             area_id=area.id,
             topic="ML basics",
             goal="g",
             format="any",
-            status="matched",
             expires_at=harness.now + timedelta(days=7),
         )
         session.add(request)
         await session.flush()
-        mentorship = models.Mentorship(
+        mentorship = new_row(
+            models.Mentorship,
             request_id=request.id,
             mentor_id=mentor.id,
             learner_id=learner.id,

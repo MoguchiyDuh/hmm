@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import httpx
-from factories import count
+from factories import count, new_row
 from harness import Harness, assert_problem
 from sqlalchemy import select
 from test_catalog_import import import_item, import_results
@@ -25,21 +25,16 @@ async def seed_event(
 ) -> UUID:
     start = starts_at or h.now + timedelta(days=20)
     async with h.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=name,
-            kind="hackathon",
             formation_enabled=formation_enabled,
             title=name.title(),
             starts_at=start,
             ends_at=start + timedelta(days=1),
-            timezone="UTC",
             format="offline",
-            language=[],
-            themes=[],
             status=status,
             review_reasons=review_reasons or [],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
@@ -73,7 +68,8 @@ async def add_attendance(
     trust: str = "self",
 ) -> UUID:
     async with h.db() as session:
-        row = models.EventAttendance(
+        row = new_row(
+            models.EventAttendance,
             event_id=event_id,
             user_id=user.id,
             status=status,

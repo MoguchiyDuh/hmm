@@ -3,6 +3,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 import pytest
+from factories import new_row
 from harness import Harness
 from pydantic import JsonValue
 from sqlalchemy import select
@@ -60,20 +61,14 @@ async def project(
 async def event(
     session: AsyncSession, now: datetime, *, status: str = "published", days: int = 1
 ) -> models.Event:
-    row = models.Event(
+    row = new_row(
+        models.Event,
         slug=f"event-{uuid4()}",
         kind="meetup",
-        formation_enabled=False,
         title="Event",
         starts_at=now + timedelta(days=days - 1),
         ends_at=now + timedelta(days=days),
-        timezone="UTC",
-        language=[],
-        themes=[],
         status=status,
-        review_reasons=[],
-        origin="manual",
-        unmapped_areas=[],
     )
     session.add(row)
     await session.flush()
@@ -88,12 +83,12 @@ async def help_request(
     *,
     status: str = "open",
 ) -> models.HelpRequest:
-    row = models.HelpRequest(
+    row = new_row(
+        models.HelpRequest,
         learner_id=learner.id,
         area_id=area.id,
         topic="Topic",
         goal="Learn",
-        format="online",
         status=status,
         expires_at=now + timedelta(days=14),
     )
@@ -113,18 +108,16 @@ async def mentorship(
     outcome: str | None = "reached",
 ) -> models.Mentorship:
     request = await help_request(session, learner, area, now, status="matched")
-    row = models.Mentorship(
+    row = new_row(
+        models.Mentorship,
         request_id=request.id,
         mentor_id=mentor.id,
         learner_id=learner.id,
         area_id=area.id,
-        kind="mentoring",
         mentor_score_at_start=Decimal("8"),
         learner_score_at_start=Decimal("3"),
         status=status,
         started_at=now,
-        mentor_trust="self",
-        learner_trust="self",
         outcome=outcome,
     )
     session.add(row)
@@ -194,12 +187,12 @@ def feed_item(
 def attendance(
     session: AsyncSession, event: models.Event, user: models.User, now: datetime
 ) -> models.EventAttendance:
-    row = models.EventAttendance(
+    row = new_row(
+        models.EventAttendance,
         event_id=event.id,
         user_id=user.id,
         status="going",
         role="attendee",
-        proof_links=[],
         trust="self",
         status_at=now,
     )
@@ -210,12 +203,11 @@ def attendance(
 def member(
     session: AsyncSession, project: models.Project, user: models.User, now: datetime
 ) -> models.ProjectMember:
-    row = models.ProjectMember(
+    row = new_row(
+        models.ProjectMember,
         project_id=project.id,
         user_id=user.id,
         role="member",
-        state="confirmed",
-        trust="self",
         joined_via="join_request",
         is_team_row=False,
         joined_at=now,
@@ -339,7 +331,8 @@ async def test_feed_help_and_mentorship_visibility(harness: Harness) -> None:
         feed_item(session, FeedKind.MENTORSHIP_COMPLETED, partial.id, [area], h.now)
     assert [item.id for item in (await page(h, viewer)).items] == [visible.id]
     async with h.db() as session:
-        flag = models.Flag(
+        flag = new_row(
+            models.Flag,
             user_id=viewer.id,
             subject_type="mentorship",
             subject_id=reached.id,
@@ -347,7 +340,6 @@ async def test_feed_help_and_mentorship_visibility(harness: Harness) -> None:
             reason="Review",
             severity="low",
             status="to_check",
-            algo_version="test",
         )
         session.add(flag)
     assert not (await page(h, viewer)).items

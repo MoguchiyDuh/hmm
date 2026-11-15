@@ -5,7 +5,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from factories import count
+from factories import count, new_row
 from harness import Harness
 from pydantic import JsonValue, ValidationError
 from sqlalchemy import select
@@ -414,7 +414,8 @@ async def add_team(
         session.add(team)
         await session.flush()
         session.add_all(
-            models.ProjectMember(
+            new_row(
+                models.ProjectMember,
                 project_id=team.id,
                 event_id=UUID(event_id),
                 user_id=member.id,
@@ -433,12 +434,12 @@ async def add_team(
 async def add_going(h: Harness, event_id: str, user: models.User) -> None:
     async with h.db() as session:
         session.add(
-            models.EventAttendance(
+            new_row(
+                models.EventAttendance,
                 event_id=UUID(event_id),
                 user_id=user.id,
                 status=AttendanceStatus.GOING,
                 role=AttendanceRole.ATTENDEE,
-                proof_links=[],
                 trust=Trust.SELF,
                 status_at=h.now,
             )

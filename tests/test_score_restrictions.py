@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 from uuid import UUID, uuid4
 
-from factories import problem
+from factories import new_row, problem
 from harness import Harness, assert_problem
 from sqlalchemy import select
 
@@ -35,30 +35,22 @@ class Seed:
 async def seed(h: Harness) -> Seed:
     a, b, admin = await h.user(), await h.user(), await h.admin()
     async with h.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug=str(uuid4()),
-            kind="hackathon",
-            formation_enabled=False,
             title="Ended event",
             starts_at=h.now - timedelta(days=2),
             ends_at=h.now - timedelta(days=1),
-            timezone="UTC",
-            language=[],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()
         attendances = [
-            models.EventAttendance(
+            new_row(
+                models.EventAttendance,
                 event_id=event.id,
                 user_id=user.id,
                 status="attended",
                 role="attendee",
-                proof_links=[],
                 trust="peer" if user is a else "self",
                 status_at=h.now,
             )

@@ -2,7 +2,7 @@ from datetime import date, datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from factories import seed_project
+from factories import new_row, seed_project
 from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
@@ -156,20 +156,12 @@ async def test_milestone_automatic_start(harness: Harness) -> None:
     lead, member = await h.user(), await h.user()
     idea = await seed_project(h, lead, members=[member])
     async with h.db() as session:
-        event = models.Event(
+        event = new_row(
+            models.Event,
             slug="milestone-team",
-            kind="hackathon",
-            formation_enabled=False,
             title="Hackathon",
             starts_at=h.now,
             ends_at=h.now + timedelta(days=2),
-            timezone="UTC",
-            language=[],
-            themes=[],
-            status="published",
-            review_reasons=[],
-            origin="manual",
-            unmapped_areas=[],
         )
         session.add(event)
         await session.flush()

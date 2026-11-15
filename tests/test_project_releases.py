@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from typing import Any, cast
 from uuid import uuid4
 
-from factories import count
+from factories import count, new_row
 from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
@@ -65,13 +65,12 @@ async def seed_project(
         member_rows: list[models.ProjectMember] = []
         for user in (lead, *members):
             is_lead = user.id == lead.id
-            row = models.ProjectMember(
+            row = new_row(
+                models.ProjectMember,
                 project_id=project.id,
                 event_id=event_id if team_status is not None else None,
                 user_id=user.id,
                 role="lead" if is_lead else "member",
-                state="confirmed",
-                trust="self",
                 joined_via="create",
                 is_team_row=False,
                 joined_at=h.now if joined_at is None else joined_at,

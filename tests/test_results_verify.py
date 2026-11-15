@@ -4,7 +4,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
-from factories import count
+from factories import count, new_row
 from harness import Harness, assert_problem
 from sqlalchemy import select
 
@@ -25,20 +25,14 @@ class Queue:
 
 
 def event_row(harness: Harness, slug: str) -> models.Event:
-    return models.Event(
+    return new_row(
+        models.Event,
         slug=slug,
-        kind="hackathon",
         formation_enabled=True,
         title=slug.upper(),
         starts_at=harness.now - timedelta(days=3),
         ends_at=harness.now,
-        timezone="UTC",
         language=["en"],
-        themes=[],
-        status="published",
-        review_reasons=[],
-        origin="manual",
-        unmapped_areas=[],
     )
 
 
@@ -93,13 +87,12 @@ async def queue(harness: Harness) -> Queue:
         target = projects[1]
         for user, role in ((lead, "lead"), (a, "member"), (b, "member")):
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=target.id,
                     event_id=event.id,
                     user_id=user.id,
                     role=role,
-                    state="confirmed",
-                    trust="self",
                     joined_via="formation",
                     is_team_row=True,
                     joined_at=harness.now - timedelta(days=2),

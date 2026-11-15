@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
+from factories import new_row
 from harness import Harness
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,21 +29,16 @@ async def seed_event(
     creator_id: UUID | None = None,
 ) -> models.Event:
     end = ends_at if ends_at is not None else now - timedelta(hours=1)
-    event = models.Event(
+    event = new_row(
+        models.Event,
         slug=f"digest-{uuid4()}",
         kind="meetup",
-        formation_enabled=False,
         title="Confirmation meetup",
         starts_at=end - timedelta(hours=2),
         ends_at=end,
-        timezone="UTC",
-        language=[],
-        themes=[],
         status=status,
-        review_reasons=[],
         origin="member" if creator_id is not None else "manual",
         created_by=creator_id,
-        unmapped_areas=[],
     )
     session.add(event)
     await session.flush()
@@ -52,12 +48,12 @@ async def seed_event(
 def attendance(
     event: models.Event, user: models.User, now: datetime, *, status: str = "attended"
 ) -> models.EventAttendance:
-    return models.EventAttendance(
+    return new_row(
+        models.EventAttendance,
         event_id=event.id,
         user_id=user.id,
         status=status,
         role="attendee",
-        proof_links=[],
         trust="self",
         status_at=now,
     )
@@ -71,12 +67,11 @@ def project_member(
     lead: bool = False,
     left: bool = False,
 ) -> models.ProjectMember:
-    return models.ProjectMember(
+    return new_row(
+        models.ProjectMember,
         project_id=project.id,
         user_id=user.id,
         role="lead" if lead else "member",
-        state="confirmed",
-        trust="self",
         joined_via="create" if lead else "invite",
         is_team_row=False,
         joined_at=now - timedelta(days=2),

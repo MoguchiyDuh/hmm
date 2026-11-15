@@ -16,6 +16,7 @@ from factories import (
     join,
     live_members,
     make_event,
+    new_row,
     notices,
     parties,
     run_tick,
@@ -471,12 +472,12 @@ async def test_attendance_cancels_on_terminal_states_only(harness: Harness) -> N
     async with h.db() as session:
         for user in going:
             session.add(
-                models.EventAttendance(
+                new_row(
+                    models.EventAttendance,
                     event_id=event.id,
                     user_id=user.id,
                     status="going",
                     role="attendee",
-                    proof_links=[],
                     trust="self",
                     status_at=h.now,
                 )

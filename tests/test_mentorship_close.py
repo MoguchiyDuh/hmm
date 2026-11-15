@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any, cast
 from uuid import UUID, uuid4
 
+from factories import new_row
 from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
@@ -44,13 +45,12 @@ class Scenario:
                 select(models.Area.id).order_by(models.Area.sort).limit(1)
             )
             assert area_id is not None
-            request = models.HelpRequest(
+            request = new_row(
+                models.HelpRequest,
                 learner_id=learner.id,
                 area_id=area_id,
                 topic="FastAPI auth",
                 goal="ship a login flow",
-                format="online",
-                status="matched",
                 expires_at=h.now + timedelta(days=14),
             )
             session.add(request)

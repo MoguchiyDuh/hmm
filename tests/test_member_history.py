@@ -4,6 +4,7 @@ from typing import Any
 from uuid import UUID
 
 import pytest
+from factories import new_row
 from harness import Harness
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -53,21 +54,15 @@ from hmm.scores.history import load_member_history
 
 
 def event_row(slug: str, starts_at: datetime) -> models.Event:
-    return models.Event(
+    return new_row(
+        models.Event,
         slug=slug,
-        kind="hackathon",
         formation_enabled=True,
         title=slug.title(),
         starts_at=starts_at,
         ends_at=starts_at + timedelta(days=1),
-        timezone="UTC",
         format="offline",
-        language=[],
         themes=["ai"],
-        status="published",
-        review_reasons=[],
-        origin="manual",
-        unmapped_areas=[],
     )
 
 
@@ -158,7 +153,8 @@ async def add_mentorship(
     started_at: datetime,
     **fields: Any,
 ) -> models.Mentorship:
-    request = models.HelpRequest(
+    request = new_row(
+        models.HelpRequest,
         learner_id=learner_id,
         area_id=area_id,
         topic="Learn",

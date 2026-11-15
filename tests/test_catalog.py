@@ -5,6 +5,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from factories import new_row
 from harness import Harness, assert_problem
 from pydantic import JsonValue
 from sqlalchemy import select, update
@@ -556,12 +557,12 @@ async def test_cancelled_event_detail_requires_involvement(harness: Harness) -> 
         assert_problem(await client.get(f"/api/v1/events/{event.id}"), 404, ErrorCode.NOT_FOUND)
         async with h.db() as session:
             session.add(
-                models.EventAttendance(
+                new_row(
+                    models.EventAttendance,
                     event_id=event.id,
                     user_id=member.id,
                     status=AttendanceStatus.CANCELLED,
                     role=AttendanceRole.ATTENDEE,
-                    proof_links=[],
                     trust=Trust.SELF,
                     status_at=h.now,
                 )
@@ -588,7 +589,8 @@ async def test_event_detail_attendance(harness: Harness) -> None:
         )
         for index, user in enumerate((first, second)):
             session.add(
-                models.EventAttendance(
+                new_row(
+                    models.EventAttendance,
                     event_id=event.id,
                     user_id=user.id,
                     status=AttendanceStatus.GOING,
@@ -754,12 +756,12 @@ async def test_catalog_list_involved_cancelled_event(
     async with h.db() as session:
         for key in ("cancelled", "archived", "draft"):
             session.add(
-                models.EventAttendance(
+                new_row(
+                    models.EventAttendance,
                     event_id=listed_events[key].id,
                     user_id=actor.id,
                     status=AttendanceStatus.GOING,
                     role=AttendanceRole.ATTENDEE,
-                    proof_links=[],
                     trust=Trust.SELF,
                     status_at=h.now,
                 )
@@ -896,12 +898,12 @@ async def test_catalog_list_mine(
             now=h.now,
         )
         session.add(
-            models.EventAttendance(
+            new_row(
+                models.EventAttendance,
                 event_id=listed_events["hackathon"].id,
                 user_id=actor.id,
                 status=attendance_status,
                 role=AttendanceRole.ATTENDEE,
-                proof_links=[],
                 trust=Trust.SELF,
                 status_at=h.now,
             )
@@ -928,7 +930,8 @@ async def test_catalog_list_mine(
         )
         session.add(project)
         await session.flush()
-        membership = models.ProjectMember(
+        membership = new_row(
+            models.ProjectMember,
             project_id=project.id,
             event_id=listed_events["conference"].id,
             user_id=actor.id,
@@ -1038,7 +1041,8 @@ async def catalog_team(
         await session.flush()
         if member is not None:
             session.add(
-                models.ProjectMember(
+                new_row(
+                    models.ProjectMember,
                     project_id=team.id,
                     event_id=event.id,
                     user_id=member.id,
@@ -1077,12 +1081,12 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
             (historical, AttendanceStatus.ATTENDED),
         ):
             session.add(
-                models.EventAttendance(
+                new_row(
+                    models.EventAttendance,
                     event_id=event.id,
                     user_id=user.id,
                     status=status,
                     role=AttendanceRole.ATTENDEE,
-                    proof_links=[],
                     trust=Trust.SELF,
                     status_at=h.now - timedelta(days=1),
                 )
@@ -1371,12 +1375,12 @@ async def test_notify_event_changed(harness: Harness) -> None:
             now=h.now,
         )
         session.add(
-            models.EventAttendance(
+            new_row(
+                models.EventAttendance,
                 event_id=event.id,
                 user_id=attendee.id,
                 status=AttendanceStatus.GOING,
                 role=AttendanceRole.ATTENDEE,
-                proof_links=[],
                 trust=Trust.SELF,
                 status_at=h.now,
             )
@@ -1797,12 +1801,12 @@ async def test_patch_event_notifications_and_date_hook(
     member = await h.user()
     async with h.db() as session:
         session.add(
-            models.EventAttendance(
+            new_row(
+                models.EventAttendance,
                 event_id=event.id,
                 user_id=attendee.id,
                 status=AttendanceStatus.GOING,
                 role=AttendanceRole.ATTENDEE,
-                proof_links=[],
                 trust=Trust.SELF,
                 status_at=h.now,
             )
@@ -1868,12 +1872,12 @@ async def test_patch_event_status_cancellation(
     event = editable_event
     async with h.db() as session:
         session.add(
-            models.EventAttendance(
+            new_row(
+                models.EventAttendance,
                 event_id=event.id,
                 user_id=member.id,
                 status=AttendanceStatus.GOING,
                 role=AttendanceRole.ATTENDEE,
-                proof_links=[],
                 trust=Trust.SELF,
                 status_at=h.now,
             )
@@ -2040,7 +2044,8 @@ async def listing_project(
         rows = [(lead, MemberRole.LEAD)] if lead is not None else []
         rows += [(member, MemberRole.MEMBER) for member in members]
         session.add_all(
-            models.ProjectMember(
+            new_row(
+                models.ProjectMember,
                 project_id=project.id,
                 event_id=event.id,
                 user_id=user.id,
