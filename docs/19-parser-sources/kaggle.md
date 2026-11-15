@@ -7,7 +7,7 @@ Probed 2026-11-15. Adapter: `kaggle`. Kinds: contest (some titled "hackathon").
 - Official API, RPC-style: `POST https://api.kaggle.com/v1/competitions.CompetitionApiService/ListCompetitions`, called through the `kaggle` SDK 2.2.5 (`KaggleApi().competitions_list(...)`).
 - Auth: account API token in `KAGGLE_API_TOKEN` (new-style `KGAT_…` token, Bearer). Legacy `kaggle.json` username/key also accepted by the SDK.
 - `kaggle` 2.2.5 imports `six` without declaring it: install with `--with six` or add it as a dependency.
-- The anonymous internal endpoint `www.kaggle.com/api/i/competitions...` is off-limits (ToS bans scraping).
+- Alternative without a token: the site's internal endpoint `POST https://www.kaggle.com/api/i/competitions.CompetitionService/ListCompetitions` with `{"pageSize":100,"listOption":"LIST_OPTION_ACTIVE"}` answers anonymously (survey, not re-probed) and adds `totalCompetitors`, `numPrizes`, `rulesRequired`. Its `sortBy` and `listOption` were ignored, so filter client-side.
 
 ## Discovery
 

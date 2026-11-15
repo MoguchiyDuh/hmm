@@ -2,6 +2,10 @@
 
 Survey of 2026-11-15. Report only: nothing here is implemented yet. Access methods, volumes and counts were tested on the survey date and will drift. Tier 1 sources and Kaggle were probed live; their observed behavior, field mappings and config sketches are in [19-parser-sources/](19-parser-sources/), one file per source.
 
+## Access policy
+
+Every working access method is allowed: official APIs with account tokens, undocumented and internal endpoints, public keys taken from a site's own client code, browser user agents, robots-disallowed paths, and sources whose terms restrict automated access. Terms-of-service and robots notes below are facts about the source, not blockers. Rate limits stay self-imposed per domain, with `Crawl-delay` as the minimum spacing (§19.4.6), so a source keeps answering.
+
 ## Adapter design
 
 Sources are hot-swappable: adding or removing a place never touches the pipeline (§19.4).
@@ -83,7 +87,7 @@ Useful but noisy, low volume, or costly to reach.
 | [HackathonRadar](https://www.hackathonradar.com/discover/europe) | hackathon | sitemap (3,962 entries) → Event JSON-LD | `jsonld_sitemap` | 423 upcoming in Europe (self-reported) | Highest EU count; overlap with hackathonhub.eu unmeasured. `/discover/serbia` 404. ToS requires permission for bots; an OAuth MCP is offered. |
 | [TAIKAI](https://taikai.network/en/hackathons) | hackathon | SSR listing → detail JSON-LD | `jsonld_pages` | ~9 upcoming, mostly EU | Registration milestones and participant counts. No API. ToS forbids extracting "a substantial part" of the data. |
 | [DoraHacks](https://dorahacks.io/hub/hackathons) | hackathon | `/api/v1/hub/hackathons?page=&page_size=` | `dorahacks` | 846 total; sampled 43 % virtual, 7 % in-person | Registration deadline (`timeline_pre_register`), `winner_announced`. Answers only browser user agents (WAF). Heavy Web3 noise; geo mostly null. |
-| [Kaggle](https://www.kaggle.com/competitions) | contest | official API `api.kaggle.com/v1/competitions.CompetitionApiService/ListCompetitions` with `KAGGLE_API_TOKEN` (Bearer); SDK `kaggle` | `kaggle` | 20 in `group=general` (6 featured, 3 playground, 11 getting-started) plus prize-bearing `group=community` ones | Verified 2026-11-15. `enabledDate` → `starts_at`, `deadline` → `ends_at`, `newEntrantDeadline` → `registration_deadline`, `maxTeamSize`, `reward` as text ("75,000 Usd"), `organizationName`, `tags`. `general` holds only active competitions, one page. `community` is mostly junk with far-future deadlines: keep `Usd` rewards only. Drop "Getting Started" and "Knowledge"/"Kudos"/"Swag" rewards. 429 after ~10 rapid calls. Global, online only. The anonymous internal endpoint stays off-limits. |
+| [Kaggle](https://www.kaggle.com/competitions) | contest | official API `api.kaggle.com/v1/competitions.CompetitionApiService/ListCompetitions` with `KAGGLE_API_TOKEN` (Bearer); SDK `kaggle` | `kaggle` | 20 in `group=general` (6 featured, 3 playground, 11 getting-started) plus prize-bearing `group=community` ones | Verified 2026-11-15. `enabledDate` → `starts_at`, `deadline` → `ends_at`, `newEntrantDeadline` → `registration_deadline`, `maxTeamSize`, `reward` as text ("75,000 Usd"), `organizationName`, `tags`. `general` holds only active competitions, one page. `community` is mostly junk with far-future deadlines: keep `Usd` rewards only. Drop "Getting Started" and "Knowledge"/"Kudos"/"Swag" rewards. 429 after ~10 rapid calls. Global, online only. The anonymous internal endpoint `www.kaggle.com/api/i/competitions.CompetitionService/ListCompetitions` also works without a token and adds `totalCompetitors`, `numPrizes` and `rulesRequired`. |
 | [Sessionize](https://sessionize.com/sitemap/events.xml) | conference | sitemap (11,114 URLs, no `lastmod`) → HTML; CFP iCal at `/add-to-calendar/cfs/<slug>` | `jsonld_sitemap` (LLM fallback) | RS: BSides Belgrade, Azure UG Serbia, Highload Serbia | Best CFP deadlines. No `lastmod`: crawl once, then only new URLs. |
 | [itch.io jams](https://itch.io/jams) | contest | HTML listing, ISO UTC start and close | `itch_jams` | hundreds a month | Near-zero Serbian signal. Keep only ranked jams with prizes or known EU hosts. |
 | [Global Game Jam](https://globalgamejam.org/jam-sites) | contest | Drupal behind Cloudflare | `pages`, `render = true` | 1 edition (25–31 Jan 2027), per-city sites | Only source of in-person game jams in Serbia. Plain HTTP gets 403. |
@@ -118,9 +122,10 @@ Dedupe pairs to expect (§19.4.2): CASSINI ↔ TAIKAI; Junction, UniHack, HackEP
 
 | source | reason |
 |---|---|
-| Meetup.com, Eventbrite | robots blocks feeds and search; Meetup API is Pro-only; Eventbrite search API shut down in 2019 |
+| Meetup.com | to revisit: blocked only by robots (feeds, `/gql`); group pages render no events without the GraphQL API |
+| Eventbrite | search API shut down in 2019 |
 | Ludum Dare | API returns 403 everywhere; ldjam.com is an empty SPA |
-| clist.by | robots disallows `/api/`; mirrors sources reachable directly |
+| clist.by | API needs a key; mirrors sources reachable directly |
 | Codeforces, AtCoder, Meta Hacker Cup, Google coding competitions | individual contests, or discontinued |
 | Zindi, AIcrowd, DrivenData | low volume, no Europe angle; AIcrowd lists no dates, Zindi is JS-only |
 | Devfolio, Unstop, HackerEarth, Hack Club, BeMyApp | India- or US-centric, ~0 European events |
@@ -138,6 +143,7 @@ Dedupe pairs to expect (§19.4.2): CASSINI ↔ TAIKAI; Junction, UniHack, HackEP
 - Luma: stability of the undocumented `get-items` endpoint; per-calendar iCal not found. Other Serbian calendars may exist; only those listed were found.
 - Devpost: `winners_announced` can be set while the gallery has no winner markup.
 - ICPC: CERC's WordPress moves domain each year; only the current edition is reachable.
+- GDG `/api/` past-event paging: now allowed, but the `links.next` URL in the chapter payload points at an internal host; untested.
 - Sessionize per-event speaker JSON (`api/v2/<id>/view/All`) untested.
 - Global Game Jam 2027 Serbian sites (40 sites registered so far); ITkonekt 2026 dates; Sinergija agenda fields; EU Code Week data endpoint.
 - `render = true` sources (Sinergija, Global Game Jam) need a headless browser in the worker image. No Tier 1 source needs one.
