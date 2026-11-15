@@ -8,19 +8,16 @@ from hmm.common import AuditAction, ErrorCode
 from hmm.formation import schemas
 from hmm.formation.common import (
     audit,
-    detach_party,
     eligible_user,
     formation_sizes,
     locked_team,
     members,
     membership_row,
-    set_enrollment_status,
     team_view,
 )
-from hmm.formation.queue import queue_user
-from hmm.formation.teams import assign_lead, reassign_lead, remove_member
+from hmm.formation.teams import assign_lead, place_member, remove_member
 from hmm.notifications.payloads import TeamDisbandedPayload
-from hmm.notifications.service import notify_many, resolve_alerts
+from hmm.notifications.service import notify_many
 from hmm.platform.errors import ProblemError
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.settings import load_settings
@@ -57,30 +54,20 @@ async def admin_add_member(
     _, _, maximum = formation_sizes(event, formation, await load_settings(session))
     if len(rows) >= maximum:
         raise ProblemError(ErrorCode.TEAM_FULL)
-    enrollment = await queue_user(session, event, formation, body.user_id, now)
-    await detach_party(session, enrollment, now)
-    session.add(
-        models.ProjectMember(
-            project_id=project_id,
-            event_id=event.id,
-            user_id=body.user_id,
-            role="member",
-            state="confirmed",
-            trust="self",
-            joined_via="admin",
-            is_team_row=True,
-            joined_at=now,
-            confirmed_at=now,
-        )
+    await place_member(
+        session,
+        project,
+        event,
+        formation,
+        body.user_id,
+        now,
+        source="self",
+        joined_via="admin",
+        actor=actor,
     )
-    await set_enrollment_status(session, enrollment, "placed", now)
-    await reassign_lead(session, project, event, now, actor)
     await audit(
         session, project_id, now, "member_added", actor, AuditAction.MEMBER_ADD, body.reason
     )
-    _, minimum, _ = formation_sizes(event, formation, await load_settings(session))
-    if len(await members(session, project_id)) >= minimum:
-        await resolve_alerts(session, f"team_below_min:{project_id}", now)
     return await team_view(session, project)
 
 

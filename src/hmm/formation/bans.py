@@ -6,10 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
 from hmm.formation.common import detach_party, participation_event, set_enrollment_status
-from hmm.formation.invites import close_invite
 from hmm.formation.teams import reassign_lead, remove_member
 from hmm.notifications.payloads import AlertKind
 from hmm.notifications.service import raise_alert
+from hmm.projects.invites import close_invite
 
 
 async def remove_user_from_formation(

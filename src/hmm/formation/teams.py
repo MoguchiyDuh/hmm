@@ -10,6 +10,7 @@ from hmm.formation import schemas
 from hmm.formation.common import (
     area_id,
     audit,
+    detach_party,
     formation_row,
     formation_sizes,
     live_enrollment_row,
@@ -22,6 +23,7 @@ from hmm.formation.common import (
     set_enrollment_status,
     team_view,
 )
+from hmm.formation.queue import queue_user
 from hmm.notifications.payloads import (
     LeadAssignedPayload,
     PlacementLapsedPayload,
@@ -385,3 +387,40 @@ async def finalize_event(session: AsyncSession, event: models.Event, now: dateti
         await set_enrollment_status(session, row, "expired", now)
     formation.phase = "closed"
     await session.flush()
+
+
+async def place_member(
+    session: AsyncSession,
+    project: models.Project,
+    event: models.Event,
+    formation: models.EventFormation,
+    user_id: UUID,
+    now: datetime,
+    *,
+    source: str,
+    joined_via: str,
+    area_id: UUID | None = None,
+    actor: models.User | None = None,
+) -> None:
+    enrollment = await queue_user(session, event, formation, user_id, now, source)
+    await detach_party(session, enrollment, now)
+    session.add(
+        models.ProjectMember(
+            project_id=project.id,
+            event_id=event.id,
+            user_id=user_id,
+            role="member",
+            state="confirmed",
+            trust="self",
+            joined_via=joined_via,
+            is_team_row=True,
+            joined_at=now,
+            confirmed_at=now,
+            area_id=area_id,
+        )
+    )
+    await set_enrollment_status(session, enrollment, "placed", now)
+    await reassign_lead(session, project, event, now, actor)
+    _, minimum, _ = formation_sizes(event, formation, await load_settings(session))
+    if len(await members(session, project.id)) >= minimum:
+        await resolve_alerts(session, f"team_below_min:{project.id}", now)

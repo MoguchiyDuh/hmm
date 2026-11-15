@@ -615,7 +615,6 @@ class ConfirmationSource(StrEnum):
 class ErrorCode(StrEnum):
     ALREADY_ENROLLED = "already_enrolled"
     ALREADY_IN_TEAM = "already_in_team"
-    ALREADY_INVITED = "already_invited"
     ATTENDANCE_WINDOW_CLOSED = "attendance_window_closed"
     BAD_REQUEST = "bad_request"
     BANNED = "banned"
@@ -664,7 +663,6 @@ class ErrorCode(StrEnum):
 ERROR_STATUS: dict[ErrorCode, HTTPStatus] = {
     ErrorCode.ALREADY_ENROLLED: HTTPStatus.CONFLICT,
     ErrorCode.ALREADY_IN_TEAM: HTTPStatus.CONFLICT,
-    ErrorCode.ALREADY_INVITED: HTTPStatus.CONFLICT,
     ErrorCode.ATTENDANCE_WINDOW_CLOSED: HTTPStatus.CONFLICT,
     ErrorCode.BAD_REQUEST: HTTPStatus.BAD_REQUEST,
     ErrorCode.BANNED: HTTPStatus.FORBIDDEN,

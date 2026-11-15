@@ -32,7 +32,6 @@ from hmm.formation.common import (
     queue_units,
     reg_deadline,
 )
-from hmm.formation.invites import close_invite
 from hmm.formation.queue import formation_participation
 from hmm.formation.teams import assign_lead
 from hmm.notifications.payloads import (
@@ -49,6 +48,7 @@ from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, Runtime, defer_job
 from hmm.platform.schemas import ReasonBody, notification_person
 from hmm.platform.settings import load_settings
+from hmm.projects.invites import close_invite
 from hmm.scores import snapshot as scores_snapshot
 
 

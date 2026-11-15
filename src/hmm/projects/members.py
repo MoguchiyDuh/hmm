@@ -12,6 +12,7 @@ from hmm.common import (
     AuditAction,
     AuditEntityType,
     ErrorCode,
+    JoinedVia,
     LeftReason,
     MemberState,
 )
@@ -19,6 +20,7 @@ from hmm.formation import teams as formation_teams
 from hmm.formation.schemas import DeclinePlacementBody
 from hmm.identity import service as identity_service
 from hmm.notifications.payloads import (
+    ProjectMemberJoinedPayload,
     ProjectMemberLeftPayload,
     ProjectMemberRemovedPayload,
 )
@@ -222,3 +224,44 @@ async def transfer_project_lead(
     await session.flush()
     await session.refresh(project)
     return await project_response(session, project.id, actor)
+
+
+async def add_member(
+    session: AsyncSession, project: models.Project, user_id: UUID, via: JoinedVia, now: datetime
+) -> None:
+    if project.status in CLOSED_PROJECT_STATUSES:
+        raise ProblemError(ErrorCode.INVALID_STATE)
+    ids = await project_member_ids(session, project.id)
+    if user_id in ids:
+        raise ProblemError(ErrorCode.INVALID_STATE)
+    if len(ids) >= (await load_settings(session)).project_size_max:
+        raise ProblemError(ErrorCode.PROJECT_FULL)
+    row = models.ProjectMember(
+        project_id=project.id,
+        user_id=user_id,
+        role="member",
+        state="confirmed",
+        trust="self",
+        joined_via=via.value,
+        is_team_row=project.team_status is not None,
+        joined_at=now,
+        confirmed_at=now,
+    )
+    session.add(row)
+    await session.flush()
+    await session.refresh(project)
+    user = await session.get(models.User, user_id)
+    if user is not None:
+        await notify_many(
+            session,
+            ids,
+            ProjectMemberJoinedPayload(
+                link=f"/projects/{project.id}",
+                project_id=project.id,
+                project_name=project.name,
+                member=notification_person(user),
+                member_count=len(ids) + 1,
+            ),
+            now,
+            dedupe_key=f"project_member_joined:{row.id}",
+        )

@@ -21,7 +21,7 @@ from hmm.platform.errors import ProblemError
 from hmm.platform.schemas import notification_person
 from hmm.projects import schemas
 from hmm.projects.common import project_member_ids
-from hmm.projects.invites import add_member
+from hmm.projects.members import add_member
 from hmm.projects.views import CLOSED_PROJECT_STATUSES, join_request_view
 from hmm.recommendations import service as recommendations_service
 

@@ -13,7 +13,6 @@ from hmm.formation.common import (
     queue_units,
     reg_deadline,
 )
-from hmm.formation.invites import expire_invites
 from hmm.formation.runs import refill_event
 from hmm.formation.teams import finalize_event, remove_member
 from hmm.notifications.payloads import (
@@ -27,6 +26,7 @@ from hmm.notifications.service import notify, notify_many, raise_alert, resolve_
 from hmm.platform.jobs import JobName, Runtime, defer_job
 from hmm.platform.schemas import notification_person
 from hmm.platform.settings import load_settings
+from hmm.projects.invites import expire_invites
 
 
 async def remind_member(

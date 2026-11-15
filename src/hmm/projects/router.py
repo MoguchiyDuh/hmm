@@ -13,7 +13,6 @@ from hmm.common import (
     TeamStatus,
     UserId,
 )
-from hmm.formation import invites as formation_invites
 from hmm.formation import schemas as formation_schemas
 from hmm.formation import teams as formation_teams
 from hmm.platform.clock import CurrentClock
@@ -171,18 +170,7 @@ async def create_invite(
     clock: CurrentClock,
     jobs: Jobs,
 ) -> formation_schemas.Invite:
-    project = await session.get(models.Project, id)
-    if (
-        project is not None
-        and project.team_status is not None
-        and project.team_status not in POST_RESULT_TEAM_STATUSES
-    ):
-        return await formation_invites.create_invite(
-            session, id, formation_schemas.InviteBody(user_id=body.user_id), actor, clock.now()
-        )
-    invite = await invites.create_invite(session, id, body, actor, clock.now())
-    await recommendations.enqueue_project_refresh(session, jobs, id)
-    return invite
+    return await invites.create_invite(session, jobs, id, body, actor, clock.now())
 
 
 @router.post(
@@ -265,11 +253,7 @@ async def transfer_lead(
 async def accept_invite(
     id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
 ) -> formation_schemas.Invite:
-    row = await session.get(models.Invite, id)
-    if row is not None and row.event_id is None:
-        result = await invites.respond_invite(session, id, actor, clock.now(), "accepted")
-    else:
-        result = await formation_invites.accept_invite(session, id, actor, clock.now())
+    result = await invites.respond_invite(session, id, actor, clock.now(), "accepted")
     if isinstance(result, ProblemError):
         return cast(formation_schemas.Invite, problem_response(request, result.code, result.detail))
     return result
@@ -279,11 +263,7 @@ async def accept_invite(
 async def decline_invite(
     id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
 ) -> formation_schemas.Invite:
-    row = await session.get(models.Invite, id)
-    if row is not None and row.event_id is None:
-        result = await invites.respond_invite(session, id, actor, clock.now(), "declined")
-    else:
-        result = await formation_invites.decline_invite(session, id, actor, clock.now())
+    result = await invites.respond_invite(session, id, actor, clock.now(), "declined")
     if isinstance(result, ProblemError):
         return cast(formation_schemas.Invite, problem_response(request, result.code, result.detail))
     return result
@@ -293,11 +273,7 @@ async def decline_invite(
 async def withdraw_invite(
     id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
 ) -> Response:
-    row = await session.get(models.Invite, id)
-    if row is not None and row.event_id is None:
-        result = await invites.respond_invite(session, id, actor, clock.now(), "withdrawn")
-    else:
-        result = await formation_invites.withdraw_invite(session, id, actor, clock.now())
+    result = await invites.respond_invite(session, id, actor, clock.now(), "withdrawn")
     if isinstance(result, ProblemError):
         return problem_response(request, result.code, result.detail)
     return Response(status_code=204)

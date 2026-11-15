@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from hmm.common import EnrollmentStatus, ErrorCode, InviteStatus
 from hmm.formation import admin as formation_admin
 from hmm.formation import common, queue, schemas, teams
-from hmm.formation import invites as formation_invites
 from hmm.formation import parties as formation_parties
 from hmm.formation import runs as formation_runs
 from hmm.platform.clock import CurrentClock
@@ -16,6 +15,7 @@ from hmm.platform.jobs import Jobs
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import AdminAuth, MemberAuth
+from hmm.projects import invites as projects_invites
 
 router = APIRouter(tags=["formation"], responses=PROBLEM_RESPONSES)
 
@@ -98,7 +98,7 @@ async def update_party(
 async def create_party_invite(
     id: UUID, body: schemas.InviteBody, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> schemas.Invite:
-    return await formation_invites.create_party_invite(session, id, body, actor, clock.now())
+    return await projects_invites.create_party_invite(session, id, body, actor, clock.now())
 
 
 @router.post("/parties/{id}/leave", status_code=204)
@@ -121,7 +121,7 @@ async def kick_party_member(
 async def my_invites(
     actor: MemberAuth, session: Session, status: Annotated[InviteStatus | None, Query()] = None
 ) -> list[schemas.Invite]:
-    return await formation_invites.my_invites(session, actor, status)
+    return await projects_invites.my_invites(session, actor, status)
 
 
 @router.post("/projects/{id}/placement/accept")
