@@ -270,9 +270,16 @@ _INVISIBLE = re.compile(r"[\u200b-\u200f\u2060\ufeff]")
 
 _TEAM_RANGE = re.compile(
     r"\b(\d{1,2})\s*(?:-|–|—|to)\s*(\d{1,2})\s*(?:players|members|participants|people|persons)\b"
-    r"|\bteams?\s+of\s+(\d{1,2})\s*(?:-|–|—|to)\s*(\d{1,2})\b",
+    r"|\bteams?(?:\s+of|\s+size\s*:?|\s*:)\s*(\d{1,2})\s*(?:-|–|—|to)\s*(\d{1,2})\b",
     re.IGNORECASE,
 )
+_NUMBER_WORDS = {
+    word: str(number)
+    for number, word in enumerate(
+        ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten"), start=1
+    )
+}
+_NUMBER_WORD = re.compile(rf"\b({'|'.join(_NUMBER_WORDS)})\b", re.IGNORECASE)
 _TEAM_MAX = re.compile(
     r"\bteams?\s+(?:of\s+)?(?:size\s*:?\s*)?up\s+to\s+(\d{1,2})\b"
     r"|\bteam\s+size\s*:?\s*(?:up\s+to|max(?:imum)?\.?)\s*(\d{1,2})\b"
@@ -476,6 +483,7 @@ def summary_of(value: str | None) -> str | None:
 def team_size(text: str | None) -> tuple[int | None, int | None]:
     if not text:
         return None, None
+    text = _NUMBER_WORD.sub(lambda match: _NUMBER_WORDS[match[1].casefold()], text)
     match = _TEAM_RANGE.search(text)
     if match is not None:
         low, high = (int(value) for value in match.groups() if value is not None)

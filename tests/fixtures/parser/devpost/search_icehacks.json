@@ -1,0 +1,51 @@
+{
+ "hackathons": [
+  {
+   "id": 31495,
+   "title": "IceHacks",
+   "displayed_location": {
+    "icon": "globe",
+    "location": "Online"
+   },
+   "open_state": "open",
+   "thumbnail_url": "//d112y698adiu2z.cloudfront.net/photos/production/challenge_thumbnails/005/491/441/datas/medium_square.png",
+   "analytics_identifier": "IceHacks (31495)",
+   "url": "https://icehacks.devpost.com/",
+   "time_left_to_submission": "about 3 hours left",
+   "submission_period_dates": "Nov 08 - 15, 2026",
+   "themes": [
+    {
+     "id": 23,
+     "name": "Beginner Friendly"
+    },
+    {
+     "id": 17,
+     "name": "Low/No Code"
+    },
+    {
+     "id": 22,
+     "name": "Open Ended"
+    }
+   ],
+   "prize_amount": "$<span data-currency-value>17,150</span>",
+   "prizes_counts": {
+    "cash": 8,
+    "other": 1
+   },
+   "registrations_count": 747,
+   "featured": false,
+   "organization_name": "CodeStarters",
+   "winners_announced": false,
+   "submission_gallery_url": "https://icehacks.devpost.com/project-gallery",
+   "start_a_submission_url": "https://icehacks.devpost.com/challenges/start_a_submission",
+   "invite_only": false,
+   "eligibility_requirement_invite_only_description": null,
+   "managed_by_devpost_badge": false
+  }
+ ],
+ "meta": {
+  "total_count": 1,
+  "per_page": 40,
+  "fuzzy": false
+ }
+}

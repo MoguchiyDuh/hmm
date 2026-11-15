@@ -441,10 +441,13 @@ async def test_mlh_pages_html_lists_and_filters_regions() -> None:
         "mlh:019ff171-24a3-0dd9-42c5-eabf54b0893c",
     }
     unihack = items["mlh:01a063b5-6f38-3b26-77aa-c9afde29ba75"]
-    assert unihack.starts_at == datetime(2026, 11, 13, 20, tzinfo=UTC)
+    assert unihack.starts_at == datetime(2026, 11, 13, 13, tzinfo=UTC)
+    assert unihack.ends_at == datetime(2026, 11, 15, 15, tzinfo=UTC)
     assert unihack.location is not None and unihack.location.country == "RO"
     assert unihack.timezone == "Europe/Bucharest"
-    assert "starts_at" not in unihack.inferred_fields
+    assert {"starts_at", "ends_at"} <= set(unihack.inferred_fields)
+    burgh = items["mlh:01a0f9ce-2aec-1d0e-a9c8-f5b4213b0d1b"]
+    assert burgh.starts_at == datetime(2026, 11, 7, 9, tzinfo=UTC)
     assert str(unihack.website_url) == "https://unihack.eu/"
     hackeps = items["mlh:01a1169b-c4ad-5d41-61cf-deccaa37655c"]
     assert hackeps.starts_at == datetime(2026, 11, 27, 23, tzinfo=UTC)
@@ -717,6 +720,27 @@ async def test_devpost_revisits_ended_hackathons_by_search() -> None:
     assert item.source.source_id == "devpost:31655"
     assert item.confidence == 0.8
     assert item.location is not None and item.location.country == "GB"
+
+
+async def test_devpost_reads_team_size_from_requirements() -> None:
+    def api(request: httpx.Request) -> httpx.Response:
+        if request.url.params.get("search") == "IceHacks":
+            return json_file("devpost/search_icehacks.json")(request)
+        return httpx.Response(200, json={"hackathons": [], "meta": {"total_count": 0}})
+
+    page = "https://icehacks.devpost.com/"
+    router = Router({DEVPOST_API: api, page: respond("devpost/icehacks.html")})
+    run = await run_source(
+        {"id": "devpost", "adapter": "devpost"},
+        router,
+        revisits=[tracked("devpost:31495", page, datetime(2026, 11, 15, 23, tzinfo=UTC))],
+    )
+    assert run.errors == []
+    [item] = run.items
+    assert (item.team_size_min, item.team_size_max) == (1, 4)
+    assert item.description_md is not None
+    assert item.description_md.startswith("IceHacks doesn't award any cash prizes.")
+    assert "team_size_max" not in item.inferred_fields
 
 
 async def test_devpost_listing_and_site_json_ld() -> None:

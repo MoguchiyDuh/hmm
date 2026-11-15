@@ -3,6 +3,7 @@ import re
 from collections.abc import AsyncIterator
 from datetime import datetime, time
 from typing import Annotated, Any
+from zoneinfo import ZoneInfo
 
 from pydantic import Field
 
@@ -43,6 +44,7 @@ class MlhOptions(Contract):
     site: Annotated[str, Field(pattern=r"^https://")] = "https://www.mlh.com"
     regions: tuple[str, ...] = ("EMEA",)
     max_pages: Annotated[int, Field(ge=1)] = 10
+    entry_zone: str = "America/New_York"
 
 
 def season_of(value: datetime) -> int:
@@ -62,7 +64,9 @@ def inertia_page(response: Fetched) -> dict[str, Any]:
     return data
 
 
-def boundary(value: Any, zone: str | None, *, end: bool) -> tuple[datetime | None, bool]:
+def boundary(
+    value: Any, zone: str | None, entry_zone: str, *, end: bool
+) -> tuple[datetime | None, bool]:
     parsed = parse_datetime(value)
     if parsed is None:
         return None, False
@@ -70,7 +74,10 @@ def boundary(value: Any, zone: str | None, *, end: bool) -> tuple[datetime | Non
     if parsed.timetz().replace(tzinfo=None) == placeholder:
         day = parsed.date()
         return (day_end(day, zone) if end else day_start(day, zone)), True
-    return parsed, False
+    if zone is None or zone == entry_zone:
+        return parsed, False
+    wall = parsed.astimezone(ZoneInfo(entry_zone)).replace(tzinfo=None)
+    return wall.replace(tzinfo=ZoneInfo(zone)), True
 
 
 @adapter
@@ -124,8 +131,9 @@ class Mlh(Adapter[MlhOptions]):
         if not ctx.in_scope(country, fmt):
             return []
         zone = zone_for(country)
-        starts_at, start_inferred = boundary(event.get("startsAt"), zone, end=False)
-        ends_at, end_inferred = boundary(event.get("endsAt"), zone, end=True)
+        entry = self.options.entry_zone
+        starts_at, start_inferred = boundary(event.get("startsAt"), zone, entry, end=False)
+        ends_at, end_inferred = boundary(event.get("endsAt"), zone, entry, end=True)
         title = clean_text(event.get("name"))
         if title is None or starts_at is None or ends_at is None or ends_at < ctx.cutoff:
             return []

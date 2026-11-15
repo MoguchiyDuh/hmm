@@ -21,6 +21,7 @@ from hmm.parser.normalize import (
     parse_datetime,
     slug_terms,
     summary_of,
+    team_size,
     text_terms,
     web_url,
     zone_for,
@@ -165,6 +166,7 @@ class Hackalendar(Adapter[HackalendarOptions]):
             ends_at = day_end(starts_at.date(), zone)
         deadline, _ = boundary(event.get("registrationDeadline"), None, zone, end=True)
         description = clean_text(event.get("description"))
+        low, high = team_size(description)
         themes = [str(theme) for theme in event.get("themes") or [] if theme]
         pool = clean_text(event.get("prizePool"))
         amount, currency = money(pool)
@@ -191,6 +193,8 @@ class Hackalendar(Adapter[HackalendarOptions]):
             "starts_at": starts_at,
             "ends_at": ends_at,
             "registration_deadline": deadline if deadline and deadline < ends_at else None,
+            "team_size_min": low,
+            "team_size_max": high,
             "timezone": zone,
             "format": fmt,
             "location": {

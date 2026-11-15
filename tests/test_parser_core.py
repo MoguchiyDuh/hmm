@@ -471,6 +471,11 @@ def test_hackathonist_dates(text: str, expected: tuple[date, date] | None) -> No
         ("teams of 3\u20135 players", (3, 5)),
         ("Teams can have 1 to 10 members (6 to 8 recommended)", (1, 10)),
         ("aged 18-26", (None, None)),
+        ("Teams are two to four people", (2, 4)),
+        ("Register your team of up to five members", (None, 5)),
+        ("\U0001f465 Teams: 3 to 4", (3, 4)),
+        ("team size: 2-5", (2, 5)),
+        ("Top 3 teams win, one of ten tracks", (None, None)),
     ],
 )
 def test_team_size(text: str, expected: tuple[int | None, int | None]) -> None:

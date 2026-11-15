@@ -21,6 +21,7 @@ from hmm.parser.normalize import (
     html_to_text,
     map_areas,
     money,
+    team_size,
     text_terms,
     web_url,
 )
@@ -32,6 +33,9 @@ _DATES = re.compile(
 )
 _TEST_TITLE = re.compile(r"^(?:sandbox\s+)?(?:hacks?\s+)?test(?:\s+\d+)?$", re.IGNORECASE)
 _TRUNCATED = re.compile(r"\s*(?:\.\.\.|…)$")
+_SECTION = re.compile(
+    r"<article\s+id=\"challenge-(description|requirements)\"[^>]*>(.*?)</article>", re.DOTALL
+)
 
 
 class DevpostOptions(Contract):
@@ -137,12 +141,14 @@ class Devpost(Adapter[DevpostOptions]):
 
     async def detail(self, ctx: SourceContext, url: str) -> dict[str, Any] | None:
         page = await ctx.get(url, rate_key=self.options.rate_key)
-        nodes, index = jsonld.events(page.text())
+        body = page.text()
+        sections = {name: html_to_text(html) for name, html in _SECTION.findall(body)}
+        nodes, index = jsonld.events(body)
         for node in nodes:
             found = jsonld.fields(node, index, url)
             if found is not None:
                 amount, currency = pool(node)
-                return {**found, "pool": (amount, currency)}
+                return {**found, "pool": (amount, currency), "sections": sections}
         return None
 
     async def extract(self, ctx: SourceContext, candidate: Candidate) -> list[EventImport]:
@@ -207,6 +213,10 @@ class Devpost(Adapter[DevpostOptions]):
             zone = found["timezone"] if fmt != EventFormat.ONLINE else None
             amount, currency = found["pool"]
             summary = clean_text(_TRUNCATED.sub("", found["summary"] or "")) or None
+            description = found["sections"].get("description") or found["description_md"]
+            low, high = team_size(found["sections"].get("requirements"))
+            if low is None and high is None:
+                low, high = team_size(description)
             confidence = 0.8
         else:
             window = listing_dates(row.get("submission_period_dates"))
@@ -216,7 +226,8 @@ class Devpost(Adapter[DevpostOptions]):
             location = {"country": country, "address": place} if country else None
             starts_at, ends_at = day_start(window[0], None), day_end(window[1], None)
             inferred = ["starts_at", "ends_at"]
-            amount, currency, summary = None, None, None
+            amount, currency, summary, description = None, None, None, None
+            low, high = None, None
             confidence = 0.7
         if not ctx.in_scope(country, fmt) or ends_at < ctx.cutoff:
             return []
@@ -233,6 +244,7 @@ class Devpost(Adapter[DevpostOptions]):
             "kind": EventKind.HACKATHON,
             "title": title,
             "summary": clip(summary, 500),
+            "description_md": clip(description, 20000),
             "organizer": clean_text(row.get("organization_name"))
             or (found["organizer"] if found is not None else None),
             "website_url": url,
@@ -240,6 +252,8 @@ class Devpost(Adapter[DevpostOptions]):
             "starts_at": starts_at,
             "ends_at": ends_at,
             "registration_deadline": ends_at if online else None,
+            "team_size_min": low,
+            "team_size_max": high,
             "timezone": zone,
             "format": fmt,
             "location": location,
