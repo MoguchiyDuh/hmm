@@ -51,7 +51,7 @@ channels = ["nstechtalks", "xecut_bg", "SERBIAGAMEDEVEVENTS"]
 id = "kaggle"
 adapter = "kaggle"
 interval = "24h"
-secret_env = ["KAGGLE_USERNAME", "KAGGLE_KEY"]
+secret_env = ["KAGGLE_API_TOKEN"]
 ```
 
 ## Tier 1
@@ -84,7 +84,7 @@ Useful but noisy, low volume, or costly to reach.
 | [HackathonRadar](https://www.hackathonradar.com/discover/europe) | hackathon | sitemap (3,962 entries) → Event JSON-LD | `jsonld_sitemap` | 423 upcoming in Europe (self-reported) | Highest EU count; overlap with hackathonhub.eu unmeasured. `/discover/serbia` 404. ToS requires permission for bots; an OAuth MCP is offered. |
 | [TAIKAI](https://taikai.network/en/hackathons) | hackathon | SSR listing → detail JSON-LD | `jsonld_pages` | ~9 upcoming, mostly EU | Registration milestones and participant counts. No API. ToS forbids extracting "a substantial part" of the data. |
 | [DoraHacks](https://dorahacks.io/hub/hackathons) | hackathon | `/api/v1/hub/hackathons?page=&page_size=` | `dorahacks` | 846 total; sampled 43 % virtual, 7 % in-person | Registration deadline (`timeline_pre_register`), `winner_announced`. Answers only browser user agents (WAF). Heavy Web3 noise; geo mostly null. |
-| [Kaggle](https://www.kaggle.com/competitions) | contest | official API `/api/v1/competitions/list` with `KAGGLE_USERNAME`/`KAGGLE_KEY` | `kaggle` | a few cash competitions a quarter | `deadline`, `maxTeamSize`, `reward`, team-merger deadline. Global, online only. The anonymous internal endpoint stays off-limits. |
+| [Kaggle](https://www.kaggle.com/competitions) | contest | official API `api.kaggle.com/v1/competitions.CompetitionApiService/ListCompetitions` with `KAGGLE_API_TOKEN` (Bearer); SDK `kaggle` | `kaggle` | 20 in `group=general` (6 featured, 3 playground, 11 getting-started) plus prize-bearing `group=community` ones | Verified 2026-11-15. `enabledDate` → `starts_at`, `deadline` → `ends_at`, `newEntrantDeadline` → `registration_deadline`, `maxTeamSize`, `reward` as text ("75,000 Usd"), `organizationName`, `tags`. `general` holds only active competitions, one page. `community` is mostly junk with far-future deadlines: keep `Usd` rewards only. Drop "Getting Started" and "Knowledge"/"Kudos"/"Swag" rewards. 429 after ~10 rapid calls. Global, online only. The anonymous internal endpoint stays off-limits. |
 | [Sessionize](https://sessionize.com/sitemap/events.xml) | conference | sitemap (11,114 URLs, no `lastmod`) → HTML; CFP iCal at `/add-to-calendar/cfs/<slug>` | `jsonld_sitemap` (LLM fallback) | RS: BSides Belgrade, Azure UG Serbia, Highload Serbia | Best CFP deadlines. No `lastmod`: crawl once, then only new URLs. |
 | [itch.io jams](https://itch.io/jams) | contest | HTML listing, ISO UTC start and close | `itch_jams` | hundreds a month | Near-zero Serbian signal. Keep only ranked jams with prizes or known EU hosts. |
 | [Global Game Jam](https://globalgamejam.org/jam-sites) | contest | Drupal behind Cloudflare | `pages`, `render = true` | 1 edition (25–31 Jan 2027), per-city sites | Only source of in-person game jams in Serbia. Plain HTTP gets 403. |
@@ -105,7 +105,7 @@ Useful but noisy, low volume, or costly to reach.
 | Devpost | winning projects, member usernames, GitHub repo links on project pages |
 | CTFtime | per-event team placings, team names |
 | ICPC | team lists and results per contest |
-| Kaggle | leaderboards with usernames and team names |
+| Kaggle | leaderboard view returns the top 20 (`teamId`, `teamName`, score, submission date), no members; full public CSV via leaderboard download (untested) |
 | CASSINI, BBICC | finalists and winners in news posts |
 
 A GitHub login comes only from a GitHub URL the source links to that person or team, never from a matching username.
