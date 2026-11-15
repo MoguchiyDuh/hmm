@@ -8,8 +8,8 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
+from hmm.catalog import events as catalog_events
 from hmm.catalog import schemas
-from hmm.catalog import service as catalog
 from hmm.common import (
     ActorKind,
     AttendanceStatus,
@@ -21,7 +21,7 @@ from hmm.common import (
     EventStatus,
     Trust,
 )
-from hmm.formation import service as formation
+from hmm.formation import common as formation_common
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
@@ -42,7 +42,7 @@ async def review_queue(
         .where(func.cardinality(models.Event.review_reasons) > 0)
         .order_by(models.Event.starts_at, models.Event.id)
     )
-    return [await catalog.event_detail(session, row, actor, now) for row in list(rows)]
+    return [await catalog_events.event_detail(session, row, actor, now) for row in list(rows)]
 
 
 async def publish_event(
@@ -53,7 +53,7 @@ async def publish_event(
     reason: str | None,
     now: datetime,
 ) -> models.Event:
-    event = await catalog.load_event(session, event_id, for_update=True)
+    event = await catalog_events.load_event(session, event_id, for_update=True)
     if event.status not in (EventStatus.DRAFT, EventStatus.PUBLISHED):
         raise ProblemError(
             ErrorCode.INVALID_STATE, "Only drafts and published events can be published"
@@ -66,7 +66,7 @@ async def publish_event(
         return event
     event.status = EventStatus.PUBLISHED.value
     event.review_reasons = []
-    await formation.ensure_formation(session, event, now)
+    await formation_common.ensure_formation(session, event, now)
     await record_audit(
         session,
         actor=actor.id,
@@ -91,7 +91,7 @@ async def reject_event(
     reason: str | None,
     now: datetime,
 ) -> models.Event:
-    event = await catalog.load_event(session, event_id, for_update=True)
+    event = await catalog_events.load_event(session, event_id, for_update=True)
     if event.status not in (EventStatus.DRAFT, EventStatus.PUBLISHED):
         raise ProblemError(
             ErrorCode.INVALID_STATE, "Only drafts and published events can be rejected"

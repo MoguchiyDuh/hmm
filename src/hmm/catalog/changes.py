@@ -36,7 +36,7 @@ from hmm.common import (
     ProjectStatus,
     TeamStatus,
 )
-from hmm.formation import service as formation
+from hmm.formation import common as formation_common
 from hmm.notifications.payloads import (
     AlertKind,
     EventCancelledPayload,
@@ -187,7 +187,7 @@ async def cancel_event(
         .where(models.Invite.event_id == event_id, models.Invite.status == InviteStatus.PENDING)
         .values(status=InviteStatus.CLOSED.value, closed_reason="event_cancelled")
     )
-    await formation.cancel_formation(session, event, now)
+    await formation_common.cancel_formation(session, event, now)
     await notify_event_cancelled(session, event, recipients, reason, now)
     if team_ids:
         await raise_alert(
@@ -398,7 +398,7 @@ async def update_event(
         reason=body.reason,
     )
     if "formation_enabled" in changes and event.formation_enabled:
-        await formation.ensure_formation(session, event, now)
+        await formation_common.ensure_formation(session, event, now)
     notification_fields = changes.keys() & {
         "starts_at",
         "ends_at",
@@ -426,7 +426,7 @@ async def update_event(
             now,
         )
     if changes.keys() & {"starts_at", "ends_at", "registration_deadline"}:
-        await formation.dates_changed(session, event, now)
+        await formation_common.dates_changed(session, event, now)
     from hmm.recommendations import service as recommendations
 
     await recommendations.enqueue_event_refresh(session, jobs, event_id)

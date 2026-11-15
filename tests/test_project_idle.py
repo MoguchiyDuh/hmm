@@ -7,7 +7,8 @@ from harness import NOW, Harness
 from sqlalchemy import select
 
 from hmm import models
-from hmm.projects import service
+from hmm.projects import idle as projects_idle
+from hmm.projects import lifecycle as projects_lifecycle
 from hmm.projects.idle import mark_project_progress
 
 
@@ -113,8 +114,8 @@ async def test_idle_warning_boundary_and_dedupe(harness: Harness) -> None:
         h, lead, members=[member], last_progress_at=h.now - timedelta(days=30)
     )
     async with h.db() as session:
-        assert await service.warn_idle_projects(session, h.now) == 1
-        assert await service.warn_idle_projects(session, h.now) == 0
+        assert await projects_idle.warn_idle_projects(session, h.now) == 1
+        assert await projects_idle.warn_idle_projects(session, h.now) == 0
         [notification] = list(await session.scalars(select(models.Notification)))
         assert notification.user_id == lead.id
         assert notification.type == "project_idle"
@@ -148,7 +149,7 @@ async def test_idle_timer_scope(harness: Harness, pause: bool) -> None:
         h, lead, status="active", team_status="finished", last_progress_at=old
     )
     async with h.db() as session:
-        timer = service.pause_idle_projects if pause else service.warn_idle_projects
+        timer = projects_idle.pause_idle_projects if pause else projects_idle.warn_idle_projects
         assert await timer(session, h.now) == 1
         [notification] = list(await session.scalars(select(models.Notification)))
         assert isinstance(notification.payload, dict)
@@ -181,8 +182,8 @@ async def test_idle_pause_boundary_and_effects(harness: Harness) -> None:
         await session.flush()
         item_id = item.id
     async with h.db() as session:
-        assert await service.pause_idle_projects(session, h.now) == 1
-        assert await service.pause_idle_projects(session, h.now) == 0
+        assert await projects_idle.pause_idle_projects(session, h.now) == 1
+        assert await projects_idle.pause_idle_projects(session, h.now) == 0
     async with h.db() as session:
         row = await session.get(models.Project, project.id)
         assert row is not None
@@ -217,17 +218,17 @@ async def test_manual_idle_and_leaderless_pause_causes(harness: Harness) -> None
     lead = await h.user()
     project = await seed_project(h, lead)
     async with h.db() as session:
-        await service.pause_project(session, project.id, lead, h.now)
+        await projects_lifecycle.pause_project(session, project.id, lead, h.now)
         row = await session.get(models.Project, project.id)
         assert row is not None
         assert row.paused_reason == "manual"
-        assert service.resume_idle_project(row) is False
+        assert projects_idle.resume_idle_project(row) is False
         assert row.status == "paused" and row.paused_reason == "manual"
-        await service.start_project(session, project.id, lead, h.now)
+        await projects_lifecycle.start_project(session, project.id, lead, h.now)
         assert row.status == "active" and row.paused_reason is None
         row.status = "paused"
         row.paused_reason = "idle"
-        assert service.resume_idle_project(row) is True
+        assert projects_idle.resume_idle_project(row) is True
         assert row.status == "active" and row.paused_reason is None
 
 
@@ -263,7 +264,7 @@ async def test_mark_project_progress(
     async with h.db() as session:
         row = await session.get(models.Project, project.id, with_for_update=True)
         assert row is not None
-        service.mark_project_progress(row, h.now)
+        projects_idle.mark_project_progress(row, h.now)
         assert row.last_progress_at == h.now
         assert row.status == expected_status
         assert row.paused_reason == expected_reason
@@ -272,13 +273,13 @@ async def test_mark_project_progress(
 async def test_run_project_timers(harness: Harness) -> None:
     h = harness
     async with h.db() as session:
-        await service.run_project_timers(session, h.now)
+        await projects_idle.run_project_timers(session, h.now)
     lead = await h.user()
     project = await seed_project(h, lead, last_progress_at=h.now - timedelta(days=65))
     async with h.db() as session:
-        await service.run_project_timers(session, h.now)
+        await projects_idle.run_project_timers(session, h.now)
     async with h.db() as session:
-        await service.run_project_timers(session, h.now)
+        await projects_idle.run_project_timers(session, h.now)
         row = await session.get(models.Project, project.id)
         assert row is not None and row.status == "paused" and row.paused_reason == "idle"
         notifications = list(await session.scalars(select(models.Notification)))
@@ -299,11 +300,11 @@ async def test_idle_timer_bounded_backlog(harness: Harness, timer: str) -> None:
     for index in range(2):
         async with h.db() as session:
             if timer == "both":
-                await service.run_project_timers(session, h.now, limit=1)
+                await projects_idle.run_project_timers(session, h.now, limit=1)
             elif timer == "warn":
-                assert await service.warn_idle_projects(session, h.now, limit=1) == 1
+                assert await projects_idle.warn_idle_projects(session, h.now, limit=1) == 1
             else:
-                assert await service.pause_idle_projects(session, h.now, limit=1) == 1
+                assert await projects_idle.pause_idle_projects(session, h.now, limit=1) == 1
             notifications = list(await session.scalars(select(models.Notification)))
             expected_count = (index + 1) * (2 if timer == "both" else 1)
             assert len(notifications) == expected_count
@@ -313,12 +314,12 @@ async def test_idle_timer_bounded_backlog(harness: Harness, timer: str) -> None:
                 if isinstance(notification.payload, dict)
             } == {str(project.id) for project in projects[: index + 1]}
     async with h.db() as session:
-        assert await service.warn_idle_projects(session, h.now, limit=1) == 0
+        assert await projects_idle.warn_idle_projects(session, h.now, limit=1) == 0
         if timer != "warn":
-            assert await service.pause_idle_projects(session, h.now, limit=1) == 0
+            assert await projects_idle.pause_idle_projects(session, h.now, limit=1) == 0
         else:
             row = await session.get(models.Project, projects[0].id, with_for_update=True)
             assert row is not None
             row.last_progress_at = old + timedelta(days=1)
             await session.flush()
-            assert await service.warn_idle_projects(session, h.now, limit=1) == 1
+            assert await projects_idle.warn_idle_projects(session, h.now, limit=1) == 1

@@ -21,7 +21,7 @@ from hmm.algo.models import (
 )
 from hmm.algo.models import ProjectSnapshot as AlgoProjectSnapshot
 from hmm.algo.models import Recruiting as AlgoRecruiting
-from hmm.catalog import service as catalog
+from hmm.catalog import events as catalog_events
 from hmm.common import (
     EnrollmentStatus,
     ErrorCode,
@@ -35,7 +35,7 @@ from hmm.common import (
     RecommendationSubjectType,
     TeamStatus,
 )
-from hmm.formation import service as formation
+from hmm.formation import common as formation_common
 from hmm.identity.service import ONBOARDED, dnd_active
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
@@ -59,7 +59,9 @@ class RecommendationContext:
 
 def recommendation_refreshable(project: models.Project) -> bool:
     if project.team_status is not None:
-        return project.team_status in {state.value for state in formation.CAPACITY_TEAM_STATES}
+        return project.team_status in {
+            state.value for state in formation_common.CAPACITY_TEAM_STATES
+        }
     return project.recruiting is not None
 
 
@@ -103,7 +105,7 @@ async def live_enrollment_map(
             models.Enrollment.event_id == event_id,
             models.Enrollment.user_id.in_(user_ids),
             models.Enrollment.status.in_(
-                sorted(state.value for state in formation.LIVE_ENROLLMENT_STATES)
+                sorted(state.value for state in formation_common.LIVE_ENROLLMENT_STATES)
             ),
         )
         .order_by(models.Enrollment.status_at.desc(), models.Enrollment.id.desc())
@@ -301,7 +303,7 @@ async def recommendation_context(
         links=[str(link) for link in links],
     )
     event_snapshot = (
-        await catalog.event_snapshot(session, project.event_id)
+        await catalog_events.event_snapshot(session, project.event_id)
         if project.event_id is not None
         else None
     )
@@ -566,7 +568,7 @@ async def enqueue_event_refresh(
             models.Project.event_id == event_id,
             or_(
                 models.Project.team_status.in_(
-                    sorted(state.value for state in formation.CAPACITY_TEAM_STATES)
+                    sorted(state.value for state in formation_common.CAPACITY_TEAM_STATES)
                 ),
                 and_(
                     models.Project.team_status.is_(None),

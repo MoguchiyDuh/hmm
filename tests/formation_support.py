@@ -8,7 +8,7 @@ from sqlalchemy import select
 
 from hmm import models
 from hmm.algo.models import FormationPlan, PlannedTeam
-from hmm.catalog import service as catalog
+from hmm.catalog import events as catalog_events
 from hmm.common import AreaImportance, EventKind, EventOrigin, EventStatus
 from hmm.formation import tick
 
@@ -34,9 +34,9 @@ async def make_event(
 ) -> models.Event:
     await seed_areas(h)
     async with h.db() as session:
-        return await catalog.create_event(
+        return await catalog_events.create_event(
             session,
-            catalog.EventInput(
+            catalog_events.EventInput(
                 kind=EventKind.HACKATHON,
                 title=f"Hack {next(_titles)}",
                 starts_at=h.now + starts_in,
@@ -47,7 +47,7 @@ async def make_event(
                 team_size_max=maximum,
                 formation_enabled=True,
                 areas=[
-                    catalog.EventAreaInput(key=key, importance=importance)
+                    catalog_events.EventAreaInput(key=key, importance=importance)
                     for key, importance in AREAS
                 ],
             ),

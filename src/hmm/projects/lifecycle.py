@@ -142,7 +142,7 @@ async def update_project(
     actor: models.User,
     now: datetime,
 ) -> schemas.Project:
-    from hmm.feed import service as feed
+    from hmm.feed import timeline as feed_timeline
     from hmm.recommendations import service as recommendations
 
     project = await _locked_project(session, project_id)
@@ -203,7 +203,7 @@ async def update_project(
     await session.flush()
     await session.refresh(project)
     if became_members:
-        await feed.hide_feed_subject(session, "project", project.id, now)
+        await feed_timeline.hide_feed_subject(session, "project", project.id, now)
     await _sync_recruiting(session, project, actor.id, now)
     await recommendations.enqueue_project_refresh(session, jobs, project.id)
     await session.flush()
@@ -235,6 +235,6 @@ async def resolve_project_areas(session: AsyncSession, keys: Sequence[str]) -> l
 async def _sync_recruiting(
     session: AsyncSession, project: models.Project, actor_id: UUID, now: datetime
 ) -> None:
-    from hmm.feed import service as feed
+    from hmm.feed import timeline as feed_timeline
 
-    await feed.record_project_recruiting(session, project, actor_id, now)
+    await feed_timeline.record_project_recruiting(session, project, actor_id, now)

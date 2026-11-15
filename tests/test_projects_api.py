@@ -9,7 +9,7 @@ from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
 from hmm import models
-from hmm.catalog import service as catalog
+from hmm.catalog import events as catalog_events
 from hmm.common import AreaImportance, ErrorCode, EventKind, EventOrigin, EventStatus
 
 _titles = itertools.count(1)
@@ -25,9 +25,9 @@ BODY: dict[str, Any] = {
 
 async def make_hackathon(h: Harness, *, starts_in: timedelta = timedelta(days=30)) -> models.Event:
     async with h.db() as session:
-        return await catalog.create_event(
+        return await catalog_events.create_event(
             session,
-            catalog.EventInput(
+            catalog_events.EventInput(
                 kind=EventKind.HACKATHON,
                 title=f"Hack {next(_titles)}",
                 starts_at=h.now + starts_in,
@@ -36,7 +36,9 @@ async def make_hackathon(h: Harness, *, starts_in: timedelta = timedelta(days=30
                 team_size_min=None,
                 team_size_max=None,
                 registration_deadline=None,
-                areas=[catalog.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY)],
+                areas=[
+                    catalog_events.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY)
+                ],
             ),
             origin=EventOrigin.MANUAL,
             status=EventStatus.PUBLISHED,

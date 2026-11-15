@@ -11,7 +11,10 @@ from hmm.common import (
     MentorshipSide,
     MentorshipStatus,
 )
-from hmm.mentorship import service
+from hmm.mentorship import mentor_offers
+from hmm.mentorship import mentorships as mentorship_mentorships
+from hmm.mentorship import offers as mentorship_offers
+from hmm.mentorship import requests as mentorship_requests
 from hmm.mentorship.schemas import (
     AcknowledgeMentorshipBody,
     CloseMentorshipBody,
@@ -40,7 +43,7 @@ router = APIRouter(tags=["mentorship"], responses=PROBLEM_RESPONSES)
 async def get_mentor_offers(
     actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> MentorOffers:
-    return await service.mentor_offers_view(session, actor, clock.now())
+    return await mentor_offers.mentor_offers_view(session, actor, clock.now())
 
 
 @router.put(
@@ -51,7 +54,7 @@ async def get_mentor_offers(
 async def replace_mentor_offers(
     body: ReplaceMentorOffersBody, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> MentorOffers:
-    return await service.replace_mentor_offers(session, actor, body, clock.now())
+    return await mentor_offers.replace_mentor_offers(session, actor, body, clock.now())
 
 
 @router.get("/help-requests", status_code=status.HTTP_200_OK, summary="List help requests")
@@ -63,7 +66,7 @@ async def list_help_requests(
     area: Annotated[AreaKey | None, Query()] = None,
     request_status: Annotated[HelpRequestStatus, Query(alias="status")] = HelpRequestStatus.OPEN,
 ) -> HelpRequestPage:
-    return await service.list_help_requests(
+    return await mentorship_requests.list_help_requests(
         session,
         actor,
         pagination,
@@ -81,7 +84,7 @@ async def create_help_request(
     session: Session,
     clock: CurrentClock,
 ) -> HelpRequest:
-    return await service.create_help_request(
+    return await mentorship_requests.create_help_request(
         session, request.app.state.jobs, actor, body, clock.now()
     )
 
@@ -94,7 +97,7 @@ async def create_help_request(
 async def get_help_request(
     id: HelpRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> HelpRequest:
-    return await service.get_help_request(session, actor, id, clock.now())
+    return await mentorship_requests.get_help_request(session, actor, id, clock.now())
 
 
 @router.patch(
@@ -109,7 +112,7 @@ async def update_help_request(
     session: Session,
     clock: CurrentClock,
 ) -> HelpRequest:
-    return await service.update_help_request(session, actor, id, body, clock.now())
+    return await mentorship_requests.update_help_request(session, actor, id, body, clock.now())
 
 
 @router.post(
@@ -120,7 +123,7 @@ async def update_help_request(
 async def cancel_help_request(
     id: HelpRequestId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> HelpRequest:
-    return await service.cancel_help_request(session, actor, id, clock.now())
+    return await mentorship_requests.cancel_help_request(session, actor, id, clock.now())
 
 
 @router.post(
@@ -133,7 +136,7 @@ async def cancel_help_request(
 async def decline_help_request(
     id: HelpRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
 ) -> HelpRequest:
-    return await service.decline_help_request(
+    return await mentorship_requests.decline_help_request(
         session, request.app.state.jobs, actor, id, clock.now()
     )
 
@@ -146,7 +149,9 @@ async def decline_help_request(
 async def open_help_request(
     id: HelpRequestId, actor: MemberAuth, session: Session, request: Request, clock: CurrentClock
 ) -> HelpRequest:
-    return await service.open_help_request(session, request.app.state.jobs, actor, id, clock.now())
+    return await mentorship_requests.open_help_request(
+        session, request.app.state.jobs, actor, id, clock.now()
+    )
 
 
 @router.post(
@@ -161,7 +166,7 @@ async def create_help_offer(
     session: Session,
     clock: CurrentClock,
 ) -> HelpOffer:
-    return await service.create_help_offer(session, actor, id, body, clock.now())
+    return await mentorship_offers.create_help_offer(session, actor, id, body, clock.now())
 
 
 @router.delete(
@@ -170,7 +175,7 @@ async def create_help_offer(
 async def withdraw_help_offer(
     id: HelpOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> None:
-    await service.withdraw_help_offer(session, actor, id, clock.now())
+    await mentorship_offers.withdraw_help_offer(session, actor, id, clock.now())
 
 
 @router.post(
@@ -181,7 +186,7 @@ async def withdraw_help_offer(
 async def accept_help_offer(
     id: HelpOfferId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Mentorship:
-    return await service.accept_help_offer(session, actor, id, clock.now())
+    return await mentorship_offers.accept_help_offer(session, actor, id, clock.now())
 
 
 @router.get("/me/mentorships", status_code=status.HTTP_200_OK, summary="List own mentorships")
@@ -192,7 +197,9 @@ async def list_my_mentorships(
     role: Annotated[MentorshipSide | None, Query()] = None,
     mentorship_status: Annotated[MentorshipStatus | None, Query(alias="status")] = None,
 ) -> list[Mentorship]:
-    return await service.list_my_mentorships(session, actor, role, mentorship_status, clock.now())
+    return await mentorship_mentorships.list_my_mentorships(
+        session, actor, role, mentorship_status, clock.now()
+    )
 
 
 @router.get(
@@ -203,7 +210,7 @@ async def list_my_mentorships(
 async def get_mentorship(
     id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Mentorship:
-    return await service.get_mentorship(session, actor, id, clock.now())
+    return await mentorship_mentorships.get_mentorship(session, actor, id, clock.now())
 
 
 @router.post(
@@ -219,7 +226,7 @@ async def create_checkin(
     clock: CurrentClock,
     request: Request,
 ) -> MentorshipCheckin:
-    return await service.create_checkin(
+    return await mentorship_mentorships.create_checkin(
         session, request.app.state.jobs, actor, id, body, clock.now()
     )
 
@@ -235,7 +242,7 @@ async def close_mentorship(
     clock: CurrentClock,
     request: Request,
 ) -> Mentorship:
-    return await service.close_mentorship(
+    return await mentorship_mentorships.close_mentorship(
         session, request.app.state.jobs, actor, id, body, clock.now()
     )
 
@@ -248,7 +255,9 @@ async def close_mentorship(
 async def propose_close(
     id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
 ) -> Mentorship:
-    return await service.propose_close(session, request.app.state.jobs, actor, id, clock.now())
+    return await mentorship_mentorships.propose_close(
+        session, request.app.state.jobs, actor, id, clock.now()
+    )
 
 
 @router.post(
@@ -264,7 +273,7 @@ async def acknowledge_outcome(
     clock: CurrentClock,
     request: Request,
 ) -> Mentorship:
-    return await service.acknowledge_outcome(
+    return await mentorship_mentorships.acknowledge_outcome(
         session, request.app.state.jobs, actor, id, body, clock.now()
     )
 
@@ -277,4 +286,6 @@ async def acknowledge_outcome(
 async def cancel_mentorship(
     id: MentorshipId, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
 ) -> Mentorship:
-    return await service.cancel_mentorship(session, request.app.state.jobs, actor, id, clock.now())
+    return await mentorship_mentorships.cancel_mentorship(
+        session, request.app.state.jobs, actor, id, clock.now()
+    )

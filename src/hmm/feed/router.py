@@ -3,7 +3,9 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from hmm.common import AreaKey, ConfirmationId, FactType, UserId
-from hmm.feed import service
+from hmm.feed import confirmations as feed_confirmations
+from hmm.feed import history as feed_history
+from hmm.feed import listing
 from hmm.feed.schemas import (
     Confirmation,
     CreateConfirmationBody,
@@ -32,7 +34,7 @@ async def list_feed(
     area: Annotated[AreaKey | None, Query()] = None,
     mine_areas: Annotated[bool, Query()] = False,
 ) -> FeedItemPage:
-    return await service.list_feed(
+    return await listing.list_feed(
         session, actor, pagination, kind=kind, area=area, mine_areas=mine_areas, now=clock.now()
     )
 
@@ -47,7 +49,7 @@ async def list_pending_confirmations(
     session: Session,
     clock: CurrentClock,
 ) -> list[PendingConfirmationGroup]:
-    return await service.list_pending_confirmations(session, actor, clock.now())
+    return await feed_history.list_pending_confirmations(session, actor, clock.now())
 
 
 @router.post("/confirmations", status_code=status.HTTP_201_CREATED, summary="Confirm a fact")
@@ -59,8 +61,10 @@ async def create_confirmation(
     request: Request,
 ) -> Confirmation:
     now = clock.now()
-    target = await service.confirmation_target(session, actor.id, body.fact_type, body.fact_id, now)
-    row = await service.add_confirmation(
+    target = await feed_confirmations.confirmation_target(
+        session, actor.id, body.fact_type, body.fact_id, now
+    )
+    row = await feed_confirmations.add_confirmation(
         session,
         request.app.state.jobs,
         fact_type=body.fact_type,
@@ -71,7 +75,7 @@ async def create_confirmation(
         now=now,
     )
     days = (await load_settings(session)).confirmation_withdraw_days
-    return service.confirmation_view(row, actor.id, now, days)
+    return feed_confirmations.confirmation_view(row, actor.id, now, days)
 
 
 @router.delete(
@@ -86,7 +90,9 @@ async def withdraw_confirmation(
     clock: CurrentClock,
     request: Request,
 ) -> None:
-    await service.withdraw_confirmation(session, request.app.state.jobs, id, actor.id, clock.now())
+    await feed_confirmations.withdraw_confirmation(
+        session, request.app.state.jobs, id, actor.id, clock.now()
+    )
 
 
 @router.get(
@@ -102,6 +108,6 @@ async def list_user_facts(
     clock: CurrentClock,
     fact_type: Annotated[FactType | None, Query(alias="type")] = None,
 ) -> FactPage:
-    return await service.list_user_facts(
+    return await feed_history.list_user_facts(
         session, actor, id, pagination, fact_type=fact_type, now=clock.now()
     )

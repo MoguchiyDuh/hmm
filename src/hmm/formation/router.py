@@ -4,7 +4,11 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Response
 
 from hmm.common import EnrollmentStatus, ErrorCode, InviteStatus
-from hmm.formation import schemas, service
+from hmm.formation import admin as formation_admin
+from hmm.formation import common, queue, schemas, teams
+from hmm.formation import invites as formation_invites
+from hmm.formation import parties as formation_parties
+from hmm.formation import runs as formation_runs
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError, problem_response
@@ -19,8 +23,8 @@ router = APIRouter(tags=["formation"], responses=PROBLEM_RESPONSES)
 async def get_formation(
     id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> schemas.Formation:
-    event = await service.formation_event(session, id, actor)
-    view = await service.formation_participation(session, event, actor, clock.now())
+    event = await common.formation_event(session, id, actor)
+    view = await queue.formation_participation(session, event, actor, clock.now())
     if view is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
     return view
@@ -34,7 +38,7 @@ async def enroll(
     session: Session,
     clock: CurrentClock,
 ) -> schemas.Enrollment:
-    return await service.enroll(session, id, body, actor, clock.now())
+    return await queue.enroll(session, id, body, actor, clock.now())
 
 
 @router.patch("/events/{id}/enroll")
@@ -45,14 +49,14 @@ async def update_enrollment(
     session: Session,
     clock: CurrentClock,
 ) -> schemas.Enrollment:
-    return await service.update_enrollment(session, id, body, actor, clock.now())
+    return await queue.update_enrollment(session, id, body, actor, clock.now())
 
 
 @router.delete("/events/{id}/enroll", status_code=204)
 async def withdraw_enrollment(
     id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Response:
-    await service.withdraw_enrollment(session, id, actor, clock.now())
+    await queue.withdraw_enrollment(session, id, actor, clock.now())
     return Response(status_code=204)
 
 
@@ -60,47 +64,47 @@ async def withdraw_enrollment(
 async def list_enrollments(
     id: UUID, actor: MemberAuth, session: Session, params: Annotated[CursorParams, Depends()]
 ) -> schemas.EnrollmentPage:
-    return await service.list_enrollments(session, id, actor, params)
+    return await queue.list_enrollments(session, id, actor, params)
 
 
 @router.get("/me/enrollments")
 async def my_enrollments(
     actor: MemberAuth, session: Session, status: Annotated[EnrollmentStatus | None, Query()] = None
 ) -> list[schemas.Enrollment]:
-    return await service.my_enrollments(session, actor, status)
+    return await queue.my_enrollments(session, actor, status)
 
 
 @router.post("/events/{id}/party", status_code=201)
 async def create_party(
     id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> schemas.Party:
-    return await service.create_party(session, id, actor, clock.now())
+    return await formation_parties.create_party(session, id, actor, clock.now())
 
 
 @router.get("/parties/{id}")
 async def get_party(id: UUID, actor: MemberAuth, session: Session) -> schemas.Party:
-    return await service.get_party(session, id, actor)
+    return await formation_parties.get_party(session, id, actor)
 
 
 @router.patch("/parties/{id}")
 async def update_party(
     id: UUID, body: schemas.ClosedBody, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> schemas.Party:
-    return await service.update_party(session, id, body, actor, clock.now())
+    return await formation_parties.update_party(session, id, body, actor, clock.now())
 
 
 @router.post("/parties/{id}/invites", status_code=201)
 async def create_party_invite(
     id: UUID, body: schemas.InviteBody, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> schemas.Invite:
-    return await service.create_party_invite(session, id, body, actor, clock.now())
+    return await formation_invites.create_party_invite(session, id, body, actor, clock.now())
 
 
 @router.post("/parties/{id}/leave", status_code=204)
 async def leave_party(
     id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Response:
-    await service.leave_party(session, id, actor, clock.now())
+    await formation_parties.leave_party(session, id, actor, clock.now())
     return Response(status_code=204)
 
 
@@ -108,7 +112,7 @@ async def leave_party(
 async def kick_party_member(
     id: UUID, user_id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Response:
-    await service.kick_party_member(session, id, user_id, actor, clock.now())
+    await formation_parties.kick_party_member(session, id, user_id, actor, clock.now())
     return Response(status_code=204)
 
 
@@ -116,14 +120,14 @@ async def kick_party_member(
 async def my_invites(
     actor: MemberAuth, session: Session, status: Annotated[InviteStatus | None, Query()] = None
 ) -> list[schemas.Invite]:
-    return await service.my_invites(session, actor, status)
+    return await formation_invites.my_invites(session, actor, status)
 
 
 @router.post("/projects/{id}/placement/accept")
 async def accept_placement(
     id: UUID, actor: MemberAuth, session: Session, clock: CurrentClock, request: Request
 ) -> schemas.Team:
-    result = await service.accept_placement(session, id, actor, clock.now())
+    result = await teams.accept_placement(session, id, actor, clock.now())
     if isinstance(result, ProblemError):
         return cast(schemas.Team, problem_response(request, result.code, result.detail))
     return result
@@ -138,7 +142,7 @@ async def decline_placement(
     clock: CurrentClock,
     request: Request,
 ) -> schemas.Team:
-    result = await service.decline_placement(session, id, body, actor, clock.now())
+    result = await teams.decline_placement(session, id, body, actor, clock.now())
     if isinstance(result, ProblemError):
         return cast(schemas.Team, problem_response(request, result.code, result.detail))
     return result
@@ -148,7 +152,7 @@ async def decline_placement(
 async def set_seats(
     id: UUID, body: schemas.ClosedBody, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> schemas.Team:
-    return await service.set_seats(session, id, body, actor, clock.now())
+    return await teams.set_seats(session, id, body, actor, clock.now())
 
 
 @router.patch("/projects/{id}/members/{user_id}")
@@ -160,7 +164,7 @@ async def update_member_area(
     session: Session,
     clock: CurrentClock,
 ) -> schemas.Team:
-    return await service.update_member_area(session, id, user_id, body, actor, clock.now())
+    return await teams.update_member_area(session, id, user_id, body, actor, clock.now())
 
 
 @router.patch("/admin/events/{id}/formation")
@@ -171,7 +175,7 @@ async def update_formation(
     session: Session,
     clock: CurrentClock,
 ) -> schemas.Formation:
-    return await service.update_formation(session, id, body, actor, clock.now())
+    return await formation_runs.update_formation(session, id, body, actor, clock.now())
 
 
 @router.post("/admin/events/{id}/formation/run", status_code=202)
@@ -183,7 +187,7 @@ async def request_formation_run(
     request: Request,
     body: ReasonBody | None = None,
 ) -> schemas.FormationRun:
-    return await service.request_formation_run(
+    return await formation_runs.request_formation_run(
         session, request.app.state.jobs, id, body, actor, clock.now()
     )
 
@@ -192,14 +196,14 @@ async def request_formation_run(
 async def list_formation_runs(
     id: UUID, actor: AdminAuth, session: Session
 ) -> list[schemas.FormationRun]:
-    return await service.list_formation_runs(session, id, actor)
+    return await formation_runs.list_formation_runs(session, id, actor)
 
 
 @router.post("/admin/projects/{id}/members")
 async def admin_add_member(
     id: UUID, body: schemas.InviteBody, actor: AdminAuth, session: Session, clock: CurrentClock
 ) -> schemas.Team:
-    return await service.admin_add_member(session, id, body, actor, clock.now())
+    return await formation_admin.admin_add_member(session, id, body, actor, clock.now())
 
 
 @router.delete("/admin/projects/{id}/members/{user_id}")
@@ -211,7 +215,7 @@ async def admin_remove_member(
     clock: CurrentClock,
     body: ReasonBody | None = None,
 ) -> schemas.Team:
-    return await service.admin_remove_member(
+    return await formation_admin.admin_remove_member(
         session, id, user_id, actor, clock.now(), body.reason if body else None
     )
 
@@ -224,11 +228,11 @@ async def admin_set_lead(
     session: Session,
     clock: CurrentClock,
 ) -> schemas.Team:
-    return await service.admin_set_lead(session, id, body, actor, clock.now())
+    return await formation_admin.admin_set_lead(session, id, body, actor, clock.now())
 
 
 @router.post("/admin/projects/{id}/disband")
 async def admin_disband(
     id: UUID, body: ReasonBody, actor: AdminAuth, session: Session, clock: CurrentClock
 ) -> schemas.Team:
-    return await service.admin_disband(session, id, body, actor, clock.now())
+    return await formation_admin.admin_disband(session, id, body, actor, clock.now())

@@ -33,13 +33,14 @@ from hmm.common import (
     FormationPhase,
     TeamStatus,
 )
-from hmm.formation import service as formation
+from hmm.formation import common as formation_common
+from hmm.formation import queue as formation_queue
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
 from hmm.platform.schemas import EventAction, UserRef
 from hmm.platform.settings import RuntimeSettings, load_settings
-from hmm.projects import service as projects
+from hmm.projects import views as projects_views
 from hmm.projects.schemas import ProjectView
 
 SLUG_MAX = 100
@@ -299,7 +300,7 @@ async def create_event(
     )
     await session.flush()
     if formation_enabled and status == EventStatus.PUBLISHED:
-        await formation.ensure_formation(session, event, now)
+        await formation_common.ensure_formation(session, event, now)
     return event
 
 
@@ -605,7 +606,7 @@ async def event_detail(
             .order_by(models.EventAttendance.status_at, models.User.id)
         )
     ]
-    formation_view = await formation.formation_participation(session, event, actor, now)
+    formation_view = await formation_queue.formation_participation(session, event, actor, now)
     return schemas.EventDetail(
         **summary.model_dump(),
         description_md=event.description_md,
@@ -855,4 +856,4 @@ async def list_event_projects(
         .where(models.Project.event_id == event.id)
         .order_by(models.Project.team_status.is_(None), models.Project.name, models.Project.id)
     )
-    return await projects.project_views(session, list(rows), actor, now)
+    return await projects_views.project_views(session, list(rows), actor, now)

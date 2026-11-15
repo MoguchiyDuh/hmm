@@ -8,11 +8,7 @@ from sqlalchemy import func, select
 from hmm import models
 from hmm.common import AuditAction, AuditEntityType
 from hmm.notifications.payloads import ResultDuePayload
-from hmm.results.service import (
-    auto_close_result_teams,
-    run_result_timers,
-    send_result_due,
-)
+from hmm.results.timers import auto_close_result_teams, run_result_timers, send_result_due
 
 
 @dataclass

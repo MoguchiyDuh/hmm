@@ -20,7 +20,7 @@ from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JobName, defer_job
 from hmm.platform.pagination import CursorParams, apply_keyset, encode_cursor
-from hmm.projects.service import project_ref
+from hmm.projects.views import project_ref
 from hmm.results import schemas
 from hmm.results.schemas import ProjectResult as ProjectResultView
 from hmm.results.submissions import build_result, load_project, team_member_ids

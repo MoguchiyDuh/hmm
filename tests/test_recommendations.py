@@ -10,7 +10,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from hmm import models
-from hmm.catalog import service as catalog
+from hmm.catalog import events as catalog_events
 from hmm.common import (
     AreaImportance,
     EnrollmentSource,
@@ -39,9 +39,9 @@ async def make_hackathon(
     areas: tuple[tuple[str, AreaImportance], ...] = (("backend", AreaImportance.PRIMARY),),
 ) -> models.Event:
     async with h.db() as session:
-        return await catalog.create_event(
+        return await catalog_events.create_event(
             session,
-            catalog.EventInput(
+            catalog_events.EventInput(
                 kind=EventKind.HACKATHON,
                 title=f"Rec Hack {next(_titles)}",
                 starts_at=h.now + starts_in,
@@ -49,7 +49,7 @@ async def make_hackathon(
                 timezone="UTC",
                 registration_deadline=None,
                 areas=[
-                    catalog.EventAreaInput(key=key, importance=importance)
+                    catalog_events.EventAreaInput(key=key, importance=importance)
                     for key, importance in areas
                 ],
             ),

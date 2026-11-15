@@ -90,7 +90,7 @@ async def warn_idle_projects(session: AsyncSession, now: datetime, *, limit: int
 
 
 async def pause_idle_projects(session: AsyncSession, now: datetime, *, limit: int = 50) -> int:
-    from hmm.feed import service as feed
+    from hmm.feed import timeline as feed_timeline
 
     idle_days = (await load_settings(session)).project_idle_days
     threshold = now - timedelta(days=IDLE_PAUSE_FACTOR * idle_days)
@@ -129,7 +129,7 @@ async def pause_idle_projects(session: AsyncSession, now: datetime, *, limit: in
             after={"status": ProjectStatus.PAUSED.value, "paused_reason": PAUSE_IDLE},
             reason="Project inactive",
         )
-        await feed.hide_feed_subject(session, "project", project.id, now)
+        await feed_timeline.hide_feed_subject(session, "project", project.id, now)
         member_ids = await project_member_ids(session, project.id)
         if member_ids:
             await notify_many(

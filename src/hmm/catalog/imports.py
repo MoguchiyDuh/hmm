@@ -48,7 +48,7 @@ from hmm.common import (
     EventStatus,
     ValidationIssue,
 )
-from hmm.formation import service as formation
+from hmm.formation import common as formation_common
 from hmm.notifications.payloads import AlertKind, NotificationChange
 from hmm.notifications.service import raise_alert
 from hmm.platform.errors import ProblemError
@@ -500,7 +500,7 @@ async def update_imported_event(
             now,
         )
     if changed & DATE_FIELDS:
-        await formation.dates_changed(session, event, now)
+        await formation_common.dates_changed(session, event, now)
     if changed & TEAM_FIELDS:
         conflicts = await team_size_conflict_count(session, event)
         if conflicts:

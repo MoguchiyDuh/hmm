@@ -16,7 +16,8 @@ from hmm.common import (
     MentorshipStatus,
     ReviewWindowSubjectType,
 )
-from hmm.feed import service as feed
+from hmm.feed import confirmations as feed_confirmations
+from hmm.feed import timeline as feed_timeline
 from hmm.mentorship import schemas, views
 from hmm.notifications.payloads import (
     ActionKey,
@@ -192,7 +193,7 @@ async def finalize_close(
     )
     if window is None:
         raise ProblemError(ErrorCode.INTERNAL_ERROR, "Close must open a review window")
-    await feed.record_mentorship_completed(session, mentorship.id, now)
+    await feed_timeline.record_mentorship_completed(session, mentorship.id, now)
     link = f"/mentorships/{mentorship.id}"
     for user_id in (mentorship.mentor_id, mentorship.learner_id):
         actions: tuple[ApiAction | LinkAction, ...] = ()
@@ -246,7 +247,7 @@ async def close_mentorship(
         raise ProblemError(ErrorCode.FORBIDDEN)
     if mentorship.status not in CLOSABLE_STATUSES:
         raise ProblemError(ErrorCode.INVALID_STATE)
-    await feed.add_confirmation(
+    await feed_confirmations.add_confirmation(
         session,
         jobs,
         fact_type=ConfirmationFactType.MENTORSHIP_SIDE,
@@ -332,7 +333,7 @@ async def acknowledge_outcome(
         raise ProblemError(ErrorCode.INVALID_STATE)
     mentorship.mentor_acknowledged_at = now
     mentorship.endorsement = body.endorsement
-    await feed.add_confirmation(
+    await feed_confirmations.add_confirmation(
         session,
         jobs,
         fact_type=ConfirmationFactType.MENTORSHIP_SIDE,

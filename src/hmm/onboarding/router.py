@@ -3,7 +3,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Request, status
 
 from hmm.common import MemberReviewStatus, QuizId, UserId
-from hmm.onboarding import service
+from hmm.onboarding import member_review, submissions
+from hmm.onboarding import quizzes as onboarding_quizzes
 from hmm.onboarding.schemas import (
     CompleteMemberReviewBody,
     CreateQuizBody,
@@ -32,14 +33,14 @@ router = APIRouter(tags=["onboarding"], responses=PROBLEM_RESPONSES)
     "/onboarding", status_code=status.HTTP_200_OK, summary="Get onboarding definition and draft"
 )
 async def get_onboarding(actor: UserAuth, session: Session) -> Onboarding:
-    return await service.get_onboarding(session, actor)
+    return await submissions.get_onboarding(session, actor)
 
 
 @router.put(
     "/onboarding/answers", status_code=status.HTTP_200_OK, summary="Autosave onboarding answers"
 )
 async def update_answers(body: UpdateAnswersBody, actor: UserAuth, session: Session) -> Onboarding:
-    return await service.update_answers(session, actor, body)
+    return await submissions.update_answers(session, actor, body)
 
 
 @router.post(
@@ -50,19 +51,19 @@ async def update_answers(body: UpdateAnswersBody, actor: UserAuth, session: Sess
 async def submit_onboarding(
     actor: UserAuth, session: Session, clock: CurrentClock, request: Request
 ) -> Onboarding:
-    return await service.submit_onboarding(session, request.app.state.jobs, actor, clock.now())
+    return await submissions.submit_onboarding(session, request.app.state.jobs, actor, clock.now())
 
 
 @router.get("/admin/quizzes", status_code=status.HTTP_200_OK, summary="List quiz versions")
 async def list_quizzes(actor: AdminAuth, session: Session) -> list[Quiz]:
-    return await service.list_quizzes(session)
+    return await onboarding_quizzes.list_quizzes(session)
 
 
 @router.post(
     "/admin/quizzes", status_code=status.HTTP_201_CREATED, summary="Create empty quiz draft"
 )
 async def create_quiz(body: CreateQuizBody, actor: AdminAuth, session: Session) -> Quiz:
-    return await service.create_quiz(session, actor, body.title, body.reason)
+    return await onboarding_quizzes.create_quiz(session, actor, body.title, body.reason)
 
 
 @router.post(
@@ -73,19 +74,19 @@ async def create_quiz(body: CreateQuizBody, actor: AdminAuth, session: Session) 
 async def clone_quiz(
     id: QuizId, actor: AdminAuth, session: Session, body: ReasonBody | None = None
 ) -> Quiz:
-    return await service.clone_quiz(session, actor, id, body.reason if body else None)
+    return await onboarding_quizzes.clone_quiz(session, actor, id, body.reason if body else None)
 
 
 @router.get("/admin/quizzes/{id}", status_code=status.HTTP_200_OK, summary="Get full quiz tree")
 async def get_quiz(id: QuizId, actor: AdminAuth, session: Session) -> Quiz:
-    return await service.get_quiz(session, id)
+    return await onboarding_quizzes.get_quiz(session, id)
 
 
 @router.put(
     "/admin/quizzes/{id}", status_code=status.HTTP_200_OK, summary="Replace draft quiz tree"
 )
 async def update_quiz(id: QuizId, body: UpdateQuizBody, actor: AdminAuth, session: Session) -> Quiz:
-    return await service.replace_quiz(session, actor, id, body)
+    return await onboarding_quizzes.replace_quiz(session, actor, id, body)
 
 
 @router.post(
@@ -94,7 +95,7 @@ async def update_quiz(id: QuizId, body: UpdateQuizBody, actor: AdminAuth, sessio
 async def validate_quiz(
     id: QuizId, actor: AdminAuth, session: Session, body: ReasonBody | None = None
 ) -> QuizValidation:
-    return await service.validate_quiz(session, actor, id, body.reason if body else None)
+    return await onboarding_quizzes.validate_quiz(session, actor, id, body.reason if body else None)
 
 
 @router.post(
@@ -107,7 +108,7 @@ async def publish_quiz(
     clock: CurrentClock,
     body: ReasonBody | None = None,
 ) -> Quiz:
-    return await service.publish_quiz(
+    return await onboarding_quizzes.publish_quiz(
         session, actor, id, body.reason if body else None, clock.now()
     )
 
@@ -118,7 +119,7 @@ async def publish_quiz(
 async def delete_quiz(
     id: QuizId, actor: AdminAuth, session: Session, body: ReasonBody | None = None
 ) -> None:
-    await service.delete_quiz(session, actor, id, body.reason if body else None)
+    await onboarding_quizzes.delete_quiz(session, actor, id, body.reason if body else None)
 
 
 @router.get(
@@ -129,7 +130,7 @@ async def delete_quiz(
 async def get_user_onboarding(
     id: UserId, actor: AdminAuth, session: Session
 ) -> list[OnboardingSubmission]:
-    return await service.user_onboarding_history(session, id)
+    return await submissions.user_onboarding_history(session, id)
 
 
 @router.post(
@@ -144,7 +145,7 @@ async def reopen_onboarding(
     clock: CurrentClock,
     body: ReasonBody | None = None,
 ) -> Onboarding:
-    return await service.reopen_onboarding(
+    return await submissions.reopen_onboarding(
         session, id, actor, body.reason if body is not None else None, clock.now()
     )
 
@@ -156,7 +157,7 @@ async def list_member_reviews(
     pagination: Annotated[CursorParams, Depends()],
     status: Annotated[MemberReviewStatus | None, Query()] = None,
 ) -> MemberReviewPage:
-    return await service.member_reviews_page(session, pagination, status)
+    return await member_review.member_reviews_page(session, pagination, status)
 
 
 @router.get(
@@ -167,7 +168,9 @@ async def list_member_reviews(
 async def get_member_review(
     user_id: UserId, actor: AdminAuth, session: Session, request: Request
 ) -> MemberReviewDetail:
-    return await service.member_review_detail(session, request.app.state.storage, user_id, actor)
+    return await member_review.member_review_detail(
+        session, request.app.state.storage, user_id, actor
+    )
 
 
 @router.post(
@@ -182,7 +185,7 @@ async def complete_member_review(
     clock: CurrentClock,
     body: CompleteMemberReviewBody | None = None,
 ) -> MemberReview:
-    return await service.complete_member_review(
+    return await member_review.complete_member_review(
         session,
         actor,
         user_id,
@@ -200,4 +203,4 @@ async def complete_member_review(
 async def update_member_review(
     user_id: UserId, body: UpdateMemberReviewBody, actor: AdminAuth, session: Session
 ) -> MemberReview:
-    return await service.update_member_review(session, actor, user_id, body.note, body.reason)
+    return await member_review.update_member_review(session, actor, user_id, body.note, body.reason)

@@ -13,15 +13,20 @@ from hmm.common import (
     TeamStatus,
     UserId,
 )
+from hmm.formation import invites as formation_invites
 from hmm.formation import schemas as formation_schemas
-from hmm.formation import service as formation
+from hmm.formation import teams as formation_teams
 from hmm.platform.clock import CurrentClock
 from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES, ProblemError, problem_response
 from hmm.platform.pagination import CursorParams
 from hmm.platform.schemas import ReasonBody
 from hmm.platform.security import MemberAuth
-from hmm.projects import invites, join_requests, service
+from hmm.projects import invites, join_requests, lifecycle, records
+from hmm.projects import members as projects_members
+from hmm.projects import milestones as projects_milestones
+from hmm.projects import releases as projects_releases
+from hmm.projects import updates as projects_updates
 from hmm.projects.schemas import (
     CreateMilestoneBody,
     CreateProjectBody,
@@ -58,7 +63,7 @@ async def list_projects(
     event: Annotated[EventId | None, Query()] = None,
     member_id: Annotated[UserId | None, Query(alias="member")] = None,
 ) -> ProjectListViewPage:
-    return await service.list_projects(
+    return await records.list_projects(
         session,
         actor,
         pagination,
@@ -81,7 +86,7 @@ async def create_project(
     request: Request,
     clock: CurrentClock,
 ) -> Project:
-    return await service.create_project(session, request.app.state.jobs, body, actor, clock.now())
+    return await records.create_project(session, request.app.state.jobs, body, actor, clock.now())
 
 
 @router.get(
@@ -93,7 +98,7 @@ async def list_my_projects(
     clock: CurrentClock,
     project_status: Annotated[ProjectStatus | TeamStatus | None, Query(alias="status")] = None,
 ) -> list[ProjectSummary]:
-    return await service.list_my_projects(session, actor, project_status, clock.now())
+    return await records.list_my_projects(session, actor, project_status, clock.now())
 
 
 @router.get(
@@ -102,7 +107,7 @@ async def list_my_projects(
 async def get_project(
     id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> ProjectView:
-    return await service.get_project(session, id, actor, clock.now())
+    return await records.get_project(session, id, actor, clock.now())
 
 
 @router.patch("/projects/{id}", status_code=status.HTTP_200_OK, summary="Edit project as lead")
@@ -114,7 +119,7 @@ async def update_project(
     request: Request,
     clock: CurrentClock,
 ) -> Project:
-    return await service.update_project(
+    return await lifecycle.update_project(
         session, request.app.state.jobs, id, body, actor, clock.now()
     )
 
@@ -125,7 +130,7 @@ async def update_project(
 async def start_project(
     id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Project:
-    return await service.start_project(session, id, actor, clock.now())
+    return await lifecycle.start_project(session, id, actor, clock.now())
 
 
 @router.post(
@@ -134,7 +139,7 @@ async def start_project(
 async def pause_project(
     id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Project:
-    return await service.pause_project(session, id, actor, clock.now())
+    return await lifecycle.pause_project(session, id, actor, clock.now())
 
 
 @router.post(
@@ -143,7 +148,7 @@ async def pause_project(
 async def abandon_project(
     id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Project:
-    return await service.abandon_project(session, id, actor, clock.now())
+    return await lifecycle.abandon_project(session, id, actor, clock.now())
 
 
 @router.post(
@@ -154,7 +159,7 @@ async def abandon_project(
 async def continue_project(
     id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> Project:
-    return await service.continue_project(session, id, actor, clock.now())
+    return await lifecycle.continue_project(session, id, actor, clock.now())
 
 
 @router.post(
@@ -174,7 +179,7 @@ async def create_invite(
         and project.team_status is not None
         and project.team_status not in POST_RESULT_TEAM_STATUSES
     ):
-        return await formation.create_invite(
+        return await formation_invites.create_invite(
             session, id, formation_schemas.InviteBody(user_id=body.user_id), actor, clock.now()
         )
     invite = await invites.create_invite(session, id, body, actor, clock.now())
@@ -214,7 +219,7 @@ async def remove_member(
     clock: CurrentClock,
     reason: Annotated[ReasonBody | None, Body()] = None,
 ) -> None:
-    await service.remove_project_member(
+    await projects_members.remove_project_member(
         session, request.app.state.jobs, id, user_id, reason, actor, clock.now()
     )
 
@@ -230,7 +235,9 @@ async def leave_project(
     clock: CurrentClock,
     body: formation_schemas.DeclinePlacementBody | None = None,
 ) -> None:
-    await service.leave_project(session, request.app.state.jobs, id, actor, clock.now(), body)
+    await projects_members.leave_project(
+        session, request.app.state.jobs, id, actor, clock.now(), body
+    )
 
 
 @router.post(
@@ -252,8 +259,8 @@ async def transfer_lead(
         and project.team_status is not None
         and project.team_status not in POST_RESULT_TEAM_STATUSES
     ):
-        return await formation.transfer_lead(session, id, body, actor, clock.now())
-    return await service.transfer_project_lead(
+        return await formation_teams.transfer_lead(session, id, body, actor, clock.now())
+    return await projects_members.transfer_project_lead(
         session, request.app.state.jobs, id, body.user_id, actor, clock.now()
     )
 
@@ -266,7 +273,7 @@ async def accept_invite(
     if row is not None and row.event_id is None:
         result = await invites.respond_invite(session, id, actor, clock.now(), "accepted")
     else:
-        result = await formation.accept_invite(session, id, actor, clock.now())
+        result = await formation_invites.accept_invite(session, id, actor, clock.now())
     if isinstance(result, ProblemError):
         return cast(formation_schemas.Invite, problem_response(request, result.code, result.detail))
     return result
@@ -280,7 +287,7 @@ async def decline_invite(
     if row is not None and row.event_id is None:
         result = await invites.respond_invite(session, id, actor, clock.now(), "declined")
     else:
-        result = await formation.decline_invite(session, id, actor, clock.now())
+        result = await formation_invites.decline_invite(session, id, actor, clock.now())
     if isinstance(result, ProblemError):
         return cast(formation_schemas.Invite, problem_response(request, result.code, result.detail))
     return result
@@ -294,7 +301,7 @@ async def withdraw_invite(
     if row is not None and row.event_id is None:
         result = await invites.respond_invite(session, id, actor, clock.now(), "withdrawn")
     else:
-        result = await formation.withdraw_invite(session, id, actor, clock.now())
+        result = await formation_invites.withdraw_invite(session, id, actor, clock.now())
     if isinstance(result, ProblemError):
         return problem_response(request, result.code, result.detail)
     return Response(status_code=204)
@@ -339,7 +346,7 @@ async def withdraw_join_request(
     "/projects/{id}/milestones", status_code=status.HTTP_200_OK, summary="List project milestones"
 )
 async def list_milestones(id: ProjectId, actor: MemberAuth, session: Session) -> list[Milestone]:
-    return await service.list_milestones(session, id, actor)
+    return await projects_milestones.list_milestones(session, id, actor)
 
 
 @router.post(
@@ -354,7 +361,7 @@ async def create_milestone(
     session: Session,
     clock: CurrentClock,
 ) -> Milestone:
-    return await service.create_milestone(session, id, body, actor, clock.now())
+    return await projects_milestones.create_milestone(session, id, body, actor, clock.now())
 
 
 @router.patch(
@@ -371,7 +378,7 @@ async def update_milestone(
     request: Request,
     clock: CurrentClock,
 ) -> Milestone:
-    return await service.update_milestone(
+    return await projects_milestones.update_milestone(
         session, request.app.state.jobs, id, mid, body, actor, clock.now()
     )
 
@@ -389,14 +396,16 @@ async def delete_milestone(
     request: Request,
     clock: CurrentClock,
 ) -> None:
-    await service.delete_milestone(session, request.app.state.jobs, id, mid, actor, clock.now())
+    await projects_milestones.delete_milestone(
+        session, request.app.state.jobs, id, mid, actor, clock.now()
+    )
 
 
 @router.get(
     "/projects/{id}/updates", status_code=status.HTTP_200_OK, summary="List project updates"
 )
 async def list_updates(id: ProjectId, actor: MemberAuth, session: Session) -> list[ProjectUpdate]:
-    return await service.list_updates(session, id, actor)
+    return await projects_updates.list_updates(session, id, actor)
 
 
 @router.post(
@@ -412,7 +421,7 @@ async def create_update(
     request: Request,
     clock: CurrentClock,
 ) -> ProjectUpdate:
-    return await service.create_update(
+    return await projects_updates.create_update(
         session, request.app.state.jobs, id, body, actor, clock.now()
     )
 
@@ -428,7 +437,7 @@ async def create_release(
     request: Request,
     clock: CurrentClock,
 ) -> ProjectRelease:
-    return await service.create_release(
+    return await projects_releases.create_release(
         session, request.app.state.jobs, id, body, actor, clock.now()
     )
 
@@ -437,4 +446,4 @@ async def create_release(
     "/projects/{id}/releases", status_code=status.HTTP_200_OK, summary="List project releases"
 )
 async def list_releases(id: ProjectId, actor: MemberAuth, session: Session) -> list[ProjectRelease]:
-    return await service.list_releases(session, id, actor)
+    return await projects_releases.list_releases(session, id, actor)

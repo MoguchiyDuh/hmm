@@ -93,7 +93,9 @@ async def create_release(
     actor: models.User,
     now: datetime,
 ) -> schemas.ProjectRelease:
-    from hmm.feed import service as feed
+    from hmm.feed import confirmations as feed_confirmations
+    from hmm.feed import digests as feed_digests
+    from hmm.feed import timeline as feed_timeline
     from hmm.results.windows import open_review_window, release_review_participants
 
     project = await _locked_project(session, project_id)
@@ -158,7 +160,7 @@ async def create_release(
         )
     for row in rows:
         if by_user[row.user_id].contributed and row.user_id != actor.id:
-            await feed.add_confirmation(
+            await feed_confirmations.add_confirmation(
                 session,
                 jobs,
                 fact_type=ConfirmationFactType.PROJECT_MEMBER,
@@ -178,7 +180,7 @@ async def create_release(
     project.last_progress_at = now
     await session.flush()
     await _sync_recruiting(session, project, actor.id, now)
-    await feed.record_project_shipped(session, project, release, actor.id, now)
+    await feed_timeline.record_project_shipped(session, project, release, actor.id, now)
     members = [row.user_id for row in rows if row.left_at is None and row.user_id != actor.id]
     await notify_many(
         session,
@@ -198,7 +200,7 @@ async def create_release(
         now,
         dedupe_key=f"project_released:{release.id}",
     )
-    await feed.send_contributions_digest(session, release.id, now)
+    await feed_digests.send_contributions_digest(session, release.id, now)
     last_opened = await session.scalar(
         select(func.max(models.ReviewWindow.opens_at)).where(
             models.ReviewWindow.subject_type == ReviewWindowSubjectType.PROJECT.value,

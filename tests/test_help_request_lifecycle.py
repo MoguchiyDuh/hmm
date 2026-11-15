@@ -8,7 +8,7 @@ from sqlalchemy import func, select, update
 
 from hmm import models
 from hmm.common import ErrorCode
-from hmm.mentorship.service import expire_help_requests
+from hmm.mentorship.requests import expire_help_requests
 
 URL = "/api/v1/help-requests"
 

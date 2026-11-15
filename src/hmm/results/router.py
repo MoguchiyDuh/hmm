@@ -19,7 +19,7 @@ from hmm.platform.db import Session
 from hmm.platform.errors import PROBLEM_RESPONSES
 from hmm.platform.pagination import CursorParams
 from hmm.platform.security import AdminAuth, MemberAuth
-from hmm.results import reviews, service
+from hmm.results import reviews, submissions, verification
 from hmm.results.schemas import (
     AdminReview,
     AdminReviewPage,
@@ -54,7 +54,7 @@ async def create_result(
     clock: CurrentClock,
     request: Request,
 ) -> ProjectResult:
-    return await service.submit_result(
+    return await submissions.submit_result(
         session, request.app.state.jobs, id, body, actor, clock.now(), admin=actor.is_admin
     )
 
@@ -72,7 +72,7 @@ async def update_result(
     clock: CurrentClock,
     request: Request,
 ) -> ProjectResult:
-    return await service.update_result(
+    return await submissions.update_result(
         session, request.app.state.jobs, id, body, actor, clock.now(), admin=actor.is_admin
     )
 
@@ -89,7 +89,7 @@ async def list_results_to_verify(
     clock: CurrentClock,
     place_status: Annotated[PlaceStatus | None, Query()] = None,
 ) -> ResultToVerifyPage:
-    return await service.result_verify_page(
+    return await verification.result_verify_page(
         session, pagination, actor, clock.now(), place_status=place_status
     )
 
@@ -107,7 +107,7 @@ async def verify_result(
     clock: CurrentClock,
     request: Request,
 ) -> ProjectResult:
-    return await service.verify_result(
+    return await verification.verify_result(
         session, request.app.state.jobs, id, body, actor, clock.now()
     )
 
@@ -120,7 +120,7 @@ async def verify_result(
 async def get_result(
     id: ProjectId, actor: MemberAuth, session: Session, clock: CurrentClock
 ) -> ProjectResult:
-    return await service.fetch_result(session, id, actor, clock.now(), admin=actor.is_admin)
+    return await submissions.fetch_result(session, id, actor, clock.now(), admin=actor.is_admin)
 
 
 @router.get(

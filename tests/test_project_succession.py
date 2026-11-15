@@ -6,21 +6,23 @@ from harness import Harness, assert_problem
 from sqlalchemy import func, select, update
 
 from hmm import models
-from hmm.catalog import service as catalog
+from hmm.catalog import events as catalog_events
 from hmm.common import AreaImportance, ErrorCode, EventKind, EventOrigin, EventStatus
 
 
 async def make_event(h: Harness) -> models.Event:
     async with h.db() as session:
-        return await catalog.create_event(
+        return await catalog_events.create_event(
             session,
-            catalog.EventInput(
+            catalog_events.EventInput(
                 kind=EventKind.HACKATHON,
                 title="Hack",
                 starts_at=h.now + timedelta(days=30),
                 ends_at=h.now + timedelta(days=32),
                 timezone="UTC",
-                areas=[catalog.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY)],
+                areas=[
+                    catalog_events.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY)
+                ],
             ),
             origin=EventOrigin.MANUAL,
             status=EventStatus.PUBLISHED,

@@ -6,7 +6,7 @@ from harness import Harness, assert_problem
 from sqlalchemy import func, select
 
 from hmm import models
-from hmm.catalog import service as catalog
+from hmm.catalog import changes as catalog_changes
 from hmm.common import ActorKind, ConfirmationFactType, ConfirmationSource, ErrorCode
 from hmm.feed import confirmations
 from hmm.notifications.payloads import AttendanceConfirmDigestPayload
@@ -150,7 +150,7 @@ async def test_going_closes_at_event_end_and_cancelled_events(harness: Harness) 
         response = await c.put(f"/api/v1/events/{event.id}/attendance", json={"status": "going"})
         assert response.status_code == 200, response.text
     async with h.db() as session:
-        await catalog.cancel_event(
+        await catalog_changes.cancel_event(
             session,
             h.jobs,
             event.id,

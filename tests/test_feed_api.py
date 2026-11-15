@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from hmm import models
 from hmm.common import ErrorCode, Trust
-from hmm.feed import service as feed
+from hmm.feed import timeline as feed_timeline
 from hmm.feed.schemas import FeedKind
 
 ATTENDANCE = "attendance"
@@ -379,8 +379,8 @@ async def test_feed_listing(harness: Harness) -> None:
         assert project_row is not None
         session.add(models.ProjectArea(project_id=project.id, area_id=areas["design"].id))
         await session.flush()
-        await feed.record_project_recruiting(session, project_row, lead.id, h.now)
-        assert await feed.hide_feed_subject(session, "event", hidden.id, h.now) == 1
+        await feed_timeline.record_project_recruiting(session, project_row, lead.id, h.now)
+        assert await feed_timeline.hide_feed_subject(session, "event", hidden.id, h.now) == 1
     async with await h.client(viewer) as client:
         response = await client.get("/api/v1/feed")
         assert response.status_code == 200, response.text

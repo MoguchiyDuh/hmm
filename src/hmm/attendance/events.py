@@ -13,7 +13,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from hmm import models
 from hmm.attendance import schemas
 from hmm.attendance.service import attendance_view
-from hmm.catalog import service as catalog
+from hmm.catalog import changes as catalog_changes
+from hmm.catalog import events as catalog_events
 from hmm.catalog.import_schema import Location
 from hmm.common import (
     ActorKind,
@@ -35,7 +36,7 @@ from hmm.common import (
     ValidationIssue,
 )
 from hmm.feed import confirmations, digests, timeline
-from hmm.formation import service as formation
+from hmm.formation import common as formation_common
 from hmm.notifications.payloads import NotificationChange
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
@@ -54,8 +55,8 @@ async def set_attendance(
     now: datetime,
 ) -> schemas.Attendance:
     settings = await load_settings(session)
-    event = await catalog.load_event(session, event_id, for_update=True)
-    await catalog.visible_event(session, event_id, actor)
+    event = await catalog_events.load_event(session, event_id, for_update=True)
+    await catalog_events.visible_event(session, event_id, actor)
     if body.status == AttendanceStatus.GOING and (
         event.status != "published" or now >= event.ends_at
     ):
@@ -140,8 +141,8 @@ async def delete_attendance(
     actor: models.User,
     now: datetime,
 ) -> None:
-    await catalog.load_event(session, event_id, for_update=True)
-    await catalog.visible_event(session, event_id, actor)
+    await catalog_events.load_event(session, event_id, for_update=True)
+    await catalog_events.visible_event(session, event_id, actor)
     attendance = await session.scalar(
         select(models.EventAttendance)
         .where(
@@ -172,7 +173,7 @@ async def list_attendees(
     status: AttendanceStatus | None,
     now: datetime,
 ) -> schemas.AttendancePage:
-    event = await catalog.visible_event(session, event_id, actor)
+    event = await catalog_events.visible_event(session, event_id, actor)
     if status == AttendanceStatus.CANCELLED:
         raise ProblemError(ErrorCode.VALIDATION_ERROR, "status must be going or attended")
     statuses = (
@@ -368,7 +369,7 @@ async def create_member_event(
             errors=[ValidationIssue(loc=[str(row.id)], msg=row.title) for row in candidates],
         )
     reasons = [EventReviewReason.POSSIBLE_DUPLICATE] if candidates else []
-    payload = catalog.EventInput(
+    payload = catalog_events.EventInput(
         kind=body.kind,
         title=body.title,
         starts_at=body.starts_at,
@@ -382,11 +383,11 @@ async def create_member_event(
         website_url=website_url,
         description_md=body.description_md,
         areas=[
-            catalog.EventAreaInput(key=key, importance=AreaImportance.PRIMARY)
+            catalog_events.EventAreaInput(key=key, importance=AreaImportance.PRIMARY)
             for key in body.area_keys
         ],
     )
-    event = await catalog.create_event(
+    event = await catalog_events.create_event(
         session,
         payload,
         origin=EventOrigin.MEMBER,
@@ -463,8 +464,8 @@ async def update_member_event(
     actor: models.User,
     now: datetime,
 ) -> models.Event:
-    event = await catalog.visible_event(session, event_id, actor)
-    event = await catalog.load_event(session, event_id, for_update=True)
+    event = await catalog_events.visible_event(session, event_id, actor)
+    event = await catalog_events.load_event(session, event_id, for_update=True)
     if event.origin != EventOrigin.MEMBER.value:
         raise ProblemError(ErrorCode.NOT_FOUND)
     if not actor.is_admin and event.created_by != actor.id:
@@ -483,13 +484,13 @@ async def update_member_event(
         )
     if "website_url" in raw:
         raw["website_url"] = str(body.website_url) if body.website_url is not None else None
-    resolved: list[tuple[models.Area, catalog.EventAreaInput]] = []
+    resolved: list[tuple[models.Area, catalog_events.EventAreaInput]] = []
     if body.area_keys is not None:
         inputs = [
-            catalog.EventAreaInput(key=key, importance=AreaImportance.PRIMARY)
+            catalog_events.EventAreaInput(key=key, importance=AreaImportance.PRIMARY)
             for key in body.area_keys
         ]
-        resolved = await catalog.resolve_areas(session, inputs)
+        resolved = await catalog_events.resolve_areas(session, inputs)
         raw["area_keys"] = list(body.area_keys)
     starts = raw.get("starts_at", event.starts_at)
     ends = raw.get("ends_at", event.ends_at)
@@ -564,9 +565,9 @@ async def update_member_event(
             )
             for field in notifiable
         ]
-        await catalog.notify_event_changed(session, event, changes, now)
+        await catalog_changes.notify_event_changed(session, event, changes, now)
     if {"starts_at", "ends_at"} & changed.keys():
-        await formation.dates_changed(session, event, now)
+        await formation_common.dates_changed(session, event, now)
     await session.flush()
     await session.refresh(event)
     return event
@@ -580,12 +581,12 @@ async def cancel_member_event(
     actor: models.User,
     now: datetime,
 ) -> models.Event:
-    event = await catalog.visible_event(session, event_id, actor)
+    event = await catalog_events.visible_event(session, event_id, actor)
     if event.origin != EventOrigin.MEMBER.value:
         raise ProblemError(ErrorCode.NOT_FOUND)
     if not actor.is_admin and event.created_by != actor.id:
         raise ProblemError(ErrorCode.FORBIDDEN)
-    event = await catalog.cancel_event(
+    event = await catalog_changes.cancel_event(
         session,
         jobs,
         event_id,
@@ -602,6 +603,6 @@ async def cancel_member_event(
             )
         )
     )
-    await catalog.notify_event_cancelled(session, event, attended, reason, now)
+    await catalog_changes.notify_event_cancelled(session, event, attended, reason, now)
     await timeline.hide_feed_subject(session, "event", event.id, now)
     return event

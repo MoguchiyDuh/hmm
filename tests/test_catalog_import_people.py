@@ -9,7 +9,7 @@ from harness import Harness
 from sqlalchemy import func, select
 
 from hmm import models
-from hmm.catalog import service as catalog
+from hmm.catalog import imports as catalog_imports
 from hmm.catalog.import_schema import EventImportBatch
 from hmm.common import (
     AttendanceRole,
@@ -37,7 +37,7 @@ def hackathon(**overrides: Any) -> dict[str, Any]:
 
 async def import_one(h: Harness, item: dict[str, Any]) -> dict[str, Any]:
     async with h.db() as session:
-        response = await catalog.import_events(
+        response = await catalog_imports.import_events(
             session, h.jobs, EventImportBatch(items=[item]), h.now
         )
     return response.results[0].model_dump(mode="json")

@@ -46,14 +46,14 @@ async def remove_project_member(
     actor: models.User,
     now: datetime,
 ) -> None:
-    from hmm.formation import service as formation
+    from hmm.formation import teams as formation_teams
     from hmm.recommendations import service as recommendations
 
     project = await session.get(models.Project, project_id)
     if project is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
-        await formation.kick_member(session, project_id, user_id, actor, now)
+        await formation_teams.kick_member(session, project_id, user_id, actor, now)
         return
     project = await _locked_project(session, project_id)
     if project.status in CLOSED_PROJECT_STATUSES:
@@ -117,14 +117,16 @@ async def leave_project(
     now: datetime,
     body: DeclinePlacementBody | None = None,
 ) -> None:
-    from hmm.formation import service as formation
+    from hmm.formation import teams as formation_teams
     from hmm.recommendations import service as recommendations
 
     project = await session.get(models.Project, project_id)
     if project is None:
         raise ProblemError(ErrorCode.NOT_FOUND)
     if project.team_status is not None and project.team_status not in POST_RESULT_TEAM_STATUSES:
-        await formation.leave_team(session, project_id, body or DeclinePlacementBody(), actor, now)
+        await formation_teams.leave_team(
+            session, project_id, body or DeclinePlacementBody(), actor, now
+        )
         return
     project = await _locked_project(session, project_id)
     member = await session.scalar(

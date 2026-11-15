@@ -18,7 +18,7 @@ from hmm.common import (
     SourcePersonRole,
     Trust,
 )
-from hmm.feed import service as feed
+from hmm.feed import confirmations as feed_confirmations
 
 
 async def match_person_user(session: AsyncSession, person: SourcePerson) -> models.User | None:
@@ -133,7 +133,7 @@ async def apply_attendance_fact(
         if attendance.role == AttendanceRole.ATTENDEE and role != AttendanceRole.ATTENDEE:
             attendance.role = role.value
     await session.flush()
-    await feed.add_confirmation(
+    await feed_confirmations.add_confirmation(
         session,
         jobs,
         fact_type=ConfirmationFactType.ATTENDANCE,

@@ -24,7 +24,8 @@ from hmm.common import (
     SourcePersonRole,
     TeamStatus,
 )
-from hmm.feed import service as feed
+from hmm.feed import confirmations as feed_confirmations
+from hmm.feed import timeline as feed_timeline
 from hmm.notifications.service import resolve_alerts
 from hmm.platform.audit import record_audit
 from hmm.platform.errors import ProblemError
@@ -197,7 +198,7 @@ async def apply_result_effects(
             uid = UUID(str(key))
             if value is not True or uid not in members:
                 continue
-            await feed.add_confirmation(
+            await feed_confirmations.add_confirmation(
                 session,
                 jobs,
                 fact_type=ConfirmationFactType.PROJECT_MEMBER,
@@ -208,7 +209,7 @@ async def apply_result_effects(
                 now=now,
             )
             await ensure_attended(session, jobs, event_id=event.id, user_id=uid, now=now)
-        await feed.record_project_shipped(session, project, release, actor_id, now)
+        await feed_timeline.record_project_shipped(session, project, release, actor_id, now)
         window_exists = await session.scalar(
             select(
                 exists().where(
@@ -410,7 +411,7 @@ async def remove_result_confirmations(
     if member is not None and await _delete_system_confirmations(
         session, ConfirmationFactType.PROJECT_MEMBER, member.id
     ):
-        await feed.recompute_fact_trust(
+        await feed_confirmations.recompute_fact_trust(
             session,
             jobs,
             fact_type=ConfirmationFactType.PROJECT_MEMBER,
@@ -427,7 +428,7 @@ async def remove_result_confirmations(
     if attendance is not None and await _delete_system_confirmations(
         session, ConfirmationFactType.ATTENDANCE, attendance.id
     ):
-        await feed.recompute_fact_trust(
+        await feed_confirmations.recompute_fact_trust(
             session,
             jobs,
             fact_type=ConfirmationFactType.ATTENDANCE,

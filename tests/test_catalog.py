@@ -11,8 +11,9 @@ from sqlalchemy import select, update
 
 from hmm import models
 from hmm.algo.models import EventArea
+from hmm.catalog import changes as catalog_changes
+from hmm.catalog import events as catalog_events
 from hmm.catalog import jobs as catalog_jobs
-from hmm.catalog import service as catalog
 from hmm.common import (
     ActorKind,
     AreaImportance,
@@ -40,14 +41,14 @@ from hmm.common import (
     TeamStatus,
     Trust,
 )
-from hmm.formation import service as formation
+from hmm.formation import common as formation_common
 from hmm.notifications.payloads import AlertKind, NotificationChange, NotificationType
 from hmm.platform.errors import ProblemError
 from hmm.platform.jobs import JOBS, REGISTRY, JobName
 
 
-def event_input(h: Harness) -> catalog.EventInput:
-    return catalog.EventInput(
+def event_input(h: Harness) -> catalog_events.EventInput:
+    return catalog_events.EventInput(
         kind=EventKind.HACKATHON,
         title="Py Days 2027!",
         starts_at=h.now + timedelta(days=30),
@@ -59,7 +60,7 @@ def event_input(h: Harness) -> catalog.EventInput:
 async def test_create_published_event(harness: Harness) -> None:
     h = harness
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -69,7 +70,7 @@ async def test_create_published_event(harness: Harness) -> None:
         )
         event_id = event.id
     async with h.db() as session:
-        stored = await catalog.load_event(session, event_id)
+        stored = await catalog_events.load_event(session, event_id)
         assert stored.origin == "manual"
         assert stored.status == "published"
         assert stored.slug == "py-days-2027"
@@ -84,7 +85,7 @@ async def test_create_published_event(harness: Harness) -> None:
 async def test_short_notice_formation(harness: Harness) -> None:
     h = harness
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(event_input(h), starts_at=h.now + timedelta(days=2)),
             origin=EventOrigin.MANUAL,
@@ -106,7 +107,7 @@ async def test_default_formation_disabled(
 ) -> None:
     h = harness
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(event_input(h), kind=kind, team_size_max=team_size_max),
             origin=EventOrigin.MANUAL,
@@ -115,7 +116,7 @@ async def test_default_formation_disabled(
             now=h.now,
         )
         assert event.formation_enabled is False
-        assert await formation.ensure_formation(session, event, h.now) is None
+        assert await formation_common.ensure_formation(session, event, h.now) is None
         assert await session.get(models.EventFormation, event.id) is None
 
 
@@ -123,7 +124,7 @@ async def test_explicit_formation_rejects_single_member_teams(harness: Harness) 
     h = harness
     with pytest.raises(ProblemError) as error:
         async with h.db() as session:
-            await catalog.create_event(
+            await catalog_events.create_event(
                 session,
                 replace(event_input(h), team_size_max=1, formation_enabled=True),
                 origin=EventOrigin.MANUAL,
@@ -137,7 +138,7 @@ async def test_explicit_formation_rejects_single_member_teams(harness: Harness) 
 async def test_event_slugs(harness: Harness) -> None:
     h = harness
     async with h.db() as session:
-        first = await catalog.create_event(
+        first = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -145,7 +146,7 @@ async def test_event_slugs(harness: Harness) -> None:
             created_by=None,
             now=h.now,
         )
-        second = await catalog.create_event(
+        second = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -157,7 +158,7 @@ async def test_event_slugs(harness: Harness) -> None:
         assert second.slug == "py-days-2027-2"
     with pytest.raises(ProblemError) as error:
         async with h.db() as session:
-            await catalog.create_event(
+            await catalog_events.create_event(
                 session,
                 replace(event_input(h), slug=first.slug),
                 origin=EventOrigin.MANUAL,
@@ -175,8 +176,10 @@ async def test_event_areas(harness: Harness) -> None:
         archived = await session.get(models.Area, areas["archived"].id)
         assert archived is not None
         archived.archived_at = h.now
-    backend = catalog.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY, headcount=2)
-    design = catalog.EventAreaInput(key="design", importance=AreaImportance.NICE)
+    backend = catalog_events.EventAreaInput(
+        key="backend", importance=AreaImportance.PRIMARY, headcount=2
+    )
+    design = catalog_events.EventAreaInput(key="design", importance=AreaImportance.NICE)
     for inputs, detail in (
         ((replace(backend, key="archived"),), "Unknown area: archived"),
         ((replace(backend, key="unknown"),), "Unknown area: unknown"),
@@ -184,7 +187,7 @@ async def test_event_areas(harness: Harness) -> None:
     ):
         with pytest.raises(ProblemError) as error:
             async with h.db() as session:
-                await catalog.create_event(
+                await catalog_events.create_event(
                     session,
                     replace(event_input(h), areas=inputs),
                     origin=EventOrigin.MANUAL,
@@ -195,7 +198,7 @@ async def test_event_areas(harness: Harness) -> None:
         assert error.value.code == ErrorCode.VALIDATION_ERROR
         assert error.value.detail == detail
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(event_input(h), areas=(design, backend)),
             origin=EventOrigin.MANUAL,
@@ -215,7 +218,7 @@ async def test_event_areas(harness: Harness) -> None:
 async def test_event_phase_boundaries(harness: Harness) -> None:
     h = harness
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(
                 event_input(h),
@@ -236,20 +239,21 @@ async def test_event_phase_boundaries(harness: Harness) -> None:
             (30, EventPhase.ONGOING),
             (32, EventPhase.ENDED),
         ):
-            assert catalog.event_phase(event, h.now + timedelta(days=days)) == expected
+            assert catalog_events.event_phase(event, h.now + timedelta(days=days)) == expected
         event.registration_deadline = None
         assert (
-            catalog.event_phase(event, h.now + timedelta(days=29)) == EventPhase.REGISTRATION_OPEN
+            catalog_events.event_phase(event, h.now + timedelta(days=29))
+            == EventPhase.REGISTRATION_OPEN
         )
-        assert catalog.event_phase(event, event.starts_at) == EventPhase.ONGOING
+        assert catalog_events.event_phase(event, event.starts_at) == EventPhase.ONGOING
         event.registration_opens_at = None
-        assert catalog.event_phase(event, h.now) == EventPhase.REGISTRATION_OPEN
+        assert catalog_events.event_phase(event, h.now) == EventPhase.REGISTRATION_OPEN
 
 
 async def test_draft_formation_created_later(harness: Harness) -> None:
     h = harness
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -259,13 +263,15 @@ async def test_draft_formation_created_later(harness: Harness) -> None:
         )
         assert event.formation_enabled is True
         assert await session.get(models.EventFormation, event.id) is None
-        schedule = await formation.ensure_formation(session, event, h.now)
+        schedule = await formation_common.ensure_formation(session, event, h.now)
         assert schedule is not None
         assert schedule.phase == "open"
         original = schedule.formation_at
         event.starts_at += timedelta(days=5)
         event.ends_at += timedelta(days=5)
-        existing = await formation.ensure_formation(session, event, h.now + timedelta(days=1))
+        existing = await formation_common.ensure_formation(
+            session, event, h.now + timedelta(days=1)
+        )
         assert existing is schedule
         assert existing.formation_at == original
 
@@ -280,7 +286,7 @@ async def test_event_snapshot(harness: Harness) -> None:
         assert backend is not None and data is not None
         backend.sort = 10
         data.sort = 0
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(
                 event_input(h),
@@ -292,11 +298,11 @@ async def test_event_snapshot(harness: Harness) -> None:
                 team_size_max=4,
                 difficulty=Decimal("6.25"),
                 areas=(
-                    catalog.EventAreaInput(key="design", importance=AreaImportance.NICE),
-                    catalog.EventAreaInput(
+                    catalog_events.EventAreaInput(key="design", importance=AreaImportance.NICE),
+                    catalog_events.EventAreaInput(
                         key="backend", importance=AreaImportance.PRIMARY, headcount=2
                     ),
-                    catalog.EventAreaInput(key="data", importance=AreaImportance.REQUIRED),
+                    catalog_events.EventAreaInput(key="data", importance=AreaImportance.REQUIRED),
                 ),
             ),
             origin=EventOrigin.MANUAL,
@@ -304,7 +310,7 @@ async def test_event_snapshot(harness: Harness) -> None:
             created_by=creator.id,
             now=h.now,
         )
-        snapshot = await catalog.event_snapshot(session, event.id)
+        snapshot = await catalog_events.event_snapshot(session, event.id)
         assert snapshot.id == event.id
         assert snapshot.title == event.title
         assert snapshot.timezone == event.timezone
@@ -328,12 +334,12 @@ async def test_event_snapshot(harness: Harness) -> None:
         assert snapshot.format is EventFormat.ONLINE
         event.format = None
         event.difficulty = None
-        snapshot = await catalog.event_snapshot(session, event.id)
+        snapshot = await catalog_events.event_snapshot(session, event.id)
         assert snapshot.format is None
         assert snapshot.difficulty is None
     with pytest.raises(ProblemError) as error:
         async with h.db() as session:
-            await catalog.event_snapshot(session, uuid4())
+            await catalog_events.event_snapshot(session, uuid4())
     assert error.value.code == ErrorCode.NOT_FOUND
 
 
@@ -477,7 +483,7 @@ async def test_member_event_detail_actions(harness: Harness) -> None:
     creator = await h.admin()
     member = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -517,7 +523,7 @@ async def test_event_detail_hidden_statuses(harness: Harness, status: EventStatu
     member = await h.user()
     admin = await h.admin()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -537,7 +543,7 @@ async def test_cancelled_event_detail_requires_involvement(harness: Harness) -> 
     h = harness
     member = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -571,7 +577,7 @@ async def test_event_detail_attendance(harness: Harness) -> None:
     first = await h.user()
     second = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -621,7 +627,7 @@ async def test_event_detail_formation_block(harness: Harness, kind: EventKind) -
     h = harness
     member = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(event_input(h), kind=kind),
             origin=EventOrigin.MANUAL,
@@ -650,7 +656,7 @@ async def test_event_detail_formation_block(harness: Harness, kind: EventKind) -
 
 
 @pytest.fixture
-async def catalog_events(harness: Harness) -> dict[str, models.Event]:
+async def listed_events(harness: Harness) -> dict[str, models.Event]:
     h = harness
     await h.seed_areas(("backend",))
     payloads = {
@@ -660,7 +666,9 @@ async def catalog_events(harness: Harness) -> dict[str, models.Event]:
             starts_at=h.now + timedelta(days=10),
             ends_at=h.now + timedelta(days=12),
             format=EventFormat.ONLINE,
-            areas=(catalog.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY),),
+            areas=(
+                catalog_events.EventAreaInput(key="backend", importance=AreaImportance.PRIMARY),
+            ),
         ),
         "conference": replace(
             event_input(h),
@@ -686,7 +694,7 @@ async def catalog_events(harness: Harness) -> dict[str, models.Event]:
     events: dict[str, models.Event] = {}
     async with h.db() as session:
         for key, payload in payloads.items():
-            events[key] = await catalog.create_event(
+            events[key] = await catalog_events.create_event(
                 session,
                 payload,
                 origin={"conference": EventOrigin.MEMBER, "contest": EventOrigin.IMPORT}.get(
@@ -708,7 +716,7 @@ async def catalog_events(harness: Harness) -> dict[str, models.Event]:
 
 @pytest.mark.parametrize("admin", [False, True])
 async def test_catalog_list_visibility_and_summaries(
-    harness: Harness, catalog_events: dict[str, models.Event], admin: bool
+    harness: Harness, listed_events: dict[str, models.Event], admin: bool
 ) -> None:
     h = harness
     actor = await h.user(admin=admin)
@@ -718,7 +726,7 @@ async def test_catalog_list_visibility_and_summaries(
     body = response.json()
     assert body["next_cursor"] is None
     assert [item["id"] for item in body["items"]] == [
-        str(catalog_events[key].id) for key in ("contest", "conference", "hackathon")
+        str(listed_events[key].id) for key in ("contest", "conference", "hackathon")
     ]
     for item in body["items"]:
         assert item["status"] == "published"
@@ -738,7 +746,7 @@ async def test_catalog_list_visibility_and_summaries(
 
 
 async def test_catalog_list_involved_cancelled_event(
-    harness: Harness, catalog_events: dict[str, models.Event]
+    harness: Harness, listed_events: dict[str, models.Event]
 ) -> None:
     h = harness
     actor = await h.user()
@@ -746,7 +754,7 @@ async def test_catalog_list_involved_cancelled_event(
         for key in ("cancelled", "archived", "draft"):
             session.add(
                 models.EventAttendance(
-                    event_id=catalog_events[key].id,
+                    event_id=listed_events[key].id,
                     user_id=actor.id,
                     status=AttendanceStatus.GOING,
                     role=AttendanceRole.ATTENDEE,
@@ -760,9 +768,9 @@ async def test_catalog_list_involved_cancelled_event(
     assert response.status_code == 200, response.text
     items = {item["id"]: item for item in response.json()["items"]}
     assert set(items) == {
-        str(catalog_events[key].id) for key in ("contest", "conference", "hackathon", "cancelled")
+        str(listed_events[key].id) for key in ("contest", "conference", "hackathon", "cancelled")
     }
-    cancelled = items[str(catalog_events["cancelled"].id)]
+    cancelled = items[str(listed_events["cancelled"].id)]
     assert cancelled["status"] == "cancelled"
     assert cancelled["attendance_counts"] == {"going": 1, "attended": 0}
     assert cancelled["my_attendance"]["status"] == "going"
@@ -770,7 +778,7 @@ async def test_catalog_list_involved_cancelled_event(
 
 
 async def test_catalog_list_filters(
-    harness: Harness, catalog_events: dict[str, models.Event]
+    harness: Harness, listed_events: dict[str, models.Event]
 ) -> None:
     h = harness
     actor = await h.user()
@@ -795,7 +803,7 @@ async def test_catalog_list_filters(
             response = await client.get("/api/v1/events", params=query)
             assert response.status_code == 200, response.text
             assert [item["id"] for item in response.json()["items"]] == [
-                str(catalog_events[expected].id)
+                str(listed_events[expected].id)
             ], query
         for query in (
             {"participation_phase": "forming"},
@@ -815,19 +823,19 @@ async def test_catalog_list_filters(
         response = await client.get("/api/v1/events", params={"area": "backend"})
         assert response.status_code == 200, response.text
         assert [item["id"] for item in response.json()["items"]] == [
-            str(catalog_events["hackathon"].id)
+            str(listed_events["hackathon"].id)
         ]
         h.advance(timedelta(days=10))
         response = await client.get("/api/v1/events", params={"phase": "ongoing"})
         assert response.status_code == 200, response.text
         assert [item["id"] for item in response.json()["items"]] == [
-            str(catalog_events["hackathon"].id)
+            str(listed_events["hackathon"].id)
         ]
         h.advance(timedelta(days=2))
         response = await client.get("/api/v1/events", params={"phase": "ended"})
         assert response.status_code == 200, response.text
         assert [item["id"] for item in response.json()["items"]] == [
-            str(catalog_events["hackathon"].id)
+            str(listed_events["hackathon"].id)
         ]
 
 
@@ -835,7 +843,7 @@ async def test_catalog_list_date_overlap(harness: Harness) -> None:
     h = harness
     actor = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(
                 event_input(h),
@@ -872,13 +880,13 @@ async def test_catalog_list_date_overlap(harness: Harness) -> None:
 @pytest.mark.parametrize("attendance_status", [AttendanceStatus.GOING, AttendanceStatus.ATTENDED])
 async def test_catalog_list_mine(
     harness: Harness,
-    catalog_events: dict[str, models.Event],
+    listed_events: dict[str, models.Event],
     attendance_status: AttendanceStatus,
 ) -> None:
     h = harness
     actor = await h.user()
     async with h.db() as session:
-        unrelated = await catalog.create_event(
+        unrelated = await catalog_events.create_event(
             session,
             replace(event_input(h), title="Unrelated event"),
             origin=EventOrigin.MANUAL,
@@ -888,7 +896,7 @@ async def test_catalog_list_mine(
         )
         session.add(
             models.EventAttendance(
-                event_id=catalog_events["hackathon"].id,
+                event_id=listed_events["hackathon"].id,
                 user_id=actor.id,
                 status=attendance_status,
                 role=AttendanceRole.ATTENDEE,
@@ -899,7 +907,7 @@ async def test_catalog_list_mine(
         )
         session.add(
             models.Enrollment(
-                event_id=catalog_events["contest"].id,
+                event_id=listed_events["contest"].id,
                 user_id=actor.id,
                 status=EnrollmentStatus.ACTIVE,
                 source=EnrollmentSource.SELF,
@@ -907,7 +915,7 @@ async def test_catalog_list_mine(
             )
         )
         project = models.Project(
-            event_id=catalog_events["conference"].id,
+            event_id=listed_events["conference"].id,
             name="Event team",
             description_md="Team description",
             goal="Build",
@@ -921,7 +929,7 @@ async def test_catalog_list_mine(
         await session.flush()
         membership = models.ProjectMember(
             project_id=project.id,
-            event_id=catalog_events["conference"].id,
+            event_id=listed_events["conference"].id,
             user_id=actor.id,
             role=MemberRole.MEMBER,
             state=MemberState.CONFIRMED,
@@ -933,7 +941,7 @@ async def test_catalog_list_mine(
         session.add(membership)
         await session.flush()
         membership_id = membership.id
-    expected = {str(catalog_events[key].id) for key in ("hackathon", "contest", "conference")}
+    expected = {str(listed_events[key].id) for key in ("hackathon", "contest", "conference")}
     async with await h.client(actor) as client:
         response = await client.get("/api/v1/events", params={"mine": "true"})
         assert response.status_code == 200, response.text
@@ -951,7 +959,7 @@ async def test_catalog_list_mine(
         response = await client.get("/api/v1/events", params={"mine": "true"})
         assert response.status_code == 200, response.text
         assert {item["id"] for item in response.json()["items"]} == expected - {
-            str(catalog_events["conference"].id)
+            str(listed_events["conference"].id)
         }
 
 
@@ -963,7 +971,7 @@ async def test_catalog_list_cursor(harness: Harness, tied_dates: bool) -> None:
     async with h.db() as session:
         for index in range(3):
             events.append(
-                await catalog.create_event(
+                await catalog_events.create_event(
                     session,
                     replace(
                         event_input(h),
@@ -1052,7 +1060,7 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
     member = await h.user()
     historical = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -1106,7 +1114,7 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
         ]
         session.add_all(invites)
         await session.flush()
-        assert await catalog.event_recipients(session, event.id) == sorted(
+        assert await catalog_changes.event_recipients(session, event.id) == sorted(
             [attendee.id, enrolled.id, member.id], key=str
         )
     async with await h.client(admin) as client:
@@ -1179,7 +1187,7 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
             assert audits[0].reason == "Organizer postponed"
             assert audits[0].before == {"status": "published"}
             assert audits[0].after == {"status": "cancelled"}
-            updated_at = (await catalog.load_event(session, event.id)).updated_at
+            updated_at = (await catalog_events.load_event(session, event.id)).updated_at
             notification_ids = {row.id for row in notifications}
             alert_ids = {row.id for row in alerts}
             audit_ids = {row.id for row in audits}
@@ -1193,14 +1201,14 @@ async def test_admin_cancel_event_cascade_and_idempotency(harness: Harness) -> N
             assert set(await session.scalars(select(models.Notification.id))) == notification_ids
             assert set(await session.scalars(select(models.AdminAlert.id))) == alert_ids
             assert set(await session.scalars(select(models.AuditLog.id))) == audit_ids
-            assert (await catalog.load_event(session, event.id)).updated_at == updated_at
+            assert (await catalog_events.load_event(session, event.id)).updated_at == updated_at
 
 
 async def test_cancel_event_without_teams_has_no_alert(harness: Harness) -> None:
     h = harness
     admin = await h.admin()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -1223,7 +1231,7 @@ async def test_cancel_event_errors(harness: Harness) -> None:
     admin = await h.admin()
     member = await h.user()
     async with h.db() as session:
-        archived = await catalog.create_event(
+        archived = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -1231,7 +1239,7 @@ async def test_cancel_event_errors(harness: Harness) -> None:
             created_by=None,
             now=h.now,
         )
-        published = await catalog.create_event(
+        published = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -1266,8 +1274,12 @@ async def test_cancel_event_errors(harness: Harness) -> None:
             ErrorCode.FORBIDDEN,
         )
     async with h.db() as session:
-        assert (await catalog.load_event(session, archived.id)).status == EventStatus.ARCHIVED
-        assert (await catalog.load_event(session, published.id)).status == EventStatus.PUBLISHED
+        assert (
+            await catalog_events.load_event(session, archived.id)
+        ).status == EventStatus.ARCHIVED
+        assert (
+            await catalog_events.load_event(session, published.id)
+        ).status == EventStatus.PUBLISHED
         assert list(await session.scalars(select(models.AuditLog))) == []
 
 
@@ -1284,7 +1296,7 @@ async def test_archive_old_events(harness: Harness) -> None:
             ("boundary", EventStatus.PUBLISHED, 180),
             ("archived", EventStatus.ARCHIVED, 200),
         ):
-            events[key] = await catalog.create_event(
+            events[key] = await catalog_events.create_event(
                 session,
                 replace(
                     event_input(h),
@@ -1308,12 +1320,12 @@ async def test_archive_old_events(harness: Harness) -> None:
     await catalog_jobs.archive_old_events(h.runtime)
     async with h.db() as session:
         for key, event in events.items():
-            stored = await catalog.load_event(session, event.id)
+            stored = await catalog_events.load_event(session, event.id)
             expected = (
                 EventStatus.PUBLISHED if key in ("recent", "boundary") else EventStatus.ARCHIVED
             )
             assert stored.status == expected
-        archived = await catalog.load_event(session, events["archived"].id)
+        archived = await catalog_events.load_event(session, events["archived"].id)
         assert archived.updated_at == h.now - timedelta(days=10)
         first = {
             row.id: (row.status, row.updated_at)
@@ -1330,14 +1342,14 @@ async def test_archive_old_events(harness: Harness) -> None:
     await catalog_jobs.archive_old_events(h.runtime)
     async with h.db() as session:
         assert (
-            await catalog.load_event(session, events["recent"].id)
+            await catalog_events.load_event(session, events["recent"].id)
         ).status == EventStatus.ARCHIVED
         assert (
-            await catalog.load_event(session, events["boundary"].id)
+            await catalog_events.load_event(session, events["boundary"].id)
         ).status == EventStatus.ARCHIVED
-        assert (await catalog.load_event(session, events["archived"].id)).updated_at == first[
-            events["archived"].id
-        ][1]
+        assert (
+            await catalog_events.load_event(session, events["archived"].id)
+        ).updated_at == first[events["archived"].id][1]
 
 
 async def test_notify_event_changed(harness: Harness) -> None:
@@ -1345,7 +1357,7 @@ async def test_notify_event_changed(harness: Harness) -> None:
     attendee = await h.user()
     member = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -1353,7 +1365,7 @@ async def test_notify_event_changed(harness: Harness) -> None:
             created_by=None,
             now=h.now,
         )
-        empty = await catalog.create_event(
+        empty = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -1381,10 +1393,10 @@ async def test_notify_event_changed(harness: Harness) -> None:
         )
     ]
     async with h.db() as session:
-        await catalog.notify_event_changed(session, event, changes, h.now)
-        await catalog.notify_event_changed(session, event, changes, h.now)
-        await catalog.notify_event_changed(session, event, [], h.now)
-        await catalog.notify_event_changed(session, empty, changes, h.now)
+        await catalog_changes.notify_event_changed(session, event, changes, h.now)
+        await catalog_changes.notify_event_changed(session, event, changes, h.now)
+        await catalog_changes.notify_event_changed(session, event, [], h.now)
+        await catalog_changes.notify_event_changed(session, empty, changes, h.now)
     async with h.db() as session:
         notifications = list(await session.scalars(select(models.Notification)))
         assert len(notifications) == 2
@@ -1403,14 +1415,14 @@ async def editable_event(harness: Harness) -> models.Event:
     h = harness
     await h.seed_areas(("backend", "design"))
     async with h.db() as session:
-        return await catalog.create_event(
+        return await catalog_events.create_event(
             session,
             replace(
                 event_input(h),
                 team_size_min=2,
                 team_size_max=5,
                 areas=(
-                    catalog.EventAreaInput(
+                    catalog_events.EventAreaInput(
                         key="backend", importance=AreaImportance.PRIMARY, headcount=2
                     ),
                 ),
@@ -1537,7 +1549,7 @@ async def test_admin_patch_areas(harness: Harness, editable_event: models.Event)
         assert response.status_code == 200, response.text
         async with h.db() as session:
             assert list(await session.scalars(select(models.EventRevision.id))) == [revision_id]
-            assert (await catalog.load_event(session, event.id)).summary is None
+            assert (await catalog_events.load_event(session, event.id)).summary is None
             assert [
                 lock.field for lock in await session.scalars(select(models.EventFieldLock))
             ] == ["areas"]
@@ -1657,7 +1669,7 @@ async def test_patch_event_idempotency(harness: Harness, editable_event: models.
         assert list(await session.scalars(select(models.EventFieldLock))) == []
         assert list(await session.scalars(select(models.AuditLog))) == []
         assert list(await session.scalars(select(models.Notification))) == []
-        assert (await catalog.load_event(session, event.id)).updated_at == event.updated_at
+        assert (await catalog_events.load_event(session, event.id)).updated_at == event.updated_at
 
 
 @pytest.mark.parametrize("blocker", ["enrollment", "team", "single_member"])
@@ -1666,7 +1678,7 @@ async def test_patch_event_formation_guards(harness: Harness, blocker: str) -> N
     admin = await h.admin()
     member = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(
                 event_input(h),
@@ -1699,7 +1711,7 @@ async def test_patch_event_formation_guards(harness: Harness, blocker: str) -> N
             ErrorCode.INVALID_STATE,
         )
     async with h.db() as session:
-        assert (await catalog.load_event(session, event.id)).formation_enabled is False
+        assert (await catalog_events.load_event(session, event.id)).formation_enabled is False
         assert list(await session.scalars(select(models.EventFieldLock))) == []
         assert list(await session.scalars(select(models.EventRevision))) == []
 
@@ -1708,7 +1720,7 @@ async def test_patch_event_enable_and_disable_formation(harness: Harness) -> Non
     h = harness
     admin = await h.admin()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(event_input(h), formation_enabled=False),
             origin=EventOrigin.MANUAL,
@@ -1747,7 +1759,7 @@ async def test_patch_event_terminal_rows_allow_formation(
     admin = await h.admin()
     member = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             replace(event_input(h), formation_enabled=False),
             origin=EventOrigin.MANUAL,
@@ -1800,7 +1812,9 @@ async def test_patch_event_notifications_and_date_hook(
         )
     await catalog_team(h, event, member, TeamStatus.FORMED)
     new_start = event.starts_at + timedelta(days=1)
-    with patch.object(formation, "dates_changed", wraps=formation.dates_changed) as hook:
+    with patch.object(
+        formation_common, "dates_changed", wraps=formation_common.dates_changed
+    ) as hook:
         async with await h.client(admin) as client:
             response = await client.patch(
                 f"/api/v1/admin/events/{event.id}", json={"starts_at": new_start.isoformat()}
@@ -1901,7 +1915,7 @@ async def test_patch_event_normalization(harness: Harness, editable_event: model
     admin = await h.admin()
     event = editable_event
     async with h.db() as session:
-        other = await catalog.create_event(
+        other = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -1935,7 +1949,7 @@ async def test_patch_event_normalization(harness: Harness, editable_event: model
             ErrorCode.VALIDATION_ERROR,
         )
     async with h.db() as session:
-        stored = await catalog.load_event(session, event.id)
+        stored = await catalog_events.load_event(session, event.id)
         assert stored.location == {"city": "Berlin"}
         assert stored.prize == {"amount": 1000.0, "currency": "EUR"}
         assert stored.website_url == payload["website_url"]
@@ -1955,7 +1969,7 @@ async def test_patch_event_access_and_archived_edit(harness: Harness) -> None:
     admin = await h.admin()
     member = await h.user()
     async with h.db() as session:
-        event = await catalog.create_event(
+        event = await catalog_events.create_event(
             session,
             event_input(h),
             origin=EventOrigin.MANUAL,
@@ -2047,7 +2061,7 @@ async def listing_project(
 
 async def published_event(h: Harness, **fields: object) -> models.Event:
     async with h.db() as session:
-        return await catalog.create_event(
+        return await catalog_events.create_event(
             session,
             replace(event_input(h), **fields),
             origin=EventOrigin.MANUAL,
